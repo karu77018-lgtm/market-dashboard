@@ -23,10 +23,20 @@ jobs:
           tar -xJf bootstrap/recovery-assets.tar.xz
           python - <<'PY'
           from pathlib import Path
-          import sys
-          sys.path.insert(0, str(Path('.').resolve()))
-          from scripts.build_exact_source_mc57_clone import reconstruct_source
-          reconstruct_source(Path('sources/build_dashboard_4'), Path('/tmp/build_dashboard_4.py'))
+          import base64, hashlib, lzma
+
+          source_dir = Path('sources/build_dashboard_4')
+          parts = sorted(source_dir.glob('build_dashboard_4.py.lzma.b85.part*'))
+          if not parts:
+              raise SystemExit('source parts missing')
+          encoded = ''.join(p.read_text(encoding='ascii').strip() for p in parts)
+          raw = lzma.decompress(base64.b85decode(encoded.encode('ascii')))
+          digest = hashlib.sha256(raw).hexdigest()
+          expected = 'ee306726ee4b629f92c5d2d6687c06869702030f60922c93f44ead713bc8bb80'
+          if digest != expected:
+              raise SystemExit(f'SHA mismatch {digest}')
+          Path('/tmp/build_dashboard_4.py').write_bytes(raw)
+          print('decoded', len(raw), 'bytes')
           PY
 
       - name: Produce focused diagnostic report
@@ -68,9 +78,9 @@ jobs:
                       out.append(f'\n--- needle={needle!r} pos={m.start()} ---\n')
                       out.append(text[start:end])
                       out.append('\n')
-                      if len(seen) >= 30:
+                      if len(seen) >= 40:
                           break
-                  if len(seen) >= 30:
+                  if len(seen) >= 40:
                       break
 
           Path('diagnostics').mkdir(exist_ok=True)
