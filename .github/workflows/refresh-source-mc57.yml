@@ -28,8 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 330
     env:
-      FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
-      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.POLYGON_API_KEY }}
+      FRED_API_KEY: ${{ secrets.FRED_API_KEY || secrets.FRED_API || secrets.FRED_KEY || secrets.FRED }}
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,11 +49,13 @@ jobs:
           "numpy<3" "pandas<3" "yfinance==0.2.66"
           requests beautifulsoup4 lxml pytest
 
-      - name: Verify provider secrets
+      - name: Verify FRED secret
         shell: bash
-        run: |
-          test -n "$FRED_API_KEY" || { echo "FRED_API_KEY is missing"; exit 1; }
-          test -n "$MASSIVE_API_KEY" || { echo "MASSIVE_API_KEY (or POLYGON_API_KEY) is missing"; exit 1; }
+        run: test -n "$FRED_API_KEY"
+
+      - name: Verify Massive secret
+        shell: bash
+        run: test -n "$MASSIVE_API_KEY"
 
       - name: Run deterministic provider tests
         run: python -m pytest
