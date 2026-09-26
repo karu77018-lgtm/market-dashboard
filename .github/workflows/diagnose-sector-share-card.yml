@@ -24,67 +24,65 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import base64, hashlib, lzma
-
-          source_dir = Path('sources/build_dashboard_4')
-          parts = sorted(source_dir.glob('build_dashboard_4.py.lzma.b85.part*'))
-          if not parts:
-              raise SystemExit('source parts missing')
+          parts = sorted(Path('sources/build_dashboard_4').glob('build_dashboard_4.py.lzma.b85.part*'))
           encoded = ''.join(p.read_text(encoding='ascii').strip() for p in parts)
           raw = lzma.decompress(base64.b85decode(encoded.encode('ascii')))
-          digest = hashlib.sha256(raw).hexdigest()
           expected = 'ee306726ee4b629f92c5d2d6687c06869702030f60922c93f44ead713bc8bb80'
+          digest = hashlib.sha256(raw).hexdigest()
           if digest != expected:
               raise SystemExit(f'SHA mismatch {digest}')
           Path('/tmp/build_dashboard_4.py').write_bytes(raw)
-          print('decoded', len(raw), 'bytes')
           PY
 
-      - name: Produce focused diagnostic report
+      - name: Produce compact diagnostic report
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           import re
 
-          targets = [
-              ('RECOVERED_SOURCE', Path('/tmp/build_dashboard_4.py')),
-              ('PUBLISHED_HTML', Path('source-mc57.html')),
-          ]
-          needles = [
-              'SNS共有用カード',
-              'セクター・ローテーション',
-              'Sector Rotation',
-              '大分類',
-              '順位フロー',
-              'Rank Flow',
-              'share',
-              'rotation',
-          ]
-
-          out = []
-          for label, path in targets:
-              text = path.read_text(encoding='utf-8', errors='replace')
-              out.append(f'===== {label}: {path} =====\n')
-              out.append(f'length={len(text)} chars lines={text.count(chr(10))+1}\n')
-              seen = set()
-              for needle in needles:
-                  for m in re.finditer(re.escape(needle), text, flags=re.I):
-                      start = max(0, m.start()-5000)
-                      end = min(len(text), m.end()+8000)
-                      key = (start//1000, end//1000)
-                      if key in seen:
-                          continue
-                      seen.add(key)
-                      out.append(f'\n--- needle={needle!r} pos={m.start()} ---\n')
-                      out.append(text[start:end])
-                      out.append('\n')
-                      if len(seen) >= 40:
-                          break
-                  if len(seen) >= 40:
-                      break
-
           Path('diagnostics').mkdir(exist_ok=True)
-          Path('diagnostics/sector-share-card.txt').write_text(''.join(out), encoding='utf-8')
+
+          src = Path('/tmp/build_dashboard_4.py').read_text(encoding='utf-8', errors='replace')
+          lines = src.splitlines()
+          pats = [
+              r'SNS', r'共有', r'share', r'rotation', r'sector', r'major',
+              r'順位フロー', r'大分類', r'小分類', r'sub.?theme', r'money.?flow',
+              r'rank.?flow'
+          ]
+          rx = re.compile('|'.join(pats), re.I)
+          hits = [i for i,line in enumerate(lines) if rx.search(line)]
+          selected = set()
+          for i in hits:
+              selected.update(range(max(0,i-8), min(len(lines), i+9)))
+          out = []
+          last = None
+          for i in sorted(selected):
+              if last is not None and i > last + 1:
+                  out.append('...\n')
+              line = lines[i]
+              if len(line) > 1200:
+                  line = line[:1200] + ' ...<TRUNCATED>'
+              out.append(f'{i+1:06d}: {line}\n')
+              last = i
+          Path('diagnostics/source_hits.txt').write_text(''.join(out), encoding='utf-8')
+
+          html = Path('source-mc57.html').read_text(encoding='utf-8', errors='replace')
+          needles = ['SNS共有用カード','セクター・ローテーション','大分類','順位フロー','Rank Flow']
+          hout=[]
+          seen=set()
+          for needle in needles:
+              for m in re.finditer(re.escape(needle), html, flags=re.I):
+                  key=m.start()//1000
+                  if key in seen: continue
+                  seen.add(key)
+                  s=max(0,m.start()-2500); e=min(len(html),m.end()+5000)
+                  hout.append(f'\n--- {needle} @ {m.start()} ---\n')
+                  hout.append(html[s:e])
+                  hout.append('\n')
+                  if len(seen)>=12: break
+              if len(seen)>=12: break
+          Path('diagnostics/html_hits.txt').write_text(''.join(hout), encoding='utf-8')
           PY
 
       - name: Commit diagnostic report
@@ -93,6 +91,6 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add diagnostics/sector-share-card.txt
-          git commit -m "Diagnostic: inspect sector share card" || exit 0
+          git add diagnostics/source_hits.txt diagnostics/html_hits.txt
+          git commit -m "Diagnostic: compact sector share-card snippets" || exit 0
           git push origin HEAD:fix/sector-share-card-major-data
