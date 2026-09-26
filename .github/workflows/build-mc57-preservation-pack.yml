@@ -1,0 +1,186 @@
+name: Build MC57 full recovery pack
+
+on:
+  push:
+    branches:
+      - backup-builder/mc57-2026-09-26-1814-jst
+    paths:
+      - ".github/workflows/build-mc57-preservation-pack.yml"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SNAPSHOT_SHA: 1b0f1cbae4296769952161d7ceb0e94706c98c64
+      SNAPSHOT_TREE: 1aea4bed7613b55c9b87731d5136820b969b14cb
+      LIVE_URL: https://karu77018-lgtm.github.io/market-dashboard/source-mc57.html
+      PACK_NAME: MC57_FULL_RECOVERY_PACK_2026-09-26_1814JST
+    steps:
+      - name: Checkout with full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build exact repository snapshot and git bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --tags --prune
+          rm -rf pack
+          mkdir -p pack/repository-snapshot pack/published pack/runtime-preservation pack/metadata
+          git archive --format=tar "$SNAPSHOT_SHA" | tar -xf - -C pack/repository-snapshot
+          git branch -f preserved-main "$SNAPSHOT_SHA"
+          git bundle create pack/market-dashboard-snapshot.bundle preserved-main
+          git show -s --format=fuller "$SNAPSHOT_SHA" > pack/metadata/SNAPSHOT_COMMIT.txt
+          git log --oneline --decorate -n 100 "$SNAPSHOT_SHA" > pack/metadata/RECENT_HISTORY.txt
+          git branch -a > pack/metadata/BRANCHES.txt
+
+      - name: Capture currently published page
+        shell: bash
+        run: |
+          set -euo pipefail
+          if curl -fL --retry 3 --retry-delay 2 "$LIVE_URL" -o pack/published/live-source-mc57.html; then
+            echo "LIVE_FETCH=OK" > pack/metadata/PUBLISHED_COMPARISON.txt
+          else
+            cp pack/repository-snapshot/source-mc57.html pack/published/live-source-mc57.html
+            echo "LIVE_FETCH=FAILED_FALLBACK_TO_REPO_SNAPSHOT" > pack/metadata/PUBLISHED_COMPARISON.txt
+          fi
+          {
+            echo "repository_snapshot:"
+            sha256sum pack/repository-snapshot/source-mc57.html
+            echo "published_capture:"
+            sha256sum pack/published/live-source-mc57.html
+            if cmp -s pack/repository-snapshot/source-mc57.html pack/published/live-source-mc57.html; then
+              echo "MATCH=YES"
+            else
+              echo "MATCH=NO"
+            fi
+          } >> pack/metadata/PUBLISHED_COMPARISON.txt
+
+      - name: Capture latest successful MC57 runtime preservation artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          runs_api="/repos/$GITHUB_REPOSITORY/actions/workflows/refresh-source-mc57.yml/runs?branch=main&status=success&per_page=10"
+          gh api "$runs_api" > pack/runtime-preservation/workflow-runs.json
+          run_id="$(jq -r '.workflow_runs[0].id // empty' pack/runtime-preservation/workflow-runs.json)"
+          if test -z "$run_id"; then
+            echo "No successful refresh-source-mc57 run found" > pack/runtime-preservation/README.txt
+            exit 0
+          fi
+          gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" > pack/runtime-preservation/latest-run.json
+          gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts?per_page=100" > pack/runtime-preservation/artifacts.json
+          artifact_name="$(jq -r '[.artifacts[] | select(.name | startswith("source-mc57-preservation-"))][0].name // empty' pack/runtime-preservation/artifacts.json)"
+          if test -n "$artifact_name"; then
+            mkdir -p pack/runtime-preservation/latest-artifact
+            gh run download "$run_id" -n "$artifact_name" -D pack/runtime-preservation/latest-artifact
+            printf 'RUN_ID=%s\nARTIFACT_NAME=%s\n' "$run_id" "$artifact_name" > pack/runtime-preservation/README.txt
+          else
+            echo "Successful run found but no preservation artifact was attached" > pack/runtime-preservation/README.txt
+          fi
+
+      - name: Write restoration guide and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > pack/RESTORE.md <<'EOF'
+          # MC57 Full Recovery Pack
+
+          This pack freezes the public MC57 dashboard state at the Git commit below and includes:
+          - exact tracked repository snapshot
+          - a Git bundle with the snapshot commit and its full ancestry
+          - a capture of the published source-mc57.html
+          - the latest successful refresh runtime-preservation artifact when available
+          - checksums and inventories
+
+          ## Frozen source
+          Repository: karu77018-lgtm/market-dashboard
+          Snapshot commit: 1b0f1cbae4296769952161d7ceb0e94706c98c64
+          Snapshot tree: 1aea4bed7613b55c9b87731d5136820b969b14cb
+          Public page: https://karu77018-lgtm.github.io/market-dashboard/source-mc57.html
+
+          ## Fastest restore to a new GitHub repository
+          1. Create an empty GitHub repository.
+          2. Copy everything inside repository-snapshot/ into the repository root.
+          3. Commit and push it to branch main.
+          4. In GitHub Settings -> Pages, publish from main / root.
+          5. Open /source-mc57.html and verify against metadata/PUBLISHED_COMPARISON.txt and SHA256SUMS.txt.
+
+          ## Restore with Git history
+          From the directory containing market-dashboard-snapshot.bundle:
+
+              git clone --branch preserved-main market-dashboard-snapshot.bundle market-dashboard
+              cd market-dashboard
+              git branch -m main
+              git remote remove origin 2>/dev/null || true
+              git remote add origin https://github.com/OWNER/REPO.git
+              git push -u origin main
+
+          ## Continue daily refreshes
+          The repository snapshot includes:
+          - .github/workflows/refresh-source-mc57.yml
+          - bootstrap/recovery-assets.tar.xz
+          - scripts/
+          - src/
+          - tests/
+          - chart-data/
+          - latest-manifest.json
+          - source-mc57.html
+
+          To resume the acquisition workflow, recreate the required repository Actions secrets.
+          Secret values are intentionally NOT stored in this pack.
+
+          ## Verify integrity
+          On macOS/Linux:
+
+              sha256sum -c SHA256SUMS.txt
+
+          If sha256sum is unavailable on macOS, use:
+
+              shasum -a 256 -c SHA256SUMS.txt
+          EOF
+
+          python - <<'PY'
+          import json, datetime
+          data = {
+              "repository": "karu77018-lgtm/market-dashboard",
+              "snapshot_commit": "1b0f1cbae4296769952161d7ceb0e94706c98c64",
+              "snapshot_tree": "1aea4bed7613b55c9b87731d5136820b969b14cb",
+              "mc57_update_commit": "7822d6bd947239bb3f060e4e2fd24d774cffeae1",
+              "public_url": "https://karu77018-lgtm.github.io/market-dashboard/source-mc57.html",
+              "created_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              "purpose": "Full self-contained recovery package for the current MC57 dashboard state.",
+              "secrets_included": False
+          }
+          with open("pack/metadata/manifest.json", "w", encoding="utf-8") as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+          PY
+          find pack -type f -printf '%P\t%s bytes\n' | sort > pack/metadata/FILE_INVENTORY.txt
+
+      - name: Generate checksums and pack zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd pack
+            find . -type f ! -name 'SHA256SUMS.txt' -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+          )
+          zip -r -9 "$PACK_NAME.zip" pack >/dev/null
+          sha256sum "$PACK_NAME.zip" > "$PACK_NAME.zip.sha256"
+
+      - name: Upload recovery pack
+        uses: actions/upload-artifact@v4
+        with:
+          name: mc57-full-recovery-pack-2026-09-26
+          retention-days: 90
+          compression-level: 0
+          path: |
+            MC57_FULL_RECOVERY_PACK_2026-09-26_1814JST.zip
+            MC57_FULL_RECOVERY_PACK_2026-09-26_1814JST.zip.sha256
