@@ -367,7 +367,21 @@ def _install_mc57_score_patch(module: Any, data_dir: Path, session: str) -> None
     original = module.mri_frame
 
     def mc57_mri_frame(macro, W=None):
-        _legacy_series, breakdown, dropped, active, vals = original(macro, W)
+        try:
+            _legacy_series, breakdown, dropped, active, vals = original(macro, W)
+        except ValueError as exc:
+            # A diagnostic macro symbol can occasionally return a single stale
+            # row under Yahoo throttling.  The legacy implementation intersects
+            # every available series and can then discard all QQQ/SPY history.
+            # MC57 is authoritative, so degrade the explanatory legacy frame to
+            # the two required indices instead of blocking the publication.
+            if "QQQ/SPY history" not in str(exc):
+                raise
+            essential = {k: macro[k] for k in ("QQQ", "SPY")
+                         if k in macro and getattr(macro[k], "empty", True) is False}
+            if len(essential) != 2:
+                raise
+            _legacy_series, breakdown, dropped, active, vals = original(essential, W)
         max_date = None
         try:
             close = W.get("Close") if isinstance(W, dict) else None
