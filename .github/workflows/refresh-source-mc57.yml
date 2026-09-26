@@ -13,6 +13,7 @@ on:
       - "bootstrap/**"
       - "sources/**"
       - "seed/**"
+      - "tests/**"
 
 permissions:
   contents: write
@@ -26,6 +27,9 @@ jobs:
     if: github.actor != 'github-actions[bot]' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 330
+    env:
+      FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.POLYGON_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,12 +47,24 @@ jobs:
         run: >-
           python -m pip install
           "numpy<3" "pandas<3" "yfinance==0.2.66"
-          requests beautifulsoup4 lxml
+          requests beautifulsoup4 lxml pytest
+
+      - name: Verify provider secrets
+        shell: bash
+        run: |
+          test -n "$FRED_API_KEY" || { echo "FRED_API_KEY is missing"; exit 1; }
+          test -n "$MASSIVE_API_KEY" || { echo "MASSIVE_API_KEY (or POLYGON_API_KEY) is missing"; exit 1; }
+
+      - name: Run deterministic provider tests
+        run: python -m pytest
 
       - name: Restore prior successful OHLCV baseline
         uses: actions/cache@v4
         with:
-          path: work/ohlcv.csv
+          path: |
+            work/ohlcv.csv
+            work/massive-reference.json
+            work/massive-grouped.json
           key: source-mc57-ohlcv-${{ github.run_id }}
           restore-keys: |
             source-mc57-ohlcv-
@@ -90,7 +106,10 @@ jobs:
             data/market_inputs.json
             data/mktcap.json
             data/theme_membership.json
+            data/provider_inputs.json
             work/ohlcv.csv
+            work/massive-reference.json
+            work/massive-grouped.json
 
       - name: Publish source-only outputs
         shell: bash

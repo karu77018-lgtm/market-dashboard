@@ -17,12 +17,14 @@ def main() -> int:
     mc57 = json.loads((root / "data" / "mc57.json").read_text(encoding="utf-8"))
     index = json.loads((root / "chart-data" / "index.json").read_text(encoding="utf-8"))
     rs = json.loads((root / "data" / "rs.json").read_text(encoding="utf-8"))
+    providers = json.loads((root / "data" / "provider_inputs.json").read_text(encoding="utf-8"))
 
     required = [
         "マーケットステータス（地合いスコア）", "地合いスコアの内訳（4本柱）",
         "Daily", "Positions", "Core 12", "Setups", "Rotation", "Movers",
         "Weekly", "Publish", "Rules", "ブレッドス推移（50日線上の割合）",
         "52週 新高値 − 新安値", "mc57-candle-script",
+        "全市場 内部構造（Massive）", "金利・信用環境（FRED）",
     ]
     missing = [marker for marker in required if marker not in html]
     if missing:
@@ -40,8 +42,24 @@ def main() -> int:
         raise SystemExit(f"candle coverage below 95%: {candles}/{universe}")
     if manifest.get("mcap_coverage", 0) < .95:
         raise SystemExit("market-cap coverage below 95%")
+    massive = providers.get("massive", {})
+    fred = providers.get("fred", {})
+    structure = massive.get("market_structure", {})
+    cross = massive.get("cross_vendor", {})
+    if massive.get("status") != "READY" or structure.get("status") != "READY":
+        raise SystemExit("Massive provider inputs are not READY")
+    if float(structure.get("coverage", 0)) < .95:
+        raise SystemExit("Massive market-structure coverage below 95%")
+    if float(cross.get("coverage", 0)) < .95:
+        raise SystemExit("Yahoo/Massive cross-vendor coverage below 95%")
+    if fred.get("status") not in {"READY", "PARTIAL"}:
+        raise SystemExit("FRED provider inputs are not usable")
+    if float(fred.get("required_coverage", 0)) < .70:
+        raise SystemExit("FRED required-series coverage below 70%")
     print(json.dumps({"status": "READY", "session_date": session, "mc57": mc57["mc57"],
-                      "universe": universe, "candle_tickers": candles}, sort_keys=True))
+                      "universe": universe, "candle_tickers": candles,
+                      "fred_status": fred["status"],
+                      "massive_structure_coverage": structure["coverage"]}, sort_keys=True))
     return 0
 
 

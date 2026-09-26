@@ -77,6 +77,64 @@ def breadth_cards(frame: pd.DataFrame) -> str:
     )
 
 
+def _num(value, digits: int = 2, signed: bool = False) -> str:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    if not np.isfinite(number):
+        return "—"
+    return f"{number:+.{digits}f}" if signed else f"{number:.{digits}f}"
+
+
+def provider_cards(payload: dict) -> str:
+    massive = payload.get("massive", {})
+    structure = massive.get("market_structure", {})
+    if structure.get("status") != "READY":
+        raise RuntimeError("Massive market structure is not READY")
+    advances = int(structure.get("advances", 0))
+    declines = int(structure.get("declines", 0))
+    ad_net = int(structure.get("advance_decline_net", 0))
+    four_net = int(structure.get("four_pct_net", 0))
+    ud_ratio = _num(structure.get("up_down_volume_ratio"), 2)
+    compared = int(structure.get("compared_tickers", 0))
+    cross = massive.get("cross_vendor", {})
+    cross_pct = _num(float(cross.get("coverage", 0)) * 100, 1)
+
+    fred = payload.get("fred", {})
+    series = fred.get("series", {})
+    hy = series.get("BAMLH0A0HYM2", {})
+    real10 = series.get("DFII10", {})
+    be10 = series.get("T10YIE", {})
+    curve = series.get("T10Y2Y", {})
+    nfci = series.get("NFCI", {})
+    fred_status = str(fred.get("status", "ERROR"))
+    fred_coverage = _num(float(fred.get("required_coverage", 0)) * 100, 0)
+    fred_latest = max(
+        (str(row.get("last_date")) for row in series.values() if row.get("last_date")),
+        default="—",
+    )
+    return (
+        '<div class="card" data-source-improvement="massive-market-structure">'
+        '<div class="chd"><h2>全市場 内部構造（Massive）</h2>'
+        f'<div class="chd-now" style="color:{"#37b56c" if ad_net >= 0 else "#d95b5b"}">'
+        f'<b>{ad_net:+d}</b><span>上昇 {advances:,} / 下落 {declines:,}</span></div></div>'
+        '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
+        f'比較対象 {compared:,}銘柄。騰落差は上昇銘柄数−下落銘柄数。4%以上騰落差 {four_net:+d}、'
+        f'上昇/下落出来高比 {ud_ratio}倍。Yahooとの当日終値照合率 {cross_pct}%です。'
+        '</div></details></div>'
+        '<div class="card" data-source-improvement="fred-macro-risk">'
+        '<div class="chd"><h2>金利・信用環境（FRED）</h2>'
+        f'<div class="chd-now" style="color:{"#d95b5b" if float(hy.get("last_value") or 0) >= 5 else "#6e6a5e"}">'
+        f'<b>{_num(hy.get("last_value"), 2)}%</b><span>米HY OAS</span></div></div>'
+        '<details class="cxpl" open><summary>公式系列</summary><div class="cxpl-b">'
+        f'10年実質金利 {_num(real10.get("last_value"), 2)}% / 10年期待インフレ {_num(be10.get("last_value"), 2)}% / '
+        f'10年−2年差 {_num(curve.get("last_value"), 2, signed=True)}%pt / NFCI {_num(nfci.get("last_value"), 2, signed=True)}。'
+        f'状態 {fred_status}、必須系列 {fred_coverage}%、最新観測日 {fred_latest}。'
+        '</div></details></div>'
+    )
+
+
 def write_candle_shards(frame: pd.DataFrame, out_dir: Path, session: str) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     shards: dict[int, dict[str, list[list]]] = {i: {} for i in range(32)}
@@ -137,6 +195,7 @@ def main() -> int:
     ap.add_argument("--html", default="source-mc57.html")
     ap.add_argument("--ohlcv", default="work/ohlcv.csv")
     ap.add_argument("--chart-dir", default="chart-data")
+    ap.add_argument("--provider-data", default="data/provider_inputs.json")
     ap.add_argument("--session", required=True)
     args = ap.parse_args()
     html_path, csv_path, chart_dir = Path(args.html), Path(args.ohlcv), Path(args.chart_dir)
@@ -146,7 +205,8 @@ def main() -> int:
     for c in ("open", "high", "low", "close", "volume"):
         frame[c] = pd.to_numeric(frame[c], errors="coerce")
     frame = frame[frame["date"].notna() & (frame["date"] <= pd.Timestamp(args.session))]
-    cards = breadth_cards(frame)
+    provider = json.loads(Path(args.provider_data).read_text(encoding="utf-8"))
+    cards = provider_cards(provider) + breadth_cards(frame)
     meta = write_candle_shards(frame, chart_dir, args.session)
 
     text = html_path.read_text(encoding="utf-8")
@@ -164,7 +224,7 @@ def main() -> int:
     text = text.replace('</body>', SCRIPT + '</body>', 1)
     html_path.write_text(text, encoding="utf-8")
     print(json.dumps({"session_date": args.session, "ticker_count": meta["ticker_count"],
-                      "cards": ["50MA participation", "52-week new highs minus new lows"],
+                      "cards": ["Massive market structure", "FRED macro risk", "50MA participation", "52-week new highs minus new lows"],
                       "candle_route": "independent sharded JSON"}, ensure_ascii=False))
     return 0
 

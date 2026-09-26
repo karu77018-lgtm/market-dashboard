@@ -18,6 +18,15 @@ import yfinance as yf
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from v38 import live_acquisition as la  # noqa: E402
+from provider_inputs import (  # noqa: E402
+    compare_current_closes,
+    compute_massive_market_structure,
+    fetch_fred_inputs,
+    fetch_massive_grouped_history,
+    fetch_massive_reference,
+    secret_from_env,
+    select_expanded_universe,
+)
 
 
 MC57_ETFS = [
@@ -43,11 +52,15 @@ def dump(path: Path, obj: Any) -> None:
                                allow_nan=False) + "\n", encoding="utf-8")
 
 
-def latest_session() -> str:
-    frames = la.fetch_benchmark_frames(yf)
-    return la.choose_completed_session(
-        la.frame_dates(frames["QQQ"]), la.frame_dates(frames["SPY"])
-    )
+def recent_completed_sessions(count: int = 20) -> list[str]:
+    raw = la._download(yf, ["QQQ", "SPY"], period="3mo", threads=False)
+    frames = {symbol: la.select_yfinance_symbol_frame(raw, symbol) for symbol in ("QQQ", "SPY")}
+    qqq_dates, spy_dates = la.frame_dates(frames["QQQ"]), la.frame_dates(frames["SPY"])
+    target = la.choose_completed_session(qqq_dates, spy_dates)
+    common = sorted(d for d in set(qqq_dates) & set(spy_dates) if d <= target)
+    if len(common) < count:
+        raise RuntimeError(f"only {len(common)} completed QQQ/SPY sessions available; need {count}")
+    return common[-count:]
 
 
 def stock_ohlcv(tickers: list[str], target: str, output: Path,
@@ -295,15 +308,33 @@ def main() -> int:
     data, work = root / "data", root / "work"
     data.mkdir(parents=True, exist_ok=True)
     generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    target = latest_session()
+    massive_key = secret_from_env(("MASSIVE_API_KEY", "POLYGON_API_KEY"))
+    fred_key = secret_from_env(("FRED_API_KEY",))
+    sessions = recent_completed_sessions(20)
+    target = sessions[-1]
     print(f"target completed US session: {target}", flush=True)
 
     tv = la.fetch_tradingview_response()
-    universe, universe_stats = la.parse_tradingview_universe(tv, session_date=target)
+    broad_universe, tradingview_stats = la.parse_tradingview_universe(tv, session_date=target)
+    reference, reference_stats = fetch_massive_reference(
+        massive_key, work / "massive-reference.json", asof_date=target,
+    )
+    grouped, grouped_stats = fetch_massive_grouped_history(
+        massive_key, sessions, set(reference), work / "massive-grouped.json",
+    )
+    universe, expansion_stats = select_expanded_universe(
+        broad_universe, reference, grouped, target_session=target,
+    )
+    universe_stats = {
+        **tradingview_stats, **expansion_stats,
+        "broad_tradingview_universe": len(broad_universe),
+        "massive_reference": reference_stats,
+        "massive_grouped": grouped_stats,
+    }
     tickers = [r["ticker"] for r in universe]
     rs = {"session_date": target, "generated_at": generated_at, "status": "READY",
           "coverage": 1.0, "coverage_detail": universe_stats, "rows": universe,
-          "source": "TradingView america/scan"}
+          "source": "TradingView fundamentals + Massive reference/grouped daily"}
     dump(data / "rs.json", rs)
     mktcap = {r["ticker"]: {"value": r["market_cap"], "checked_at": generated_at, "status": "ok"}
                for r in universe}
@@ -316,7 +347,30 @@ def main() -> int:
     dump(data / "theme_membership.json", theme)
 
     yahoo_stats = stock_ohlcv(tickers, target, work / "ohlcv.csv")
+    market_structure = compute_massive_market_structure(tickers, grouped, target_session=target)
+    cross_vendor = compare_current_closes(
+        work / "ohlcv.csv", grouped, target_session=target, universe_count=len(tickers),
+    )
+    if cross_vendor["coverage"] < .95:
+        raise RuntimeError(
+            f"Yahoo/Massive cross-vendor current-close coverage below 95%: {cross_vendor['coverage']:.4f}"
+        )
+    fred = fetch_fred_inputs(
+        fred_key, target_session=target, generated_at=generated_at,
+    )
+    provider_inputs = {
+        "schema": "source-mc57.provider-inputs.1", "session_date": target,
+        "generated_at": generated_at, "massive": {
+            "status": "READY", "reference": reference_stats,
+            "grouped": grouped_stats, "market_structure": market_structure,
+            "cross_vendor": cross_vendor,
+        },
+        "fred": fred,
+    }
+    dump(data / "provider_inputs.json", provider_inputs)
     market = la.download_market_inputs(yf, target_session=target, generated_at=generated_at)
+    market["fred"] = fred
+    market["massive_market_structure"] = market_structure
     dump(data / "market_inputs.json", market)
     mc57 = compute_mc57(mc57_prices(target), target, generated_at)
     dump(data / "mc57.json", mc57)
@@ -327,6 +381,16 @@ def main() -> int:
                                   nqsar_status="RECOVERED_SOURCE_ROUTE")
     manifest.update({"mc57_status": "READY", "mc57": mc57["mc57"],
                      "mcap_coverage": len(mktcap) / len(universe),
+                     "provider_status": {
+                         "fred": fred["status"], "fred_required_coverage": fred["required_coverage"],
+                         "massive": "READY", "massive_current_coverage": expansion_stats["massive_current_coverage"],
+                         "cross_vendor_coverage": cross_vendor["coverage"],
+                     },
+                     "universe_expansion": {
+                         "legacy": expansion_stats["legacy_universe"],
+                         "added": expansion_stats["massive_liquid_expansion"],
+                         "active": expansion_stats["active_universe"],
+                     },
                      "publication_scope": "source-mc57 only; V38 and data/*.json are not committed"})
     dump(root / "latest-manifest.json", manifest)
     print(json.dumps({"session_date": target, "universe": len(tickers),

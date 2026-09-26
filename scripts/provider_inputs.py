@@ -1,0 +1,451 @@
+#!/usr/bin/env python3
+"""Provider adapters for the isolated source-mc57 refresh.
+
+Massive is used in bulk: one reference crawl plus one grouped daily response per
+session.  FRED is used for authoritative macro observations.  The module keeps
+the provider payloads out of the published repository; only derived values are
+rendered into source-mc57.html and summarized in latest-manifest.json.
+"""
+from __future__ import annotations
+
+import json
+import math
+import time
+from pathlib import Path
+from typing import Any, Iterable
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+import numpy as np
+import pandas as pd
+import requests
+
+
+MASSIVE_BASE = "https://api.massive.com"
+FRED_BASE = "https://api.stlouisfed.org/fred/series/observations"
+MAJOR_US_MICS = {"XNAS", "XNYS", "XASE", "ARCX", "BATS", "IEXG"}
+COMMON_SECURITY_TYPES = {"CS", "ADRC"}
+LEGACY_MIN_MCAP = 200_000_000.0
+LEGACY_MIN_PRICE = 1.0
+EXPANSION_MIN_MCAP = 50_000_000.0
+EXPANSION_MIN_PRICE = 5.0
+EXPANSION_MIN_MEDIAN_DDV20 = 20_000_000.0
+EXPANSION_MIN_ADR20 = 0.025
+EXPANSION_MIN_SESSIONS = 10
+
+FRED_SERIES = {
+    "DGS3MO": {"label": "米国3カ月金利", "units": "%", "max_age_days": 7, "required": True},
+    "DGS2": {"label": "米国2年金利", "units": "%", "max_age_days": 7, "required": True},
+    "DGS10": {"label": "米国10年金利", "units": "%", "max_age_days": 7, "required": True},
+    "DFII10": {"label": "米国10年実質金利", "units": "%", "max_age_days": 7, "required": True},
+    "T10YIE": {"label": "10年期待インフレ", "units": "%", "max_age_days": 7, "required": True},
+    "T10Y2Y": {"label": "10年-2年金利差", "units": "%pt", "max_age_days": 7, "required": True},
+    "BAMLH0A0HYM2": {"label": "米HY OAS", "units": "%", "max_age_days": 10, "required": True},
+    "NFCI": {"label": "Chicago Fed NFCI", "units": "index", "max_age_days": 14, "required": False},
+}
+
+
+class ProviderError(RuntimeError):
+    pass
+
+
+def _finite(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+        return obj if isinstance(obj, dict) else {}
+    except Exception:
+        return {}
+
+
+def _write_json(path: Path, obj: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False),
+        encoding="utf-8",
+    )
+
+
+def _url_with_key(url: str, api_key: str) -> str:
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query["apiKey"] = api_key
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _get_json(
+    session: requests.Session,
+    url: str,
+    *,
+    params: dict[str, Any] | None = None,
+    timeout: int = 45,
+    attempts: int = 5,
+) -> dict[str, Any]:
+    last_error: Exception | None = None
+    for attempt in range(attempts):
+        try:
+            response = session.get(url, params=params, timeout=timeout)
+            if response.status_code == 429:
+                delay = min(float(response.headers.get("Retry-After", 60)), 90.0)
+                time.sleep(max(delay, 1.0))
+                continue
+            response.raise_for_status()
+            payload = response.json()
+            if not isinstance(payload, dict):
+                raise ProviderError(f"provider response is not an object: {url}")
+            return payload
+        except Exception as exc:
+            last_error = exc
+            if attempt + 1 < attempts:
+                time.sleep(min(2 ** attempt, 12))
+    raise ProviderError(f"provider request failed after {attempts} attempts: {url}: {last_error}")
+
+
+def fetch_massive_reference(
+    api_key: str,
+    cache_path: str | Path,
+    *,
+    asof_date: str,
+    refresh_days: int = 7,
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
+    """Return active US common shares/ADRs from Massive reference data."""
+    path = Path(cache_path)
+    cached = _read_json(path)
+    cached_date = cached.get("asof_date")
+    cached_rows = cached.get("rows")
+    if isinstance(cached_date, str) and isinstance(cached_rows, list):
+        age = (pd.Timestamp(asof_date) - pd.Timestamp(cached_date)).days
+        if 0 <= age < refresh_days and cached_rows:
+            rows = cached_rows
+            return {r["ticker"]: r for r in rows if isinstance(r, dict) and r.get("ticker")}, {
+                "status": "READY", "source": "cache", "asof_date": cached_date,
+                "eligible_reference_tickers": len(rows), "pages": cached.get("pages"),
+            }
+
+    client = requests.Session()
+    url = f"{MASSIVE_BASE}/v3/reference/tickers"
+    params: dict[str, Any] | None = {
+        "market": "stocks", "locale": "us", "active": "true", "date": asof_date,
+        "limit": 1000, "sort": "ticker", "order": "asc", "apiKey": api_key,
+    }
+    rows: list[dict[str, Any]] = []
+    pages = 0
+    while url:
+        payload = _get_json(client, url, params=params)
+        pages += 1
+        for item in payload.get("results") or []:
+            if not isinstance(item, dict):
+                continue
+            ticker = str(item.get("ticker") or "").strip().upper()
+            security_type = str(item.get("type") or "").strip().upper()
+            mic = str(item.get("primary_exchange") or "").strip().upper()
+            if (
+                ticker and item.get("active") is not False
+                and str(item.get("market") or "").lower() == "stocks"
+                and str(item.get("locale") or "").lower() == "us"
+                and str(item.get("currency_name") or "usd").lower() == "usd"
+                and security_type in COMMON_SECURITY_TYPES and mic in MAJOR_US_MICS
+            ):
+                rows.append({
+                    "ticker": ticker, "name": str(item.get("name") or ticker),
+                    "type": security_type, "primary_exchange": mic,
+                    "cik": item.get("cik"), "composite_figi": item.get("composite_figi"),
+                })
+        next_url = payload.get("next_url")
+        url = _url_with_key(str(next_url), api_key) if next_url else ""
+        params = None
+        if pages > 50:
+            raise ProviderError("Massive reference pagination exceeded 50 pages")
+    unique = {row["ticker"]: row for row in rows}
+    stored = {"schema": "source-mc57.massive-reference.1", "asof_date": asof_date,
+              "pages": pages, "rows": sorted(unique.values(), key=lambda r: r["ticker"])}
+    _write_json(path, stored)
+    return unique, {"status": "READY", "source": "api", "asof_date": asof_date,
+                    "eligible_reference_tickers": len(unique), "pages": pages}
+
+
+def _normalize_grouped_results(
+    results: Iterable[Any], allowed_tickers: set[str]
+) -> dict[str, dict[str, float | int]]:
+    rows: dict[str, dict[str, float | int]] = {}
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        ticker = str(item.get("T") or "").strip().upper()
+        close, high, low, volume = (_finite(item.get(k)) for k in ("c", "h", "l", "v"))
+        if ticker not in allowed_tickers or close is None or high is None or low is None or volume is None:
+            continue
+        row: dict[str, float | int] = {
+            "c": close, "h": high, "l": low, "v": volume,
+        }
+        for source in ("o", "vw", "n"):
+            value = _finite(item.get(source))
+            if value is not None:
+                row[source] = int(value) if source == "n" else value
+        rows[ticker] = row
+    return rows
+
+
+def fetch_massive_grouped_history(
+    api_key: str,
+    sessions: Iterable[str],
+    allowed_tickers: set[str],
+    cache_path: str | Path,
+) -> tuple[dict[str, dict[str, dict[str, float | int]]], dict[str, Any]]:
+    """Fetch split-adjusted all-market daily bars, with rolling local cache."""
+    wanted = list(dict.fromkeys(str(x) for x in sessions))[-20:]
+    if not wanted:
+        raise ProviderError("no sessions supplied for Massive grouped history")
+    path = Path(cache_path)
+    cached = _read_json(path)
+    stored_sessions = cached.get("sessions") if isinstance(cached.get("sessions"), dict) else {}
+    history: dict[str, dict[str, dict[str, float | int]]] = {
+        day: rows for day, rows in stored_sessions.items()
+        if day in wanted and isinstance(rows, dict)
+    }
+    client = requests.Session()
+    fetched: list[str] = []
+    for day in wanted:
+        if day in history and history[day]:
+            continue
+        payload = _get_json(
+            client,
+            f"{MASSIVE_BASE}/v2/aggs/grouped/locale/us/market/stocks/{day}",
+            params={"adjusted": "true", "include_otc": "false", "apiKey": api_key},
+        )
+        if str(payload.get("status") or "").upper() not in {"OK", "DELAYED"}:
+            raise ProviderError(f"Massive grouped status for {day}: {payload.get('status')}")
+        rows = _normalize_grouped_results(payload.get("results") or [], allowed_tickers)
+        if not rows:
+            raise ProviderError(f"Massive grouped response for {day} contained no eligible rows")
+        history[day] = rows
+        fetched.append(day)
+    _write_json(path, {"schema": "source-mc57.massive-grouped.1", "sessions": history})
+    current_count = len(history.get(wanted[-1], {}))
+    return history, {
+        "status": "READY", "sessions": len(history), "requested_sessions": len(wanted),
+        "fetched_sessions": fetched, "latest_session": wanted[-1],
+        "latest_eligible_rows": current_count,
+    }
+
+
+def select_expanded_universe(
+    broad_rows: list[dict[str, Any]],
+    reference: dict[str, dict[str, Any]],
+    grouped: dict[str, dict[str, dict[str, float | int]]],
+    *,
+    target_session: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Keep the legacy universe and add only liquid, volatile smaller names."""
+    dates = sorted(d for d in grouped if d <= target_session)[-20:]
+    current = grouped.get(target_session, {})
+    selected: list[dict[str, Any]] = []
+    legacy_count = expansion_count = 0
+    candidate_count = 0
+    for raw in broad_rows:
+        ticker = str(raw.get("ticker") or "").upper()
+        price = _finite(raw.get("price"))
+        market_cap = _finite(raw.get("market_cap"))
+        if not ticker or price is None or market_cap is None:
+            continue
+        legacy = market_cap >= LEGACY_MIN_MCAP and price >= LEGACY_MIN_PRICE
+        observations = [grouped[d][ticker] for d in dates if ticker in grouped[d]]
+        ddv = [float(x["c"]) * float(x["v"]) for x in observations if x.get("c") and x.get("v")]
+        adr = [
+            (float(x["h"]) - float(x["l"])) / float(x["c"])
+            for x in observations if x.get("c") and x.get("h") is not None and x.get("l") is not None
+        ]
+        median_ddv = float(np.median(ddv)) if ddv else None
+        median_adr = float(np.median(adr)) if adr else None
+        expansion_candidate = (
+            not legacy and market_cap >= EXPANSION_MIN_MCAP and price >= EXPANSION_MIN_PRICE
+        )
+        candidate_count += int(expansion_candidate)
+        expansion = (
+            expansion_candidate and ticker in reference and ticker in current
+            and len(observations) >= EXPANSION_MIN_SESSIONS
+            and median_ddv is not None and median_ddv >= EXPANSION_MIN_MEDIAN_DDV20
+            and median_adr is not None and median_adr >= EXPANSION_MIN_ADR20
+        )
+        if not (legacy or expansion):
+            continue
+        row = dict(raw)
+        row["median_dollar_volume_20"] = median_ddv
+        row["median_adr20"] = median_adr
+        row["universe_route"] = "legacy" if legacy else "massive_liquid_expansion"
+        if ticker in reference:
+            row["massive_security_type"] = reference[ticker].get("type")
+            row["massive_primary_exchange"] = reference[ticker].get("primary_exchange")
+        row["source"] = "TradingView fundamentals + Massive reference/grouped daily"
+        selected.append(row)
+        legacy_count += int(legacy)
+        expansion_count += int(expansion)
+    selected.sort(key=lambda row: row["ticker"])
+    if not selected:
+        raise ProviderError("expanded universe resolved to zero tickers")
+    covered = sum(1 for row in selected if row["ticker"] in current)
+    coverage = covered / len(selected)
+    if coverage < 0.95:
+        raise ProviderError(
+            f"Massive latest-session universe coverage below 95%: {covered}/{len(selected)}={coverage:.4f}"
+        )
+    return selected, {
+        "active_universe": len(selected), "legacy_universe": legacy_count,
+        "expansion_candidates": candidate_count, "massive_liquid_expansion": expansion_count,
+        "massive_current_covered": covered, "massive_current_coverage": coverage,
+        "expansion_rules": {
+            "market_cap_min": EXPANSION_MIN_MCAP, "price_min": EXPANSION_MIN_PRICE,
+            "median_dollar_volume_20_min": EXPANSION_MIN_MEDIAN_DDV20,
+            "median_adr20_min": EXPANSION_MIN_ADR20,
+            "minimum_observed_sessions": EXPANSION_MIN_SESSIONS,
+            "security_types": sorted(COMMON_SECURITY_TYPES),
+        },
+    }
+
+
+def compute_massive_market_structure(
+    tickers: Iterable[str],
+    grouped: dict[str, dict[str, dict[str, float | int]]],
+    *,
+    target_session: str,
+) -> dict[str, Any]:
+    ticker_list = list(tickers)
+    dates = sorted(d for d in grouped if d <= target_session)
+    if len(dates) < 2:
+        raise ProviderError("Massive market structure requires two completed sessions")
+    previous_session = dates[-2]
+    current, previous = grouped[dates[-1]], grouped[previous_session]
+    advances = declines = unchanged = up4 = down4 = compared = 0
+    up_volume = down_volume = 0.0
+    for ticker in ticker_list:
+        if ticker not in current or ticker not in previous:
+            continue
+        now, before = _finite(current[ticker].get("c")), _finite(previous[ticker].get("c"))
+        volume = _finite(current[ticker].get("v")) or 0.0
+        if now is None or before is None or before <= 0:
+            continue
+        compared += 1
+        change = now / before - 1.0
+        if change > 0:
+            advances += 1
+            up_volume += volume
+        elif change < 0:
+            declines += 1
+            down_volume += volume
+        else:
+            unchanged += 1
+        up4 += int(change >= 0.04)
+        down4 += int(change <= -0.04)
+    if compared == 0:
+        raise ProviderError("Massive market structure had no comparable tickers")
+    return {
+        "status": "READY", "session_date": target_session, "previous_session": previous_session,
+        "compared_tickers": compared, "advances": advances, "declines": declines,
+        "unchanged": unchanged, "advance_decline_net": advances - declines,
+        "advance_decline_ratio": advances / max(declines, 1),
+        "up_volume": up_volume, "down_volume": down_volume,
+        "up_down_volume_ratio": up_volume / max(down_volume, 1.0),
+        "up_4pct": up4, "down_4pct": down4, "four_pct_net": up4 - down4,
+        "coverage": compared / max(len(ticker_list), 1),
+        "source": "Massive split-adjusted grouped daily aggregates",
+    }
+
+
+def compare_current_closes(
+    ohlcv_csv: str | Path,
+    grouped: dict[str, dict[str, dict[str, float | int]]],
+    *,
+    target_session: str,
+    universe_count: int,
+) -> dict[str, Any]:
+    frame = pd.read_csv(ohlcv_csv, usecols=["ticker", "date", "close"])
+    frame = frame[frame["date"].astype(str) == target_session]
+    yahoo = {str(r.ticker).upper(): float(r.close) for r in frame.itertuples() if _finite(r.close)}
+    massive = grouped.get(target_session, {})
+    deviations: list[tuple[str, float]] = []
+    for ticker, yclose in yahoo.items():
+        mclose = _finite(massive.get(ticker, {}).get("c"))
+        if mclose is not None and mclose > 0 and yclose > 0:
+            deviations.append((ticker, abs(yclose / mclose - 1.0)))
+    values = [value for _, value in deviations]
+    return {
+        "status": "READY" if len(values) / max(universe_count, 1) >= 0.95 else "PARTIAL",
+        "compared": len(values), "coverage": len(values) / max(universe_count, 1),
+        "median_absolute_deviation": float(np.median(values)) if values else None,
+        "p95_absolute_deviation": float(np.quantile(values, .95)) if values else None,
+        "over_3pct_count": sum(value > .03 for value in values),
+        "largest_deviations": [
+            {"ticker": ticker, "absolute_deviation": value}
+            for ticker, value in sorted(deviations, key=lambda item: item[1], reverse=True)[:10]
+        ],
+        "vendors": ["Yahoo Finance adjusted OHLCV", "Massive adjusted grouped daily"],
+    }
+
+
+def fetch_fred_inputs(
+    api_key: str,
+    *,
+    target_session: str,
+    generated_at: str,
+) -> dict[str, Any]:
+    client = requests.Session()
+    observation_start = (pd.Timestamp(target_session) - pd.Timedelta(days=450)).strftime("%Y-%m-%d")
+    series: dict[str, Any] = {}
+    required_ready = 0
+    required_total = sum(bool(meta["required"]) for meta in FRED_SERIES.values())
+    for series_id, meta in FRED_SERIES.items():
+        try:
+            payload = _get_json(client, FRED_BASE, params={
+                "series_id": series_id, "api_key": api_key, "file_type": "json",
+                "observation_start": observation_start, "observation_end": target_session,
+                "sort_order": "asc",
+            })
+            points: list[dict[str, Any]] = []
+            for item in payload.get("observations") or []:
+                value = _finite(item.get("value")) if isinstance(item, dict) else None
+                day = item.get("date") if isinstance(item, dict) else None
+                if value is not None and isinstance(day, str):
+                    points.append({"date": day, "value": value})
+            if not points:
+                raise ProviderError("no numeric observations")
+            last = points[-1]
+            age_days = (pd.Timestamp(target_session) - pd.Timestamp(last["date"])).days
+            ready = 0 <= age_days <= int(meta["max_age_days"])
+            row = {
+                **meta, "status": "READY" if ready else "STALE", "last_date": last["date"],
+                "last_value": last["value"], "age_days": age_days,
+                "change_5_observations": last["value"] - points[-6]["value"] if len(points) >= 6 else None,
+                "change_20_observations": last["value"] - points[-21]["value"] if len(points) >= 21 else None,
+                "history": points[-260:],
+            }
+            required_ready += int(bool(meta["required"]) and ready)
+        except Exception as exc:
+            row = {**meta, "status": "ERROR", "reason": str(exc)[:240], "history": []}
+        series[series_id] = row
+    coverage = required_ready / max(required_total, 1)
+    status = "READY" if required_ready == required_total else ("PARTIAL" if coverage >= .70 else "ERROR")
+    if status == "ERROR":
+        raise ProviderError(f"FRED required-series coverage too low: {required_ready}/{required_total}")
+    return {
+        "schema": "source-mc57.fred.1", "status": status, "session_date": target_session,
+        "generated_at": generated_at, "required_ready": required_ready,
+        "required_total": required_total, "required_coverage": coverage,
+        "source": "Federal Reserve Bank of St. Louis FRED API",
+        "series": series,
+    }
+
+
+def secret_from_env(names: Iterable[str]) -> str:
+    import os
+
+    for name in names:
+        value = os.environ.get(name, "").strip()
+        if value:
+            return value
+    raise ProviderError("missing required API key: " + " or ".join(names))

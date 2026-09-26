@@ -6,7 +6,10 @@ build-backend = "setuptools.build_meta"
 name = "v38-market-dashboard-recovery"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["pandas>=2.0", "numpy>=1.24"]
+dependencies = ["pandas>=2.0", "numpy>=1.24", "requests>=2.31"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

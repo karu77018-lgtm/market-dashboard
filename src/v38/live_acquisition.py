@@ -13,13 +13,13 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-CALCULATION_VERSION = "v38-live-acquisition-1.2.0"
+CALCULATION_VERSION = "v38-live-acquisition-1.3.0"
 STATE_SCHEMA_VERSION = "v38.state.1"
 MANIFEST_SCHEMA_VERSION = "v38.acquisition.1"
 MARKET_INPUT_SCHEMA_VERSION = "v38.market_inputs.1"
 TRADINGVIEW_URL = "https://scanner.tradingview.com/america/scan"
 ALLOWED_EXCHANGES = ("NYSE", "NASDAQ", "AMEX")
-UNIVERSE_MIN_MCAP = 200_000_000.0
+UNIVERSE_MIN_MCAP = 50_000_000.0
 UNIVERSE_MIN_PRICE = 1.0
 UNIVERSE_FALLBACK_RATIO = 0.80
 MIN_CURRENT_FETCH_COVERAGE = 0.80
