@@ -79,6 +79,11 @@ def _url_with_key(url: str, api_key: str) -> str:
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
+def _safe_url(url: str) -> str:
+    parts = urlsplit(url)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
+
+
 def _get_json(
     session: requests.Session,
     url: str,
@@ -98,13 +103,16 @@ def _get_json(
             response.raise_for_status()
             payload = response.json()
             if not isinstance(payload, dict):
-                raise ProviderError(f"provider response is not an object: {url}")
+                raise ProviderError(f"provider response is not an object: {_safe_url(url)}")
             return payload
         except Exception as exc:
             last_error = exc
             if attempt + 1 < attempts:
                 time.sleep(min(2 ** attempt, 12))
-    raise ProviderError(f"provider request failed after {attempts} attempts: {url}: {last_error}")
+    raise ProviderError(
+        f"provider request failed after {attempts} attempts: {_safe_url(url)}: "
+        f"{type(last_error).__name__ if last_error else 'unknown'}"
+    )
 
 
 def fetch_massive_reference(

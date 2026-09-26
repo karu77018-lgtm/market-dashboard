@@ -72,7 +72,23 @@ jobs:
             source-mc57-ohlcv-
 
       - name: Acquire current session and calculate MC57
-        run: python scripts/refresh_mc57.py --repo-root .
+        shell: bash
+        run: |
+          set -o pipefail
+          python scripts/refresh_mc57.py --repo-root . 2>&1 | tee work/refresh.log
+
+      - name: Report sanitized acquisition failure
+        if: failure()
+        shell: bash
+        run: |
+          if test -f work/refresh.log; then
+            tail -n 24 work/refresh.log | while IFS= read -r line; do
+              line="${line//'%'/'%25'}"
+              line="${line//$'\r'/'%0D'}"
+              line="${line//$'\n'/'%0A'}"
+              echo "::error title=source-mc57 acquisition::${line}"
+            done
+          fi
 
       - name: Build frozen source page with current data
         run: >-
