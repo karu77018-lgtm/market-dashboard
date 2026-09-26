@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 
@@ -29,6 +30,8 @@ def main() -> int:
     missing = [marker for marker in required if marker not in html]
     if missing:
         raise SystemExit("HTML markers missing: " + ", ".join(missing))
+    if re.search(r"\\bvar\\s+MAJ\\s*=\\s*\\[\\s*\\]\\s*;", html):
+        raise SystemExit("Sector Rotation share card major-sector data is empty (MAJ=[])")
     if session not in html:
         raise SystemExit(f"target session {session} not present in HTML")
     expected = f'<div class="val">{float(mc57["mc57"]):.0f}<span style="font-size:15px;font-weight:600">/100</span></div>'
