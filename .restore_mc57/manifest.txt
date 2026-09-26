@@ -1,0 +1,4 @@
+source=preservation/2026-09-16/source-mc57.html
+sha256=101122534d448686e8200b82e2c9183347c1499c215f1f873afdae9645c01b88
+encoding=xz+base64
+chunks=23
