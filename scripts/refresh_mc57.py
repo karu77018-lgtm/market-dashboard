@@ -52,15 +52,34 @@ def latest_session() -> str:
 
 def stock_ohlcv(tickers: list[str], target: str, output: Path,
                 *, chunk_size: int = 100) -> dict[str, Any]:
-    """Three-year adjusted OHLCV, preserving only actual reported sessions."""
+    """Three-year baseline, then one-month incremental adjusted OHLCV.
+
+    GitHub Actions restores the prior successful CSV from a rolling cache.  New
+    tickers still receive the full baseline; existing tickers only fetch enough
+    recent data to cover missed sessions.  Publication always requires a fresh
+    target-session quote, so a stale cache can never pass the gate.
+    """
     fields = ("ticker", "date", "open", "high", "low", "close", "volume",
               "is_complete", "split_checked", "split_anomaly")
     import csv
 
     output.parent.mkdir(parents=True, exist_ok=True)
+    cached = pd.DataFrame()
+    cached_tickers: set[str] = set()
+    if output.is_file() and output.stat().st_size > 0:
+        try:
+            cached = pd.read_csv(output)
+            if {"ticker", "date"}.issubset(cached.columns):
+                counts = cached.groupby("ticker")["date"].count()
+                cached_tickers = set(counts[counts >= 200].index.astype(str))
+            else:
+                cached = pd.DataFrame()
+        except Exception:
+            cached = pd.DataFrame()
+    fresh_path = output.with_suffix(".fresh.csv")
     target_ok = history_ok = 0
     failed: list[str] = []
-    with output.open("w", newline="", encoding="utf-8") as handle:
+    with fresh_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         for offset in range(0, len(tickers), chunk_size):
@@ -72,7 +91,8 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
                     break
                 symbols = {t: la.yahoo_symbol(t) for t in pending}
                 try:
-                    raw = la._download(yf, list(symbols.values()), period="3y", threads=16)
+                    period = "1mo" if all(t in cached_tickers for t in pending) else "3y"
+                    raw = la._download(yf, list(symbols.values()), period=period, threads=16)
                 except Exception:
                     raw = pd.DataFrame()
                 retry: list[str] = []
@@ -103,10 +123,27 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
         raise RuntimeError(
             f"current-session stock coverage below 95%: {target_ok}/{len(tickers)}={coverage:.4f}"
         )
+    fresh = pd.read_csv(fresh_path)
+    if not cached.empty:
+        merged = pd.concat([cached, fresh], ignore_index=True)
+        merged["ticker"] = merged["ticker"].astype(str).str.upper()
+        merged["date"] = pd.to_datetime(merged["date"], errors="coerce")
+        start = pd.Timestamp(target) - pd.Timedelta(days=1120)
+        merged = merged[
+            merged["ticker"].isin(tickers) & merged["date"].notna()
+            & (merged["date"] >= start) & (merged["date"] <= pd.Timestamp(target))
+        ]
+        merged = merged.drop_duplicates(["ticker", "date"], keep="last").sort_values(["ticker", "date"])
+        merged["date"] = merged["date"].dt.strftime("%Y-%m-%d")
+        merged.to_csv(output, index=False)
+        history_ok = int(merged.groupby("ticker")["date"].size().gt(0).sum())
+        fresh_path.unlink(missing_ok=True)
+    else:
+        fresh_path.replace(output)
     return {
         "requested": len(tickers), "history_received": history_ok,
         "target_session_received": target_ok, "target_session_coverage": coverage,
-        "failed_tickers": failed,
+        "failed_tickers": failed, "incremental_cache_used": bool(cached_tickers),
     }
 
 

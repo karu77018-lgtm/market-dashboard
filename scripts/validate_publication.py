@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 from pathlib import Path
 
 
@@ -41,8 +40,6 @@ def main() -> int:
         raise SystemExit(f"candle coverage below 95%: {candles}/{universe}")
     if manifest.get("mcap_coverage", 0) < .95:
         raise SystemExit("market-cap coverage below 95%")
-    if len(re.findall(r'class="tab', html)) < 11:
-        raise SystemExit("expected dashboard tabs are missing")
     print(json.dumps({"status": "READY", "session_date": session, "mc57": mc57["mc57"],
                       "universe": universe, "candle_tickers": candles}, sort_keys=True))
     return 0

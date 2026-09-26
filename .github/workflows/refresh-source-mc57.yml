@@ -45,6 +45,14 @@ jobs:
           "numpy<3" "pandas<3" "yfinance==0.2.66"
           requests beautifulsoup4 lxml
 
+      - name: Restore prior successful OHLCV baseline
+        uses: actions/cache@v4
+        with:
+          path: work/ohlcv.csv
+          key: source-mc57-ohlcv-${{ github.run_id }}
+          restore-keys: |
+            source-mc57-ohlcv-
+
       - name: Acquire current session and calculate MC57
         run: python scripts/refresh_mc57.py --repo-root .
 
