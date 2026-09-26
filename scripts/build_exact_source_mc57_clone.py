@@ -331,6 +331,11 @@ def _isolated_env(temp: Path, *, universe: Path, sector: Path, cache: Path, outp
         "V38_OPT_SCAN_HISTORY": str(temp / "options_scan_history.json"),
         "V38_OPT_TARGETS": str(temp / "options_targets.json"),
         "V38_INCEPT_VWAP_JSON": str(temp / "inception_vwap.json"),
+        # The isolated publication never persists the source cache, therefore
+        # repeating the 1,400-symbol period=max bootstrap on every daily run is
+        # both wasteful and misleading.  The current three-year OHLCV remains
+        # authoritative; inception VWAP degrades to unavailable independently.
+        "V38_INCEPT_VWAP_BUDGET": "0",
         "V38_INDUSTRY_JSON": str(temp / "industry.json"),
         "V38_THEME_JSON": str(temp / "theme.json"),
         "V38_RISK_JSON": str(temp / "risk.json"),

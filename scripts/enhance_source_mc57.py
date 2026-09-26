@@ -150,7 +150,9 @@ def main() -> int:
     meta = write_candle_shards(frame, chart_dir, args.session)
 
     text = html_path.read_text(encoding="utf-8")
-    anchor = '<div class="card"><div class="chd"><h2>売買代金 参加度（200日平均比）</h2>'
+    # The recovered page inserts an English subtitle inside the h2, so anchor
+    # before the visible Japanese title rather than assuming an immediate </h2>.
+    anchor = '<div class="card"><div class="chd"><h2>売買代金 参加度（200日平均比）'
     if anchor not in text:
         raise RuntimeError("volume participation anchor not found")
     text = text.replace(anchor, cards + anchor, 1)
