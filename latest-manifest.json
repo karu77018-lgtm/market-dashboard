@@ -1,0 +1,51 @@
+{
+  "calculation_version": "v38-live-acquisition-1.2.0",
+  "coverage": 0.998526812021214,
+  "generated_at": "2026-09-26T03:13:36Z",
+  "mc57": 31.623584834319317,
+  "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
+  "mc57_status": "READY",
+  "mcap_coverage": 1.0,
+  "nqsar_status": "RECOVERED_SOURCE_ROUTE",
+  "options_status": "DATA_REQUIRED",
+  "peer_theme_status": "DATA_REQUIRED",
+  "positions_status": "DATA_REQUIRED",
+  "publication_scope": "source-mc57 only; V38 and data/*.json are not committed",
+  "schema_version": "v38.acquisition.1",
+  "session_contract": {
+    "calendar": "observed common QQQ/SPY completed daily sessions",
+    "cutoff_et": "16:15",
+    "price_primary": "Yahoo Finance",
+    "ticker_resolution_fallback": "FMP only when explicitly available; never substitute unverified price values",
+    "timezone": "America/New_York"
+  },
+  "session_date": "2026-09-25",
+  "source": "TradingView america/scan + Yahoo Finance/yfinance 0.2.66",
+  "status": "READY",
+  "structural_clinical_biotech_status": "DATA_REQUIRED",
+  "universe": {
+    "active_universe": 3394,
+    "below_floor_rows": 0,
+    "biotech_heuristic_applied": false,
+    "duplicate_class_rows": 0,
+    "duplicate_symbol_rows": 0,
+    "malformed_rows": 0,
+    "response_rows": 3395,
+    "response_total_count": 3395,
+    "special_security_rows": 1
+  },
+  "yahoo": {
+    "failed_tickers": [
+      "ADEA",
+      "HUBB",
+      "RPGL",
+      "UA",
+      "WLY"
+    ],
+    "history_received": 3394,
+    "incremental_cache_used": false,
+    "requested": 3394,
+    "target_session_coverage": 0.998526812021214,
+    "target_session_received": 3389
+  }
+}
