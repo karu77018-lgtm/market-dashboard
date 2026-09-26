@@ -1,0 +1,7 @@
+[mcp_servers.jev]
+command = "python3"
+args = ["tools/jev_mcp.py"]
+cwd = "."
+enabled = true
+env_vars = ["AI_GATEWAY_API_KEY", "JEV_API_KEY", "JEV_ENDPOINT"]
+default_tools_approval_mode = "auto"
