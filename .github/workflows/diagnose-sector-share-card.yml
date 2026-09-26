@@ -1,0 +1,88 @@
+name: Diagnose sector share card
+
+on:
+  push:
+    branches:
+      - fix/sector-share-card-major-data
+    paths:
+      - ".github/workflows/diagnose-sector-share-card.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract recovered source
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -xJf bootstrap/recovery-assets.tar.xz
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, str(Path('.').resolve()))
+          from scripts.build_exact_source_mc57_clone import reconstruct_source
+          reconstruct_source(Path('sources/build_dashboard_4'), Path('/tmp/build_dashboard_4.py'))
+          PY
+
+      - name: Produce focused diagnostic report
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          targets = [
+              ('RECOVERED_SOURCE', Path('/tmp/build_dashboard_4.py')),
+              ('PUBLISHED_HTML', Path('source-mc57.html')),
+          ]
+          needles = [
+              'SNS共有用カード',
+              'セクター・ローテーション',
+              'Sector Rotation',
+              '大分類',
+              '順位フロー',
+              'Rank Flow',
+              'share',
+              'rotation',
+          ]
+
+          out = []
+          for label, path in targets:
+              text = path.read_text(encoding='utf-8', errors='replace')
+              out.append(f'===== {label}: {path} =====\n')
+              out.append(f'length={len(text)} chars lines={text.count(chr(10))+1}\n')
+              seen = set()
+              for needle in needles:
+                  for m in re.finditer(re.escape(needle), text, flags=re.I):
+                      start = max(0, m.start()-5000)
+                      end = min(len(text), m.end()+8000)
+                      key = (start//1000, end//1000)
+                      if key in seen:
+                          continue
+                      seen.add(key)
+                      out.append(f'\n--- needle={needle!r} pos={m.start()} ---\n')
+                      out.append(text[start:end])
+                      out.append('\n')
+                      if len(seen) >= 30:
+                          break
+                  if len(seen) >= 30:
+                      break
+
+          Path('diagnostics').mkdir(exist_ok=True)
+          Path('diagnostics/sector-share-card.txt').write_text(''.join(out), encoding='utf-8')
+          PY
+
+      - name: Commit diagnostic report
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add diagnostics/sector-share-card.txt
+          git commit -m "Diagnostic: inspect sector share card" || exit 0
+          git push origin HEAD:fix/sector-share-card-major-data
