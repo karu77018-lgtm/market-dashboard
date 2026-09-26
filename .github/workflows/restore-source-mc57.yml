@@ -1,0 +1,42 @@
+name: One-time MC57 restoration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/restore-source-mc57.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Rebuild and verify frozen page
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .restore_mc57/chunk-* | base64 -d | xz -d > source-mc57.html
+          printf '%s  %s\n' \
+            '101122534d448686e8200b82e2c9183347c1499c215f1f873afdae9645c01b88' \
+            'source-mc57.html' | sha256sum -c -
+
+      - name: Commit page and remove one-time restoration files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add source-mc57.html
+          git rm -r .restore_mc57
+          git rm .github/workflows/restore-source-mc57.yml
+          git commit -m 'Restore frozen source-mc57 page'
+          git push origin HEAD:main
