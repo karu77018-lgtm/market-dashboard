@@ -1,0 +1,39 @@
+name: Materialize recovered source
+
+on:
+  push:
+    branches:
+      - fix/sector-share-card-major-data
+    paths:
+      - ".github/workflows/materialize-recovered-source.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode recovered source
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -xJf bootstrap/recovery-assets.tar.xz
+          python - <<'PY'
+          from pathlib import Path
+          import base64,lzma,hashlib
+          parts=sorted(Path('sources/build_dashboard_4').glob('build_dashboard_4.py.lzma.b85.part*'))
+          raw=lzma.decompress(base64.b85decode(''.join(p.read_text().strip() for p in parts).encode()))
+          assert hashlib.sha256(raw).hexdigest()=='ee306726ee4b629f92c5d2d6687c06869702030f60922c93f44ead713bc8bb80'
+          Path('diagnostics').mkdir(exist_ok=True)
+          Path('diagnostics/recovered_build_dashboard_4.py').write_bytes(raw)
+          PY
+      - name: Commit recovered source
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add diagnostics/recovered_build_dashboard_4.py
+          git commit -m "Diagnostic: materialize recovered dashboard source" || exit 0
+          git push origin HEAD:fix/sector-share-card-major-data
