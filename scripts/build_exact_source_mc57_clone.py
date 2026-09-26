@@ -97,7 +97,61 @@ def reconstruct_source(source_dir: Path, target: Path) -> Path:
 '''
     if old not in text:
         raise CloneBuildError("frozen source date-axis function was not found")
-    target.write_text(text.replace(old, new, 1), encoding="utf-8")
+    text = text.replace(old, new, 1)
+
+    # 2026-09-26 fix: the Publish sector-rotation card consumes four horizon
+    # fields (m1/ret63/ret126/ret189), while the frozen source's
+    # build_sector_etf_rs() only emitted m1/r63.  Populate all four horizons so
+    # restoring the missing RSP* inputs does not leave RS63/126/189 at the
+    # fallback value of 50.
+    old_sector = '''def build_sector_etf_rs(macro):
+    recs = []
+    rets63 = {}
+    for tk, ja in SECTOR_ETFS:
+        if tk not in macro:
+            continue
+        c = macro[tk]["Close"].dropna()
+        if len(c) < 70:
+            continue
+        last = float(c.iloc[-1])
+        def r(d):
+            return (last/float(c.iloc[-d-1])-1) if len(c) > d else np.nan
+        rets63[tk] = r(63)
+        recs.append(dict(tk=tk, ja=ja, d1=r(1), w1=r(5), m1=r(21), r63=r(63)))
+    if not recs:
+        return []
+    sr = pd.Series({x["tk"]: x["r63"] for x in recs}).rank(pct=True) * 100
+    for x in recs:
+        x["rs"] = float(sr[x["tk"]])
+    recs.sort(key=lambda x: (-(x["r63"] if x["r63"] == x["r63"] else -9)))
+    return recs
+'''
+    new_sector = '''def build_sector_etf_rs(macro):
+    recs = []
+    for tk, ja in SECTOR_ETFS:
+        if tk not in macro:
+            continue
+        c = macro[tk]["Close"].dropna()
+        if len(c) < 190:
+            continue
+        last = float(c.iloc[-1])
+        def r(d):
+            return (last/float(c.iloc[-d-1])-1) if len(c) > d else np.nan
+        ret63, ret126, ret189 = r(63), r(126), r(189)
+        recs.append(dict(tk=tk, ja=ja, d1=r(1), w1=r(5), m1=r(21),
+                         r63=ret63, ret63=ret63, ret126=ret126, ret189=ret189))
+    if not recs:
+        return []
+    sr = pd.Series({x["tk"]: x["ret63"] for x in recs}).rank(pct=True) * 100
+    for x in recs:
+        x["rs"] = float(sr[x["tk"]])
+    recs.sort(key=lambda x: (-(x["ret63"] if x["ret63"] == x["ret63"] else -9)))
+    return recs
+'''
+    if old_sector not in text:
+        raise CloneBuildError("frozen source sector-ETF function was not found")
+    text = text.replace(old_sector, new_sector, 1)
+    target.write_text(text, encoding="utf-8")
     return target
 
 
@@ -419,6 +473,9 @@ def validate_output(output: Path, data_dir: Path, session: str) -> None:
     expected = f'<div class="val">{current:.0f}<span style="font-size:15px;font-weight:600">/100</span></div>'
     if expected not in text:
         raise CloneBuildError(f"rendered market-condition value is not current MC57 ({current:.4f})")
+    import re
+    if re.search(r"\\bvar\\s+MAJ\\s*=\\s*\\[\\s*\\]\\s*;", text):
+        raise CloneBuildError("sector-rotation Publish card has empty major-sector data (MAJ=[])")
 
 
 def build(args: argparse.Namespace) -> dict[str, Any]:

@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-CALCULATION_VERSION = "v38-live-acquisition-1.3.0"
+CALCULATION_VERSION = "v38-live-acquisition-1.3.1"
 STATE_SCHEMA_VERSION = "v38.state.1"
 MANIFEST_SCHEMA_VERSION = "v38.acquisition.1"
 MARKET_INPUT_SCHEMA_VERSION = "v38.market_inputs.1"
@@ -37,12 +37,20 @@ SPECIAL_SECURITY_RE = re.compile(
     r"\bPfd\b|Preferred|Warrant|\bRight(?:s)?\b|\bUnit(?:s)?\b|Subordinated Notes", re.I
 )
 PRIMARY_MARKET_SYMBOLS = ("QQQ", "TQQQ", "^VIX", "NQ=F", "SPY")
+# Equal-weight GICS sector ETFs used by the source dashboard's major-sector
+# rotation/rank-flow cards. Keep these in the live market-input route: without
+# them sector_ranks["macro"] becomes empty and the Publish card renders MAJ=[].
+SECTOR_MARKET_SYMBOLS = (
+    "RSPT", "RSPF", "RSPN", "RSPD", "RSPM", "RSPC",
+    "RSPU", "RSPS", "RSPH", "RSPR", "RSPG",
+)
 MARKET_SYMBOLS = (
     "QQQ", "TQQQ", "SPY", "RSP", "IWD", "IWF", "IWM", "MDY", "QQQE", "SOXL",
     "^VIX", "^VIX3M", "^VXN", "NQ=F",
     "HYG", "IEF", "^TNX", "^FVX", "DX-Y.NYB", "CL=F", "GC=F",
     "XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE",
     "XLU", "XLV", "XLY",
+    *SECTOR_MARKET_SYMBOLS,
 )
 
 
@@ -394,10 +402,28 @@ def download_market_inputs(yf: Any, *, target_session: str, generated_at: str) -
         raise LiveAcquisitionError(
             "required market inputs missing current session: " + ",".join(missing)
         )
+    sector_present = sum(
+        int(bool(series.get(symbol) and series[symbol][-1]["date"] == target_session))
+        for symbol in SECTOR_MARKET_SYMBOLS
+    )
+    sector_coverage = sector_present / len(SECTOR_MARKET_SYMBOLS)
+    # A transient miss in one or two Yahoo symbols should not take down the
+    # whole dashboard, but publishing an empty/near-empty major-sector card is
+    # worse than failing closed.
+    if sector_coverage < 0.80:
+        missing = [
+            symbol for symbol in SECTOR_MARKET_SYMBOLS
+            if not series.get(symbol) or series[symbol][-1]["date"] != target_session
+        ]
+        raise LiveAcquisitionError(
+            "major-sector market-input coverage too low "
+            f"({sector_present}/{len(SECTOR_MARKET_SYMBOLS)}): " + ",".join(missing)
+        )
     return {
         "session_date": target_session, "generated_at": generated_at,
         "coverage": present / len(MARKET_SYMBOLS),
         "required_coverage": primary_present / len(PRIMARY_MARKET_SYMBOLS),
+        "sector_coverage": sector_coverage,
         "source": "Yahoo Finance via yfinance 0.2.66; OHLC adjusted by Adj Close when available",
         "schema_version": MARKET_INPUT_SCHEMA_VERSION, "calculation_version": CALCULATION_VERSION,
         "symbols": list(MARKET_SYMBOLS),
