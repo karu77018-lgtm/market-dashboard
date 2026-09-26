@@ -250,11 +250,18 @@ def select_expanded_universe(
     *,
     target_session: str,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Keep the legacy universe and add only liquid, volatile smaller names."""
+    """Build a broad research universe and annotate, but do not apply, buy filters.
+
+    The legacy market-cap/price route remains available for continuity.  Any
+    additional TradingView symbol confirmed as an active US common share/ADR
+    by Massive and carrying a current-session bar joins the research universe.
+    Liquidity, volatility, price, market-cap, and history thresholds are stored
+    as selection metadata only; they must not shrink the measurement universe.
+    """
     dates = sorted(d for d in grouped if d <= target_session)[-20:]
     current = grouped.get(target_session, {})
     selected: list[dict[str, Any]] = []
-    legacy_count = expansion_count = 0
+    legacy_count = expansion_count = buy_eligible_count = 0
     candidate_count = 0
     for raw in broad_rows:
         ticker = str(raw.get("ticker") or "").upper()
@@ -271,29 +278,41 @@ def select_expanded_universe(
         ]
         median_ddv = float(np.median(ddv)) if ddv else None
         median_adr = float(np.median(adr)) if adr else None
-        expansion_candidate = (
-            not legacy and market_cap >= EXPANSION_MIN_MCAP and price >= EXPANSION_MIN_PRICE
-        )
+        expansion_candidate = not legacy and ticker in reference and ticker in current
         candidate_count += int(expansion_candidate)
-        expansion = (
-            expansion_candidate and ticker in reference and ticker in current
+        buy_eligible = (
+            market_cap >= EXPANSION_MIN_MCAP and price >= EXPANSION_MIN_PRICE
+            and ticker in reference and ticker in current
             and len(observations) >= EXPANSION_MIN_SESSIONS
             and median_ddv is not None and median_ddv >= EXPANSION_MIN_MEDIAN_DDV20
             and median_adr is not None and median_adr >= EXPANSION_MIN_ADR20
         )
-        if not (legacy or expansion):
+        if not (legacy or expansion_candidate):
             continue
         row = dict(raw)
         row["median_dollar_volume_20"] = median_ddv
         row["median_adr20"] = median_adr
-        row["universe_route"] = "legacy" if legacy else "massive_liquid_expansion"
+        row["universe_route"] = "legacy" if legacy else "massive_broad_expansion"
+        row["buy_filter_eligible"] = buy_eligible
+        row["buy_filter_failures"] = [
+            label for label, passed in (
+                ("price", price >= EXPANSION_MIN_PRICE),
+                ("market_cap", market_cap >= EXPANSION_MIN_MCAP),
+                ("massive_reference", ticker in reference),
+                ("current_session", ticker in current),
+                ("history", len(observations) >= EXPANSION_MIN_SESSIONS),
+                ("median_dollar_volume_20", median_ddv is not None and median_ddv >= EXPANSION_MIN_MEDIAN_DDV20),
+                ("median_adr20", median_adr is not None and median_adr >= EXPANSION_MIN_ADR20),
+            ) if not passed
+        ]
         if ticker in reference:
             row["massive_security_type"] = reference[ticker].get("type")
             row["massive_primary_exchange"] = reference[ticker].get("primary_exchange")
         row["source"] = "TradingView fundamentals + Massive reference/grouped daily"
         selected.append(row)
         legacy_count += int(legacy)
-        expansion_count += int(expansion)
+        expansion_count += int(expansion_candidate)
+        buy_eligible_count += int(buy_eligible)
     selected.sort(key=lambda row: row["ticker"])
     if not selected:
         raise ProviderError("expanded universe resolved to zero tickers")
@@ -305,9 +324,15 @@ def select_expanded_universe(
         )
     return selected, {
         "active_universe": len(selected), "legacy_universe": legacy_count,
-        "expansion_candidates": candidate_count, "massive_liquid_expansion": expansion_count,
+        "expansion_candidates": candidate_count, "massive_broad_expansion": expansion_count,
+        "buy_filter_eligible": buy_eligible_count,
         "massive_current_covered": covered, "massive_current_coverage": coverage,
-        "expansion_rules": {
+        "research_universe_rules": {
+            "legacy_route": "market_cap >= 200M and price >= 1",
+            "broad_expansion_route": "TradingView row + Massive active US common share/ADR + current-session bar",
+            "selection_filters_applied": False,
+        },
+        "buy_filter_rules": {
             "market_cap_min": EXPANSION_MIN_MCAP, "price_min": EXPANSION_MIN_PRICE,
             "median_dollar_volume_20_min": EXPANSION_MIN_MEDIAN_DDV20,
             "median_adr20_min": EXPANSION_MIN_ADR20,

@@ -41,13 +41,14 @@ def test_normalize_grouped_filters_and_maps_fields():
     assert rows["A"]["n"] == 42
 
 
-def test_universe_keeps_legacy_and_adds_only_liquid_expansion():
+def test_universe_is_broad_and_buy_filters_are_annotations_only():
     history = grouped_history()
     target = "2026-09-20"
     broad = [
         {"ticker": "CORE", "price": 12, "market_cap": 300_000_000},
         {"ticker": "ADD", "price": 10, "market_cap": 100_000_000},
         {"ticker": "ILLQ", "price": 10, "market_cap": 100_000_000},
+        {"ticker": "NOREF", "price": 10, "market_cap": 100_000_000},
     ]
     reference = {
         ticker: {"ticker": ticker, "type": "CS", "primary_exchange": "XNAS"}
@@ -56,10 +57,15 @@ def test_universe_keeps_legacy_and_adds_only_liquid_expansion():
     selected, stats = select_expanded_universe(
         broad, reference, history, target_session=target,
     )
-    assert [row["ticker"] for row in selected] == ["ADD", "CORE"]
+    assert [row["ticker"] for row in selected] == ["ADD", "CORE", "ILLQ"]
     assert stats["legacy_universe"] == 1
-    assert stats["massive_liquid_expansion"] == 1
+    assert stats["massive_broad_expansion"] == 2
+    assert stats["buy_filter_eligible"] == 2
     assert stats["massive_current_coverage"] == 1.0
+    rows = {row["ticker"]: row for row in selected}
+    assert rows["ADD"]["buy_filter_eligible"] is True
+    assert rows["ILLQ"]["buy_filter_eligible"] is False
+    assert rows["ILLQ"]["buy_filter_failures"] == ["median_dollar_volume_20"]
 
 
 def test_market_structure_counts_and_volume():

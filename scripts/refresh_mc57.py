@@ -389,7 +389,8 @@ def main() -> int:
                      },
                      "universe_expansion": {
                          "legacy": expansion_stats["legacy_universe"],
-                         "added": expansion_stats["massive_liquid_expansion"],
+                         "added": expansion_stats["massive_broad_expansion"],
+                         "buy_filter_eligible": expansion_stats["buy_filter_eligible"],
                          "active": expansion_stats["active_universe"],
                      },
                      "publication_scope": "source-mc57 only; V38 and data/*.json are not committed"})

@@ -6,11 +6,13 @@ fundamentals, Massive reference/grouped daily data, Yahoo daily history, and FRE
 macro series, calculates the fixed-universe MC57, and commits only the source
 page, independent candle shards, and an audit manifest.
 
-The stock universe preserves the prior market-cap/price route and adds liquid,
-volatile $50M-$200M common shares/ADRs only when Massive confirms the current
-session, at least 10 recent sessions, median dollar volume of at least $20M, and
-median ADR20 of at least 2.5%. Massive also supplies advance/decline and
-up/down-volume internals and cross-checks Yahoo current closes. FRED supplies
+The stock universe preserves the prior market-cap/price route and adds every
+TradingView symbol that Massive confirms as an active US common share/ADR with
+a current-session bar. Price, market-cap, history, median-dollar-volume, and
+ADR20 thresholds are retained as per-symbol buy-selection annotations; they do
+not restrict the research/measurement universe. Massive also supplies
+advance/decline and up/down-volume internals and cross-checks Yahoo current
+closes. FRED supplies
 Treasury yields, real yields, breakeven inflation, the 10Y-2Y curve, HY OAS, and
 NFCI. Repository secrets are `FRED_API_KEY` and `MASSIVE_API_KEY` (legacy
 `POLYGON_API_KEY` is also accepted).
