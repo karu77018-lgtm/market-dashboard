@@ -1,0 +1,369 @@
+
+--- SNS共有用カード @ 1380216 ---
+月曜）：50日線&gt;200日線・<b>189日RS上位24</b>を満たす限り保有。崩れた枠だけ売り、新しいトップRSで12に補充。ランクが下がっただけでは即売りしない。</li><li><b>出口</b>：<b>初期ストップ = 建値×0.75</b> → 伸びたら<b>ピーク×0.70トレール</b>（黄も0.70）。<b>Core 12は途中利確なし</b>（固定利確ライン・二層出口＝+3R部分利確は不採用）。<span class="mut">52週高値−10%以内は追いが−0.28Rの傾向のため⚠表示するが、機械選定は続行（指値で待つのは裁量の任意）。黄=新規停止・保有継続、赤=全撤退。</span></li><li><b>初期ストップ</b>：建値<b>×0.75（−25%）</b>で全売り。<b>クールダウンなし</b>——切られてもRS上位12・適格なら次の隔週で即復帰。</li></ul><div class="rh">レバレッジスリーブ（30%）</div><ul class="rules"><li><b>構成</b>：TQQQ 50 ： SOXL 50。ただし<b>SOXXの50日線&lt;100日線</b>の間はSOXLを外し全額TQQQ（半導体の下落トレンドで3xを回避）。</li><li><b>SOXL投入帯</b>：SOXLは<b>SOXXが50MAの+0〜3%上</b>にある日だけ新規投入する（青/緑の日）。この帯は建て直後の逆行が最も浅く、<b>−25%級の大事故がおよそ半分</b>に減る。支持線がすぐ下にあり、割れたら即撤退できるため深傷になりにくい。<b>投入は1/3ずつ×3トランシェ</b>（各サイズはボラターゲットでスケール）。<b>撤退の目安＝SOXXが50MAを終値で割ったら新規投入を止める</b>（保有は地合いルールに従う）。<b>50MA割れ・+3%超乖離の日はSOXLを入れずTQQQのみ</b>。距離で削れるのは大事故の確率まで。最良の帯でも平均−11%・3割で−15%の初期逆行は覚悟してサイズを決める。0〜+3%帯は青緑日の約17%＝月3〜4回来るので待機は長くない。</li><li><b>ゲート</b>：両ETFとも地合いで露出を＝<b>青100 ／ 緑50 ／ 黄0 ／ 赤0</b>。執行は翌寄り・確認日数ゼロ（3xは執行の遅れがドローダウンを増幅するため即応）。</li></ul><div class="rh">リバランスと例外</div><ul class="rules"><li>能動的に動くのは基本<b>地合いの色</b>だけ。変われば翌寄りで%を合わせる（同じ銘柄のまま増減）。</li><li><b>スリーブ配分（70/30・TQQQ:SOXL比）のリセットは隔週月曜</b>（銘柄入替と同日）。ゲート露出とSOXL除外の切替は<b>即日</b>（別サイクル）。</li><li><b>赤入り</b>＝両スリーブ全現金。<b>赤明けは翌寄りで即、最新トップ12を選び直す</b>（次回リバランスを待たない）。<b>SOXLは投入帯（SOXX 50MAの+0〜3%）から段階1/3×3で入り直し</b>（赤で段階カウンタは0にリセット・帯外ならTQQQのみ）。</li><li>ストップ／トレールで出た現金は<b>次回リバランスまで現金で保持</b>（期中に再投下しない）。</li><li>保有株が弱っても<b>トレール・ストップ以外では動かさない</b>（SAR弱気・200日割れ・RS低下だけでは売らず、隔週月曜で処理）。</li></ul><div class="rh">非常口（ジリ下げ相場の安全弁）</div><ul class="rules"><li><b>自動化済み</b>：equity.csvの口座NAVが過去ピークから<b>−28%</b>以下、<b>かつ</b>QQQ円建てに対する12ヶ月相対が<b>−12%</b>以下で<b>レバ枠を自動半減</b>。両方が回復（DD&gt;−20% かつ 相対&gt;−8%）するまで維持し、状態はstate.jsonに保存。データ不足時、すでに発動中なら安全側で半減を維持する。</li></ul><div class="rh">やらないこと</div><ul class="rules"><li>その日の裁量で仕掛けない（エントリーは事前ルールのみ・押し目／ブレイク待ちの裁量はしない）。</li><li>途中の値動きで利確しない（利確はトレールに任せる）。</li><li>業績（EPS・売上）や業種で銘柄を絞らない（選定は価格の強さ＝RSのみ）。</li><li>地合いの色を自動推定で代用しない（手動が正）。赤明け・色変化で確認日数を置かない。</li></ul><div class="warn">⚠ 数字の読み方：個別のCAGRは<b>生存バイアス</b>で上振れ（最大の割引要因）、レバは強気相場で上振れ。全数字は「どの構成が優れているか」の相対比較であり、絶対リターンの予測ではない（主指標はSharpeと最大DD）。公称成績は「どの月曜から数えるか」で<b>+5pt CAGR相当の運</b>を含む（位相平均でCAGR2〜3pt・Sharpe0.05〜0.07を割り引いて読む）。地合いの色は手動が正で、自動推定は復元FSM＝<b>方向は99.04%一致（±2日以内97%）</b>。真のドローダウンは<b>−37〜44%級・テール（最悪5%）は−73%〜</b>を想定してサイズを決める。</div></div></section><section id="t-post1"><div class="msec"><div class="msec-l">マーケット概略<span class="msec-en">Market Overview</span></div><div class="msec-q">SNS共有用カード</div></div><div class="postwrap"><button class="pfsbtn" onclick="pfs(this,1)">⛶ 全画面表示</button><iframe class="postframe" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;ja&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;&gt;
+&lt;title&gt;マーケット（概略）&lt;/title&gt;
+&lt;style&gt;
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  html{height:100%}body{background:#E9E7DF;font-family:-apple-system,&#x27;Helvetica Neue&#x27;,Arial,&#x27;Hiragino Sans&#x27;,&#x27;Noto Sans JP&#x27;,sans-serif;margin:0;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#1B1D1C}
+  .top{max-width:1680px;margin:0 auto 10px;text-align:center;font-size:13px;color:#9a9aa4}
+  .stage{width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}.scaler{transform-origin:center center}
+
+  .card{width:1680px;height:1080px;background:#E9E7DF;color:#1B1D1C;padding:22px 26px 16px;display:flex;flex-direction:column;
+    --ink:#1B1D1C;--mut:#727569;--line:#D5D1C6;--card:#F6F4EE;--track:#DAD6CB;--accent:#17685C;--accent2:#2A9384;
+    --pos:#1E7A4D;--posbg:#DBEBDF;--posbg2:#C6E0CC;--neg:#B23A2E;--negbg:#F1DED9;--negbg2:#E7C7C2;--neu:#7C7F78;--neubg:#E6E3DB;--warn:#B07A16;--warnbg:#F0E6CF;
+    --chipbg:#EEEBE3;--fnum:ui-monospace,&#x27;SF Mono&#x27;,Menlo,monospace;font-size:14px}
+  .num{font-family:var(--fnum);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .pos{color:var(--pos)}.neg{color:var(--neg)}.acc{color:var(--accent)}.warnc{color:var(--warn)}.ink{color:var(--ink)}
+
+  .hd{display:flex;align-items:center;gap:12px;margin-bottom:9px}
+  .hd .bar{width:5px;height:24px;background:var(--accent);border-radius:3px}
+  .hd h1{font-size:24px;font-weight:800;letter-spacing:-.02em}
+  .hd .state{font-size:13px;font-weight:800;color:var(--warn);border:1.5px solid var(--warn);border-radius:8px;padding:3px 12px}
+  .hd .stats{font-size:12.5px;color:var(--mut);font-weight:700}.hd .stats b{color:var(--ink)}
+  .hd .date{margin-left:auto;font-size:14px;color:var(--mut);font-weight:700}
+  .hd .brand{font-size:15px;font-weight:800;margin-left:10px}.hd .brand .at{color:var(--accent)}
+
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:200px 150px 1fr 200px;gap:10px;flex:1;min-height:0}
+  .sp2{grid-column:span 2}
+  .t{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 12px;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+  .th{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .th h4{font-size:13.5px;font-weight:800;letter-spacing:-.01em}.th .s{font-size:10.5px;color:var(--mut);font-weight:700}.th .g{margin-left:auto;color:var(--mut);opacity:.5;font-size:12px}
+  .chartn{font-size:22px;font-weight:800}
+
+  .regrow{display:flex;align-items:center;gap:7px}
+  .dot{width:12px;height:12px;border-radius:50%;background:var(--warn);box-shadow:0 0 0 4px color-mix(in srgb,var(--warn) 20%,transparent)}
+  .rn2{font-size:21px;font-weight:800}.pill{font-size:10.5px;font-weight:800;border:1.5px solid currentColor;border-radius:6px;padding:1px 6px}
+  .dr{font-size:11.5px;color:var(--mut);margin:8px 0 7px;line-height:1.45}
+  .days{display:flex;gap:2px}.days i{flex:1;height:11px;border-radius:2px}
+  .d-g{background:var(--pos)}.d-y{background:var(--warn)}.d-r{background:var(--neg)}.d-n{background:var(--track)}
+  .action{margin-top:auto;font-size:11.5px;color:var(--mut);font-weight:700;border-top:1px solid var(--line);padding-top:8px}
+
+  .gauge{width:100px;flex:0 0 auto}
+  .stmeta{font-size:12px}.stmeta .lab{color:var(--mut)}
+  .warnled{display:inline-flex;gap:2px;vertical-align:middle;margin-left:4px}.warnled i{width:6px;height:6px;border-radius:50%;background:var(--track)}
+
+  /* comment card */
+  .cmt{margin-bottom:11px}
+  .cmt .cl{font-size:11px;font-weight:800;color:var(--accent);margin-bottom:3px}
+  .cmt .cx{font-size:13px;font-weight:600;line-height:1.42}
+
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--mut);margin-top:5px;flex-wrap:wrap}
+  .legend span{display:inline-flex;align-items:center;gap:5px}.legend i{width:12px;height:2px;border-radius:2px}
+
+  .frow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px}
+  .fbox{border:1.5px solid var(--line);border-radius:8px;padding:8px 6px 4px;text-align:center}
+  .fbox .fl{font-size:10px;color:var(--mut);font-weight:700}.fbox .fv{font-size:23px;font-weight:800;margin:1px 0 4px}
+  .fnote{margin-top:auto;font-size:11px;color:var(--mut);font-weight:700;border-top:1px solid var(--line);padding-top:7px}
+
+  .rsq{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1}
+  .rsbox{border:1.5px solid var(--line);border-radius:8px;padding:6px 9px;display:flex;flex-direction:column;justify-content:center}
+  .rsbox .rh{display:flex;align-items:center;gap:6px;margin-bottom:6px}.rsbox .rl{font-size:10.5px;color:var(--mut);font-weight:800}.rsbox
+
+--- SNS共有用カード @ 1427497 ---
+gt;&lt;/tr&gt;&#x27;;}).join(&#x27;&#x27;);}).join(&#x27;&#x27;);
+    var MOMH=[{l:&#x27;≤−15&#x27;,c:3,col:&#x27;var(--neg)&#x27;},{l:&#x27;−15〜−5&#x27;,c:2,col:&#x27;var(--neg)&#x27;},{l:&#x27;−5〜+5&#x27;,c:7,col:&#x27;var(--mut)&#x27;},{l:&#x27;+5〜+15&#x27;,c:2,col:&#x27;var(--pos)&#x27;},{l:&#x27;≥+15&#x27;,c:10,col:&#x27;var(--pos)&#x27;}];
+    var _mmx=Math.max.apply(null,MOMH.map(function(b){return b.c;}));
+    document.getElementById(&#x27;momh&#x27;).innerHTML=MOMH.map(function(b){return &#x27;&lt;div class=&quot;mhb&quot;&gt;&lt;span class=&quot;v&quot; style=&quot;color:&#x27;+b.col+&#x27;&quot;&gt;&#x27;+b.c+&#x27;&lt;/span&gt;&lt;div class=&quot;b&quot; style=&quot;height:&#x27;+(b.c/_mmx*100).toFixed(1)+&#x27;%;background:&#x27;+b.col+&#x27;&quot;&gt;&lt;/div&gt;&lt;span class=&quot;x&quot;&gt;&#x27;+b.l+&#x27;&lt;/span&gt;&lt;/div&gt;&#x27;;}).join(&#x27;&#x27;);
+  }
+  function fit(){var scaler=document.getElementById(&#x27;scaler&#x27;);var W=window.innerWidth,H=window.innerHeight,cw=1680,ch=1080;if(H&gt;W){var sc=Math.min(W/ch,H/cw);scaler.style.transform=&#x27;rotate(90deg) scale(&#x27;+sc+&#x27;)&#x27;;}else{var sc=Math.min(W/cw,H/ch);scaler.style.transform=&#x27;scale(&#x27;+sc+&#x27;)&#x27;;}scaler.style.width=cw+&#x27;px&#x27;;scaler.style.height=ch+&#x27;px&#x27;;if(typeof render===&#x27;function&#x27;){render();}}
+  render(); fit(); window.addEventListener(&#x27;resize&#x27;,fit);
+&lt;/script&gt;
+&lt;script&gt;function ovFold(){try{function mk(label){var d=document.createElement(&#x27;details&#x27;);d.className=&#x27;ovfold&#x27;;var s=document.createElement(&#x27;summary&#x27;);s.textContent=label;d.appendChild(s);return d;}var L={&#x27;fnote&#x27;:&#x27;判定&#x27;,&#x27;read&#x27;:&#x27;解説&#x27;,&#x27;flownote&#x27;:&#x27;フロー解説&#x27;};[&#x27;fnote&#x27;,&#x27;read&#x27;,&#x27;flownote&#x27;].forEach(function(cl){Array.prototype.forEach.call(document.getElementsByClassName(cl),function(el){if(el.closest(&#x27;details.ovfold&#x27;))return;var d=mk(L[cl]||&#x27;詳しく&#x27;);el.parentNode.insertBefore(d,el);d.appendChild(el);});});}catch(e){}}if(document.readyState!==&#x27;loading&#x27;){setTimeout(ovFold,90);}else{document.addEventListener(&#x27;DOMContentLoaded&#x27;,function(){setTimeout(ovFold,90);});}&lt;/script&gt;&lt;/body&gt;
+&lt;/html&gt;
+"></iframe><button class="pfsclose" onclick="pfs(this,0)">✕</button></div><div class="msec"><div class="msec-l">セクター・ローテーション<span class="msec-en">Sector Rotation</span></div><div class="msec-q">SNS共有用カード</div></div><div class="postwrap"><button class="pfsbtn" onclick="pfs(this,1)">⛶ 全画面表示</button><iframe class="postframe" srcdoc="&lt;!doctype html&gt;
+&lt;html lang=&quot;ja&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;&gt;
+&lt;title&gt;セクター・ローテーション（詳細）&lt;/title&gt;
+&lt;style&gt;
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  html{height:100%}body{background:#E9E7DF;font-family:-apple-system,&#x27;Helvetica Neue&#x27;,Arial,&#x27;Hiragino Sans&#x27;,&#x27;Noto Sans JP&#x27;,sans-serif;margin:0;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#1B1D1C}
+  .top{max-width:1680px;margin:0 auto 10px;text-align:center;font-size:13px;color:#9a9aa4}
+  .stage{width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}.scaler{transform-origin:center center}
+
+  .card{width:1680px;height:1080px;background:#E9E7DF;color:#1B1D1C;padding:18px 22px 12px;display:flex;flex-direction:column;
+    --ink:#1B1D1C;--mut:#727569;--line:#D5D1C6;--card:#F6F4EE;--track:#DAD6CB;--accent:#17685C;--accent2:#2A9384;
+    --pos:#1E7A4D;--posbg:#DBEBDF;--posbg2:#C6E0CC;--neg:#B23A2E;--negbg:#F1DED9;--negbg2:#E7C7C2;--neu:#7C7F78;--neubg:#E6E3DB;--warn:#B07A16;--warnbg:#F0E6CF;
+    --chipbg:#EEEBE3;--fnum:ui-monospace,&#x27;SF Mono&#x27;,Menlo,monospace;font-size:13.5px}
+  .num{font-family:var(--fnum);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .pos{color:var(--pos)}.neg{color:var(--neg)}.acc{color:var(--accent)}.warnc{color:var(--warn)}.ink{color:var(--ink)}
+
+  .hd{display:flex;align-items:center;gap:11px;margin-bottom:4px}
+  .hd .bar{width:5px;height:21px;background:var(--accent);border-radius:3px}
+  .hd h1{font-size:22px;font-weight:800;letter-spacing:-.02em}
+  .hd .pg{font-size:11.5px;font-weight:800;color:var(--accent);border:1.5px solid var(--accent);border-radius:8px;padding:2px 10px}
+  .hd .date{margin-left:auto;font-size:13.5px;color:var(--mut);font-weight:700}
+  .read{font-size:13px;font-weight:700;color:#33352E;margin-bottom:8px;line-height:1.35;padding-bottom:8px;border-bottom:1.5px solid var(--line)}
+  .read b{color:var(--accent)}.read .dn{color:var(--neg)}
+
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:398px 1fr;gap:8px;flex:1;min-height:0}
+  .sp2{grid-column:span 2}.sp3{grid-column:span 3}
+  .t{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 11px;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+  .th{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+  .th h4{font-size:12.5px;font-weight:800;letter-spacing:-.01em}.th .s{font-size:10px;color:var(--mut);font-weight:700}.th .g{margin-left:auto;color:var(--mut);opacity:.5;font-size:12px}
+
+  .prg{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;flex:1;min-height:0}
+  .prg.tight{gap:8px}
+  .prcol{display:flex;flex-direction:column;min-height:0}
+  .prcol .ph{font-size:10.5px;font-weight:800;color:var(--accent);text-align:center;border-bottom:1.5px solid var(--line);padding-bottom:3px;margin-bottom:2px}
+  .prcol .ph span{font-size:9px;color:var(--mut);font-weight:700}
+  .prcol .body{flex:1;display:flex;flex-direction:column;justify-content:space-between;min-height:0}
+  .prrow{display:grid;grid-template-columns:8px 13px 1fr auto 20px;gap:5px;align-items:center;white-space:nowrap}
+  .prrow .rk{color:var(--mut);text-align:center}.prrow .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis}
+  .prrow .rv{font-weight:800;font-family:var(--fnum);text-align:right}.prrow .ar{font-weight:800;text-align:right}
+  .dotc{display:inline-block;width:8px;height:8px;border-radius:50%}
+  .maj .prrow{font-size:12px}.maj .prrow .rk{font-size:10px}.maj .prrow .rv{font-size:12px}.maj .prrow .ar{font-size:9.5px}
+  .min .prrow{font-size:10px}.min .prrow .rk{font-size:8.5px}.min .prrow .rv{font-size:10px}.min .prrow .ar{font-size:8px}
+  .min .prrow{grid-template-columns:7px 12px 1fr auto 16px;gap:4px}.min .dotc{width:6px;height:6px}
+
+  .rrgwrap{flex:1;min-height:0}
+  #rrg{width:100%;height:100%}
+
+  /* money flow */
+  .flowbody{flex:1;min-height:0;display:flex;flex-direction:column;gap:4px}
+  .fttl{font-size:10px;font-weight:800;color:var(--accent);margin-bottom:1px}
+  .dvrow{display:grid;grid-template-columns:96px 1fr 42px;gap:6px;align-items:center;font-size:11px;padding:1px 0}
+  .dvrow .dnm{font-weight:700;display:flex;align-items:center;gap:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dv{position:relative;height:10px;background:var(--track);border-radius:3px}
+  .dv .zero{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--mut);opacity:.55}
+  .dv .fill{position:absolute;top:0;bottom:0;border-radius:3px}
+  .dvrow .dval{text-align:right;font-weight:800;font-family:var(--fnum);font-size:10.5px}
+  .sfsplit{display:grid;grid-template-column
+
+--- セクター・ローテーション @ 1399355 ---
+/span&gt;&lt;span&gt;&lt;i style=&quot;background:var(--mut)&quot;&gt;&lt;/i&gt;SPY $33.1B&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
+      &lt;div class=&quot;t&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;センチメント&lt;span class=&quot;en&quot;&gt;Sentiment&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;群衆温度計&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div style=&quot;display:flex;gap:10px;align-items:baseline&quot;&gt;&lt;span class=&quot;chartn num&quot;&gt;31&lt;/span&gt;&lt;span class=&quot;num&quot; style=&quot;font-size:11.5px;color:var(--mut)&quot;&gt;—・VIX 15.7・P/C —&lt;/span&gt;&lt;/div&gt;&lt;div id=&quot;d_se&quot; style=&quot;flex:1;min-height:0&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+      &lt;div class=&quot;t&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;先導の崩れ&lt;span class=&quot;en&quot;&gt;Leader Breakdown&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;レジーム警戒灯&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;frow&quot;&gt;&lt;div class=&quot;fbox&quot;&gt;&lt;div class=&quot;fl&quot;&gt;脱落率&lt;/div&gt;&lt;div class=&quot;fv pos num&quot;&gt;21%&lt;/div&gt;&lt;div id=&quot;d_f1&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;fbox&quot;&gt;&lt;div class=&quot;fl&quot;&gt;狙い率&lt;/div&gt;&lt;div class=&quot;fv warnc num&quot;&gt;54%&lt;/div&gt;&lt;div id=&quot;d_f2&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;div class=&quot;fbox&quot;&gt;&lt;div class=&quot;fl&quot;&gt;キュー崩れ&lt;/div&gt;&lt;div class=&quot;fv neg num&quot;&gt;63%&lt;/div&gt;&lt;div id=&quot;d_f3&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
+        &lt;div class=&quot;fnote&quot;&gt;判定：キュー崩れが最も高く63%。監視銘柄の質は低下。&lt;/div&gt;&lt;/div&gt;
+
+      &lt;!-- ROW 3 tables --&gt;
+      &lt;div class=&quot;t sp2 subfill&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;サブテーマRS ＆ セクター騰落&lt;span class=&quot;en&quot;&gt;Sub-theme RS &amp; Sector Moves&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;RS21/63/189・主導・前日/1週&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;table class=&quot;tb&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th class=&quot;l&quot;&gt;サブテーマ&lt;/th&gt;&lt;th&gt;RS21&lt;/th&gt;&lt;th&gt;RS63&lt;/th&gt;&lt;th&gt;RS189&lt;/th&gt;&lt;th&gt;週%&lt;/th&gt;&lt;th&gt;件数&lt;/th&gt;&lt;th class=&quot;l&quot;&gt;主導&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody id=&quot;sub&quot;&gt;&lt;/tbody&gt;&lt;/table&gt;
+        &lt;div class=&quot;secttl&quot;&gt;セクター・ローテーション（各期間の順位・▲▼＝前列比の順位変化）&lt;/div&gt;
+        &lt;div class=&quot;secrank&quot; id=&quot;secrank&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+
+      &lt;div class=&quot;t sp2&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;期間別リーダー（各RS期間 上位5）&lt;span class=&quot;en&quot;&gt;Period Leaders&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;RS21/63/189・前日比・vs50/200・ADR・状態&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;table class=&quot;tb&quot;&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;#&lt;/th&gt;&lt;th class=&quot;l&quot;&gt;銘柄&lt;/th&gt;&lt;th&gt;RS21&lt;/th&gt;&lt;th&gt;RS63&lt;/th&gt;&lt;th&gt;RS189&lt;/th&gt;&lt;th&gt;前日比&lt;/th&gt;&lt;th&gt;vs50&lt;/th&gt;&lt;th&gt;vs200&lt;/th&gt;&lt;th&gt;ADR&lt;/th&gt;&lt;th&gt;状態&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody id=&quot;top&quot;&gt;&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;
+
+      &lt;!-- ROW 4 --&gt;
+      &lt;div class=&quot;t&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;RSマルチTF 継続性&lt;span class=&quot;en&quot;&gt;RS Multi-TF Persistence&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;期間の重なり件数&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;rsq&quot;&gt;
+          &lt;div class=&quot;rsbox&quot;&gt;&lt;div class=&quot;rh&quot;&gt;&lt;span class=&quot;rl&quot;&gt;全期間 Top10&lt;/span&gt;&lt;span class=&quot;rn num&quot;&gt;0&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;chips&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+          &lt;div class=&quot;rsbox&quot;&gt;&lt;div class=&quot;rh&quot;&gt;&lt;span class=&quot;rl&quot;&gt;21×63&lt;/span&gt;&lt;span class=&quot;rn num&quot;&gt;3&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;chips&quot;&gt;&lt;span class=&quot;chip&quot;&gt;SVRN&lt;/span&gt;&lt;span class=&quot;chip&quot;&gt;GLND&lt;/span&gt;&lt;span class=&quot;chip&quot;&gt;USDE&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
+          &lt;div class=&quot;rsbox&quot;&gt;&lt;div class=&quot;rh&quot;&gt;&lt;span class=&quot;rl&quot;&gt;21×189&lt;/span&gt;&lt;span class=&quot;rn num&quot;&gt;1&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;chips&quot;&gt;&lt;span class=&quot;chip&quot;&gt;MXL&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
+          &lt;div class=&quot;rsbox&quot;&gt;&lt;div class=&quot;rh&quot;&gt;&lt;span class=&quot;rl&quot;&gt;63×189&lt;/span&gt;&lt;span class=&quot;rn num&quot;&gt;2&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;chips&quot;&gt;&lt;span class=&quot;chip&quot;&gt;TXG&lt;/span&gt;&lt;span class=&quot;chip&quot;&gt;QMCO&lt;/span&gt;&lt;/div&gt;&lt;/div&gt;
+        &lt;/div&gt;&lt;/div&gt;
+
+      &lt;div class=&quot;t&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;リーダーの加速 / 失速&lt;span class=&quot;en&quot;&gt;Leader Accel / Decel&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;週ΔRS・全体感&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;momsum&quot;&gt;&lt;span&gt;加速 &lt;b class=&quot;pos&quot;&gt;10&lt;/b&gt;&lt;/span&gt;&lt;span&gt;中立 &lt;b&gt;6&lt;/b&gt;&lt;/span&gt;&lt;span&gt;失速 &lt;b class=&quot;neg&quot;&gt;8&lt;/b&gt;&lt;/span&gt;&lt;span&gt;中央 &lt;b class=&quot;pos num&quot;&gt;+5&lt;/b&gt;&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;mombar&quot;&gt;&lt;i style=&quot;width:33%;background:var(--pos)&quot;&gt;&lt;/i&gt;&lt;i style=&quot;width:25%;background:var(--track)&quot;&gt;&lt;/i&gt;&lt;i style=&quot;width:42%;background:var(--neg)&quot;&gt;&lt;/i&gt;&lt;/div&gt;
+        &lt;div class=&quot;mhwrap&quot;&gt;&lt;div class=&quot;mhttl&quot;&gt;週ΔRS 分布（リーダー24銘柄）&lt;/div&gt;&lt;div class=&quot;mh&quot; id=&quot;momh&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
+
+      &lt;div class=&quot;t sp2&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;金利・マクロ圧力&lt;span class=&quot;en&quot;&gt;Rates &amp; Macro&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;FRED・10Y/2Y/3M推移&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div style=&quot;display:flex;gap:16px;flex:1;min-height:0&quot;&gt;
+          &lt;div style=&quot;flex:0 0 auto;width:230px&quot;&gt;
+            &lt;div class=&quot;raterow&quot;&gt;&lt;span class=&quot;k&quot;&gt;米2年 / 10年名目&lt;/span&gt;&lt;span class=&quot;v num&quot;&gt;— / —&lt;/span&gt;&lt;/div&gt;
+            &lt;div class=&quot;raterow&quot;&gt;&lt;span class=&quot;k&quot;&gt;10年実質 / 期待ｲﾝﾌﾚ&lt;/span&gt;&lt;span class=&quot;v num&quot;&gt;2.85 / 2.34&lt;/span&gt;&lt;/div&gt;
+            &lt;div class=&quot;raterow&quot;&gt;&lt;span class=&quot;k&quot;&gt;10-2 スプレッド&lt;/span&gt;&lt;span class=&quot;v num pos&quot;&gt;+0.36&lt;/span&gt;&lt;/div&gt;
+            &lt;div class=&quot;raterow&quot;&gt;&lt;span class=&quot;k&quot;&gt;HY OAS / NFCI&lt;/span&gt;&lt;span class=&quot;v num&quot;&gt;2.80 / -0.56&lt;/span&gt;&lt;/div&gt;
+            &lt;div class=&quot;raterow&quot;&gt;&lt;span class=&quot;k&quot;&gt;広義ドル指数&lt;/span&gt;&lt;span class=&quot;v num&quot;&gt;119.5 &lt;span class=&quot;neg&quot;&gt;↑&lt;/span&gt;&lt;/span&gt;&lt;/div&gt;
+          &lt
+
+--- セクター・ローテーション @ 1436250 ---
+1px;letter-spacing:-.01em}
+.ldrs{flex:1;display:flex;flex-direction:column;justify-content:space-around;min-height:0;gap:2px}
+  .ldrow2{border-bottom:1px solid var(--line);padding-bottom:7px}.ldrow2:last-child{border-bottom:0}
+  .ldrow2 .lh{font-size:10px;font-weight:800;color:var(--accent);margin-bottom:5px}.ldrow2 .lh .s{font-size:8.5px;color:var(--mut);margin-left:4px}
+  .ldrow2 .lc{display:flex;flex-wrap:wrap;gap:5px}
+  .tchip{font-family:var(--fnum);font-size:11.5px;font-weight:800;background:var(--chipbg);border:1px solid var(--line);border-radius:5px;padding:2.5px 8px;letter-spacing:-.01em}
+.th h4 .en{font-size:9.5px;font-weight:600;color:var(--mut);margin-left:6px;letter-spacing:.02em}
+  .prrow .nm.bi{display:flex;flex-direction:column;line-height:1.02;overflow:hidden}
+  .prrow .nm.bi .jp{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prrow .nm.bi .en2{font-size:7.5px;font-weight:600;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .en2i{font-size:7.5px;font-weight:600;color:var(--mut)}
+  .dvrow .dnm.bi{flex-direction:column;align-items:flex-start;gap:0;line-height:1.02}
+  .dvrow .dnm.bi .jp{display:flex;align-items:center;gap:4px}.dvrow .dnm.bi .en2{font-size:7.5px;font-weight:600;color:var(--mut);white-space:nowrap}
+#top .tsec td{background:#EDEAE1;color:#3d4137;font-weight:800;font-size:10.5px;padding:2px 8px 1px;letter-spacing:.03em;border-top:1px solid rgba(0,0,0,.10)}#top td{padding:3px 8px;font-size:11.5px;line-height:1.15}.rsq .rsbox{padding:6px 8px}.rsq .chips{gap:3px}.rsq .chip{font-size:9.5px;padding:1px 5px;line-height:1.55}.rsq .rn{font-size:16px}.rsq .rh{margin-bottom:4px}details.ovfold{margin:8px 0 0}details.ovfold&gt;summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--mut);opacity:.68;user-select:none;padding:2px 0}details.ovfold&gt;summary::-webkit-details-marker{display:none}details.ovfold&gt;summary::before{content:&#x27;\25B8&#x27;;font-size:9px}details.ovfold[open]&gt;summary::before{content:&#x27;\25BE&#x27;}details.ovfold[open]&gt;summary{margin-bottom:5px}details.ovfold:not([open])&gt;*:not(summary){display:none!important}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;div class=&quot;stage&quot; id=&quot;stage&quot;&gt;&lt;div class=&quot;scaler&quot; id=&quot;scaler&quot;&gt;
+  &lt;div class=&quot;card&quot;&gt;
+    &lt;div class=&quot;hd&quot;&gt;&lt;span class=&quot;bar&quot;&gt;&lt;/span&gt;&lt;h1&gt;セクター・ローテーション &lt;span style=&quot;font-size:13px;font-weight:600;color:var(--mut);letter-spacing:.02em&quot;&gt;Sector Rotation&lt;/span&gt;&lt;/h1&gt;&lt;span class=&quot;pg&quot;&gt;2 / 詳細&lt;/span&gt;&lt;span class=&quot;date num&quot;&gt;2026-09-25 09:00 JST&lt;/span&gt;&lt;/div&gt;
+    &lt;div class=&quot;read&quot;&gt;—&lt;/div&gt;
+
+    &lt;div class=&quot;grid&quot;&gt;
+      &lt;!-- R1: major ranking + wide rotation map --&gt;
+      &lt;div class=&quot;t sp2 maj&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;大分類 — 期間ごとランキング&lt;span class=&quot;en&quot;&gt;Major Sectors · Rank by Period&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;RS21/63/126/189・▲▼＝長期(RS189)順位からの変化&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;prg&quot; id=&quot;prgMaj&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+
+      &lt;div class=&quot;t sp2&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;順位フロー（大分類）&lt;span class=&quot;en&quot;&gt;Rank Flow&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;長期→短期のRS順位推移・右肩上がり＝資金流入 / 右肩下がり＝流出&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;rrgwrap&quot;&gt;&lt;div id=&quot;bump&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
+
+      &lt;!-- R2: granular subtheme ranking + rich flow --&gt;
+      &lt;div class=&quot;t sp3 min&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;小分類（サブテーマ）— 期間ごとランキング&lt;span class=&quot;en&quot;&gt;Sub-themes · Rank by Period&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;RS21/63/126/189・色＝大分類・▲▼＝長期順位からの変化&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;prg tight&quot; id=&quot;prgMin&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+
+      &lt;div class=&quot;t&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;資金の流れ&lt;span class=&quot;en&quot;&gt;Money Flow&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;短期RS − 長期RS&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;flowbody&quot;&gt;
+          &lt;div class=&quot;fttl&quot;&gt;大分類フロー（左=流出 ／ 右=流入）&lt;/div&gt;
+          &lt;div id=&quot;majflow&quot;&gt;&lt;/div&gt;
+          &lt;div class=&quot;fttl&quot; style=&quot;margin-top:5px&quot;&gt;期間ごとの先導株（RS上位5）&lt;/div&gt;
+          &lt;div class=&quot;ldrs&quot; id=&quot;leaders&quot;&gt;&lt;/div&gt;
+          &lt;div class=&quot;flownote&quot; id=&quot;fnote&quot;&gt;&lt;/div&gt;
+        &lt;/div&gt;&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;/div&gt;&lt;/div&gt;
+
+&lt;script&gt;
+  var PAPER=&#x27;#E9E7DF&#x27;,INK=&#x27;#1B1D1C&#x27;,MUT=&#x27;#727569&#x27;,LINE=&#x27;#D5D1C6&#x27;,ACC=&#x27;#17685C&#x27;,WARN=&#x27;#B07A16&#x27;,NEG=&#x27;#B23A2E&#x27;,
+      SANS=&quot;-apple-system,&#x27;Helvetica Neue&#x27;,Arial,sans-serif&quot;;
+  function clamp(v){return Math.max(3,Math.min(99,Math.round(v)));}
+  var PC={&#x27;情報技術&#x27;:&#x27;#C08A3E&#x27;,&#x27;テック&#x27;:&#x27;#C08A3E&#x27;,&#x27;テクノロジー&#x27;:&#x27;#C08A3E&#x27;,&#x27;金融&#x27;:&#x27;#2F6E96&#x27;,&#x27;通信&#x27;:&#x27;#7D5EA6&#x27;,&#x27;通信サービス&#x27;:&#x27;#7D5EA6&#x27;,&#x27;資本財&#x27;:&#x27;#4E8768&#x27;,&#x27;資本財/防衛&#x27;:&#x27;#4E8768&#x27;,&#x27;ヘルスケア&#x27;:&#x27;#3E9276&#x27;,&#x27;一般消費&#x27;:&#x27;#B0794A&#x27;,&#x27;一般消費財&#x27;:&#x27;#B0794A&#x27;,&#x27;素材&#x27;:&#x27;#8F7B4A&#x27;,&#x27;エネルギー&#x27;:&#x27;#A84C40&#x27;,&#x27;公益&#x27;:&#x27;#8A8AA0&#x27;,&#x27;不動産&#x27;:&#x27;#9A6FA0&#x27;,&#x27;生活必需品&#x27;:&#x27;#789A88&#x27;};
+
+  var MAJ=[];
+
+  // 小分類 — 細分化(約30): [name, parent, base(RS189), trend]
+  var SUB = [[&#x27;ゲノミクス/シーケンシング&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,97,-0.9],[&#x27;アイデンティティ/IAM&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,96,1.6],[&#x27;AIサーバー/冷却&#x27;,&#x27;&#x27;,&#x27;AI・テック成長テーマ&#x27;,98,6.2],[&#x27;石油精製&#x27;,&#x27;&#x27;,&#x27;エネルギー（化石燃料）&#x27;,96,-2.1],[&#x27;エンドポイント/EDR&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,91,1.5],[&#x27;mRNA/ワクチン&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,92,7.4],[&#x27;AI創薬/ヘルスケアAI&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,86,1.0],[&#x27;海運&#x27;,&#x27;Shipping&#x27;,&#x27;産業・資本財・輸送&#x27;,91,2.3],[&#x27;大麻・カンナビス&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,87,23.6],[&#x27;がん免疫療法&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,95,-6.7],[&#x27;電子製品卸売り&#x27;,&#x27;&#x27;,&#x27;消費者・小売りテーマ&#x27;,89,5.2],[&#x27;AIオブザーバビリティ&#x27;,&#x27;&#x27;,&#x27;AI・テック成長テーマ&#x27;,86,11.9],[&#x27;RF/ワイヤレス&#x27;,&#x27;&#x27;,&#x27;半導体・製造サプライチェーン&#x27;,79,8.2],[&#x27;3Dプリンティング/積層造形&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,91,15.5],[&#x27;EV充電インフラ&#x27;,&#x27;&#x27;,&#x27;宇宙・防衛・モビリティ&#x27;,71,11.8],[&#x27;AI GPU/トレーニングチップ&#x27;,&#x27;&#x27;,&#x27;AI・テック成長テーマ&#x27;,82,24.7],[&#x27;コンピューター/ハードウェア&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,82,37.6],[&#x27;診断/ラボサービス&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,79,-5.4],[&#x27;銅鉱山&#x27;,&#x27;&#x27;,&#x27;素材・鉱業・化学&#x27;,81,25.7],[&#x27;通信機器（消費者）&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,81,-1.6],[&#x27;サイバーセキュリティ（脆弱性管理）&#x27;,&#x
+
+--- 大分類 @ 398770 ---
+>（エネルギー（化石燃料）・強さ98）</span></div><div class="chips"><span class="chip hot" data-liq="63.7" data-tkone="CVI">CVI <span class="mut" style="font-size:10px">RS95</span></span><span class="chip hot" data-liq="294.4" data-tkone="PBF">PBF <span class="mut" style="font-size:10px">RS99</span></span><span class="chip hot" data-liq="311.2" data-tkone="DINO">DINO <span class="mut" style="font-size:10px">RS97</span></span></div></div><div class="slrow"><div class="slname">エンドポイント/EDR<span class="mut" style="font-size:11px">（デジタルインフラ・先進テック・強さ96）</span></div><div class="chips"><span class="chip hot" data-liq="3086.6" data-tkone="CRWD">CRWD <span class="mut" style="font-size:10px">RS96</span></span><span class="chip hot" data-liq="213.1" data-tkone="S">S <span class="mut" style="font-size:10px">RS86</span></span></div></div><div class="slrow"><div class="slname">mRNA/ワクチン<span class="mut" style="font-size:11px">（バイオ・ヘルスケア・強さ96）</span></div><div class="chips"><span class="chip hot" data-liq="13.8" data-tkone="ARCT">ARCT <span class="mut" style="font-size:10px">RS96</span></span><span class="chip hot" data-liq="61.9" data-tkone="NVAX">NVAX <span class="mut" style="font-size:10px">RS87</span></span></div></div><div class="slrow"><div class="slname">AI創薬/ヘルスケアAI<span class="mut" style="font-size:11px">（バイオ・ヘルスケア・強さ95）</span></div><div class="chips"><span class="chip hot" data-liq="62.8" data-tkone="SDGR">SDGR <span class="mut" style="font-size:10px">RS86</span></span><span class="chip hot" data-liq="37.5" data-tkone="ABSI">ABSI <span class="mut" style="font-size:10px">RS98</span></span></div></div><div class="slrow"><div class="slname">海運<span class="mut" style="font-size:11px">（産業・資本財・輸送・強さ95）</span></div><div class="chips"><span class="chip hot" data-liq="60.1" data-tkone="ECO">ECO <span class="mut" style="font-size:10px">RS98</span></span><span class="chip hot" data-liq="184.1" data-tkone="FRO">FRO <span class="mut" style="font-size:10px">RS98</span></span><span class="chip hot" data-liq="84.0" data-tkone="INSW">INSW <span class="mut" style="font-size:10px">RS98</span></span></div></div></div><div class="msec"><div class="msec-l">⑤ 一覧で確認する<span class="msec-en">Full Rankings</span></div><div class="msec-q">見出しタップで並べ替え・行タップで構成銘柄</div></div><div class="card"><h2>セクターETF強弱<span class="h2en">Sector ETF Strength</span></h2><div class="sub">S&amp;P500の11セクターETFと業種テーマETFの騰落率（下のサブテーマ別RSは個別株のRS中央値・別物）</div><div class="sectog"><button class="stg-g active" onclick="secG('macro',this)">大分類</button><button class="stg-g" onclick="secG('micro',this)">小分類</button><span class="stg-sep">|</span><button class="stg-t active" onclick="secT('d1',this)">日</button><button class="stg-t" onclick="secT('w1',this)">週</button><button class="stg-t" onclick="secT('m1',this)">月</button></div><div class="sectbl" id="sec-macro-d1" style=""><table><tr><th class="l">#</th><th class="l">セクター</th><th>日</th><th>週</th><th>月</th></tr></table></div><div class="sectbl" id="sec-macro-w1" style="display:none"><table><tr><th class="l">#</th><th class="l">セクター</th><th>日</th><th>週</th><th>月</th></tr></table></div><div class="sectbl" id="sec-macro-m1" style="display:none"><table><tr><th class="l">#</th><th class="l">セクター</th><th>日</th><th>週</th><th>月</th></tr></table></div><div class="sectbl" id="sec-micro-d1" style="display:none"><table><tr><th class="l">#</th><th class="l">セクター</th><th>日</th><th>週</th><th>月</th></tr><tr class="secsub"><td colspan="5" class="l">強い</td></tr><tr><td class="l mut">1</td><td class="l tk" style="font-size:12px">水素<span class="mut" style="font-size:10px"> HYDR</span></td><td class="pos hl">+3.1%</td><td class="neg">-1.1%</td><td class="pos">+1.8%</td></tr><tr><td class="l mut">2</td><td class="l tk" style="font-size:12px">半導体EW<span class="mut" style="font-size:10px"> XSD</span></td><td class="pos hl">+2.7%</td><td class="pos">+6.8%</td><td class="pos">+10.2%</td></tr><tr><td class="l mut">3</td><td class="l tk" style="font-size:12px">メモリ<span class="mut" style="font-size:10px"> DRAM</span></td><td class="pos hl">+2.0%</td><td class="pos">+3.9%</td><td class="pos">+9.8%</td></tr><tr><td class="l mut">4</td><td class="l tk" style="font-size:12px">航空<span class="mut" style="font-size:10px"> JETS</span></td><td class="pos hl">+1.8%</td><td class="pos">+2.7%</td><td class="neg">-2.6%</td></tr><tr><td class="l mut">5</td><td class="l tk" style="font-size:12px">住宅建設<span class="mut" style="font-size:10px"> XHB</span></td><td class="pos hl">+1.6%</td><td class="pos">+2.6%</td><td class="neg">-6.7%</td></tr><tr class="secsub"><td colspan="5" class="l">弱い</td></tr><tr><td class="l mut">52</td><td class="l tk" style="font-size:12px">クラウド基盤<span class="mut" style="font-size:10px"> SKYY</span></td><td class="neg hl">-1.3%</td><td class="pos">+1.6%</td><td class="pos">+3.0%</td></tr><tr><td class="l mut">53</td><td class="l tk" style="font-size:12px">石油探査<span class="mut" style="font-size:10px"> XOP</span></td><td class="neg hl">-1.4%</td><td class="neg">-4.4%</td><td class="neg">-1.2%</td></tr><tr><td class="l mut">54</td><td class="l tk" style="font-size:12px">サイバー<span class="mut" style="font-size:10px"> CIBR</span></td><td class="neg hl">-2.2%</td><td class="pos">+1.1%</td><td class="pos">+7.8%</td></tr><tr><td class="l mut">55</td><td class="l tk" style="font-size:12px">クラウドSaaS<span class="mut" style="font-size:10px"> WCLD</span></td><td class="neg hl">-2.6%</td><td class="pos">+0.1%</td><td class="pos">+0.5%</td></tr><tr><td class="l mut">56</td><td class="l tk" style="font-size:12px">BTCマイニング<span class="mut" style="font-size:10px"> WGMI</span></td><td class="neg hl">-3.2%</td><td class="neg">-2.6%</td><td class="pos">+6.8%</td></tr></table></div><div class="sectbl" id="sec-micro-w1" style="display:none"><table><tr><th class="l">#</th><th class="l">セクター</th><th>日</th><th>週</th><th>月</th></tr><tr class="secsub"><td colspan="5" class="l">強い</td></tr><tr><td class="l mut">1</td><td class="l tk" style="font-size:12px">半導体装置<span class="mut" style="font-size:10px"> SOXX</span></td><td class="pos">+1.2%</td><td class="pos hl">+7.4%</td><td class="pos">+11.2%</td></tr><tr><td class="l mut">2</td><td class="l tk" style="font-size:12px">半導体EW<span class="mut" style="font-size:10px"> XSD</span></td><td class="pos">+2.7%</td><td class="pos hl">+6.8%</td><td class="pos">+10.2%</td></tr><tr><td class="l mut">3</td><td class="l tk" style="font-size:12px">半導体<span class="mut" style="font-size:10px"> SMH</span></td><td class="pos">+1.0%</td><td class="pos hl">+5.9%</td><td class="pos">+9.1%</td></tr><tr><td class="l mut">4</td><td class="l tk" style="font-size:12px">ゲノム<span class="mut" style="font-size:10px"> GNOM</span></td><td class="neg">-0.1%</td><td class="pos hl">+5.7%</td><td class="pos">+4.2%</td></tr><tr><td class="l mut">5</td><td class="l tk" style="font-size:12px">量子・次世代<span class="mut" style="font-size:10px"> QTUM</span></td><td class="pos">+0.8%</td><td class="pos hl">+4.3%</td><td class="pos">+3.6%</td></tr><tr class="secsub"><td colspan="5" class="l">弱い</td></tr><tr><td class="l mut">52</td><td class="l tk" style="font-size:12px">レアアース<span class="mut" style="font-size:10px"> REMX</span></td><td class="neg">-0.4%</td><td class="neg hl">-3.5%</td><td class="neg">-14.6%</td></tr><tr><td class="l mut">53</td><td class="l tk" style="font-size:12px">ソーラー<span class="mut" style="font-size:10px"> TAN</span></td><td class="pos">+1.4%</td><td class="neg hl">-3.5%</td><td class="neg">-9.7%</td></tr><tr><td class
+
+--- 大分類 @ 1437195 ---
+:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .en2i{font-size:7.5px;font-weight:600;color:var(--mut)}
+  .dvrow .dnm.bi{flex-direction:column;align-items:flex-start;gap:0;line-height:1.02}
+  .dvrow .dnm.bi .jp{display:flex;align-items:center;gap:4px}.dvrow .dnm.bi .en2{font-size:7.5px;font-weight:600;color:var(--mut);white-space:nowrap}
+#top .tsec td{background:#EDEAE1;color:#3d4137;font-weight:800;font-size:10.5px;padding:2px 8px 1px;letter-spacing:.03em;border-top:1px solid rgba(0,0,0,.10)}#top td{padding:3px 8px;font-size:11.5px;line-height:1.15}.rsq .rsbox{padding:6px 8px}.rsq .chips{gap:3px}.rsq .chip{font-size:9.5px;padding:1px 5px;line-height:1.55}.rsq .rn{font-size:16px}.rsq .rh{margin-bottom:4px}details.ovfold{margin:8px 0 0}details.ovfold&gt;summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--mut);opacity:.68;user-select:none;padding:2px 0}details.ovfold&gt;summary::-webkit-details-marker{display:none}details.ovfold&gt;summary::before{content:&#x27;\25B8&#x27;;font-size:9px}details.ovfold[open]&gt;summary::before{content:&#x27;\25BE&#x27;}details.ovfold[open]&gt;summary{margin-bottom:5px}details.ovfold:not([open])&gt;*:not(summary){display:none!important}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;div class=&quot;stage&quot; id=&quot;stage&quot;&gt;&lt;div class=&quot;scaler&quot; id=&quot;scaler&quot;&gt;
+  &lt;div class=&quot;card&quot;&gt;
+    &lt;div class=&quot;hd&quot;&gt;&lt;span class=&quot;bar&quot;&gt;&lt;/span&gt;&lt;h1&gt;セクター・ローテーション &lt;span style=&quot;font-size:13px;font-weight:600;color:var(--mut);letter-spacing:.02em&quot;&gt;Sector Rotation&lt;/span&gt;&lt;/h1&gt;&lt;span class=&quot;pg&quot;&gt;2 / 詳細&lt;/span&gt;&lt;span class=&quot;date num&quot;&gt;2026-09-25 09:00 JST&lt;/span&gt;&lt;/div&gt;
+    &lt;div class=&quot;read&quot;&gt;—&lt;/div&gt;
+
+    &lt;div class=&quot;grid&quot;&gt;
+      &lt;!-- R1: major ranking + wide rotation map --&gt;
+      &lt;div class=&quot;t sp2 maj&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;大分類 — 期間ごとランキング&lt;span class=&quot;en&quot;&gt;Major Sectors · Rank by Period&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;RS21/63/126/189・▲▼＝長期(RS189)順位からの変化&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;prg&quot; id=&quot;prgMaj&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+
+      &lt;div class=&quot;t sp2&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;順位フロー（大分類）&lt;span class=&quot;en&quot;&gt;Rank Flow&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;長期→短期のRS順位推移・右肩上がり＝資金流入 / 右肩下がり＝流出&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;rrgwrap&quot;&gt;&lt;div id=&quot;bump&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
+
+      &lt;!-- R2: granular subtheme ranking + rich flow --&gt;
+      &lt;div class=&quot;t sp3 min&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;小分類（サブテーマ）— 期間ごとランキング&lt;span class=&quot;en&quot;&gt;Sub-themes · Rank by Period&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;RS21/63/126/189・色＝大分類・▲▼＝長期順位からの変化&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;prg tight&quot; id=&quot;prgMin&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+
+      &lt;div class=&quot;t&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;資金の流れ&lt;span class=&quot;en&quot;&gt;Money Flow&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;短期RS − 長期RS&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;flowbody&quot;&gt;
+          &lt;div class=&quot;fttl&quot;&gt;大分類フロー（左=流出 ／ 右=流入）&lt;/div&gt;
+          &lt;div id=&quot;majflow&quot;&gt;&lt;/div&gt;
+          &lt;div class=&quot;fttl&quot; style=&quot;margin-top:5px&quot;&gt;期間ごとの先導株（RS上位5）&lt;/div&gt;
+          &lt;div class=&quot;ldrs&quot; id=&quot;leaders&quot;&gt;&lt;/div&gt;
+          &lt;div class=&quot;flownote&quot; id=&quot;fnote&quot;&gt;&lt;/div&gt;
+        &lt;/div&gt;&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;/div&gt;&lt;/div&gt;
+
+&lt;script&gt;
+  var PAPER=&#x27;#E9E7DF&#x27;,INK=&#x27;#1B1D1C&#x27;,MUT=&#x27;#727569&#x27;,LINE=&#x27;#D5D1C6&#x27;,ACC=&#x27;#17685C&#x27;,WARN=&#x27;#B07A16&#x27;,NEG=&#x27;#B23A2E&#x27;,
+      SANS=&quot;-apple-system,&#x27;Helvetica Neue&#x27;,Arial,sans-serif&quot;;
+  function clamp(v){return Math.max(3,Math.min(99,Math.round(v)));}
+  var PC={&#x27;情報技術&#x27;:&#x27;#C08A3E&#x27;,&#x27;テック&#x27;:&#x27;#C08A3E&#x27;,&#x27;テクノロジー&#x27;:&#x27;#C08A3E&#x27;,&#x27;金融&#x27;:&#x27;#2F6E96&#x27;,&#x27;通信&#x27;:&#x27;#7D5EA6&#x27;,&#x27;通信サービス&#x27;:&#x27;#7D5EA6&#x27;,&#x27;資本財&#x27;:&#x27;#4E8768&#x27;,&#x27;資本財/防衛&#x27;:&#x27;#4E8768&#x27;,&#x27;ヘルスケア&#x27;:&#x27;#3E9276&#x27;,&#x27;一般消費&#x27;:&#x27;#B0794A&#x27;,&#x27;一般消費財&#x27;:&#x27;#B0794A&#x27;,&#x27;素材&#x27;:&#x27;#8F7B4A&#x27;,&#x27;エネルギー&#x27;:&#x27;#A84C40&#x27;,&#x27;公益&#x27;:&#x27;#8A8AA0&#x27;,&#x27;不動産&#x27;:&#x27;#9A6FA0&#x27;,&#x27;生活必需品&#x27;:&#x27;#789A88&#x27;};
+
+  var MAJ=[];
+
+  // 小分類 — 細分化(約30): [name, parent, base(RS189), trend]
+  var SUB = [[&#x27;ゲノミクス/シーケンシング&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,97,-0.9],[&#x27;アイデンティティ/IAM&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,96,1.6],[&#x27;AIサーバー/冷却&#x27;,&#x27;&#x27;,&#x27;AI・テック成長テーマ&#x27;,98,6.2],[&#x27;石油精製&#x27;,&#x27;&#x27;,&#x27;エネルギー（化石燃料）&#x27;,96,-2.1],[&#x27;エンドポイント/EDR&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,91,1.5],[&#x27;mRNA/ワクチン&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,92,7.4],[&#x27;AI創薬/ヘルスケアAI&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,86,1.0],[&#x27;海運&#x27;,&#x27;Shipping&#x27;,&#x27;産業・資本財・輸送&#x27;,91,2.3],[&#x27;大麻・カンナビス&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,87,23.6],[&#x27;がん免疫療法&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,95,-6.7],[&#x27;電子製品卸売り&#x27;,&#x27;&#x27;,&#x27;消費者・小売りテーマ&#x27;,89,5.2],[&#x27;AIオブザーバビリティ&#x27;,&#x27;&#x27;,&#x27;AI・テック成長テーマ&#x27;,86,11.9],[&#x27;RF/ワイヤレス&#x27;,&#x27;&#x27;,&#x27;半導体・製造サプライチェーン&#x27;,79,8.2],[&#x27;3Dプリンティング/積層造形&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,91,15.5],[&#x27;EV充電インフラ&#x27;,&#x27;&#x27;,&#x27;宇宙・防衛・モビリティ&#x27;,71,11.8],[&#x27;AI GPU/トレーニングチップ&#x27;,&#x27;&#x27;,&#x27;AI・テック成長テーマ&#x27;,82,24.7],[&#x27;コンピューター/ハードウェア&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,82,37.6],[&#x27;診断/ラボサービス&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,79,-5.4],[&#x27;銅鉱山&#x27;,&#x27;&#x27;,&#x27;素材・鉱業・化学&#x27;,81,25.7],[&#x27;通信機器（消費者）&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,81,-1.6],[&#x27;サイバーセキュリティ（脆弱性管理）&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,69,-1.6],[&#x27;CDN/エッジ&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,82,21.4],[&#x27;ジェネリック医薬&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,86,4.2],[&#x27;E&amp;P（探査・生産）&#x27;,&#x27;&#x27;,&#x27;エネルギー（化石燃料）&#x27;,79,4.7],[&#x27;SoC/ロジック&#x27;,&#x27;&#x27;,&#x27;半導体・製造サプライチェーン&#x27;,90,22.4],[&#x27;LNG/天然ガス輸出&#x27;,&#x27;&#x27;,&#x27;エネルギー（化石燃料）&#x27;,81,-3.4],[&#x27;病院/クリニック&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,76,-4.2],[&#x27;通信キャリア（海外）&#x27;,&#x27;&#x27;,&#x27;ディフェンシブ（公益・通信・大手医薬）&#x27;,93,-4.4],[&#x27;データストレージ&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,98,-25.1],[&#x27;掘削サービス&#x27;,&#x27;&#x27;,&#x27;エネルギー（化石燃料）&#x27;,81,9.2]].map(function(r){return {name:r[0],en:r[1],parent:r[2],col:PC[r[2]],rs:{r21:clamp(r[3]+r[4]*5),r63:clamp(r[3]+r[4]*3),r126:clamp(r[3]+r[4]*1.5),r189:clamp(r[3])}};});
+
+  function rscFg(v){if(v&gt;=80)return&#x27;var(--pos)&#x27;;if(v&gt;=60)return&#x27;#2C7A4A
+
+--- 大分類 @ 1438362 ---
+]&gt;summary{margin-bottom:5px}details.ovfold:not([open])&gt;*:not(summary){display:none!important}&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;div class=&quot;stage&quot; id=&quot;stage&quot;&gt;&lt;div class=&quot;scaler&quot; id=&quot;scaler&quot;&gt;
+  &lt;div class=&quot;card&quot;&gt;
+    &lt;div class=&quot;hd&quot;&gt;&lt;span class=&quot;bar&quot;&gt;&lt;/span&gt;&lt;h1&gt;セクター・ローテーション &lt;span style=&quot;font-size:13px;font-weight:600;color:var(--mut);letter-spacing:.02em&quot;&gt;Sector Rotation&lt;/span&gt;&lt;/h1&gt;&lt;span class=&quot;pg&quot;&gt;2 / 詳細&lt;/span&gt;&lt;span class=&quot;date num&quot;&gt;2026-09-25 09:00 JST&lt;/span&gt;&lt;/div&gt;
+    &lt;div class=&quot;read&quot;&gt;—&lt;/div&gt;
+
+    &lt;div class=&quot;grid&quot;&gt;
+      &lt;!-- R1: major ranking + wide rotation map --&gt;
+      &lt;div class=&quot;t sp2 maj&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;大分類 — 期間ごとランキング&lt;span class=&quot;en&quot;&gt;Major Sectors · Rank by Period&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;RS21/63/126/189・▲▼＝長期(RS189)順位からの変化&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;prg&quot; id=&quot;prgMaj&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+
+      &lt;div class=&quot;t sp2&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;順位フロー（大分類）&lt;span class=&quot;en&quot;&gt;Rank Flow&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;長期→短期のRS順位推移・右肩上がり＝資金流入 / 右肩下がり＝流出&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;rrgwrap&quot;&gt;&lt;div id=&quot;bump&quot;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;
+
+      &lt;!-- R2: granular subtheme ranking + rich flow --&gt;
+      &lt;div class=&quot;t sp3 min&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;小分類（サブテーマ）— 期間ごとランキング&lt;span class=&quot;en&quot;&gt;Sub-themes · Rank by Period&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;RS21/63/126/189・色＝大分類・▲▼＝長期順位からの変化&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;prg tight&quot; id=&quot;prgMin&quot;&gt;&lt;/div&gt;&lt;/div&gt;
+
+      &lt;div class=&quot;t&quot;&gt;&lt;div class=&quot;th&quot;&gt;&lt;h4&gt;資金の流れ&lt;span class=&quot;en&quot;&gt;Money Flow&lt;/span&gt;&lt;/h4&gt;&lt;span class=&quot;s&quot;&gt;短期RS − 長期RS&lt;/span&gt;&lt;span class=&quot;g&quot;&gt;⚙&lt;/span&gt;&lt;/div&gt;
+        &lt;div class=&quot;flowbody&quot;&gt;
+          &lt;div class=&quot;fttl&quot;&gt;大分類フロー（左=流出 ／ 右=流入）&lt;/div&gt;
+          &lt;div id=&quot;majflow&quot;&gt;&lt;/div&gt;
+          &lt;div class=&quot;fttl&quot; style=&quot;margin-top:5px&quot;&gt;期間ごとの先導株（RS上位5）&lt;/div&gt;
+          &lt;div class=&quot;ldrs&quot; id=&quot;leaders&quot;&gt;&lt;/div&gt;
+          &lt;div class=&quot;flownote&quot; id=&quot;fnote&quot;&gt;&lt;/div&gt;
+        &lt;/div&gt;&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+  &lt;/div&gt;&lt;/div&gt;
+
+&lt;script&gt;
+  var PAPER=&#x27;#E9E7DF&#x27;,INK=&#x27;#1B1D1C&#x27;,MUT=&#x27;#727569&#x27;,LINE=&#x27;#D5D1C6&#x27;,ACC=&#x27;#17685C&#x27;,WARN=&#x27;#B07A16&#x27;,NEG=&#x27;#B23A2E&#x27;,
+      SANS=&quot;-apple-system,&#x27;Helvetica Neue&#x27;,Arial,sans-serif&quot;;
+  function clamp(v){return Math.max(3,Math.min(99,Math.round(v)));}
+  var PC={&#x27;情報技術&#x27;:&#x27;#C08A3E&#x27;,&#x27;テック&#x27;:&#x27;#C08A3E&#x27;,&#x27;テクノロジー&#x27;:&#x27;#C08A3E&#x27;,&#x27;金融&#x27;:&#x27;#2F6E96&#x27;,&#x27;通信&#x27;:&#x27;#7D5EA6&#x27;,&#x27;通信サービス&#x27;:&#x27;#7D5EA6&#x27;,&#x27;資本財&#x27;:&#x27;#4E8768&#x27;,&#x27;資本財/防衛&#x27;:&#x27;#4E8768&#x27;,&#x27;ヘルスケア&#x27;:&#x27;#3E9276&#x27;,&#x27;一般消費&#x27;:&#x27;#B0794A&#x27;,&#x27;一般消費財&#x27;:&#x27;#B0794A&#x27;,&#x27;素材&#x27;:&#x27;#8F7B4A&#x27;,&#x27;エネルギー&#x27;:&#x27;#A84C40&#x27;,&#x27;公益&#x27;:&#x27;#8A8AA0&#x27;,&#x27;不動産&#x27;:&#x27;#9A6FA0&#x27;,&#x27;生活必需品&#x27;:&#x27;#789A88&#x27;};
+
+  var MAJ=[];
+
+  // 小分類 — 細分化(約30): [name, parent, base(RS189), trend]
+  var SUB = [[&#x27;ゲノミクス/シーケンシング&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,97,-0.9],[&#x27;アイデンティティ/IAM&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,96,1.6],[&#x27;AIサーバー/冷却&#x27;,&#x27;&#x27;,&#x27;AI・テック成長テーマ&#x27;,98,6.2],[&#x27;石油精製&#x27;,&#x27;&#x27;,&#x27;エネルギー（化石燃料）&#x27;,96,-2.1],[&#x27;エンドポイント/EDR&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,91,1.5],[&#x27;mRNA/ワクチン&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,92,7.4],[&#x27;AI創薬/ヘルスケアAI&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,86,1.0],[&#x27;海運&#x27;,&#x27;Shipping&#x27;,&#x27;産業・資本財・輸送&#x27;,91,2.3],[&#x27;大麻・カンナビス&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,87,23.6],[&#x27;がん免疫療法&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,95,-6.7],[&#x27;電子製品卸売り&#x27;,&#x27;&#x27;,&#x27;消費者・小売りテーマ&#x27;,89,5.2],[&#x27;AIオブザーバビリティ&#x27;,&#x27;&#x27;,&#x27;AI・テック成長テーマ&#x27;,86,11.9],[&#x27;RF/ワイヤレス&#x27;,&#x27;&#x27;,&#x27;半導体・製造サプライチェーン&#x27;,79,8.2],[&#x27;3Dプリンティング/積層造形&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,91,15.5],[&#x27;EV充電インフラ&#x27;,&#x27;&#x27;,&#x27;宇宙・防衛・モビリティ&#x27;,71,11.8],[&#x27;AI GPU/トレーニングチップ&#x27;,&#x27;&#x27;,&#x27;AI・テック成長テーマ&#x27;,82,24.7],[&#x27;コンピューター/ハードウェア&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,82,37.6],[&#x27;診断/ラボサービス&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,79,-5.4],[&#x27;銅鉱山&#x27;,&#x27;&#x27;,&#x27;素材・鉱業・化学&#x27;,81,25.7],[&#x27;通信機器（消費者）&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,81,-1.6],[&#x27;サイバーセキュリティ（脆弱性管理）&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,69,-1.6],[&#x27;CDN/エッジ&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,82,21.4],[&#x27;ジェネリック医薬&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,86,4.2],[&#x27;E&amp;P（探査・生産）&#x27;,&#x27;&#x27;,&#x27;エネルギー（化石燃料）&#x27;,79,4.7],[&#x27;SoC/ロジック&#x27;,&#x27;&#x27;,&#x27;半導体・製造サプライチェーン&#x27;,90,22.4],[&#x27;LNG/天然ガス輸出&#x27;,&#x27;&#x27;,&#x27;エネルギー（化石燃料）&#x27;,81,-3.4],[&#x27;病院/クリニック&#x27;,&#x27;&#x27;,&#x27;バイオ・ヘルスケア&#x27;,76,-4.2],[&#x27;通信キャリア（海外）&#x27;,&#x27;&#x27;,&#x27;ディフェンシブ（公益・通信・大手医薬）&#x27;,93,-4.4],[&#x27;データストレージ&#x27;,&#x27;&#x27;,&#x27;デジタルインフラ・先進テック&#x27;,98,-25.1],[&#x27;掘削サービス&#x27;,&#x27;&#x27;,&#x27;エネルギー（化石燃料）&#x27;,81,9.2]].map(function(r){return {name:r[0],en:r[1],parent:r[2],col:PC[r[2]],rs:{r21:clamp(r[3]+r[4]*5),r63:clamp(r[3]+r[4]*3),r126:clamp(r[3]+r[4]*1.5),r189:clamp(r[3])}};});
+
+  function rscFg(v){if(v&gt;=80)return&#x27;var(--pos)&#x27;;if(v&gt;=60)return&#x27;#2C7A4A&#x27;;if(v&gt;=40)return&#x27;#4A4C46&#x27;;return&#x27;var(--neg)&#x27;;}
+  function rankArr(items,key){return items.slice().sort(function(a,b){return b.rs[key]-a.rs[key];});}
+  function arrow(d){return d&gt;0?&#x27;&lt;span class=&quot;ar pos&quot;&gt;▲&#x27;+d+&#x27;&lt;/span&gt;&#x27;:(d&lt;0?&#x27;&lt;span class=&quot;ar neg&quot;&gt;▼&#x27;+(-d)+&#x27;&lt;/span&gt;&#x27;:&#x27;&lt;span class=&quot;ar&quot; style=&quot;color:var(--mut)&quot;&gt;·&lt;/span&gt;&#x27;);}
+  function rankBlock(items,enMode){
+    var r189=rankArr(items,&#x27;r189&#x27;),rk189={};r189.forEach(function(x,i){rk189[x.name]=i+1;});
+    var periods=[[&#x27;RS21&#x27;,&#x27;r21&#x27;,&#x27;短期&#x27;],[&#x27;RS63&#x27;,&#x27;r63&#x27;,&#x27;中短&#x27;],[&#x27;RS126&#x27;,&#x27;r126&#x27;,&#x27;中長&#x27;],[&#x27;RS189&#x27;,&#x27;r189&#x27;,&#x27;長期&#x27;]];
+    return periods.map(function(p){var arr=rankArr(items,p[1]);
+      var rows=arr.map(function(x,i){var ar=p[1]===&#x27;r189&#x27;?&#x27;&lt;span class=&quot;ar&quot;&gt;&lt;/span&gt;&#x27;:arrow(rk189[x.name]-(i+1));
+        var nm;if(enMode===&#x27;stack&#x27;&amp;&amp;x.en){nm=&#x27;&lt;span class=&quot;nm bi&quot;&gt;&l
+
+--- 大分類 @ 1456681 ---
+ot;&#x27;+SANS+&#x27;&quot; font-size=&quot;&#x27;+(fl*0.68).toFixed(1)+&#x27;&quot; fill=&quot;&#x27;+MUT+&#x27;&quot;&gt;&#x27;+(sc.en||&#x27;&#x27;)+&#x27;&lt;/text&gt;&#x27;;
+      return &#x27;&lt;path d=&quot;&#x27;+d+&#x27;&quot; fill=&quot;none&quot; stroke=&quot;&#x27;+sc.col+&#x27;&quot; stroke-width=&quot;&#x27;+(dotR*0.95).toFixed(1)+&#x27;&quot; opacity=&quot;0.85&quot; stroke-linejoin=&quot;round&quot;/&gt;&#x27;+dots+lbl;}).join(&#x27;&#x27;);
+    return &#x27;&lt;svg viewBox=&quot;0 0 &#x27;+Math.round(W)+&#x27; &#x27;+Math.round(H)+&#x27;&quot; preserveAspectRatio=&quot;none&quot; style=&quot;width:100%;height:100%;display:block&quot;&gt;&#x27;+grid+vg+heads+lines+&#x27;&lt;/svg&gt;&#x27;;
+  }
+  function render(){
+    document.getElementById(&#x27;prgMaj&#x27;).innerHTML=rankBlock(MAJ,&#x27;stack&#x27;);
+    document.getElementById(&#x27;prgMin&#x27;).innerHTML=rankBlock(SUB,&#x27;inline&#x27;);
+    var mf=MAJ.map(function(m){return {name:m.name,en:m.en,col:m.col,sp:spread(m)};}).sort(function(a,b){return b.sp-a.sp;});
+    var maxAbs=Math.max.apply(null,mf.map(function(x){return Math.abs(x.sp);}))||1;
+    document.getElementById(&#x27;majflow&#x27;).innerHTML=mf.map(function(x){var w=(Math.abs(x.sp)/maxAbs*48).toFixed(1);
+      var fill=x.sp&gt;=0?&#x27;&lt;span class=&quot;fill&quot; style=&quot;left:50%;width:&#x27;+w+&#x27;%;background:&#x27;+x.col+&#x27;&quot;&gt;&lt;/span&gt;&#x27;:&#x27;&lt;span class=&quot;fill&quot; style=&quot;right:50%;width:&#x27;+w+&#x27;%;background:&#x27;+x.col+&#x27;&quot;&gt;&lt;/span&gt;&#x27;;
+      return &#x27;&lt;div class=&quot;dvrow&quot;&gt;&lt;span class=&quot;dnm bi&quot;&gt;&lt;span class=&quot;jp&quot;&gt;&lt;span class=&quot;dotc&quot; style=&quot;background:&#x27;+x.col+&#x27;&quot;&gt;&lt;/span&gt;&#x27;+x.name+&#x27;&lt;/span&gt;&lt;span class=&quot;en2&quot;&gt;&#x27;+(x.en||&#x27;&#x27;)+&#x27;&lt;/span&gt;&lt;/span&gt;&lt;span class=&quot;dv&quot;&gt;&lt;span class=&quot;zero&quot;&gt;&lt;/span&gt;&#x27;+fill+&#x27;&lt;/span&gt;&lt;span class=&quot;dval &#x27;+(x.sp&gt;=0?&#x27;pos&#x27;:&#x27;neg&#x27;)+&#x27;&quot;&gt;&#x27;+(x.sp&gt;=0?&#x27;+&#x27;:&#x27;&#x27;)+x.sp+&#x27;&lt;/span&gt;&lt;/div&gt;&#x27;;}).join(&#x27;&#x27;);
+    var inN=mf.filter(function(x){return x.sp&gt;0;}).length,outN=mf.filter(function(x){return x.sp&lt;0;}).length;
+    document.getElementById(&#x27;fnote&#x27;).innerHTML=&#x27;流入 &lt;b&gt;&#x27;+inN+&#x27;&lt;/b&gt; / 流出 &lt;b&gt;&#x27;+outN+&#x27;&lt;/b&gt; 大分類。HBM・地銀・電力/防衛AIが短期RSで長期を大きく上抜き＝資金流入。石油/ガス・油田サービス・公益は流出。ネットは&lt;b&gt;攻め&lt;/b&gt;へ回転。&#x27;;
+    var area=document.querySelector(&#x27;.rrgwrap&#x27;);document.getElementById(&#x27;bump&#x27;).innerHTML=bump(MAJ,area.clientWidth,area.clientHeight);
+    var LEADERS = [[&#x27;RS21&#x27;,&#x27;短期&#x27;,[&#x27;SVRN&#x27;,&#x27;GLND&#x27;,&#x27;SECZ&#x27;,&#x27;USDE&#x27;,&#x27;BNC&#x27;]],[&#x27;RS63&#x27;,&#x27;中短&#x27;,[&#x27;SVRN&#x27;,&#x27;USDE&#x27;,&#x27;QMCO&#x27;,&#x27;ASST&#x27;,&#x27;IOVA&#x27;]],[&#x27;RS126&#x27;,&#x27;中長&#x27;,[&#x27;AGL&#x27;,&#x27;SVRN&#x27;,&#x27;QMCO&#x27;,&#x27;MXL&#x27;,&#x27;TXG&#x27;]],[&#x27;RS189&#x27;,&#x27;長期&#x27;,[&#x27;SNDK&#x27;,&#x27;TWST&#x27;,&#x27;AXTI&#x27;,&#x27;MXL&#x27;,&#x27;TXG&#x27;]]];
+    document.getElementById(&#x27;leaders&#x27;).innerHTML=LEADERS.map(function(l){return &#x27;&lt;div class=&quot;ldrow2&quot;&gt;&lt;div class=&quot;lh&quot;&gt;&#x27;+l[0]+&#x27;&lt;span class=&quot;s&quot;&gt;&#x27;+l[1]+&#x27;&lt;/span&gt;&lt;/div&gt;&lt;div class=&quot;lc&quot;&gt;&#x27;+l[2].map(function(t){return &#x27;&lt;span class=&quot;tchip&quot;&gt;&#x27;+t+&#x27;&lt;/span&gt;&#x27;;}).join(&#x27;&#x27;)+&#x27;&lt;/div&gt;&lt;/div&gt;&#x27;;}).join(&#x27;&#x27;);
+  }
+  function fit(){var scaler=document.getElementById(&#x27;scaler&#x27;);var W=window.innerWidth,H=window.innerHeight,cw=1680,ch=1080;if(H&gt;W){var sc=Math.min(W/ch,H/cw);scaler.style.transform=&#x27;rotate(90deg) scale(&#x27;+sc+&#x27;)&#x27;;}else{var sc=Math.min(W/cw,H/ch);scaler.style.transform=&#x27;scale(&#x27;+sc+&#x27;)&#x27;;}scaler.style.width=cw+&#x27;px&#x27;;scaler.style.height=ch+&#x27;px&#x27;;if(typeof render===&#x27;function&#x27;){render();}}
+  fit(); window.addEventListener(&#x27;resize&#x27;,fit); setTimeout(fit,60);
+&lt;/script&gt;
+&lt;script&gt;function ovFold(){try{function mk(label){var d=document.createElement(&#x27;details&#x27;);d.className=&#x27;ovfold&#x27;;var s=document.createElement(&#x27;summary&#x27;);s.textContent=label;d.appendChild(s);return d;}var L={&#x27;fnote&#x27;:&#x27;判定&#x27;,&#x27;read&#x27;:&#x27;解説&#x27;,&#x27;flownote&#x27;:&#x27;フロー解説&#x27;};[&#x27;fnote&#x27;,&#x27;read&#x27;,&#x27;flownote&#x27;].forEach(function(cl){Array.prototype.forEach.call(document.getElementsByClassName(cl),function(el){if(el.closest(&#x27;details.ovfold&#x27;))return;var d=mk(L[cl]||&#x27;詳しく&#x27;);el.parentNode.insertBefore(d,el);d.appendChild(el);});});}catch(e){}}if(document.readyState!==&#x27;loading&#x27;){setTimeout(ovFold,90);}else{document.addEventListener(&#x27;DOMContentLoaded&#x27;,function(){setTimeout(ovFold,90);});}&lt;/script&gt;&lt;/body&gt;
+&lt;/html&gt;
+"></iframe><button class="pfsclose" onclick="pfs(this,0)">✕</button></div></section><div id="dov-bg" class="dov-bg"><div class="dov" onclick="event.stopPropagation()"><div class="dov-h"><span id="dov-tk" class="dov-tk"></span><span style="display:flex;gap:8px;align-items:center"><button class="cp cp-one" onclick="copyOne(event, document.getElementById('dov-tk').textContent)" title="銘柄コードをコピー">コピー</button><a id="dov-tv" class="dov-tv" target="_blank" rel="noopener" title="TradingViewで開く">TV↗</a><span class="dov-x" onclick="hideDet()">✕</span></span></div><div id="dov-spark" class="dov-spark empty"></div><div id="mc57-candle" class="mc57-candle"><div class="mc57-candle-msg">銘柄をタップするとローソク足を表示します。</div></div><div id="dov-status" class="dov-status"></div><div id="dov-meta" class="dov-meta"></div><div id="dov-loc" class="dov-loc"></div><div id="dov-body" class="dov-grid"><div class="mut" style="grid-column:1/-1;font-size:11px;padding:6px 2px">銘柄をタップすると全指標を表示します。</div></div><div class="dov-note">タップした銘柄のデータ（全リスト共通）</div></div></div><div id='hierModal' class='hier-modal' onclick="this.classList.remove('on')"><div class='hier-box' onclick='event.stopPropagation()'></div></div><footer class='disc'>※個人の研究用ダッシュボードであり、投資助言ではありません</footer></div><script>window.DET={"A":{"opt":null,"rs":91.0,"rs189":72.0,"rs21":94.0,"off":null,"offh":null,"e21l":153.87,"s10":160.37,"clx":0,"hep":null,"px":172.79,"ch":-0.03,"v50":16.2,"v200":31.1,"d21":11.6,"adr":2.9,"rv":1.1,"pb":-1.1,"p52":97.0,"d52":-1.1,"dvol":443.7,"pivot":174.77,"pdist":-1.1,"vcpq":60.0,"contract":1.0,"vw63":17.9,"vws63":"—","vw252":28.9,"vws252":"—","vwall":null,"vwsall":"対象外","vwab":0,"hl":1,"rsline":0,"vdry":1.23,"truebr":0,"cup":0,"turn":0,"p204":0,"sec":"6. バイオ・ヘルスケア","sth":"医療機器・専門","cap":"—","loc":[],"since":null,"ld":1,"stc":"①","stl":"伸び過ぎ（待ち）","rsn":"","beta":0.34,"ma5020":1,"sarb":1,"wst":2,"wstw":7,"wsb":0,"wsbf":0,"nut":"堅調","nucls":"pos","flags":[]},"AA":{"opt":null,"rs":15.0,"rs189":18.0,"rs21":11.0,"off":null,"offh":null,"e21l":46.17,"s10":45.0,"clx":0,"hep":null,"px":42.85,"ch":0.4,"v50":-10.4,"v200":-26.0,"d21":-10.3,"adr":3.4,"rv":0.7,"pb":-22.2,"p52":23.0,"d52":-49.1,"dvol":161.6,"pivot":55.05,"pdist":-22.2,"vcpq":20.0,"contract":2.0,"vw63":-11.0,"vws63":"—","vw252":-19.6,"vws252":"—","vwall":null,"vwsall":"対象外","vwab":0,"hl":0,"rsline":0,"vdr

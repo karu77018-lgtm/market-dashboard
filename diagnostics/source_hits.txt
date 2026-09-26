@@ -1,0 +1,2440 @@
+000034: # -----------------------------------------------------------------------------
+000035: #  【大原則】
+000036: #   ・データは絶対に削除しない。重複を削る＋構成変更で「見やすく」する（バラバラにはしない）。
+000037: #   ・成果物は毎回 present_files で提示する（ファイルをコピーしただけでは不可）。
+000038: #   ・過剰実装を避ける。新指標の乱造はしない。結論先行・簡潔。自分用ツール前提
+000039: #     （他人向けアドバイスではないので過剰な但し書き不要。技術用語は知識層向けに残す）。
+000040: #
+000041: #  【タブ構成：10タブ・アクション優先順】(docstring E行は旧8タブ表記で古い。こちらが正)
+000042: #   Daily → Positions → Core 12 → Setups → Rotation → Movers → RS → Weekly → Publish → Rules
+000043: #   理由: 今日の対応→実保有リスク→システム選定→新規候補→資金の流れ→値動き→相対強さ→
+000044: #         週次レビュー→SNS共有→ルール、という「行動の順番」。
+000045: #   ・重複は Publish(Overview) 以外は禁止。各カードはホームタブ1箇所のみ。
+000046: #     Weekly からは MRI/パフォーマンス/RRG/ヒートマップ/銘柄入替/資産曲線を撤去し各ホームへ一本化。
+000047: #   ・集約: Industry→Rotation / W30→Setups / Equity→Positions / Overview1+2→Publish(2セクション)。
+000048: #   ・Setups タブ内順序: 検索(最上部)→速報(liq/ema)→①重なり→②単独→③圧縮ベース→
+000049: #     ⑥底打ち(構造ピボット)→⑦W30→⑧リーダー母集団。絞り込み強度順＋参照プールを最後に。
+000050: #
+000051: #  【Core 12 と 裁量スイングの分離（最重要）】
+000052: #   ・Core 12 = システム機械選定(RS順12銘柄・隔週・出口=ピーク×0.70 または 建値×0.75・途中利確なし)。
+000053: #     track_holdings は最大12でキャップ。タブ名/カード名は "Core 12"。
+000054: #   ・裁量スイング = Positions の実保有(2分割・+25%で1/3利確・21EMA割れ撤退)。
+000055: #   ・保有記録(localStorage v38_holdings)に strat フィールド(core/swing)を持たせ、出口ルールを戦略別表示。
+...
+000157: def _path_within(child, root):
+000158:     try:
+000159:         return os.path.commonpath([os.path.realpath(child), root]) == root
+000160:     except Exception:
+000161:         return False
+000162: 
+000163: CACHE        = os.environ.get("V38_CACHE",        "/home/claude/bt/prices.pkl")
+000164: UNIVERSE_CSV = os.environ.get("V38_UNIVERSE_CSV", "/mnt/project/universe.csv")
+000165: SECTOR_JSON  = os.environ.get("V38_SECTOR_JSON",  "/mnt/project/sector_snapshot.json")
+000166: OUT_HTML     = os.environ.get("V38_OUT_HTML",     "/mnt/user-data/outputs/V38_Command_Center.html")
+000167: FMP_REFERENCE_CACHE = os.environ.get("V38_FMP_REFERENCE_CACHE", "fmp_reference_cache.json")
+000168: try:
+000169:     FMP_REFERENCE_BUDGET = max(0, min(80, int(os.environ.get("V38_FMP_REFERENCE_BUDGET", "40"))))
+000170: except (TypeError, ValueError):
+000171:     FMP_REFERENCE_BUDGET = 40
+000172: FMP_REFERENCE_TTL_DAYS = 30
+000173: FMP_REFERENCE_NEGATIVE_TTL_DAYS = 7
+...
+001019:     for f in fl[:2]:
+001020:         cls = "rf-crit" if f.get("sev") == "crit" else "rf-hi" if f.get("sev") == "high" else "rf-md"
+001021:         note = _html.escape(str(f.get("note", "") or ""), quote=True)
+001022:         ftype = _html.escape(str(f.get("type", "赤旗") or "赤旗"), quote=True)
+001023:         out += f'<span class="rflag {cls}" title="{note}">⚠{ftype}</span>'
+001024:     return out
+001025: ALLOC = (70, 30, 0)            # 個別 / レバ / 現金 (確定 2026-07-02)
+001026: REBAL_ANCHOR_ENV = os.environ.get("V38_REBAL_ANCHOR", "").strip()  # 隔週サイクルの基準月曜（未指定時はstateへ初期化）
+001027: # industries excluded from sector-RS (binary-event noise); editable blacklist
+001028: SECTOR_BLACKLIST_KEYS = ("biotech", "pharmaceutic", "drug")
+001029: 
+001030: # ─────────────────────────────────────────────────────────────────────────────
+001031: # ユニバースの自動生成。TradingViewスクリーナーと同じ条件をAPIで再現する。
+001032: # 手作業のCSVエクスポートを廃止する目的。買収完了・上場廃止した銘柄が自動で落ち、
+001033: # 新規上場が自動で入るので、universe.csv が古くなること自体がなくなる。
+001034: _TV_SCAN = "https://scanner.tradingview.com/america/scan"
+001035: UNIVERSE_AUTO = os.environ.get("V38_UNIVERSE_AUTO", "0") == "1"
+001036: UNIVERSE_EXCHANGES = ["NYSE", "NASDAQ", "AMEX"]
+...
+001044:     """TradingViewスクリーナーからユニバースを取得。列名は現行CSVと同一に揃える。"""
+001045:     if not _net_ok():
+001046:         return []
+001047:     flt = [{"left": "type", "operation": "equal", "right": "stock"},
+001048:            {"left": "exchange", "operation": "in_range", "right": UNIVERSE_EXCHANGES},
+001049:            {"left": "market_cap_basic", "operation": "egreater", "right": UNIVERSE_MIN_MCAP},
+001050:            {"left": "close", "operation": "egreater", "right": UNIVERSE_MIN_PRICE}]
+001051:     cols = ["name", "description", "close", "change", "volume", "market_cap_basic",
+001052:             "sector", "industry", "exchange"]
+001053:     import urllib.request as _ur
+001054:     rows = []
+001055:     for start in range(0, 20000, 1000):
+001056:         body = {"filter": flt, "columns": cols,
+001057:                 "sort": {"sortBy": "market_cap_basic", "sortOrder": "desc"},
+001058:                 "range": [start, start + 1000]}
+001059:         req = _ur.Request(_TV_SCAN, data=json.dumps(body).encode("utf-8"),
+001060:                           headers={"Content-Type": "application/json",
+...
+001168:     # --- ユニバース整形: TradingViewエクスポートの不適格銘柄を除去 ---
+001169:     #   ① 優先株/特殊記号(JPM/PM等・yfinance非対応)  ② 優先株/ワラント/権利/ユニット(名称)
+001170:     #   ③ 重複クラス株は既知ペアだけ明示除去（時価総額一致だけでは削除しない）
+001171:     #   ※ADR(TSM/ASML)とDepository ADR単体は残す。BRK.B等の'.'はyfで'-'変換済み。
+001172:     import re as _re, math as _math
+001173:     ccol = cols0.get("時価総額") or cols0.get("market cap") or cols0.get("mktcap")
+001174:     vcol = cols0.get("出来高, 1日") or cols0.get("出来高") or cols0.get("volume")
+001175:     pcol = cols0.get("価格") or cols0.get("price") or cols0.get("close")
+001176:     scol = cols0.get("セクター") or cols0.get("sector")
+001177:     def _num(r, c):
+001178:         try: return float(r.get(c, "") or "nan")
+001179:         except Exception: return float("nan")
+001180:     row_by_t = {}
+001181:     for r in rows:
+001182:         tt = (r.get(tcol) or "").strip()
+001183:         if tt: row_by_t[tt] = r
+001184:     _pfd = _re.compile(r"\bPfd\b|Preferred|Warrant|\bRight(s)?\b|\bUnit(s)?\b|Subordinated Notes", _re.I)
+...
+001205:     _CLASS_PAIRS = [("GOOGL", "GOOG"), ("FOXA", "FOX"), ("NWSA", "NWS"), ("UA", "UAA"), ("LILAK", "LILA"), ("HEI.A", "HEI")]
+001206:     _have = set(survivors)
+001207:     _drop = {discard for keep, discard in _CLASS_PAIRS if keep in _have and discard in _have}
+001208:     survivors = [t for t in survivors if t not in _drop]     # ccolの有無に依らず実行
+001209:     dropped_n = len(order) - len(survivors)
+001210:     order = survivors
+001211:     names = {b: names.get(b, "") for b in order}
+001212:     sys.stderr.write(f"[universe] 整形: {dropped_n}除外 → {len(order)}銘柄(優先株/特殊記号/重複クラス株/小型バイオ{d_bio}を除去)\n")
+001213:     sj = json.load(open(SECTOR_JSON))
+001214:     # #4/#10 sector JSONのschema検証。本番の大規模ユニバースでは一部エントリが不正型のことがあるため、
+001215:     #   『不正エントリだけスキップして継続』する（1つの不正で全2794銘柄のビルドを止めない）。
+001216:     #   トップlevelが壊れている(dictでない)場合のみFATAL。値の不正セルはNaN扱いに近い挙動で除外する。
+001217:     if not isinstance(sj, dict):
+001218:         raise SystemExit(f"[FATAL] sector JSON がdictではありません: {SECTOR_JSON}")
+001219:     for _k in ("s2i", "s2t", "e2j"):
+001220:         if _k in sj and not isinstance(sj[_k], dict):
+001221:             raise SystemExit(f"[FATAL] sector JSON の '{_k}' がdictではありません（{type(sj[_k]).__name__}）: {SECTOR_JSON}")
+001222:     _sec_skipped = 0
+001223:     # s2i: key=ticker, value=業種文字列。不正valueはスキップ。
+001224:     s2i = {}
+001225:     for _kk, _vv in (sj.get("s2i") or {}).items():
+001226:         if isinstance(_kk, str) and isinstance(_vv, str):
+001227:             s2i[_kk] = _vv
+001228:         else:
+001229:             _sec_skipped += 1
+...
+001241:     # e2j: key/valueとも文字列。不正はスキップ。
+001242:     e2j = {}
+001243:     for _kk, _vv in (sj.get("e2j") or {}).items():
+001244:         if isinstance(_kk, str) and isinstance(_vv, str):
+001245:             e2j[_kk] = _vv
+001246:         else:
+001247:             _sec_skipped += 1
+001248:     if _sec_skipped:
+001249:         sys.stderr.write(f"[sector] 不正エントリ {_sec_skipped}件をスキップして継続: {SECTOR_JSON}\n")
+001250:     if use_cache and os.path.exists(CACHE):
+001251:         # #1 price cacheは制限付きUnpicklerで読む（__reduce__経由のRCEを実行前に拒否）。
+001252:         #   加えて、信頼済みルート配下（V38_TRUSTED_CACHE_ROOT or スクリプト同梱bt/）でなければ拒否。
+001253:         #   ※許可ルートを検査対象CACHE自身から作らない（それでは常に通過して無意味）。
+001254:         _root = _pickle_trusted_root()
+001255:         _strict_root = os.environ.get("V38_CACHE_ROOT_STRICT", "1") != "0"
+001256:         if _strict_root and not _path_within(CACHE, _root):
+001257:             # V38_CACHE_ROOT_STRICT=1(既定)は信頼ルート配下でなければ拒否する（名前どおりstrict）。
+...
+001320:             _macro["^VIX"] = normalize_timeseries(
+001321:                 _vix_full, fail_closed=False, label="macro:^VIX-full")
+001322:     return names, order, s2i, s2t, e2j, _W, _macro, _cache_asof
+001323: 
+001324: # ----------------------------------------------------------------------------- live fetch (CI)
+001325: MACRO_TICKERS = ["^VIX", "^VIX3M", "^VVIX", "^VXN", "QQQ", "QQQE", "SPY", "HYG", "LQD", "IEI", "JPY=X",
+001326:                  "RSP", "IWM", "^TNX", "^FVX", "^TYX",
+001327:                  "TLT", "^MOVE", "DX-Y.NYB",   # 債券ボラ(MOVE)/その代替(TLT)/ドル(DXYフォールバック)
+001328:                  # equal-weight sector ETFs (Invesco) for market-representative sector RS
+001329:                  "RSPN", "RSPT", "RSPF", "RSPM", "RSPU", "RSPD",
+001330:                  "RSPH", "RSPR", "RSPS", "RSPG", "RSPC",
+001331:                  # sentiment sleeve: tail-hedge index + 3x lever pairs (crowd heat)
+001332:                  "^SKEW", "TQQQ", "SQQQ", "SOXL", "SOXS",
+001333:                  # leverage-sleeve env: semis index (trend/vol) + semis ETF (RRG)
+001334:                  "SOXX", "SMH"]
+001335: 
+001336: def _extract(df, tickers, minbars=30):
+...
+001775:         return v[0]
+001776:     if isinstance(v, str) and v.strip():
+001777:         return v.strip()
+001778:     return "その他"
+001779: 
+001780: # 画面に出す「業種」は TradingView 分類に一本化する。s2t（手動テーマ表）は
+001781: # 更新が止まると古い名前が各タブに散らばるため、表示の主系統からは外す。
+001782: # ただしテーマ（メモリ/HBM・量子・eVTOL等）は業種分類には存在しない情報なので、
+001783: # subtheme_theme() として別軸に残し、業種の中の細目として併記する。
+001784: INDUSTRY_DISPLAY = {}          # ticker -> 日本語業種名（load_industry_map後に張る）
+001785: INDUSTRY_RAW = {}              # ticker -> [sector, industry]（生のTV分類）
+001786: 
+001787: 
+001788: def industry_of(t, fallback=""):
+001789:     v = INDUSTRY_DISPLAY.get(t)
+001790:     return v if v else fallback
+001791: 
+001792: 
+001793: def subtheme_theme(t, s2t):
+001794:     """s2t側の細目テーマ。業種より細かい粒度（メモリ/HBM 等）。無ければ空。"""
+001795:     v = (s2t or {}).get(t)
+001796:     if isinstance(v, list) and len(v) >= 2 and v[1] and v[1] not in ("?", ""):
+001797:         return v[1]
+001798:     return ""
+001799: 
+001800: 
+001801: def subtheme_of(t, s2t, fallback="その他"):
+001802:     """画面表示用の業種名。TradingView業種 → s2tテーマ → fallback の順。"""
+001803:     ind = INDUSTRY_DISPLAY.get(t)
+001804:     if ind:
+001805:         return ind
+001806:     v = (s2t or {}).get(t)
+001807:     if isinstance(v, list) and len(v) >= 2 and v[1] and v[1] not in ("?", ""):
+001808:         return v[1]
+001809:     return fallback
+...
+004773: 
+004774:     # #8: 固定12枠・等ウェイト前提。各保有はスリーブの1/12を占める。
+004775:     #   ヒート＝Σ(現値→ストップ距離)×個別配分/枠数（保有が少ない時に過大にならない）
+004776:     heat=(float(np.sum(losses))*ALLOC[0]/100.0/N_PORT) if losses else None
+004777:     return hold,hv,heat,tf,carry
+004778: 
+004779: def build_changelog(prev, color, aux, senti, picks, asof_date,
+004780:                     soxl_ok=None, turnover_dir=None, updown_reg=None, emergency_active=None):
+004781:     """前回（別日）比の変化リスト。(lines, ref_date, major)を返す。"""
+004782:     today = str(asof_date)
+004783:     base = prev if (prev and prev.get("date") and prev["date"] != today) else (prev or {}).get("prevday")
+004784:     if not base or not base.get("date"):
+004785:         return [], None, False
+004786:     ch, major = [], False
+004787:     pg, cg = base.get("gate"), color
+004788:     if emergency_active is not None:
+004789:         _pe = bool(((base.get("emergency") or {}).get("active")))
+004790:         _ce = bool(emergency_active)
+004791:         if _pe != _ce:
+004792:             ch.append("非常口 <b>" + ("発動・レバ半減" if _ce else "解除・レバ通常") + "</b>")
+004793:             major = True
+004794:     if pg and cg and pg != cg:
+004795:         ch.append(f'地合い <b>{_COLOR_JP.get(pg, pg)}→{_COLOR_JP.get(cg, cg)}</b> → 翌寄りで露出調整')
+004796:         major = True
+004797:     try:
+004798:         dm = float(aux["cur"]) - float(base.get("mri", aux["cur"]))
+004799:         if abs(dm) >= 3:
+004800:             ch.append(f'地合いスコア <b>{base.get("mri"):.0f}→{aux["cur"]:.0f}</b>（{dm:+.0f}）')
+004801:     except Exception:
+004802:         pass
+004803:     pt, ct = set(base.get("picks") or []), {t for t, _, _ in picks}
+004804:     inn, out = sorted(ct - pt), sorted(pt - ct)
+004805:     if inn:
+004806:         ch.append("ポートフォリオ IN: <b>" + " ".join(inn) + "</b>")
+004807:         major = True
+004808:     if out:
+004809:         ch.append("ポートフォリオ OUT: <b>" + " ".join(out) + "</b>")
+004810:         major = True
+004811:     pb = set(base.get("bear_lit") or [])
+004812:     cb = {lab for lab, on in aux.get("bear_flags", []) if on}
+004813:     nb, cbk = sorted(cb - pb), sorted(pb - cb)
+004814:     if nb:
+004815:         ch.append("警戒 新点灯: " + "・".join(_h(x) for x in nb))   # state起点の保存型XSSを描画時にエスケープ
+004816:         major = True
+004817:     if cbk:
+004818:         ch.append("警戒 消灯: " + "・".join(_h(x) for x in cbk))
+004819:     ps = set(base.get("senti_flags") or [])
+004820:     cs = {l for l, on in (senti or {}).get("flags", []) if on}
+004821:     ns = sorted(cs - ps)
+004822:     if ns:
+004823:         ch.append("センチメント 新点灯: " + "・".join(_h(x) for x in ns))
+004824:         major = True
+004825:     # SOXL投入帯の切替（配分計算にも自動連動）
+004826:     if soxl_ok is not None:
+004827:         cur_band = "投入帯" if soxl_ok else "帯外"
+004828:         prev_band = base.get("soxl_band")
+004829:         if prev_band and prev_band != cur_band:
+004830:             if soxl_ok:
+004831:                 ch.append("SOXL投入帯に入った → 段階投入 解禁（1/3ずつ）")
+004832:             else:
+004833:                 ch.append("SOXL投入帯を外れた → 新規停止・全額TQQQ")
+004834:             major = True
+004835:     # 売買代金レジーム（拡大/縮小の転換のみ）
+004836:     pt2 = base.get("turnover")
+004837:     if pt2 and turnover_dir and pt2 != turnover_dir and turnover_dir in ("拡大", "縮小"):
+004838:         ch.append(f'売買代金 <b>{_h(pt2)}→{_h(turnover_dir)}</b>' + ("（参加が厚く）" if turnover_dir == "拡大" else "（参加細り・要注意）"))
+004839:         if turnover_dir == "縮小":
+004840:             major = True
+004841:     # 集積/分散レジーム（O'Neil式）
+004842:     pu = base.get("updown")
+004843:     if pu and updown_reg and pu != updown_reg:
+004844:         lab = "集積（買い集め優勢）" if updown_reg == "accum" else "分散（売り抜け優勢）"
+004845:         ch.append(f"集積/分散が <b>{lab}</b> に転換")
+004846:         major = True
+004847:     return ch, base.get("date"), major
+004848: 
+004849: def _changelog_card(ch, ref):
+004850:     if ref is None:
+004851:         body = '<div class="sub">初回記録。次回ビルドから前回比の変化をここに表示する。</div>'
+004852:     elif not ch:
+004853:         body = f'<div class="sub">前回（{ref}）から重要な変化なし。保有維持・トレール/ストップのみ対応。</div>'
+004854:     else:
+004855:         body = ('<ul class="chlog">' + "".join(f"<li>{x}</li>" for x in ch) + "</ul>"
+...
+005182:     "インフラ": ["インフラ", "電力設備", "送配電", "建設"],
+005183:     "運輸": ["海運", "トラック", "輸送", "航空"],
+005184: }
+005185: 
+005186: def build_theme_hierarchy(m, s2t):
+005187:     """大テーマ(表示名)→サブテーマ群のローテ+構成銘柄。RRGチップ(大テーマ)のjaキーと一致。
+005188:        全367サブテーマが必ず親を持つ(取りこぼしゼロ)。63×189日RS中央値で粒度統一。"""
+005189:     from collections import defaultdict
+005190:     big = defaultdict(lambda: defaultdict(list))   # theme_disp -> subtheme -> [tickers]
+005191:     for t in m.index:
+005192:         v = s2t.get(t)
+005193:         if not v or len(v) < 2 or not v[0] or not v[1]:
+005194:             continue
+005195:         disp = v[0].split(". ", 1)[-1] if ". " in v[0] else v[0]
+005196:         big[disp][v[1]].append(t)
+005197:     def _agg(tickers):
+005198:         sub_m = m.loc[[t for t in tickers if t in m.index]]
+...
+005218:                 arr.append(a)
+005219:         if arr:
+005220:             arr.sort(key=lambda z: -z["rs"])
+005221:             out[disp] = arr
+005222:     return out
+005223: 
+005224: # ─────────────────────────────────────────────────────────────────────────────
+005225: # 業種分類（TradingView）。universe.csv と同じ体系なので既存の「セクター」列と整合する。
+005226: # 手動メンテの sector_snapshot.json(s2i) は2026-06以降更新されず、新規上場が未分類のまま
+005227: # 集計から抜けていた。スキャナーは12,000銘柄を約16秒で返し、被覆99.6%。
+005228: # ─────────────────────────────────────────────────────────────────────────────
+005229: # RSが付かない理由。RSは「株価≥$5 × 20日$出来高≥$10M × 分割異常なし」の母集団内でのみ
+005230: # 百分位を付けるため、プール外はNaNになる。画面には「—」ではなく理由を出す。
+005231: RS_OFF_LABEL = {
+005232:     "liq": "流動性外", "price": "低位株", "split": "分割疑い",
+005233:     "hist": "履歴不足", "ipo": "新規上場", "none": "データなし",
+005234: }
+...
+005293: INDUSTRY_UNK_ALERT = 60     # この件数を超えたら強い警告
+005294: INDUSTRY_LEAD_RS = 65
+005295: INDUSTRY_BREADTH_RS = 80
+005296: _INDUSTRY_STATE = {"unknown": 0, "buckets": 0, "total": 0}
+005297: 
+005298: _IND_JA = {
+005299:  "Packaged Software":"パッケージソフト","Real Estate Investment Trusts":"REIT",
+005300:  "Regional Banks":"地方銀行","Miscellaneous Commercial Services":"商業サービス",
+005301:  "Industrial Machinery":"産業機械","Semiconductors":"半導体","Major Banks":"大手銀行",
+005302:  "Aerospace & Defense":"航空宇宙・防衛","Finance/Rental/Leasing":"金融・リース",
+005303:  "Information Technology Services":"ITサービス","Investment Managers":"資産運用",
+005304:  "Electric Utilities":"電力","Internet Software/Services":"ネットサービス",
+005305:  "Specialty Stores":"専門小売","Electrical Products":"電機製品","Precious Metals":"貴金属",
+005306:  "Property/Casualty Insurance":"損害保険","Engineering & Construction":"建設・エンジニアリング",
+005307:  "Investment Banks/Brokers":"投資銀行・証券","Chemicals: Specialty":"特殊化学",
+005308:  "Marine Shipping":"海運","Integrated Oil":"統合石油","Medical Specialties":"医療機器・専門",
+005309:  "Multi-Line Insurance":"総合保険","Investment Trusts/Mutual Funds":"投資信託",
+005310:  "Restaurants":"レストラン","Wholesale Distributors":"卸売","Data Processing Services":"データ処理",
+005311:  "Food: Specialty/Candy":"食品（菓子・専門）","Other Consumer Services":"消費者サービス",
+005312:  "Other Metals/Minerals":"金属・鉱物","Financial Conglomerates":"金融コングロマリット",
+005313:  "Pharmaceuticals: Major":"大手製薬","Oilfield Services/Equipment":"油田サービス・装置",
+005314:  "Oil & Gas Production":"石油ガス生産","Oil & Gas Pipelines":"パイプライン",
+005315:  "Electronic Equipment/Instruments":"電子機器・計測","Apparel/Footwear":"アパレル・靴",
+005316:  "Real Estate Development":"不動産開発","Movies/Entertainment":"映画・娯楽",
+005317:  "Auto Parts: OEM":"自動車部品","Electronic Production Equipment":"電子製造装置",
+005318:  "Trucks/Construction/Farm Machinery":"建機・農機","Homebuilding":"住宅建設",
+005319:  "Building Products":"建材","Hotels/Resorts/Cruise lines":"ホテル・クルーズ",
+005320:  "Gas Distributors":"ガス供給","Containers/Packaging":"容器・包装",
+005321:  "Telecommunications Equipment":"通信機器","Motor Vehicles":"自動車","Biotechnology":"バイオ",
+005322:  "Apparel/Footwear Retail":"アパレル小売","Savings Banks":"貯蓄銀行","Internet Retail":"ネット小売",
+005323:  "Trucking":"陸運","Household/Personal Care":"日用品","Insurance Brokers/Services":"保険仲介",
+005324:  "Electronic Components":"電子部品","Construction Materials":"建設資材","Airlines":"航空",
+005325:  "Agricultural Commodities/Milling":"農産品","Recreational Products":"レジャー用品",
+005326:  "Computer Peripherals":"コンピュータ周辺機器","Computer Processing Hardware":"コンピュータ本体",
+005327:  "Wireless Telecommunications":"無線通信","Air Freight/Couriers":"航空貨物",
+005328:  "Life/Health Insurance":"生命・医療保険","Food Retail":"食品小売","Casinos/Gaming":"カジノ",
+005329:  "Industrial Specialties":"産業用特殊品","Oil Refining/Marketing":"石油精製",
+005330:  "Contract Drilling":"掘削サービス","Major Telecommunications":"大手通信","Steel":"鉄鋼",
+005331:  "Chemicals: Agricultural":"農業化学","Home Furnishings":"家具","Specialty Insurance":"専門保険",
+005332:  "Miscellaneous Manufacturing":"その他製造","Beverages: Non-Alcoholic":"清涼飲料",
+005333:  "Financial Publishing/Services":"金融情報","Environmental Services":"環境サービス",
+005334:  "Advertising/Marketing Services":"広告","Metal Fabrication":"金属加工",
+005335:  "Chemicals: Major Diversified":"総合化学","Other Transportation":"その他運輸",
+005336:  "Food Distributors":"食品卸","Water Utilities":"水道","Broadcasting":"放送",
+005337:  "Alternative Power Generation":"代替発電","Coal":"石炭","Personnel Services":"人材サービス",
+005338:  "Specialty Telecommunications":"専門通信","Managed Health Care":"医療保険",
+005339:  "Railroads":"鉄道","Food: Meat/Fish/Dairy":"食品（生鮮）","Cable/Satellite TV":"ケーブル・衛星TV",
+005340:  "Food: Major Diversified":"総合食品","Medical/Nursing Services":"医療・介護サービス",
+005341:  "Electronics/Appliances":"家電","Electronics Distributors":"電子部品商社",
+005342:  "Automotive Aftermarket":"自動車補修","Home Improvement Chains":"ホームセンター",
+005343:  "Medical Distributors":"医療品卸","Beverages: Alcoholic":"酒類",
+005344:  "Publishing: Newspapers":"新聞","Commercial Printing/Forms":"商業印刷","Aluminum":"アルミ",
+005345:  "Department Stores":"百貨店","Forest Products":"林産品","Tobacco":"たばこ",
+005346:  "Discount Stores":"ディスカウント店","Tools & Hardware":"工具・金物","Pulp & Paper":"紙・パルプ",
+005347:  "Electronics/Appliance Stores":"家電量販","Drugstore Chains":"ドラッグストア",
+005348:  "Hospital/Nursing Management":"病院運営","Industrial Conglomerates":"産業コングロマリット",
+...
+005371:     return _SEC_JA.get(name, name or "その他")
+005372: 
+005373: 
+005374: def _ind_ja(name):
+005375:     return _IND_JA.get(name, name)
+005376: 
+005377: 
+005378: def _tv_scan(payload_type, want, timeout=30):
+005379:     """TradingViewスキャナーから name/sector/industry を取得。"""
+005380:     import urllib.request as _ur
+005381:     rows = []
+005382:     for start in range(0, want, 1000):
+005383:         body = {"filter": [{"left": "type", "operation": "equal", "right": payload_type}],
+005384:                 "columns": ["name", "sector", "industry"],
+005385:                 "sort": {"sortBy": "market_cap_basic", "sortOrder": "desc"},
+005386:                 "range": [start, start + 1000]}
+005387:         req = _ur.Request(_TV_SCAN, data=json.dumps(body).encode("utf-8"),
+005388:                           headers={"Content-Type": "application/json",
+005389:                                    "User-Agent": "Mozilla/5.0"})
+005390:         with _ur.urlopen(req, timeout=timeout) as fh:
+005391:             got = json.load(fh).get("data") or []
+005392:         rows += got
+...
+005398: def _industry_from_universe():
+005399:     """universe.csv の「業種」列（自動生成時に入る）を industry_map と同じ形で返す。
+005400:        TradingView APIが落ちた日でも、ユニバース側に同じ分類が入っているので穴が空かない。"""
+005401:     out = {}
+005402:     try:
+005403:         for r in csv.DictReader(open(UNIVERSE_CSV, encoding="utf-8-sig")):
+005404:             tk = (r.get("シンボル") or r.get("Symbol") or r.get("Ticker") or "").strip().upper()
+005405:             ind = (r.get("業種") or r.get("Industry") or "").strip()
+005406:             sec = (r.get("セクター") or r.get("Sector") or "").strip()
+005407:             if tk and ind:
+005408:                 out[tk] = [sec, ind]
+005409:     except Exception:
+005410:         return {}
+005411:     return out
+005412: 
+005413: 
+005414: def load_industry_map(order=None, path=None):
+005415:     """{ticker: [sector, industry]} を返す。取得失敗時は必ず既存キャッシュへ退避する。
+005416: 
+005417:     毎回叩かない: キャッシュが新しく、ユニバースの被覆も足りていれば取得をスキップする。
+005418:     """
+005419:     path = path or INDUSTRY_JSON
+005420:     cache, stamp = {}, None
+005421:     try:
+005422:         with open(path, "r", encoding="utf-8") as fh:
+005423:             blob = json.load(fh)
+...
+005472: def build_theme_stats(m, s2t, min_n=3):
+005473:     """細目テーマのRS・20日変化・ブレッドス。テーマは業種をまたぐ（メモリ/HBMは
+005474:        Semiconductors と Computer Peripherals に分かれる）ので、必ず全体で集計する。"""
+005475:     from collections import defaultdict
+005476:     if not s2t or "rs189" not in m.columns:
+005477:         return {}
+005478:     grp = defaultdict(list)
+005479:     for t in m.index:
+005480:         k = subtheme_theme(t, s2t)
+005481:         if k:
+005482:             grp[k].append(t)
+005483:     lag = next((c for c in ("rs189_l21", "rs189_l20", "rs189_l5") if c in m.columns), None)
+005484:     out = {}
+005485:     for k, tks in grp.items():
+005486:         sub = m.loc[tks]
+005487:         rs = sub["rs189"].dropna()
+005488:         if len(rs) < min_n:
+...
+005531:                  "弱化" if x >= INDUSTRY_LEAD_RS else "改善" if y >= 0 else "停滞")
+005532:         # 全構成銘柄を載せる（上位12件だけでは200銘柄の業種が見えない）。
+005533:         # RS欠損は末尾にまとめ、理由バッジ付きで必ず表示する。
+005534:         top = sub["rs189"].sort_values(ascending=False, na_position="last")
+005535:         mem = []
+005536:         for t2, v2 in top.items():
+005537:             if v2 == v2:
+005538:                 mem.append(dict(t=t2, rs=int(round(float(v2))),
+005539:                                 th=subtheme_theme(t2, s2t) or None))
+005540:             else:
+005541:                 k = rs_off_reason(m.loc[t2]) or "hist"
+005542:                 mem.append(dict(t=t2, rs=None, off=RS_OFF_LABEL.get(k, "対象外"),
+005543:                                 th=subtheme_theme(t2, s2t) or None))
+005544:         subs_th = []
+005545:         seen_th = {}
+005546:         for mm in mem:
+005547:             k = mm.get("th")
+005548:             if k:
+005549:                 seen_th[k] = seen_th.get(k, 0) + 1
+005550:         for k, cnt in sorted(seen_th.items(), key=lambda kv: -kv[1]):
+005551:             st = (tstats or {}).get(k) or {}
+...
+005590:     if covered != len(m):
+005591:         sys.stderr.write("[industry] coverage gap: %d/%d\n" % (covered, len(m)))
+005592:     else:
+005593:         sys.stderr.write("[industry] coverage 100%% (%d tickers / %d buckets)\n"
+005594:                          % (covered, sum(len(v) for v in out.values())))
+005595:     return out
+005596: 
+005597: 
+005598: SECTOR_MIN_N = 10          # 詳細セクターの最小構成銘柄数。実測: 350セクター中、5銘柄以下が60%。
+005599: SECTOR_MOM_DAYS = 20       # 勢いの窓。5日のRS中央値変化はノイズ。
+005600: SECTOR_LEAD_RS = 65        # 主導/弱化の境。50だとRS58が「主導」になり言葉と実態が合わない。
+005601: SECTOR_BREADTH_RS = 80     # ブレッドス判定のRS閾値。
+005602: 
+005603: 
+005604: def build_sector_hier(m, s2t, min_n=SECTOR_MIN_N):
+005605:     """大分類 → 詳細セクター(状態別) → 構成銘柄。すべて構成銘柄の実データから算出する。
+005606: 
+005607:     ETFは介在させない。ETF→大分類の1対1割当は56本を14リストに潰していて、
+005608:     金鉱ETFと農業ETFが同じ中身を返すため導線として成立しなかった。
+005609:     min_n未満の詳細セクターは統計にならないので、大分類の「その他」へ集約する。
+005610:     """
+005611:     from collections import defaultdict
+005612:     if "rs189" not in m.columns:
+005613:         return {}
+005614:     det = defaultdict(list); big_of = {}
+005615:     for t in m.index:
+005616:         v = s2t.get(t)
+005617:         if not v or len(v) < 2 or not v[0] or not v[1]:
+...
+005630:         if rs.empty:
+005631:             return None
+005632:         x = float(rs.median())
+005633:         y = 0.0
+005634:         if lag_col:
+005635:             prev = sub[lag_col].dropna()
+005636:             if len(prev) >= max(3, min_n // 2):
+005637:                 y = x - float(prev.median())
+005638:         strong = float((rs >= SECTOR_BREADTH_RS).mean() * 100.0)
+005639:         q = ("主導" if (x >= SECTOR_LEAD_RS and y >= 0) else
+005640:              "弱化" if x >= SECTOR_LEAD_RS else
+005641:              "改善" if y >= 0 else "停滞")
+005642:         top = sub["rs189"].sort_values(ascending=False).head(12)
+005643:         members = [dict(t=t, rs=int(round(float(v)))) for t, v in top.items() if v == v]
+005644:         return dict(sub=name, q=q, rs=int(round(x)), drs=int(round(y)),
+005645:                     n=len(idxs), br=int(round(strong)), thin=bool(thin),
+005646:                     members=members)
+005647: 
+005648:     big = defaultdict(list)
+005649:     spill = defaultdict(list)
+005650:     for name, tks in det.items():
+005651:         idxs = [t for t in tks if t in m.index]
+005652:         if len(idxs) < min_n:
+005653:             spill[big_of[name]].extend(idxs)      # 薄いセクターは大分類へロールアップ
+005654:             continue
+005655:         rec = _pack(name, idxs)
+005656:         if rec:
+005657:             big[big_of[name]].append(rec)
+005658:     for bg, idxs in spill.items():
+005659:         if len(idxs) >= min_n:
+005660:             rec = _pack("その他（少数セクターの合計）", idxs, thin=True)
+005661:             if rec:
+...
+005664:     order = {"主導": 0, "改善": 1, "弱化": 2, "停滞": 3}
+005665:     out = {}
+005666:     for bg, subs in big.items():
+005667:         subs.sort(key=lambda d: (d["thin"], order[d["q"]], -d["rs"]))
+005668:         out[bg] = subs
+005669:     return out
+005670: 
+005671: 
+005672: def build_etf_hier(m, s2t, min_n=SECTOR_MIN_N, ind_map=None):
+005673:     """階層の背骨。TradingViewの業種が取れていればそれを使い、無ければ旧テーマ表に退避する。"""
+005674:     tstats = build_theme_stats(m, s2t) if (ind_map and s2t) else {}
+005675:     hier = build_industry_hier(m, ind_map or {}, s2t=s2t, tstats=tstats) if ind_map else {}
+005676:     if hier:
+005677:         return hier
+005678:     return build_sector_hier(m, s2t, min_n=min_n)
+005679: 
+005680: def build_rrg_etf(macro, extras, win=63, mom=10, themes=None):
+005681:     """【大枠・市場全体】テーマETFのSPY相対力(63日基準)×その10日モメンタムで4象限。
+005682:        市場全体のセクター資金フローを見る古典的RRG。themes未指定なら主要18テーマ(RRG_THEMES)。"""
+005683:     b = macro.get("SPY")
+005684:     if b is None:
+005685:         return []
+005686:     bc = b["Close"].dropna()
+...
+005729:        期間切替: 現在・先週(5d前)・2週前(10d前)・先月(20d前)の4スナップショットを各テーマで計算。
+005730:        x=RS189百分位中央値(50=市場中央), y=勢い(5日あたりのRSランク変化)。表示専用・尾なし。"""
+005731:     from collections import defaultdict
+005732:     grp = defaultdict(list)
+005733:     for t in m.index:
+005734:         v = s2t.get(t)
+005735:         if not v:
+005736:             continue
+005737:         # 中分類優先(v[1])、無ければ大分類(v[0])
+005738:         key = None
+005739:         if len(v) >= 2 and v[1]:
+005740:             key = f"{v[0]}｜{v[1]}" if v[0] else v[1]
+005741:         elif v[0]:
+005742:             key = v[0]
+005743:         if key:
+005744:             grp[key].append(t)
+005745: 
+...
+005963: 
+005964: 
+005965: _RRG_GICS_DESC = ('GICS11セクター＋スタイル5本をSPYとの相対力で配置（横=相対力・100が市場並み／'
+005966:                   '縦=その10日モメンタム）。この集合は相互に重複せず市場を網羅し、時価総額加重なので'
+005967:                   '「資金がどこへ移ったか」が定義できる。テーマETFは重複が多くこの用途には使えない。')
+005968: 
+005969: 
+005970: def build_big_groups(hier):
+005971:     """大分類ごとの主導度。詳細セクターを構成銘柄数で加重して集計する。"""
+005972:     out = []
+005973:     for bg, subs in (hier or {}).items():
+005974:         tot = sum(int(s.get("n") or 0) for s in subs)
+005975:         if tot <= 0:
+005976:             continue
+005977:         rs = sum(float(s.get("rs") or 0) * int(s.get("n") or 0) for s in subs) / tot
+005978:         dr = sum(float(s.get("drs") or 0) * int(s.get("n") or 0) for s in subs) / tot
+005979:         br = sum(float(s.get("br") or 0) * int(s.get("n") or 0) for s in subs) / tot
+...
+006004:         notice = (f'<div class="unkwarn {cls}">⚠ 業種が付かない銘柄が <b>{unk}件</b>'
+006005:                   f'（全{tot}銘柄中）。買収完了・上場廃止した銘柄が universe.csv に'
+006006:                   f'残っている可能性が高い。TradingViewのスクリーナーから取り直して'
+006007:                   f'universe.csv を更新すると解消する。</div>')
+006008:     return ('<div class="card"><div class="hdr"><h2>主導セクター・業種 '
+006009:             '<span class="h2en">Leading Groups</span></h2></div>'
+006010:             '<div class="sub">ETFではなく<b>構成銘柄の実データ</b>から算出。'
+006011:             'RS=詳細セクターのRS189中央値を銘柄数で加重、▲=20日の変化、'
+006012:             f'強=RS189が{SECTOR_BREADTH_RS}以上の銘柄比率、主導=主導判定の業種数。'
+006013:             'タップで業種一覧へ。</div>'
+006014:             f'{notice}<div class="bglist">{rows}</div></div>')
+006015: 
+006016: 
+006017: _RRG_ETF_DESC = ('テーマETF56本の温度計。相互に重複（SMH⊂AIQ、TAN⊂ICLN等）するため、'
+006018:                  'ローテーションの測定には使えない。SPYとの相対力で配置'
+006019:                  '（横=相対力・100が市場並み／縦=その10日モメンタム）。'
+006020:                  '改善→主導→弱化→停滞の時計回りに循環。上のボタンで<b>現在・先週・2週前・先月</b>を切替。'
+...
+006297:     "クリーンEN": "Clean Energy", "データセンター": "Data Centers", "宇宙・防衛": "Space & Defense",
+006298:     "リチウム電池": "Lithium/Battery", "金鉱": "Gold Miners", "ゲノム": "Genomics",
+006299:     "ブロックチェーン": "Blockchain", "EV・自動運転": "EV/Autonomous", "銀鉱": "Silver Miners",
+006300:     "半導体": "Semiconductors", "AI": "AI", "原子力": "Nuclear", "バイオテック": "Biotech",
+006301:     "ウラン": "Uranium", "量子・次世代": "Quantum", "レアアース": "Rare Earths",
+006302:     "半導体装置": "Semi Equipment", "水素": "Hydrogen", "半導体EW": "Semis (EW)",
+006303:     "BTCマイニング": "BTC Miners", "メモリ": "Memory",
+006304: }
+006305: _OV_MAJOR_EN = {
+006306:     "情報技術": "Technology", "金融": "Financials", "資本財": "Industrials", "一般消費財": "Cons. Disc",
+006307:     "素材": "Materials", "通信": "Comm. Svcs", "公益": "Utilities", "生活必需品": "Cons. Staples",
+006308:     "ヘルスケア": "Health Care", "不動産": "Real Estate", "エネルギー": "Energy",
+006309: }
+006310: 
+006311: # ============================================================================= Overview投稿カード（元デザインのテンプレートに実データを差し込み）
+006312: #   写真の書式（1680x1080 Almanac・SVGチャート/テーブル/ゲージ）はテンプレートのまま保持し、
+006313: #   JSデータ（D/SUB/SEC/TOP/MOM・MAJ/SUB/LEADERS）とヘッダのスカラー値だけ実測値に置換する。
+...
+006406: 
+006407: 
+006408: # ---- Overview 1 用データ計算 ----------------------------------------------
+006409: def _ov1_data(ctx):
+006410:     mkt = ctx.get("mkt") or {}
+006411:     aux = ctx.get("aux") or {}
+006412:     sar = ctx.get("sar") or (None, None)
+006413:     breadth = ctx.get("breadth") or {}
+006414:     sectors = ctx.get("sectors") or []
+006415:     perf = mkt.get("perf") or {}
+006416:     out = {"repl": {}, "defs": {}, "series": {}}
+006417: 
+006418:     # --- スコア・地合い ---
+006419:     score = None
+006420:     for k in ("mri_score", "score"):
+006421:         if isinstance(mkt.get(k), (int, float)):
+006422:             score = float(mkt[k]); break
+...
+006476:     tpl = tpl.replace(
+006477:         "function multiline(series,w,h,pad){pad=pad||0.10;var all=[];series.forEach(function(s){all=all.concat(s.vals);});",
+006478:         "function multiline(series,w,h,pad){series=(Array.isArray(series)?series:[]).filter(function(s){return s&&Array.isArray(s.vals)&&s.vals.length>=2;});if(!series.length)return " + _empty_chart + ";pad=pad||0.10;var all=[];series.forEach(function(s){all=all.concat(s.vals);});",
+006479:         1)
+006480:     tpl = tpl.replace(
+006481:         "function multilineDated(series,w,h,pad,labels){pad=pad||0.10;var all=[];series.forEach(function(s){all=all.concat(s.vals);});",
+006482:         "function multilineDated(series,w,h,pad,labels){series=(Array.isArray(series)?series:[]).filter(function(s){return s&&Array.isArray(s.vals)&&s.vals.length>=2;});if(!series.length)return " + _empty_chart + ";labels=Array.isArray(labels)?labels:[];pad=pad||0.10;var all=[];series.forEach(function(s){all=all.concat(s.vals);});",
+006483:         1)
+006484:     # 色マップに「情報技術」を追加（sector_ranks は 情報技術 表記だが PC は テクノロジー のみ→線が無色化する対策）
+006485:     tpl = tpl.replace("var PC={", "var PC={'情報技術':'#C08A3E',", 1)
+006486:     # Top候補を「期間別リーダー」形式に：各RS期間(RS21/RS63/RS189)の上位5銘柄を全列表示。
+006487:     #   TOP は [{lab, rows:[...]}]。RS列は RS21/RS63/RS189 の3つ（RS126は出さない）。
+006488:     tpl = _re2.sub(
+006489:         r"getElementById\('top'\)\.innerHTML=TOP\.map\(function\(t\)\{.*?\}\)\.join\(''\);",
+006490:         "getElementById('top').innerHTML=TOP.map(function(g){if(!g||!g.rows)return '';return '<tr class=\"tsec\"><td colspan=\"10\">'"
+006491:         "+g.lab+'</td></tr>'+(g.rows||[]).map(function(t){return '<tr><td class=\"num\" style=\"color:var(--mut)\">'"
+006492:         "+t[0]+'</td><td class=\"l num\">'+t[1]+'</td>'+rsc(t[2])+rsc(t[3])+rsc(t[4])"
+...
+006559:         tpl2 = _ov_fold_patch(_ov_fs_patch(_b64.b64decode(OV2_TPL_B64).decode("utf-8")))
+006560:     except Exception:
+006561:         tpl2 = "<html><body>Overview 2</body></html>"
+006562: 
+006563:     mkt = ctx.get("mkt") or {}
+006564:     aux = ctx.get("aux") or {}
+006565:     sar = ctx.get("sar") or (None, None)
+006566:     breadth = ctx.get("breadth") or {}
+006567:     sectors = ctx.get("sectors") or []
+006568:     m = ctx.get("m")
+006569:     perf = mkt.get("perf") or {}
+006570:     asof = ctx.get("asof_disp") or ""
+006571: 
+006572:     # =========================== Overview 1 ===================================
+006573:     doc1 = tpl1
+006574:     try:
+006575:         sc = _re2.search(r'<script>(.*?)</script>', doc1, _re2.S).group(1)
+...
+006664:                 for k, arr in Dparts.items():
+006665:                     if arr is None: continue
+006666:                     body2 = _re2.sub(r'(\b' + k + r'\s*:\s*)ser\([^)]*\)', r'\1' + _ov_jsarr(arr), body)
+006667:                     if body2 == body:
+006668:                         body2 = _re2.sub(r'(\b' + k + r'\s*:\s*)\[[^\]]*\]', r'\1' + _ov_jsarr(arr), body)
+006669:                     body = body2
+006670:                 sc = sc[:start + 1] + body + sc[j:]
+006671: 
+006672:         # ---- SEC（大分類ローテ d1/w1/m1） ----
+006673:         try:
+006674:             macro = ((mkt.get("sector_ranks") or {}).get("macro")) or []
+006675:             if macro:
+006676:                 rows = []
+006677:                 for x in macro[:7]:
+006678:                     nm = x.get("ja") or x.get("name") or "—"
+006679:                     rows.append([nm, _ov_pctstr(x.get("d1")), _ov_pctstr(x.get("w1")), _ov_pctstr(x.get("m1"))])
+006680:                 lit = "[" + ",".join("['%s','%s','%s','%s']" % (r[0], r[1], r[2], r[3]) for r in rows) + "]"
+006681:                 sc = _ov_replace_def(sc, "SEC", lit)
+006682:         except Exception:
+006683:             pass
+006684: 
+006685:         # ---- SUB（サブテーマRS表） ----
+006686:         try:
+006687:             if sectors:
+006688:                 ss = sorted(sectors, key=lambda s: -(s.get("score") or s.get("med") or 0))[:8]
+006689:                 rows = []
+006690:                 def _clampi(v):
+006691:                     try:
+006692:                         return max(1, min(99, int(round(float(v)))))
+006693:                     except Exception:
+006694:                         return 50
+006695:                 for s in ss:
+006696:                     med = float(s.get("med") or s.get("score") or 50)
+...
+007074:                 doc1 = _ov_sub_required(r'QQQ \$[\d.—]+B?', f'QQQ ${qqqb:.1f}B', doc1, "dvol_qqq")
+007075:             if spyb is not None:
+007076:                 doc1 = _ov_sub_required(r'SPY \$[\d.—]+B?', f'SPY ${spyb:.1f}B', doc1, "dvol_spy")
+007077:         except Exception:
+007078:             pass
+007079: 
+007080:         # ---- コメント（今日/今週：このページの要点ダイジェスト・事実ベース） ----
+007081:         try:
+007082:             macro = ((mkt.get("sector_ranks") or {}).get("macro")) or []
+007083:             def _sw(x):
+007084:                 return x.get("w1") if isinstance(x, dict) else None
+007085:             def _wpct(w):
+007086:                 return f"{w*100:+.1f}%" if abs(w) <= 1.5 else f"{w:+.1f}%"
+007087:             secs = [s for s in macro if isinstance(_sw(s), (int, float))]
+007088:             top = sorted(secs, key=lambda s: -_sw(s))[:2]
+007089:             bot = sorted(secs, key=lambda s: _sw(s))[:2]
+007090:             lr = mkt.get("leader_run") or {}
+...
+007271:         except Exception:
+007272:             pass
+007273:     except Exception:
+007274:         pass
+007275:     doc2 = tpl2
+007276:     try:
+007277:         sc = _re2.search(r'<script>(.*?)</script>', doc2, _re2.S).group(1)
+007278:         sc0 = sc
+007279:         # MAJ（大分類 11）: 各期間の実リターンからセクター横断の相対順位(0-100)を算出。
+007280:         #   従来は base(=RS189)がmacroに存在せず全セクター50固定→順位フローがtrendのみで駆動される不具合。
+007281:         #   ret189/ret126/ret63/m1(21日) をパーセンタイル化して rs21/63/126/189 に直接渡す。
+007282:         try:
+007283:             macro = ((mkt.get("sector_ranks") or {}).get("macro")) or []
+007284:             en_map = globals().get("_OV_MAJOR_EN", {})
+007285:             macro11 = macro[:11]
+007286:             if macro11:
+007287:                 def _pctrank(key):
+007288:                     pairs = [(i, x.get(key)) for i, x in enumerate(macro11)]
+007289:                     out = {i: 50 for i, _ in pairs}
+007290:                     valid = [(i, float(v)) for i, v in pairs if v is not None and v == v]
+007291:                     if len(valid) >= 2:
+007292:                         valid.sort(key=lambda t: t[1])
+...
+007301:                     rows.append([nm, en_map.get(nm, ""), r21r[i], r63r[i], r126r[i], r189r[i]])
+007302:                 if rows:
+007303:                     inner = ",".join("['%s','%s',%d,%d,%d,%d]" % (r[0], r[1], r[2], r[3], r[4], r[5]) for r in rows)
+007304:                     lit = ("[" + inner + "]\n    .map(function(r){return {name:r[0],en:r[1],col:PC[r[0]],"
+007305:                            "rs:{r21:clamp(r[2]),r63:clamp(r[3]),r126:clamp(r[4]),r189:clamp(r[5])}};})")
+007306:                     sc = _ov_replace_def(sc, "MAJ", lit)
+007307:         except Exception:
+007308:             pass
+007309:         # SUB（小分類）: [name, en, parent, base(RS189), trend]
+007310:         try:
+007311:             en_map = globals().get("_OV_MICRO_EN", {})
+007312:             if sectors:
+007313:                 ss = sorted(sectors, key=lambda s: -(s.get("score") or s.get("med") or 0))[:30]
+007314:                 rows = []
+007315:                 for s in ss:
+007316:                     nm = s.get("ja") or "—"
+007317:                     en = en_map.get(nm, "")
+007318:                     parent = s.get("parent") or "テクノロジー"
+007319:                     try:
+007320:                         base = int(round(float(s.get("med189") or s.get("score") or s.get("med") or 50)))
+007321:                     except Exception:
+...
+007350:                     out_rows.append((lab, sub, tks))
+007351:                 if ok and out_rows:
+007352:                     lit = "[" + ",".join(
+007353:                         "['%s','%s',[%s]]" % (r[0], r[1], ",".join("'%s'" % t for t in r[2]))
+007354:                         for r in out_rows) + "]"
+007355:                     sc = _ov_replace_def(sc, "LEADERS", lit)
+007356:         except Exception:
+007357:             pass
+007358:         # fnote 説明文・副題を大分類フローの実データで生成（事実ベース）
+007359:         try:
+007360:             macro2 = ((mkt.get("sector_ranks") or {}).get("macro")) or []
+007361:             def _w(x):
+007362:                 return x.get("w1") if isinstance(x, dict) else None
+007363:             sflow = [s for s in macro2 if isinstance(_w(s), (int, float))]
+007364:             if sflow:
+007365:                 ins = sorted(sflow, key=lambda s: -_w(s))
+007366:                 outs = sorted(sflow, key=lambda s: _w(s))
+007367:                 in_nm = "・".join((s.get("ja") or "—") for s in ins[:3])
+007368:                 out_nm = "・".join((s.get("ja") or "—") for s in outs[:2])
+007369:                 # fnote（JS内静的説明文の差し替え。流入N/流出Nの計算部は保持）
+007370:                 fn_txt = f"{in_nm}が短期RSで上抜き＝資金流入。{out_nm}は流出。"
+007371:                 sc = _re2.sub(
+007372:                     r"(getElementById\('fnote'\)\.innerHTML='流入 <b>'\+inN\+'</b> / 流出 <b>'\+outN\+'</b> 大分類。).*?(';)",
+007373:                     lambda mm: mm.group(1) + fn_txt + mm.group(2), sc, count=1, flags=_re2.S)
+007374:         except Exception:
+007375:             pass
+007376:         if sc != sc0:
+007377:             doc2 = doc2.replace(sc0, sc)
+007378:         # 副題（read）を実データで生成
+007379:         try:
+007380:             macro3 = ((mkt.get("sector_ranks") or {}).get("macro")) or []
+007381:             def _w3(x):
+007382:                 return x.get("w1") if isinstance(x, dict) else None
+007383:             sflow3 = [s for s in macro3 if isinstance(_w3(s), (int, float))]
+007384:             if sflow3:
+007385:                 ins3 = sorted(sflow3, key=lambda s: -_w3(s))
+007386:                 outs3 = sorted(sflow3, key=lambda s: _w3(s))
+007387:                 in3 = "・".join((s.get("ja") or "—") for s in ins3[:3])
+007388:                 out3 = "・".join((s.get("ja") or "—") for s in outs3[:2])
+...
+007493:         return ('<div class="card"><h2>投稿カード</h2>'
+007494:                 '<div class="sub">データ不足のため今回は生成できませんでした（次回ビルドで自動再生成）。</div></div>')
+007495:     esc = _html.escape(doc, quote=True)
+007496:     return ('<div class="postwrap"><button class="pfsbtn" onclick="pfs(this,1)">⛶ 全画面表示</button>'
+007497:             f'<iframe class="postframe" srcdoc="{esc}"></iframe>'
+007498:             '<button class="pfsclose" onclick="pfs(this,0)">✕</button></div>')
+007499: 
+007500: # ----------------------------------------------------------------------------- X投稿用シェアカード (1200x675)
+007501: def build_share_html(aux, sar, mkt, picks, senti, asof_disp):
+007502:     color = sar[0]
+007503:     hexes = {"Blue": "#1d4ed8", "Green": "#16a34a", "Yellow": "#ca8a04", "Red": "#dc2626"}
+007504:     glow = hexes.get(color, "#4b5563")
+007505:     cj = _COLOR_JP.get(color, "—")
+007506:     band_lab, _ = mri_band(aux["hl"])
+007507:     dd = mkt.get("distrib", {})
+007508:     ddtxt = " ・ ".join(f"{_h(k)} {v['n']}日" for k, v in dd.items()) or "—"
+007509:     ranks = [x for x in ((mkt.get("sector_ranks") or {}).get("micro") or []) if x.get("w1") == x.get("w1")]
+007510:     top3 = "、".join(_h(s["ja"]) for s in sorted(ranks, key=lambda x: -x["w1"])[:3]) or "—"
+007511:     chips = "".join(f'<span class="pk">{_h(t)}</span>' for t, _, _ in picks)
+007512:     seg = [hc for hc in (mkt.get("trend_hist") or []) if hc and len(hc) == 2][-60:]
+007513:     rib = "".join(f'<i style="background:{hexes.get(c, "#4b5563")}"></i>' for _, c in seg)
+007514:     sn = f'{senti["cur"]:.0f}（{senti["band"]}）' if senti else "—"
+007515:     return f"""<!doctype html><html lang='ja'><head><meta charset='utf-8'><title>V38 share</title><style>
+007516: body{{margin:0;background:#0b0f17;font-family:'Hiragino Sans','Noto Sans JP',sans-serif}}
+007517: .fr{{width:1200px;height:675px;box-sizing:border-box;padding:44px 56px;display:flex;flex-direction:column;
+007518: background:radial-gradient(1200px 500px at 80% -10%,{glow}33,transparent),#0b0f17;color:#e6edf3}}
+007519: .top{{display:flex;align-items:center;gap:22px}}
+007520: .gate{{font-size:56px;font-weight:900;color:#fff;background:{glow};border-radius:18px;padding:10px 34px;box-shadow:0 0 44px {glow}88}}
+007521: .ttl{{font-size:30px;font-weight:800;color:#9ecbff}} .asof{{margin-left:auto;font-size:20px;color:#7d8da1}}
+007522: .mid{{display:flex;gap:40px;align-items:center;margin:34px 0 8px}}
+007523: .mri{{font-size:120px;font-weight:900;line-height:1}} .mrs{{font-size:26px;color:#9fb0c5}}
+...
+007936: PRE_BASE_MIN, PRE_BASE_MAX = 0.08, 0.35   # ベースの深さ。浅すぎ=ただの上昇 / 深すぎ=wide and loose
+007937: PRE_MIN_BASE_DAYS = 20                     # 4週未満は「ベースではない」
+007938: PRE_MAX_STAGE = 1                          # wsb=0が1本目。0/1のみ通す（3本目以降は買わない）
+007939: PRE_PIVOT_LO, PRE_PIVOT_HI = -0.08, 0.005  # ピボット直下。直上は既に発火側
+007940: PRE_MAX_EXT_ATR = 4.0                      # 発火前なので伸び切り判定は厳しく
+007941: PRE_TIGHT_PCT = 0.03                       # 21EMA/VWAPからの「タイト」の閾値
+007942: PRE_MIN_RS189 = 80                         # 主導株の下限（RS55の地銀は出さない）
+007943: PRE_MIN_RS63 = 80
+007944: PRE_SECTOR_RS = 60                         # 業種RS中央値の下限
+007945: PRE_SECTOR_BREADTH = 30                    # 業種ブレッドスの下限(%)
+007946: 
+007947: 
+007948: def _pre_i(v, default=None):
+007949:     """NaN/None を安全に int 化する。NaN混入でカードごと落ちるのを防ぐ。"""
+007950:     try:
+007951:         f = float(v)
+007952:         return int(round(f)) if np.isfinite(f) else default
+007953:     except Exception:
+...
+008186:     for t, v in (ind_map or {}).items():
+008187:         if isinstance(v, list) and len(v) >= 2 and v[1]:
+008188:             ja_of[t] = _ind_ja(v[1])
+008189: 
+008190:     rows = []
+008191:     for t, r in sub.iterrows():
+008192:         ind = ja_of.get(t, "")
+008193:         srs, sbr, ssec = sec_of.get(ind, (None, None, ""))
+008194:         strong = bool(srs is not None and srs >= PRE_SECTOR_RS
+008195:                       and (sbr or 0) >= PRE_SECTOR_BREADTH)
+008196:         q_v = float(vdry.get(t)) if pd.notna(vdry.get(t)) else 1.0
+008197:         q_a = float(atrc.get(t)) if pd.notna(atrc.get(t)) else 1.0
+008198:         rows.append(dict(
+008199:             t=t, rs189=_pre_i(r.get("rs189"), 0),
+008200:             stage=_pre_i(stage_n.get(t), None),
+008201:             piv=float(piv.get(t)) if pd.notna(piv.get(t)) else None,
+008202:             depth=float(depth.get(t)) if pd.notna(depth.get(t)) else None,
+008203:             days=_pre_i(days.get(t), None),
+...
+008534:         counts[tag] = counts.get(tag, 0) + 1
+008535:         selected.append(item)
+008536:     out = []
+008537:     for _prio, _q, _rs, t, r, tag, tcls in selected:
+008538:         ind = s2i.get(t); indja = e2j.get(ind, ind) if ind else "—"
+008539:         vdry = r.get("vdry_pre"); rvol = r.get("rvol_pre")
+008540:         pivot = float(r["pivot40"]) if pd.notna(r.get("pivot40")) else float(r["close"])
+008541:         out.append(dict(t=t, rs=r["rs"], tag=tag, tcls=tcls,
+008542:                         theme=theme_of(t, s2t), ind=subtheme_of(t, s2t, indja),
+008543:                         tier_lab=r.get("tier_lab", "—"), tier_key=r.get("tier_key", "none"),
+008544:                         dvol=r.get("dvol"), pb=r.get("pb"), pos52=r.get("pos52"),
+008545:                         rvol=rvol, vdry=vdry,
+008546:                         dry=(pd.notna(vdry) and vdry <= 0.90),
+008547:                         pivot=pivot, stop=pivot * 0.93,
+008548:                         held=(pick_set is not None and t in pick_set)))
+008549:     return out
+008550: 
+...
+008568:         out.append(dict(t=t, rs=float(r["rs189"]),
+008569:                         contractions=int(r.get("contractions") or 0), higher_lows=bool(r.get("higher_lows")),
+008570:                         vdry=r.get("vdry_pre"), atrc=r.get("atr_contract"), pivot_dist=r.get("pivot_dist"),
+008571:                         touches=int(r.get("pivot_touches") or 0), rsline=bool(r.get("rsline_newhigh")),
+008572:                         uvdv=r.get("uvdv20"),
+008573:                         adr=float(r["adr"]), d52=float(r["dist52"]), pb=r.get("pb"), dvol=r.get("dvol"),
+008574:                         trigger_state=("発火あり" if _a["trigger"] else "未発火"),
+008575:                         triggers=_a["trigger"],
+008576:                         theme=theme_of(t, s2t), ind=subtheme_of(t, s2t, indja),
+008577:                         tier_lab=r.get("tier_lab", "—"), tier_key=r.get("tier_key", "none")))
+008578:     return out
+008579: 
+008580: # ----------------------------------------------------------------------------- portfolio (A)
+008581: def build_betas(W, macro, window=120, min_obs=60):
+008582:     """各銘柄の対QQQベータ（直近window日の日次リターン回帰 β=cov/var）。QQQ欠損時は空。
+008583:        #10: 銘柄ごとに同一観測日でペアワイズ計算し、最低60日を満たさない銘柄はNaN。"""
+008584:     spy = macro.get("QQQ")
+...
+008987: 
+008988: # ----------------------------------------------------------------------------- leaders + ①〜⑤ states
+008989: # Canonical state machine + leader filter from v38_auto.py / SETUP_自動更新.md
+008990: # --- 思想的除外テーマ: モメンタム継続性が構造的に効かない業種(選定から外す・表示は残す) ---
+008991: #   バイオ/創薬/臨床段階は「治験結果で一夜に倍か半減」でトレンド追随が成立しない。
+008992: #   検証: 除外してもCAGR/Sharpe不変(55.9→55.9・te+0.01)=リターン犠牲ゼロで思想を通せる。
+008993: # バイオ除外はサブテーマ単位: ヘッドライン一発で±30%飛ぶ投機的小型創薬のみ外す。
+008994: # 大手バイオ/大手製薬/GLP-1/手術ロボ/医療機器等はモメンタムで来れば拾う(思想: 大型は別物)。
+008995: EXCLUDE_SUBTHEMES = ("臨床段階・中小型バイオ",)
+008996: 
+008997: # s2t（手動テーマ表）は更新が止まると新規上場のバイオを拾えないので、
+008998: # TradingViewの業種分類（毎ビルド自動更新・被覆100%）を主系統にする。
+008999: # 除外するのは治験ヘッドラインで一夜に±30%飛ぶ層。時価総額で線を引き、
+009000: # LLY/JNJのような大型製薬と、確立した大型バイオだけを残す。
+009001: BIO_EXCLUDE_INDUSTRIES = ("Biotechnology", "Pharmaceuticals: Other")
+009002: BIO_KEEP_MCAP = 1e10          # $10B以上は治験一発で消えない規模とみなして残す
+009003: 
+...
+009028:     v = (ind_map or _bio_industry_map()).get(t)
+009029:     if isinstance(v, list) and len(v) >= 2 and v[1] in BIO_EXCLUDE_INDUSTRIES:
+009030:         try:
+009031:             if mcap is None or not np.isfinite(float(mcap)) or float(mcap) < BIO_KEEP_MCAP:
+009032:                 return True
+009033:         except Exception:
+009034:             return True
+009035:     sv = (s2t or {}).get(t)
+009036:     if isinstance(sv, list) and len(sv) >= 2 and (sv[1] or "") in EXCLUDE_SUBTHEMES:
+009037:         return True
+009038:     return False
+009039: 
+009040: LEADER_RS = 85   # リーダー(=先導株)の唯一の定義: 63日RS≥85 かつ 200日線上。
+009041:                  # マーケットタブ「リーダー一覧」もピックアップの母集団もこの1定義を参照(重複定義なし)。
+009042: BUY_RS = 90                                           # 押し目シグナルは更に厳選: RS>=90
+009043: BUY_CAP = 12                                          # 表示上限
+009044: STATE_DEF = [("②", "新高値圏/継続", "s-go"),
+...
+009129:     if lead.empty:
+009130:         return {}, []
+009131:     lead["state"] = lead.apply(tag_state, axis=1)
+009132:     lead = lead.sort_values("rs", ascending=False)
+009133:     def info(t, r):
+009134:         th = theme_of(t, s2t)
+009135:         ind = s2i.get(t); indja = e2j.get(ind, ind) if ind else "—"
+009136:         nu_tag, _nun, nu_cls = momentum_nuance(r)
+009137:         return dict(t=t, rs=r["rs"], theme=th, ind=subtheme_of(t, s2t, indja), pb=r["pb"],
+009138:                     pp_days=r.get("pp_days"), pp_ratio=r.get("pp_ratio"),
+009139:                     dma21=r["dma21"], ret20=r["ret20"], adr=r["adr"], rvol=r["rvol"],
+009140:                     close=r["close"], state=r["state"], nut=nu_tag, nucls=nu_cls,
+009141:                     tier_lab=r.get("tier_lab", "—"), tier_key=r.get("tier_key", "none"),
+009142:                     mcap=r.get("mcap"), dvol=r.get("dvol"))
+009143:     by_state = {}
+009144:     for code, _, _ in STATE_DEF:
+009145:         sub = lead[lead["state"] == code]
+...
+009153:         hiR = r["close"]
+009154:         if lo >= hiR:
+009155:             lo = hiR * 0.985
+009156:         mid = (lo + hiR) / 2
+009157:         d = info(t, r); d.update(lo=lo, hi=hiR, t15=mid*1.15, t30=mid*1.30)
+009158:         buys.append(d)
+009159:     return by_state, buys
+009160: 
+009161: # ----------------------------------------------------------------------------- sector RS
+009162: def build_sector_rs(m, s2i, e2j, s2t):
+009163:     """サブテーマ(s2t)単位で括る（量子/メモリ/AI GPU等を分離・銘柄選定とは独立の参考ランキング）。"""
+009164:     grp = {}
+009165:     sub_parent = {}
+009166:     for t in m.index:
+009167:         st = s2t.get(t)
+009168:         sth = st[1] if (isinstance(st, list) and len(st) >= 2 and st[1] and st[1] not in ("?", "")) else None
+009169:         if not sth:
+009170:             continue
+...
+009303:         panels += (f'<div class="thpanel" id="thp-{i}" style="display:none">'
+009304:                    f'<div class="thpanel-h">{th["name"]}・{th["n"]}銘柄 <span class="mut">（RS強い順・タップで詳細）</span>{_cp(_showtk, _alltk)}</div>'
+009305:                    f'<div class="thstks">{chips}{more}</div></div>')
+009306:     return (f'<div class="card"><h2>テーマ・ドリルダウン</h2>'
+009307:             f'<div class="sub">中テーマの強さ順（緑=強い/濃さ=強度・▲=RSランク上昇中）。'
+009308:             f'<b>タップでその中の銘柄ローテ</b>（RS強い順）を表示。</div>'
+009309:             f'<div class="thgrid">{tiles}</div>{panels}</div>')
+009310: 
+009311: # equal-weight sector ETF RS — market-representative, unbiased, complete (11 GICS sectors)
+009312: SECTOR_ETFS = [("RSPT","情報技術"),("RSPF","金融"),("RSPN","資本財"),("RSPD","一般消費財"),
+009313:                ("RSPM","素材"),("RSPC","通信"),("RSPU","公益"),("RSPS","生活必需品"),
+009314:                ("RSPH","ヘルスケア"),("RSPR","不動産"),("RSPG","エネルギー")]
+009315: 
+009316: def build_sector_etf_rs(macro):
+009317:     recs = []
+009318:     rets63 = {}
+009319:     for tk, ja in SECTOR_ETFS:
+009320:         if tk not in macro:
+009321:             continue
+009322:         c = macro[tk]["Close"].dropna()
+009323:         if len(c) < 70:
+009324:             continue
+009325:         last = float(c.iloc[-1])
+009326:         def r(d):
+009327:             return (last/float(c.iloc[-d-1])-1) if len(c) > d else np.nan
+...
+009330:     if not recs:
+009331:         return []
+009332:     sr = pd.Series({x["tk"]: x["r63"] for x in recs}).rank(pct=True) * 100
+009333:     for x in recs:
+009334:         x["rs"] = float(sr[x["tk"]])
+009335:     recs.sort(key=lambda x: (-(x["r63"] if x["r63"] == x["r63"] else -9)))
+009336:     return recs
+009337: 
+009338: # 小分類（業種テーマETF）— sector_etf.csv から代表を厳選（重複テーマは1本に集約）
+009339: MICRO_ETFS = [("SMH","半導体"),("XSD","半導体EW"),("DRAM","メモリ"),("SOXX","半導体装置"),
+009340:               ("DTCR","データセンター"),("IGV","ソフトウェア"),("WCLD","クラウドSaaS"),("SKYY","クラウド基盤"),
+009341:               ("CIBR","サイバー"),("AIQ","AI"),("QTUM","量子・次世代"),("BOTZ","ロボティクス"),("ARKW","次世代ネット"),
+009342:               ("XBI","バイオテック"),("IHI","医療機器"),("PPH","製薬"),("GNOM","ゲノム"),
+009343:               ("KBE","銀行"),("KRE","地銀"),("IAI","証券・取引所"),("KIE","保険"),
+009344:               ("XOP","石油探査"),("OIH","油田サービス"),("XES","油田装置"),
+009345:               ("TAN","ソーラー"),("ICLN","クリーンEN"),("GRID","スマートグリッド"),("FAN","風力"),
+009346:               ("URA","ウラン"),("NLR","原子力"),("LIT","リチウム電池"),("HYDR","水素"),
+009347:               ("GDX","金鉱"),("SIL","銀鉱"),("COPX","銅鉱"),("XME","金属・鉱業"),("SLX","鉄鋼"),("REMX","レアアース"),
+009348:               ("ITA","航空宇宙・防衛"),("SHLD","防衛テック"),("XAR","宇宙・防衛"),
+009349:               ("JETS","航空"),("IYT","運輸"),("BOAT","海運"),
+009350:               ("XHB","住宅建設"),("PAVE","インフラ"),("PKB","建設"),
+009351:               ("XRT","小売"),("IBUY","EC"),("PEJ","レジャー"),
+009352:               ("BLOK","ブロックチェーン"),("WGMI","BTCマイニング"),("DRIV","EV・自動運転"),
+009353:               ("MOO","農業"),("PHO","水関連"),("WOOD","林業")]
+009354: 
+009355: # --- ETF(56) → 大分類(s2tの第1階層) の対応表 ---
+009356: #   【根拠】名前ではなく実データで決定（2026-07-08）:
+009357: #     ① 各ETFの実保有(yfinance top-holdings)を取り、保有銘柄がs2tでどの大分類に
+009358: #        属するかを保有比率で重み付き多数決 → 主信号（分類は「事業実体」で決まるため）
+009359: #     ② ETFの対SPY超過リターン と 各大分類の等加重超過リターン の日次相関(1年)
+009360: #        → 従信号。保有の大半がユニバース外(海外株)のETFで使用。
+009361: #     45/56で①②が一致。不一致12本は保有内訳を個別精査して確定（各行のコメント参照）。
+009362: #     相関はAI/石油ベータに汚染されるため、事業実体が明確な場合は①を優先した。
+009363: #   ドリルダウン: ETF → 大分類 → 詳細セクター(主導/改善を既定表示) → 構成銘柄。
+009364: ETF_TO_BIG = {
+009365:     "SMH": "2. 半導体・製造サプライチェーン",                               # 半導体: 保有59%+相関0.88
+009366:     "XSD": "2. 半導体・製造サプライチェーン",                               # 半導体EW: 保有43%+相関0.93
+009367:     "DRAM": "2. 半導体・製造サプライチェーン",                              # メモリ: 保有の大半が韓国メモリ半導体。詳細「メモリ/HBM」は2に所属
+009368:     "SOXX": "2. 半導体・製造サプライチェーン",                              # 半導体装置: 保有58%+相関0.91
+009369:     "DTCR": "14. 不動産・住宅・建設",                                  # データセンター: 保有: EQIX/DLR/AMT/CCI=DCリート37.6%。相関の半導体はAIベータ
+009370:     "IGV": "1. AI・テック成長テーマ",                                  # ソフトウェア: 保有51%+相関0.76
+009371:     "WCLD": "8. デジタルインフラ・先進テック",                              # クラウドSaaS: 保有55%+相関0.76
+...
+009438:               ("IGV","ソフトウェア"),("CIBR","サイバー"),("AIQ","AI"),
+009439:               ("XBI","バイオテック"),("IHI","医療機器"),
+009440:               ("KBE","銀行"),("IAI","証券"),
+009441:               ("XOP","石油探査"),("OIH","油田"),
+009442:               ("GDX","金鉱"),("XME","金属"),("URA","ウラン"),
+009443:               ("ITA","防衛"),("PAVE","インフラ"),("IYT","運輸")]
+009444: 
+009445: def load_market_extras(period="9mo", asof_date=None):
+009446:     """小分類テーマETF + QQQE + ^VIX6M をライブ取得（macroキャッシュとは独立・失敗時は空dict）。
+009447:        返り値: {ticker: Close系列}。--selftest(オフライン)時はネット取得せず空dictを返す。
+009448:        #7 asof_date指定時は取得系列を index<=asof で切り、過去as-of分析に現在のライブ値を混ぜない。"""
+009449:     tks = sorted(set([t for t, _ in MICRO_ETFS]
+009450:                      + [t for t, _ in GICS_THEMES]
+009451:                      + [t for t, _ in STYLE_THEMES]
+009452:                      + ["QQQE", "^VIX6M"]))
+009453:     out = {}
+009454:     if not _net_ok():
+...
+009487:             continue
+009488:         last = float(c.iloc[-1])
+009489:         def r(d):
+009490:             return (last/float(c.iloc[-d-1]) - 1) if len(c) > d else np.nan
+009491:         recs.append(dict(tk=tk, ja=ja, d1=r(1), w1=r(5), m1=r(21),
+009492:                          ret63=r(63), ret126=r(126), ret189=r(189)))
+009493:     return recs
+009494: 
+009495: def build_sector_ranks(macro, extras):
+009496:     """大分類(11セクター・等ウェイトRSP*=キャッシュ) と 小分類(テーマ=ライブextras) の d1/w1/m1。"""
+009497:     macro_close = {tk: macro[tk]["Close"] for tk, _ in SECTOR_ETFS if tk in macro}
+009498:     return {"macro": _rank_etfs(macro_close, SECTOR_ETFS),
+009499:             "micro": _rank_etfs(extras, MICRO_ETFS)}
+009500: 
+009501: # ----------------------------------------------------------------------------- breadth + yields
+009502: def build_breadth(m):
+009503:     """分母は「そのMAを算出できた銘柄」だけ。IPO等でsma200がNaNの銘柄を分母に含めると
+009504:        (NaN比較はFalse) 200日線上比率が構造的に過小になるため。
+009505:        全銘柄欠損などで分母0のときは0%でなくNone（下流で「—」表示）にしてデータ障害を隠さない。"""
+009506:     n = len(m)
+...
+009551: 
+009552: # 第2段階 マクロ圧力パネル用のFRED系列（金利カードとは別セット）。
+009553: #   BAMLH0A0HYM2=HYオプション調整後スプレッド(日次) / DTWEXBGS=広義ドル指数(日次) / NFCI=金融環境(週次)
+009554: FRED_PRESSURE_SERIES = {
+009555:     "BAMLH0A0HYM2": "HY OAS",
+009556:     "DTWEXBGS":     "広義ドル指数",
+009557:     "NFCI":         "金融環境指数",
+009558: }
+009559: # 1回の取得予算を金利＋圧力系列で共有する。別々に呼ぶと50秒×2になり、
+009560: # 「FRED全体50秒」のつもりでも最大100秒超まで膨らむため。
+009561: FRED_ALL_SERIES = {**FRED_SERIES, **FRED_PRESSURE_SERIES}
+009562: 
+009563: # 第3段階: ネット流動性（WALCL−RRP−TGA）と週末マクロ（マーケット/ウィークリータブ用）。
+009564: #   ネット流動性はリスク資産ベータと相関の高い本命指標。バランスシート単体より地合い判断に効く。
+009565: FRED_LIQUIDITY_SERIES = {
+009566:     "WALCL":     "FRB総資産",        # 百万ドル
+009567:     "RRPONTSYD": "リバースレポ",      # 十億ドル
+...
+011491:     def rank_one(recs, key, top=True):
+011492:         arr = [x for x in (recs or []) if finite(x.get(key))]
+011493:         if not arr: return None
+011494:         arr.sort(key=lambda x: float(x[key]), reverse=top)
+011495:         return arr[0]
+011496:     def lead_text(rec, key):
+011497:         if not rec: return "—"
+011498:         return f'{rec.get("ja") or rec.get("label") or rec.get("tk") or "—"} {dpct(rec.get(key))}'
+011499:     def period_sector(key):
+011500:         sr = mkt.get("sector_ranks") or {}
+011501:         mac = sr.get("macro") or []
+011502:         mic = sr.get("micro") or []
+011503:         tm = rank_one(mac, key, True); tn = rank_one(mic, key, True)
+011504:         wm = rank_one(mac, key, False); wn = rank_one(mic, key, False)
+011505:         tops = [lead_text(x, key) for x in (tm, tn) if x]
+011506:         weaks = [lead_text(x, key) for x in (wm, wn) if x]
+011507:         return ("・".join(tops) if tops else "—", "・".join(weaks) if weaks else "—")
+011508:     def names(xs, n=2):
+...
+011510: 
+011511:     slope = {"↑":"上向き", "→":"横ばい", "↓":"鈍化"}.get(aux.get("slope"), aux.get("slope"))
+011512:     band = mri_band(aux["hl"])[0].replace("（過熱・反落注意⚠）", "（過熱気味）")
+011513:     score = float(aux.get("cur") or 0.0)
+011514:     sd1, sd5, sd21 = (ts_delta(mkt.get("mri_ts"), x) for x in (1, 5, 21))
+011515:     bd5, bd21 = (ts_delta(mkt.get("breadth_ts"), x) for x in (5, 21))
+011516: 
+011517:     qqq, spy = pick_index("NASDAQ"), pick_index("S&P500")
+011518:     today_top, today_weak = period_sector("d1")
+011519:     week_top, week_weak = period_sector("w1")
+011520:     month_top, month_weak = period_sector("m1")
+011521: 
+011522:     bts = mkt.get("breadth_ts", [])
+011523:     pa200 = bts[-1][1] if bts else breadth.get("pa200")
+011524:     bd = dirof(bts, "拡大", "縮小")
+011525:     ad = dirof(mkt.get("adline_ts", []), "改善", "悪化")
+011526:     cr = dirof(mkt.get("credit_ts", []), "良好", "悪化")
+011527:     vt = mkt.get("vixterm_ts", []); vv = vt[-1][1] if vt else None
+011528:     vx = "平穏" if finite(vv) and vv < .95 else "注意" if finite(vv) and vv <= 1 else "逆転" if finite(vv) else "—"
+...
+011550:     else:
+011551:         change = "変化判定はデータ待ち"
+011552: 
+011553:     rrg = mkt.get("rrg_etf") or []
+011554:     center = sorted([x for x in rrg if x.get("q") == "主導"], key=lambda x: -float(x.get("x", 0)))
+011555:     improving = sorted([x for x in rrg if x.get("cross") or x.get("q") == "改善"],
+011556:                        key=lambda x: (not bool(x.get("cross")), -float(x.get("y", 0))))
+011557:     weakening = sorted([x for x in rrg if x.get("q") == "弱化"], key=lambda x: float(x.get("y", 0)))
+011558:     sec = mkt.get("sectors_rs") or []
+011559:     early = sorted([x for x in sec if x.get("rot") == "初動"], key=lambda x: -float(x.get("d_w1", 0)))
+011560:     if not early:
+011561:         early = sorted([x for x in sec if x.get("rot") == "改善"], key=lambda x: -float(x.get("d_w1", 0)))
+011562: 
+011563:     nq_col = _COLOR_JP.get(sar[0], "—") if sar else "—"
+011564:     nq_phrase = trend_phrase(mkt.get("trend_prev"), sar[0] if sar else None)
+011565:     em = mkt.get("emergency") or {}
+011566:     emtxt = "非常口発動・レバ半減" if em.get("active") else "非常口待機" if em.get("available") else "非常口判定不可"
+...
+011701:         f'<details class="mkt-fold"><summary><span>コピー用ポスト・数字と根拠</span><span class="mkt-fold-state"></span></summary>'
+011702:         f'<div class="mkt-post-tools"><span>X投稿用</span>'
+011703:         f'<button class="copybtn mkt-copy" onclick="copyBlock(event,\'mktPostText\')">コピー</button></div>'
+011704:         f'<div id="mktPostText" class="mkt-post">{post_html}</div>'
+011705:         f'<div class="mkt-fold-body" style="margin-top:9px">{detailed}</div></details></div>'
+011706:     )
+011707: 
+011708: 
+011709: def _rotation_comment(mkt):
+011710:     """Rotation is integrated into the 20-second market digest to avoid duplicate prose."""
+011711:     return ""
+011712: 
+011713: 
+011714: def build_categorized_commentary(mkt, m, breadth, sar, aux):
+011715:     """市況を5カテゴリ（マーケット/指数/個別株/セクター/市況）×時間軸で網羅コメント。素人にも分かる言葉で。"""
+011716:     def fin(v):
+011717:         try:
+011718:             return v is not None and np.isfinite(float(v))
+...
+011726:         for x in ((mkt.get("perf") or {}).get("indices") or []):
+011727:             if str(x.get("label", "")).startswith(pfx):
+011728:                 return x
+011729:         return {}
+011730:     def ts_d(ts, lag):
+011731:         vs = [float(v) for _, v in (ts or []) if fin(v)]
+011732:         return (vs[-1] - vs[-1-lag]) if len(vs) > lag else None
+011733:     qqq, spy = idx("NASDAQ"), idx("S&P500")
+011734:     sr = mkt.get("sector_ranks") or {}
+011735:     mac = sr.get("macro") or []
+011736:     def sec(key):
+011737:         arr = [x for x in mac if fin(x.get(key))]
+011738:         if not arr:
+011739:             return None
+011740:         arr.sort(key=lambda x: -float(x[key]))
+011741:         return (arr[0].get("ja") or "—", pct(arr[0].get(key)), arr[-1].get("ja") or "—", pct(arr[-1].get(key)))
+011742:     def top_tk(col, n=3):
+...
+011856:         _rrgline = f'。RRG象限では主導 {"・".join(x for x in center[:2] if x) or "—"}／改善(初動) {"・".join(x for x in improving[:2] if x) or "—"}／弱化 {"・".join(x for x in weakening[:2] if x) or "—"}'
+011857:     trend_bits = []
+011858:     if weak_all:
+011859:         trend_bits.append(f'全期間で弱く資金流出が明確なのは{"・".join(weak_all[:2])}')
+011860:     if fading:
+011861:         trend_bits.append(f'月は強いが週で失速の兆しは{"・".join(fading[:2])}')
+011862:     if emerging:
+011863:         trend_bits.append(f'新たに資金が向かい始めたのは{"・".join(emerging[:2])}')
+011864:     blocks.append(("セクター", "Sectors", [
+011865:         ("日次", secline("d1")),
+011866:         ("週次", secline("w1") + _rrgline),
+011867:         ("月次", secline("m1")),
+011868:         ("傾向", ("。".join(trend_bits) + "。") if trend_bits else "—"),
+011869:     ]))
+011870: 
+011871:     # 5) 市況（マクロ・解釈付き）
+011872:     nl = mkt.get("net_liq"); nlr = _net_liq_read(nl)
+...
+013299:                 badge = '<span class="rsx-badge sel">採用</span>'
+013300:             elif excluded:
+013301:                 badge = '<span class="rsx-badge ex">除外</span>'
+013302:             elif eligible:
+013303:                 badge = '<span class="rsx-badge ok">適格</span>'
+013304:             else:
+013305:                 badge = '<span class="rsx-badge watch">監視</span>'
+013306: 
+013307:             sth = subtheme_of(t, s2t, e2j.get(s2i.get(t), "—"))
+013308:             def _rv(k):
+013309:                 v = r.get(k)
+013310:                 return f'{float(v):.0f}' if pd.notna(v) else '—'
+013311:             rr = r.get(retcol)
+013312:             rr_txt = f'{float(rr)*100:+.1f}%' if pd.notna(rr) else '—'
+013313:             dv = r.get("dvol")
+013314:             dv_txt = f'${float(dv)/1e6:.0f}M' if pd.notna(dv) else '—'
+013315:             rows.append(
+...
+013478: body:has(#t-market:target) nav a.tabx{background:#141b29;color:#9fb0c5;border-color:#1f2a3a}
+013479: body:has(#t-market:target) nav a[href="#t-market"]{background:#1f6feb;color:#fff;border-color:#1f6feb}
+013480: body:has(#t-alloc:target) nav a.tabx{background:#141b29;color:#9fb0c5;border-color:#1f2a3a}
+013481: body:has(#t-alloc:target) nav a[href="#t-alloc"]{background:#1f6feb;color:#fff;border-color:#1f6feb}
+013482: body:has(#t-port:target) nav a.tabx{background:#141b29;color:#9fb0c5;border-color:#1f2a3a}
+013483: body:has(#t-port:target) nav a[href="#t-port"]{background:#1f6feb;color:#fff;border-color:#1f6feb}
+013484: body:has(#t-today:target) nav a.tabx{background:#141b29;color:#9fb0c5;border-color:#1f2a3a}
+013485: body:has(#t-today:target) nav a[href="#t-today"]{background:#1f6feb;color:#fff;border-color:#1f6feb}
+013486: body:has(#t-rotation:target) nav a.tabx{background:#141b29;color:#9fb0c5;border-color:#1f2a3a}
+013487: body:has(#t-rotation:target) nav a[href="#t-rotation"]{background:#1f6feb;color:#fff;border-color:#1f6feb}
+013488: body:has(#t-movers:target) nav a.tabx{background:#141b29;color:#9fb0c5;border-color:#1f2a3a}
+013489: body:has(#t-movers:target) nav a[href="#t-movers"]{background:#1f6feb;color:#fff;border-color:#1f6feb}
+013490: body:has(#t-rs:target) nav a.tabx{background:#141b29;color:#9fb0c5;border-color:#1f2a3a}
+013491: body:has(#t-rs:target) nav a[href="#t-rs"]{background:#1f6feb;color:#fff;border-color:#1f6feb}
+013492: body:has(#t-weekly:target) nav a.tabx{background:#141b29;color:#9fb0c5;border-color:#1f2a3a}
+013493: body:has(#t-weekly:target) nav a[href="#t-weekly"]{background:#1f6feb;color:#fff;border-color:#1f6feb}
+013494: body:has(#t-post1:target) nav a.tabx{background:#141b29;color:#9fb0c5;border-color:#1f2a3a}
+013495: body:has(#t-post1:target) nav a[href="#t-post1"]{background:#1f6feb;color:#fff;border-color:#1f6feb}
+...
+014988: function _coreEnsure(tk){
+014989:   var i=_coreRec(tk); if(i>=0) return i;
+014990:   var a=hldLoad(), h=_hldNewTrade(String(tk).toUpperCase(),'core',_hldToday());
+014991:   h.filled=false; h.coreSold=false; h.plannedEntry=null;
+014992:   a.push(h); hldSave(a); return a.length-1;
+014993: }
+014994: function _corePrune(tk){
+014995:   var i=_coreRec(tk); if(i<0) return; var a=hldLoad(), h=a[i];
+014996:   if(!(h.plannedEntry>0) && !(h.px>0) && !h.filled && !h.coreSold && !(h.exits&&h.exits.length) && !h.memo && !h.setup && !(h.remainingShares>0)){
+014997:     a.splice(i,1); hldSave(a);
+014998:   }
+014999: }
+015000: function coreEntry(tk){
+015001:   var i=_coreRec(tk); if(i<0) return null; var h=hldLoad()[i];
+015002:   return (h.filled && h.entryAvg>0)?h.entryAvg:(h.plannedEntry||h.avgPx||h.px||null);
+015003: }
+015004: function coreSetEntry(tk,px){
+015005:   var i=(px>0)?_coreEnsure(tk):_coreRec(tk); if(i<0) return;
+015006:   var a=hldLoad(), h=a[i];
+015007:   if(h.filled && h.remainingShares>0){ return; }  // 約定済みの実建値はPositionsの編集からのみ変更
+015008:   h.plannedEntry=(px>0?px:null); h.px=(px>0?px:null); h.avgPx=(px>0?px:null);
+015009:   a[i]=h; hldSave(a); if(!(px>0)) _corePrune(tk);
+015010: }
+015011: function coreSold(tk){
+015012:   var i=_coreLatestRec(tk); if(i<0) return false; var h=hldLoad()[i];
+015013:   return !!(h.coreSold || h.status==='closed');
+015014: }
+015015: function coreFilled(tk){
+015016:   var i=_coreRec(tk); if(i<0) return false; var h=hldLoad()[i];
+015017:   return !!(h.filled && h.remainingShares>0 && h.entryAvg>0);
+015018: }
+015019: function coreMarkFilled(tk,suggestedShares){
+015020:   var i=_coreEnsure(tk), a=hldLoad(), h=a[i], D=window.DET||{};
+015021:   if(h.filled && h.remainingShares>0){ try{alert('約定済みです。建値・株数の訂正はPositionsの「編集」を使ってください。');}catch(e){} return; }
+015022:   try{
+015023:     var defPx=coreEntry(tk)||((D[tk]||{}).px)||'';
+015024:     var pr=window.prompt('【'+tk+'】実約定価格',defPx); if(pr===null) return;
+015025:     var price=parseFloat(pr); if(!(price>0)){ alert('価格が不正です'); return; }
+015026:     var shr=window.prompt('【'+tk+'】実約定株数',suggestedShares>0?suggestedShares:''); if(shr===null) return;
+015027:     var shares=parseFloat(shr); if(!(shares>0)){ alert('株数が不正です'); return; }
+015028:     var date=window.prompt('【'+tk+'】約定日(YYYY-MM-DD)',_hldToday()); if(date===null) return;
+015029:     if(!_hldValidDate(date)){ alert('日付が不正です'); return; }
+015030:     h=_hldInitFilled(h,price,shares,date);
+015031:     h.initialStop=price*0.75; h.stop=h.initialStop; h.initialRiskTotal=(price-h.initialStop)*shares;
+015032:     h.filled=true; h.coreSold=false; h.plannedEntry=price;
+015033:     a[i]=h; hldSave(a); hldRender();
+015034:   }catch(e){}
+015035: }
+015036: function coreToggleFilled(tk,suggestedShares){ coreMarkFilled(tk,suggestedShares); }
+015037: function coreToggleSold(tk){
+015038:   var i=_coreEnsure(tk), a=hldLoad(), h=a[i];
+015039:   h.coreSold=!h.coreSold; a[i]=h; hldSave(a); if(!h.coreSold) _corePrune(tk);
+015040: }
+015041: function coreCloseTrade(tk){
+015042:   var i=_coreRec(tk), a=hldLoad();
+015043:   if(i>=0){
+015044:     var h=a[i];
+015045:     if(h.filled && h.remainingShares>0){ hldClose(null,i); return; }
+015046:     coreToggleSold(tk); return;
+015047:   }
+015048:   var li=_coreLatestRec(tk);
+015049:   if(li>=0){
+015050:     var last=a[li];
+015051:     if(last.status==='closed' || last.coreSold){
+015052:       try{ if(!window.confirm('【'+tk+'】売却済み表示を解除し、再エントリー準備へ戻しますか？')) return; }catch(e){}
+015053:       var ni=_coreEnsure(tk), a2=hldLoad(); a2[ni].coreSold=false; hldSave(a2); calcRun(); return;
+015054:     }
+015055:   }
+015056:   coreToggleSold(tk);
+015057: }
+015058: function coreHeldTickers(){
+015059:   return hldLoad().filter(function(h){return h.strat==='core' && h.status!=='closed' && h.filled && h.remainingShares>0;})
+015060:     .map(function(h){return String(h.t).toUpperCase();});
+015061: }
+015062: function _coreMigrate(){
+015063:   try{
+015064:     if(localStorage.getItem('v38_core_migrated')==='1') return;
+015065:     var ent=ccLoad(ccKey()), sold=takenLoad(), filled=_entLoad(), keys={};
+015066:     [ent,sold,filled].forEach(function(o){Object.keys(o||{}).forEach(function(k){keys[k]=1;});});
+015067:     Object.keys(keys).forEach(function(tk){
+...
+015121: function hldKey(){ return 'v38_holdings'; }
+015122: var HLD_SCHEMA=4;
+015123: function _hldNewId(){
+015124:   try{ if(window.crypto&&window.crypto.randomUUID) return window.crypto.randomUUID(); }catch(e){}
+015125:   return 'tr-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);
+015126: }
+015127: function _hldHash(s){ var h=2166136261; s=String(s||''); for(var i=0;i<s.length;i++){ h^=s.charCodeAt(i); h+=(h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24); } return (h>>>0).toString(36); }
+015128: function _hldSig(h){
+015129:   return [String(h.t||'').toUpperCase(),h.strat||'',h.dt||'',h.entryAvg||h.avgPx||h.px||'',h.filledSharesTotal||h.sh||'',h.closeDate||'',JSON.stringify(h.exits||[])].join('|');
+015130: }
+015131: function hldLoad(){
+015132:   var raw=null;
+015133:   try{ raw=localStorage.getItem(hldKey()); if(!raw) return []; var a=JSON.parse(raw); if(!Array.isArray(a)) throw new Error('not array'); return a.map(_hldNormalize).filter(function(x){return x;}); }
+015134:   catch(e){
+015135:     try{
+015136:       var prev=localStorage.getItem(hldKey()+'_prev');
+015137:       if(prev){ var b=JSON.parse(prev); if(Array.isArray(b)){ if(!window._hldWarned){window._hldWarned=1;alert('トレードノートの現行データを読めなかったため、直前バックアップを復元表示します。JSONバックアップも確認してください。');} return b.map(_hldNormalize).filter(function(x){return x;}); } }
+...
+015165: function hldStratPick(b){ var seg=b.parentElement; if(seg){[].forEach.call(seg.querySelectorAll('.stratbtn'),function(x){x.classList.remove('on');});} b.classList.add('on'); }
+015166: function _hldStratMeta(s){
+015167:   if(s==='lev')return {lab:'レバETF',cls:'strat-lev',exit:'NQゲート（青100／緑50／黄赤0）＋SOXLはSOXX条件'};
+015168:   return s==='swing'?{lab:'裁量',cls:'strat-swing',exit:'+25%で1/3利確 → 残りは21EMA Low/10日線でトレール'}:{lab:'Core 12',cls:'strat-core',exit:'ピーク×0.70 または 建値×0.75（途中利確しない）'};
+015169: }
+015170: function _hldNoteIn(){var g=function(id){var e=document.getElementById(id);return e?(e.value||''):'';};return {setup:g('hldSetup'),conv:g('hldConv'),memo:g('hldMemo')};}
+015171: function _hldEnv(tk){var C=window.CALC||{},x=_tickerData(tk)||{},d=x.d||{};return {envColor:(C.color||''),eRS63:(d.rs!=null?d.rs:null),eRS189:(d.rs189!=null?d.rs189:null),theme:(x.kind==='lev'?'レバETF':(d.sth||d.sec||'')),entryPx:(x.px!=null?x.px:null),envAsOf:_hldToday()};}
+015172: function _hldClearNote(){['hldSetup','hldConv','hldMemo'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});}
+015173: function _hldNewTrade(tk,strat,date){ return {tradeId:_hldNewId(),schemaVersion:HLD_SCHEMA,t:String(tk||'').toUpperCase(),strat:(strat==='core'||strat==='lev'?strat:'swing'),status:'open',dt:date||_hldToday(),fills:[],exits:[],leg2:'none',filled:false,coreSold:false,remainingShares:0,remainingCost:0,filledSharesTotal:0,entryCostTotal:0,entryAvg:null,avgPx:null,px:null,initialStop:null,initialRiskTotal:null,stop:null,stopOverride:null,partialDone:false}; }
+015174: function _hldRiskTotal(h,stop){
+015175:   if(!(stop>0)) return null; var fills=h.fills||[], total=0, used=false;
+015176:   fills.forEach(function(f){var p=_hldNum(f.price),sh=_hldNum(f.shares);if(p!=null&&sh>0){total+=Math.max(0,p-stop)*sh;used=true;}});
+015177:   if(used) return total;
+015178:   var av=_hldNum(h.entryAvg||h.avgPx||h.px), n=_hldNum(h.filledSharesTotal||h.sh); return (av!=null&&n>0)?Math.max(0,av-stop)*n:null;
+015179: }
+015180: function _hldInitFilled(h,price,shares,date){
+015181:   h.fills=[{leg:1,date:date,price:price,shares:shares}]; h.leg2='none'; h.px1=price; h.sh1=shares; h.px2=null; h.sh2=null; h.leg2Date=null;
+015182:   h.filled=true; h.dt=date; h.filledSharesTotal=shares; h.entryCostTotal=price*shares; h.entryAvg=price;
+015183:   h.remainingShares=shares; h.remainingCost=price*shares; h.sh=shares; h.px=price; h.avgPx=price; h.status='open'; h.closeDate=null; h.heldDays=null;
+015184:   return h;
+015185: }
+015186: function _hldNormalize(src){
+015187:   if(!src||typeof src!=='object'||!src.t) return null; var h=Object.assign({},src);
+015188:   h.t=String(h.t).toUpperCase(); if(_isLevTicker(h.t))h.strat='lev';else if(h.strat!=='core'&&h.strat!=='swing')h.strat='swing'; if(h.status!=='closed') h.status='open';
+015189:   if(!Array.isArray(h.exits)) h.exits=[]; h.exits=h.exits.map(function(x){return Object.assign({},x);}); if(!h.leg2)h.leg2='none';
+015190:   if(!Array.isArray(h.fills)){
+015191:     h.fills=[];
+015192:     if(_hldNum(h.px1)>0&&_hldNum(h.sh1)>0) h.fills.push({leg:1,date:h.dt||'',price:+h.px1,shares:+h.sh1});
+015193:     if(h.leg2==='filled'&&_hldNum(h.px2)>0&&_hldNum(h.sh2)>0) h.fills.push({leg:2,date:h.leg2Date||h.dt||'',price:+h.px2,shares:+h.sh2});
+015194:     if(!h.fills.length&&_hldNum(h.avgPx||h.px)>0&&_hldNum(h.sh)>0) h.fills.push({leg:1,date:h.dt||'',price:+(h.avgPx||h.px),shares:+h.sh});
+015195:   }
+015196:   var fillSh=h.fills.reduce(function(s,f){return s+(_hldNum(f.shares)||0);},0), fillCost=h.fills.reduce(function(s,f){var p=_hldNum(f.price),n=_hldNum(f.shares);return s+((p!=null&&n>0)?p*n:0);},0);
+015197:   h.filledSharesTotal=(_hldNum(h.filledSharesTotal)>0)?+h.filledSharesTotal:(fillSh>0?fillSh:(_hldNum(h.sh)||0));
+015198:   var _ect=_hldNum(h.entryCostTotal); h.entryCostTotal=(_ect!=null&&_ect>=0)?_ect:(fillCost>0?fillCost:((_hldNum(h.entryAvg||h.avgPx||h.px)||0)*h.filledSharesTotal));
+015199:   h.entryAvg=h.filledSharesTotal>0?h.entryCostTotal/h.filledSharesTotal:(_hldNum(h.entryAvg||h.avgPx||h.px));
+015200:   var exited=h.exits.reduce(function(s,x){return s+(_hldNum(x.shares)||0);},0);
+015201:   if(h.remainingShares==null) h.remainingShares=h.status==='closed'?0:Math.max(0,h.filledSharesTotal-exited); else h.remainingShares=Math.max(0,+h.remainingShares||0);
+015202:   if(h.remainingCost==null){
+015203:     var rc=h.entryCostTotal;
+015204:     h.exits.forEach(function(x){var n=_hldNum(x.shares)||0,cb=_hldNum(x.costBasis);rc-=n*(cb!=null?cb:(h.entryAvg||0));});
+015205:     h.remainingCost=Math.max(0,rc);
+015206:   }else h.remainingCost=Math.max(0,+h.remainingCost||0);
+015207:   if(h.status==='closed'){h.remainingShares=0;h.remainingCost=0;}
+015208:   h.avgPx=h.remainingShares>0?h.remainingCost/h.remainingShares:h.entryAvg; h.px=h.entryAvg; h.sh=h.filledSharesTotal;
+015209:   if(h.initialRiskTotal==null) h.initialRiskTotal=_hldRiskTotal(h,_hldNum(h.initialStop));
+015210:   if(!h.tradeId) h.tradeId='legacy-'+_hldHash(_hldSig(h)); h.schemaVersion=HLD_SCHEMA;
+015211:   h.filled=!!(h.filled||h.filledSharesTotal>0); h.partialDone=_hldTpRemaining(h)===0 && h.exits.some(function(x){return x.type==='partial';});
+015212:   return h;
+015213: }
+015214: function _hldEff(h){
+015215:   h=_hldNormalize(h)||h;
+015216:   if(h.status==='closed') return {sh:h.filledSharesTotal||null,avg:h.entryAvg||null};
+015217:   var sh=_hldNum(h.remainingShares),cost=_hldNum(h.remainingCost); return {sh:(sh>0?sh:null),avg:(sh>0&&cost!=null?cost/sh:(h.entryAvg||null))};
+015218: }
+015219: function _hldOrigSh(h){ h=_hldNormalize(h)||h; return h.filledSharesTotal||0; }
+015220: function _hldPartialExited(h){return (h.exits||[]).filter(function(x){return x.type==='partial';}).reduce(function(s,x){return s+(_hldNum(x.shares)||0);},0);}
+015221: function _hldTpRemaining(h){
+015222:   var total=_hldNum(h.filledSharesTotal)||0, frac=_hldNum(h.tpFraction)||33; if(!(total>0)) return 0;
+015223:   var target=Math.floor(total*frac/100); return Math.max(0,target-_hldPartialExited(h));
+015224: }
+015225: function currentSwingStop(h){ var x=_tickerData(h.t)||{},d=x.d||{}; if(h.stopOverride!=null) return h.stopOverride; if(h.exitType==='e21l'&&d.e21l!=null)return d.e21l; if(h.exitType==='s10'&&d.s10!=null)return d.s10; return h.stop!=null?h.stop:null; }
+015226: function hldAdd(){
+015227:   var tkEl=document.getElementById('hldTk'); if(!tkEl)return; var tk=(tkEl.value||'').trim().toUpperCase(); if(!tk)return;
+015228:   var info=_tickerData(tk);if(!info){var near=_tickerMatches(tk,'hold',3).map(function(x){return x.t;});alert('「'+tk+'」はティッカー候補で確認できません。'+(near.length?'候補: '+near.join(' / '):'入力を確認してください。'));return;}
+015229:   var sh=parseFloat((document.getElementById('hldSh')||{}).value),px=parseFloat((document.getElementById('hldPx')||{}).value),date=((document.getElementById('hldDt')||{}).value)||_hldToday(),strat=_hldStratVal();
+015230:   if(info.kind==='lev'){strat='lev';_hldSetStrat('lev');}else if(strat==='lev'){alert('レバETF戦略で登録できるのは TQQQ / SOXL です。個別株はCore 12か裁量スイングを選んでください。');return;}
+...
+015240: }
+015241: function hldDel(ev,i){if(ev&&ev.stopPropagation)ev.stopPropagation();var a=hldLoad();if(i<0||i>=a.length)return;var h=a[i];if(!window.confirm('【'+(h.t||'?')+'】の記録を削除します。元に戻せません（決済履歴も消えます）。よろしいですか？'))return;a.splice(i,1);hldSave(a);hldRender();}
+015242: function hldFromPlan(){
+015243:   var p=window._lastPlan||{};if(!p||!(p.px1>0)){alert('有効なプランがありません。上で再計算してください。');return;}
+015244:   var tk=(p.t||'').trim().toUpperCase();if(!tk){alert('上のプランで銘柄を入力してください');return;}
+015245:   if(_isLevTicker(tk)){alert(tk+' はレバETFです。裁量スイングとして誤登録しないため、下の「保有中」からレバETF戦略で追加してください。');return;}
+015246:   var pxDef=parseFloat((document.getElementById('hldPx')||{}).value)||p.px1,shDef=parseFloat((document.getElementById('hldSh')||{}).value)||p.sh1;
+015247:   var fp=window.prompt('【'+tk+'】第1脚の実約定価格',pxDef);if(fp===null)return;var price=parseFloat(fp);if(!(price>0)){alert('価格が不正です');return;}
+015248:   var fs=window.prompt('【'+tk+'】第1脚の実約定株数',shDef);if(fs===null)return;var shares=parseFloat(fs);if(!(shares>0)){alert('株数が不正です');return;}
+015249:   var date=window.prompt('【'+tk+'】第1脚の約定日(YYYY-MM-DD)',((document.getElementById('hldDt')||{}).value)||_hldToday());if(date===null)return;if(!_hldValidDate(date)){alert('日付が不正です');return;}
+015250:   if(!(p.stop>0)&&!window.confirm(tk+'：初期ストップ未設定のためRを計算できません。このまま記録しますか？'))return;
+015251:   var h=_hldInitFilled(_hldNewTrade(tk,'swing',date),price,shares,date);h.initialStop=p.stop>0?p.stop:null;h.stop=p.stop>0?p.stop:null;h.exitType=p.exitType;h.exitLabel=p.exitLabel;h.tpPct=p.tpPct||25;h.tpFraction=p.tpFraction||33;
+015252:   var plannedSh=_hldNum(p.plannedSh2!=null?p.plannedSh2:p.sh2); if(plannedSh>0){h.leg2='planned';h.sh2=plannedSh;h.px2=_hldNum(p.plannedPx2!=null?p.plannedPx2:p.px2);}
+015253:   h.initialRiskTotal=_hldRiskTotal(h,h.initialStop);h.tpPrice=h.entryAvg*(1+h.tpPct/100);h.tpShares=_hldTpRemaining(h);h=Object.assign(h,_hldNoteIn(),_hldEnv(tk));
+015254:   var a=hldLoad(),dup=a.filter(function(x){return String(x.t).toUpperCase()===tk&&x.status!=='closed';}).length;if(dup>0&&!window.confirm(tk+' は既に'+dup+'件の保有中記録があります。別記録として追加しますか？'))return;
+015255:   a.push(h);hldSave(a);var tkIn=document.getElementById('hldTk');if(tkIn)tkIn.value='';['hldSh','hldPx','hldDt'].forEach(function(id){var e=document.getElementById(id);if(e)e.value='';});_hldClearNote();hldRender();
+015256: }
+015257: function _hldApplyFill(h,leg,date,price,shares){
+015258:   h=_hldNormalize(h)||h;h.fills=h.fills||[];h.fills.push({leg:leg,date:date,price:price,shares:shares});h.filledSharesTotal+=shares;h.entryCostTotal+=price*shares;h.entryAvg=h.entryCostTotal/h.filledSharesTotal;h.remainingShares+=shares;h.remainingCost+=price*shares;h.avgPx=h.remainingCost/h.remainingShares;h.px=h.entryAvg;h.sh=h.filledSharesTotal;h.filled=true;
+015259:   if(h.initialStop!=null)h.initialRiskTotal=(h.initialRiskTotal||0)+Math.max(0,price-h.initialStop)*shares;else h.initialRiskTotal=null;
+015260:   return h;
+015261: }
+015262: function hldFillLeg2(ev,i){
+015263:   if(ev&&ev.stopPropagation)ev.stopPropagation();var a=hldLoad();if(i<0||i>=a.length)return;var h=a[i];if(h.leg2!=='planned')return;
+015264:   try{var pr=window.prompt('【'+h.t+'】第2脚の実約定価格'+(h.px2?'（予定 $'+h.px2+'）':''),h.px2||'');if(pr===null)return;var price=parseFloat(pr);if(!(price>0)){alert('価格が不正です');return;}
+015265:     var sr=window.prompt('【'+h.t+'】第2脚の実約定株数（予定 '+(h.sh2||0)+'株）',h.sh2||'');if(sr===null)return;var shares=parseFloat(sr);if(!(shares>0)){alert('株数が不正です');return;}
+015266:     var date=window.prompt('【'+h.t+'】第2脚の約定日(YYYY-MM-DD)',_hldToday());if(date===null)return;if(!_hldDateOnOrAfter(date,h.dt)){alert('第2脚日は第1脚の約定日以降にしてください');return;}
+015267:     h=_hldApplyFill(h,2,date,price,shares);h.px2=price;h.sh2=shares;h.leg2Date=date;h.leg2='filled';if(h.tpPct!=null)h.tpPrice=h.avgPx*(1+h.tpPct/100);h.tpShares=_hldTpRemaining(h);h.partialDone=h.tpShares===0&&_hldPartialExited(h)>0;
+015268:     a[i]=h;hldSave(a);hldRender();
+015269:   }catch(e){}
+015270: }
+015271: function _hldRecordExit(h,o){
+015272:   h=_hldNormalize(h)||h;var rem=h.remainingShares||0;if(!(o.shares>0)||o.shares>rem)throw new Error('exit shares');var cb=rem>0?h.remainingCost/rem:null,pnl=(cb!=null&&o.price!=null)?(o.price-cb)*o.shares:null;
+015273:   h.exits=h.exits||[];h.exits.push({exitId:_hldNewId(),type:o.type||'partial',date:o.date,price:o.price,shares:o.shares,reason:o.reason||'',costBasis:cb,initialStopAt:h.initialStop,realizedPnl:pnl});
+015274:   h.remainingCost=Math.max(0,h.remainingCost-(cb||0)*o.shares);h.remainingShares=Math.max(0,rem-o.shares);h.avgPx=h.remainingShares>0?h.remainingCost/h.remainingShares:h.entryAvg;h.tpShares=_hldTpRemaining(h);h.partialDone=h.tpShares===0&&_hldPartialExited(h)>0;return h;
+015275: }
+015276: function _hldRealized(h){
+015277:   h=_hldNormalize(h)||h;var pnl=0,shExited=0;(h.exits||[]).forEach(function(x){var xp=_hldNum(x.realizedPnl);if(xp==null&&x.costBasis!=null&&x.price!=null&&x.shares!=null)xp=(x.price-x.costBasis)*x.shares;if(xp!=null)pnl+=xp;shExited+=_hldNum(x.shares)||0;});
+015278:   var risk=_hldNum(h.initialRiskTotal),R=(risk!=null&&risk>0)?pnl/risk:null;return {pnl:pnl,shExited:shExited,R:R,orig:_hldOrigSh(h)};
+015279: }
+015280: function _hldFinalize(h,closeDate){var r=_hldRealized(h);h.realizedPnl=r.pnl;h.realizedR=r.R;h.status='closed';h.remainingShares=0;h.remainingCost=0;h.closeDate=closeDate||h.closeDate||_hldToday();h.heldDays=_daysBetween(h.dt,h.closeDate);if(h.strat==='core')h.coreSold=true;}
+015281: function hldTakePartial(ev,i){
+015282:   if(ev&&ev.stopPropagation)ev.stopPropagation();var a=hldLoad();if(i<0||i>=a.length)return;var h=a[i],e=_hldEff(h),defShares=_hldTpRemaining(h),cur=_tickerPrice(h.t);if(cur==null)cur='';
+015283:   if(!(defShares>0)){alert('ルール上の部分利確目標はすでに完了しています');return;}
+015284:   try{var pr=window.prompt('【'+h.t+'】部分利確：約定価格',h.tpPrice?(+h.tpPrice).toFixed(2):cur);if(pr===null)return;var price=parseFloat(pr);if(!(price>0)){alert('価格が不正です');return;}
+015285:     var rem=h.remainingShares||0,sr=window.prompt('【'+h.t+'】部分利確：株数（残 '+rem+'株／目標残り '+defShares+'株）',Math.min(defShares,rem));if(sr===null)return;var shares=parseFloat(sr);if(!(shares>0)){alert('株数が不正です');return;}if(shares>=rem){if(!window.confirm('残株すべて（'+rem+'株）を売却＝全決済になります。よろしいですか？'))return;shares=rem;}
+015286:     var date=window.prompt('【'+h.t+'】決済日(YYYY-MM-DD)',_hldToday());if(date===null)return;if(!_hldDateOnOrAfter(date,h.dt)){alert('決済日は取得日以降にしてください');return;}
+015287:     var closing=shares>=rem,rsn=window.prompt('【'+h.t+'】'+(closing?'手仕舞い理由':'理由（TP1/利確 等・任意）'),closing?(h.exitReason||''):'TP');if(rsn===null)rsn='';h=_hldRecordExit(h,{type:closing?'final':'partial',date:date,price:price,shares:shares,reason:rsn});
+015288:     if(closing){h.exitReason=rsn;var ls=window.prompt('【'+h.t+'】学び・次に活かす1点（任意）',h.lesson||'');if(ls!==null)h.lesson=ls;_hldFinalize(h,date);}a[i]=h;hldSave(a);hldRender();
+015289:   }catch(e2){alert('決済記録に失敗しました');}
+015290: }
+015291: function hldClose(ev,i){
+015292:   if(ev&&ev.stopPropagation)ev.stopPropagation();var a=hldLoad();if(i<0||i>=a.length)return;var h=a[i],rem=h.remainingShares||0,cur=_tickerPrice(h.t);if(cur==null)cur='';
+015293:   try{var date=h.closeDate||_hldToday();if(rem>0){var pr=window.prompt('【'+h.t+'】全決済：約定価格（残 '+rem+'株）',cur);if(pr===null)return;var price=parseFloat(pr);if(!(price>0)){alert('価格が不正です');return;}date=window.prompt('【'+h.t+'】決済日(YYYY-MM-DD)',_hldToday());if(date===null)return;if(!_hldDateOnOrAfter(date,h.dt)){alert('決済日は取得日以降にしてください');return;}var rsn=window.prompt('【'+h.t+'】手仕舞い理由（ストップ/利確/21EMA割れ/裁量 等）',h.exitReason||'');if(rsn===null)rsn='';h=_hldRecordExit(h,{type:'final',date:date,price:price,shares:rem,reason:rsn});h.exitReason=rsn;}var ls=window.prompt('【'+h.t+'】学び・次に活かす1点（任意）',h.lesson||'');if(ls!==null)h.lesson=ls;_hldFinalize(h,date);a[i]=h;hldSave(a);hldRender();try{calcRun();}catch(e0){}
+015294:   }catch(e2){alert('全決済の記録に失敗しました');}
+015295: }
+015296: function hldEditClosed(ev,i){
+015297:   if(ev&&ev.stopPropagation)ev.stopPropagation();var a=hldLoad();if(i<0||i>=a.length)return;var h=a[i],ex=h.exits||[];if(!ex.length){alert('決済履歴がありません');return;}
+015298:   try{var pick=0;if(ex.length>1){var menu=ex.map(function(x,j){return (j+1)+'. '+(x.date||'')+' '+(x.type==='final'?'全決済':'部分')+' '+x.shares+'株@$'+x.price;}).join('\n');var v=window.prompt('編集する決済番号を入力\n'+menu,String(ex.length));if(v===null)return;pick=parseInt(v,10)-1;if(!(pick>=0&&pick<ex.length)){alert('番号が不正です');return;}}var x=ex[pick];
+015299:     var pr=window.prompt('【'+h.t+'】約定価格を訂正（株数は履歴整合のため固定）',x.price!=null?x.price:'');if(pr===null)return;var price=parseFloat(pr);if(!(price>0)){alert('価格が不正です');return;}
+015300:     var date=window.prompt('【'+h.t+'】決済日を訂正(YYYY-MM-DD)',x.date||'');if(date===null)return;if(!_hldDateOnOrAfter(date,h.dt)){alert('決済日は取得日以降にしてください');return;}
+015301:     var reason=window.prompt('【'+h.t+'】決済理由を訂正',x.reason||'');if(reason===null)reason=x.reason||'';x.price=price;x.date=date;x.reason=reason;if(x.costBasis!=null)x.realizedPnl=(price-x.costBasis)*x.shares;
+015302:     if(x.type==='final'){h.closeDate=date;h.exitReason=reason;h.heldDays=_daysBetween(h.dt,date);}var r=_hldRealized(h);h.realizedPnl=r.pnl;h.realizedR=r.R;a[i]=h;hldSave(a);hldRender();
+015303:   }catch(e){}
+015304: }
+015305: function hldNote(ev,i){if(ev&&ev.stopPropagation)ev.stopPropagation();var a=hldLoad();if(i<0||i>=a.length)return;var h=a[i];try{var memo=window.prompt('【'+h.t+'】エントリー理由・見立て（なぜ今か／トリガー／想定リスク）',h.memo||'');if(memo===null)return;h.memo=memo;var ls=window.prompt('【'+h.t+'】学び・次に活かす1点（任意）',h.lesson||'');if(ls!==null)h.lesson=ls;a[i]=h;hldSave(a);hldRender();}catch(e){}}
+015306: function hldEdit(ev,i){
+015307:   if(ev&&ev.stopPropagation)ev.stopPropagation();var a=hldLoad();if(i<0||i>=a.length)return;var h=a[i]=_hldNormalize(a[i]),hasExits=!!(h.exits&&h.exits.length),eff=_hldEff(h);
+015308:   try{
+015309:     if(!hasExits){
+015310:       var pv=window.prompt('【'+h.t+'】現在保有の平均建値を修正',eff.avg!=null?eff.avg:'');if(pv===null)return;var px=parseFloat(pv);
+015311:       var sv=window.prompt('【'+h.t+'】現在保有株数を修正',eff.sh!=null?eff.sh:'');if(sv===null)return;var sh=parseFloat(sv);if(!(px>0&&sh>0)){alert('建値・株数が不正です');return;}
+015312:       var pchg=eff.avg==null||Math.abs(px-eff.avg)>0.005,schg=eff.sh==null||Math.abs(sh-eff.sh)>0.001;
+015313:       if(pchg||schg){
+015314:         if(h.leg2==='filled'&&!window.confirm('建値または株数を変更すると、2脚の履歴を単一の約定へ統合します。続けますか？'))return;
+015315:         if(h.leg2==='planned'){
+015316:           h.fills=[{leg:1,date:h.dt,price:px,shares:sh}];h.px1=px;h.sh1=sh;h.filledSharesTotal=sh;h.entryCostTotal=px*sh;h.entryAvg=px;h.remainingShares=sh;h.remainingCost=px*sh;h.avgPx=px;h.px=px;h.sh=sh;
+015317:         }else h=_hldInitFilled(h,px,sh,h.dt||_hldToday());
+015318:       }
+015319:     }else alert('決済履歴があるため、建値・株数はこの画面では変更しません。決済価格は「決済編集」、その他の訂正はJSONバックアップ後に行ってください。');
+015320:     var date=window.prompt('【'+h.t+'】取得日を修正(YYYY-MM-DD)',h.dt||'');if(date===null)return;if(!_hldValidDate(date)){alert('日付が不正です');return;}h.dt=date;if(h.fills&&h.fills[0])h.fills[0].date=date;
+015321:     if(h.strat==='lev'){h.initialStop=null;h.stop=null;h.initialRiskTotal=null;}
+015322:     else {var iv=window.prompt('【'+h.t+'】初期ストップ＝R計算基準（訂正。空欄可）',h.initialStop!=null?h.initialStop:'');if(iv===null)return;var ist=parseFloat(iv);h.initialStop=ist>0?ist:null;h.initialRiskTotal=_hldRiskTotal(h,h.initialStop);}
+015323:     if(h.strat==='swing'&&(h.exitType==='e21l'||h.exitType==='s10')){var ov=window.prompt('【'+h.t+'】現在撤退線の手動上書き（空欄＝'+(h.exitType==='s10'?'10日線':'21EMA Low')+'自動）',h.stopOverride!=null?h.stopOverride:'');if(ov===null)return;var on=parseFloat(ov);h.stopOverride=on>0?on:null;}
+015324:     else if(h.strat==='core'){var cv=window.prompt('【'+h.t+'】現在ストップ（空欄可）',h.stop!=null?h.stop:'');if(cv===null)return;var cn=parseFloat(cv);h.stop=cn>0?cn:null;}
+015325:     var setup=window.prompt('【'+h.t+'】セットアップ',h.setup||'');if(setup!==null)h.setup=setup;var conv=window.prompt('【'+h.t+'】確信度',h.conv||'');if(conv!==null)h.conv=conv;
+015326:     if(h.tpPct!=null&&h.remainingShares>0)h.tpPrice=(h.remainingCost/h.remainingShares)*(1+h.tpPct/100);h.tpShares=_hldTpRemaining(h);a[i]=h;hldSave(a);hldRender();
+015327:   }catch(e2){}
+015328: }
+015329: function _mdRow(h){
+015330:   h=_hldNormalize(h)||h;var e=_hldEff(h),avg=h.status==='closed'?h.entryAvg:e.avg,sh=h.status==='closed'?h.filledSharesTotal:e.sh,orig=_hldOrigSh(h),cur=_tickerPrice(h.t),closed=h.status==='closed',L=[],hm=_hldStratMeta(h.strat);
+015331:   L.push('## '+h.t+'（'+hm.lab+'）'+(h.dt?'  ['+h.dt+']':'')+(closed?'  ✅決済済み':''));var l1=[];if(h.setup)l1.push('セットアップ: '+h.setup);if(h.conv)l1.push('確信度: '+h.conv);if(h.envColor)l1.push('環境(NQ): '+h.envColor);if(l1.length)L.push('- '+l1.join(' ／ '));
+015332:   var l2=[];if(avg!=null)l2.push('平均建値: $'+(+avg).toFixed(2));if(sh!=null)l2.push((closed?'総約定株数: ':'残株数: ')+sh);if(h.leg2==='planned')l2.push('第2脚 未約定（予定 '+(h.sh2||0)+'株'+(h.px2?'@$'+h.px2:'・価格未設定')+'）');if(h.eRS63!=null||h.eRS189!=null)l2.push('入口RS63/189: '+(h.eRS63!=null?h.eRS63:'—')+'/'+(h.eRS189!=null?h.eRS189:'—'));if(h.theme)l2.push('テーマ: '+h.theme);if(l2.length)L.push('- '+l2.join(' ／ '));
+015333:   if(h.fills&&h.fills.length){L.push('- **約定履歴**:');h.fills.forEach(function(f){L.push('  - '+(f.date||'')+' 第'+(f.leg||'')+'脚 '+f.shares+'株 @ $'+(+f.price).toFixed(2));});}
+015334:   var stopNow=closed?null:currentSwingStop(h),l3=[];if(h.initialStop!=null)l3.push('初期ストップ: $'+(+h.initialStop).toFixed(2));if(stopNow!=null&&stopNow!==h.initialStop)l3.push('現在撤退線: $'+(+stopNow).toFixed(2)+'（'+_hldToday()+'時点）');if(l3.length)L.push('- '+l3.join(' ／ '));if(h.memo)L.push('- **理由/見立て**: '+h.memo);
+015335:   if(h.exits&&h.exits.length){L.push('- **決済履歴**:');h.exits.forEach(function(x){L.push('  - '+(x.date||'')+' '+(x.type==='final'?'全決済':'部分')+' '+(x.shares||0)+'株 @ $'+(x.price!=null?(+x.price).toFixed(2):'—')+(x.reason?'（'+x.reason+'）':''));});}
+015336:   if(closed){var r=_hldRealized(h);L.push('- **実現損益（株ベース）**: '+(r.pnl>=0?'+':'')+'$'+r.pnl.toFixed(2)+(r.R!=null?'（'+(r.R>=0?'+':'')+r.R.toFixed(2)+'R）':'（R=初期ストップ未設定）'));if(h.heldDays!=null)L.push('- 経過日数: '+h.heldDays+'日（暦日）');if(h.exitReason)L.push('- **手仕舞い**: '+h.exitReason);}
+015337:   else{if(h.remainingShares!=null&&orig!=null&&h.remainingShares!==orig)L.push('- 残株: '+h.remainingShares+'/'+orig);if(cur!=null){var pl=avg!=null?(cur/avg-1)*100:null;L.push('- 現在値: $'+cur+(pl!=null?'（'+(pl>=0?'+':'')+pl.toFixed(1)+'%）':''));}}
+015338:   if(h.lesson)L.push('- **学び**: '+h.lesson);return L.join('\n');
+015339: }
+015340: function hldExport(){var a=hldLoad();if(!a.length){alert('記録がありません。');return;}var today=_hldToday(),open=a.filter(function(h){return h.status!=='closed';}),closed=a.filter(function(h){return h.status==='closed';}),md='# トレードノート（書き出し '+today+'）\n\n記録はこの端末にのみ保存。環境（NQ/RS/テーマ）は記録日時点のスナップショットです。\n\n';md+='# ■ 保有中（'+open.length+'件）\n\n'+(open.length?open.map(_mdRow).join('\n\n---\n\n'):'なし')+'\n\n';md+='# ■ 決済済み（'+closed.length+'件）\n\n'+(closed.length?closed.map(_mdRow).join('\n\n---\n\n'):'なし')+'\n';if(closed.length){var rs=closed.map(function(h){return _hldRealized(h).R;}).filter(function(x){return x!=null;});if(rs.length){var wins=rs.filter(function(x){return x>0;}).length,sum=rs.reduce(function(s,x){return s+x;},0);md+='\n# ■ 集計（R計算できた決済 '+rs.length+'件）\n- 勝率: '+(100*wins/rs.length).toFixed(0)+'%（'+wins+'/'+rs.length+'）\n- 合計R: '+(sum>=0?'+':'')+sum.toFixed(2)+'R ／ 平均R: '+(sum/rs.length>=0?'+':'')+(sum/rs.length).toFixed(2)+'R\n';}}var done=false;try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(md);}}catch(e){}window.prompt('下記をコピー／保存してください（クリップボードにも自動でコピーを試みています）：',md);}
+015341: function hldExportJSON(){var a=hldLoad(),payload=JSON.stringify({schemaVersion:HLD_SCHEMA,exportedAt:(new Date()).toISOString(),trades:a});try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(payload);}}catch(e){}window.prompt('このJSONを保存すると復元できます（クリップボードにも自動でコピーを試みています）：',payload);}
+015342: function hldImportJSON(){
+015343:   try{var s=window.prompt('バックアップJSONを貼り付けてください（現在の記録に追加）','');if(!s)return;var obj=JSON.parse(s),sv=(obj&&!Array.isArray(obj))?obj.schemaVersion:null;if(sv!=null&&Number(sv)>HLD_SCHEMA){alert('このバックアップは新しい形式（schema v'+sv+'）のため取り込めません');return;}var incoming=Array.isArray(obj)?obj:(obj&&Array.isArray(obj.trades)?obj.trades:null);if(!incoming){alert('形式が不正です（trades配列が見つかりません）');return;}
+015344:     var norm=incoming.map(_hldNormalize).filter(function(x){return x;}),a=hldLoad(),ids={};a.forEach(function(h){ids[h.tradeId]=1;});var fresh=norm.filter(function(h){return !ids[h.tradeId];}),skipped=incoming.length-fresh.length;if(!fresh.length){alert('追加できる新しい記録はありません（重複または不正）');return;}if(!window.confirm(fresh.length+'件を追加しますか？'+(skipped>0?'（重複/不正 '+skipped+'件はスキップ）':'')))return;a=a.concat(fresh);if(hldSave(a)){hldRender();alert(fresh.length+'件を取り込みました');}
+015345:   }catch(e){alert('JSONの解析に失敗しました');}
+015346: }
+015347: function _escH(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+015348: function _hldOpenRow(h,i){
+015349:   h=_hldNormalize(h)||h;var e=_hldEff(h),avg=e.avg,sh=e.sh,orig=_hldOrigSh(h),days=_hldDays(h.dt),cur=_tickerPrice(h.t),pl=(cur!=null&&avg!=null)?(cur/avg-1)*100:null,plc=pl==null?'mut':(pl>=0?'pos':'neg'),plHtml=pl!=null?'<div class="'+plc+'" style="font-size:10px">'+(pl>=0?'+':'')+pl.toFixed(1)+'%'+(cur!=null?' ・現在$'+cur:'')+'</div>':'',meta=_hldStratMeta(h.strat),swx='';
+015350:   if(h.leg2==='planned')swx+='<div class="hld-leg"><b class="warnc">第2脚 未約定</b>（予定 '+(h.sh2||0)+'株'+(h.px2?'@$'+h.px2:'・価格未設定')+'）</div><button class="tkbtn hld-legb" onclick="hldFillLeg2(event,'+i+')">第2脚を約定にする</button>';
+015351:   if(h.strat==='swing'){var lines=[],st=currentSwingStop(h);if(st!=null&&cur!=null){if(cur<=st)lines.push('<b class="neg">撤退ライン割れ</b> $'+(+st).toFixed(2));else lines.push('撤退（現在）$'+(+st).toFixed(2)+'まで '+((st/cur-1)*100).toFixed(1)+'%');}if(h.initialStop!=null)lines.push('<span class="mut">初期$'+(+h.initialStop).toFixed(2)+'＝R基準（固定）</span>');if(h.tpPrice&&cur!=null&&h.remainingShares>0&&_hldTpRemaining(h)>0){if(cur>=h.tpPrice)lines.push('<b class="pos">部分利確ライン到達</b> $'+(+h.tpPrice).toFixed(2));else lines.push('利確 $'+(+h.tpPrice).toFixed(2)+'まで +'+((h.tpPrice/cur-1)*100).toFixed(1)+'%');}if(lines.length)swx+='<div class="mut hld-plan">'+lines.join('<br>')+'</div>';}
+015352:   else if(h.strat==='lev'){var C=window.CALC||{},lc=C.color||'未取得',le=Math.round((Number(C.e_lev)||0)*100),ll=['現在 '+lc+'・レバ露出 '+le+'%'];if(h.t==='SOXL'){if(!C.soxl_trend_ok)ll.push('<b class="neg">SOXXトレンド不適格 → 売却対象</b>');else if(C.soxl_entry_ok)ll.push('<b class="pos">SOXL投入帯</b>');else ll.push('<b class="warnc">投入帯外 → 既存分のみ・買い増し停止</b>');}swx+='<div class="mut hld-plan">'+ll.join('<br>')+'</div>';}
+015353:   else if(h.initialStop!=null)swx+='<div class="mut hld-plan"><span class="mut">初期$'+(+h.initialStop).toFixed(2)+'＝R基準（固定）</span></div>';
+015354:   var partialCount=(h.exits||[]).filter(function(x){return x.type==='partial';}).length;if(partialCount)swx+='<div class="mut hld-plan">部分決済済 '+partialCount+'回 → 残'+h.remainingShares+'/'+orig+'株</div>';
+015355:   var bits=[];if(h.setup)bits.push('<span class="hld-setup">'+_escH(h.setup)+'</span>');if(h.conv)bits.push('<span class="hld-conv">確信'+_escH(h.conv)+'</span>');if(h.envColor)bits.push('<span class="mut">環境'+_escH(h.envColor)+'</span>');if(h.eRS63!=null||h.eRS189!=null)bits.push('<span class="mut">入RS '+(h.eRS63!=null?h.eRS63:'—')+'/'+(h.eRS189!=null?h.eRS189:'—')+'</span>');var note=bits.length?'<div class="hld-note">'+bits.join(' ')+'</div>':'',memo=h.memo?'<div class="hld-memo">📝 '+_escH(h.memo)+'</div>':'',canPartial=h.strat==='swing'&&h.remainingShares>0&&_hldTpRemaining(h)>0;
+015356:   return '<tr data-tkone="'+_escH(h.t)+'"><td class="l tk">'+_escH(h.t)+' <span class="stratbadge '+meta.cls+'">'+meta.lab+'</span>'+plHtml+'<div class="mut hld-exit">出口: '+meta.exit+'</div>'+swx+note+memo+'<div class="hld-btns">'+(canPartial?'<button class="tkbtn hld-pt" onclick="hldTakePartial(event,'+i+')">部分決済</button>':'')+'<button class="tkbtn hld-close" onclick="hldClose(event,'+i+')">全決済</button><button class="tkbtn hld-noteb" onclick="hldNote(event,'+i+')">✎ノート</button><button class="tkbtn hld-noteb" onclick="hldEdit(event,'+i+')">編集</button><button class="tkbtn" onclick="hldDel(event,'+i+')">削除</button></div></td><td>'+(sh!=null?sh:'—')+(h.remainingShares!==orig?'<div class="mut" style="font-size:9px">残'+h.remainingShares+'</div>':'')+'</td><td>'+(avg!=null?'$'+(+avg).toFixed(2):'—')+'</td><td><b>'+(days!=null?days+'日':'—')+'</b><div class="mut" style="font-size:9px">'+_escH(h.dt||'')+'</div></td></tr>';
+015357: }
+015358: function _hldClosedRow(h,i){var r=_hldRealized(h),meta=_hldStratMeta(h.strat),rtxt=r.R!=null?'<b class="'+(r.R>=0?'pos':'neg')+'">'+(r.R>=0?'+':'')+r.R.toFixed(2)+'R</b>':'<span class="mut">R—</span>',ptxt='<span class="'+(r.pnl>=0?'pos':'neg')+'">'+(r.pnl>=0?'+':'')+'$'+r.pnl.toFixed(0)+'</span>',exsum=(h.exits||[]).map(function(x){return (x.date||'')+' '+x.shares+'株@$'+(+x.price).toFixed(2);}).join(' / ');return '<tr><td class="l tk">'+_escH(h.t)+' <span class="stratbadge '+meta.cls+'">'+meta.lab+'</span><div class="hld-note">'+rtxt+' '+ptxt+(h.heldDays!=null?' <span class="mut">'+h.heldDays+'日</span>':'')+(h.setup?' <span class="hld-setup">'+_escH(h.setup)+'</span>':'')+'</div>'+(exsum?'<div class="mut hld-plan">'+_escH(exsum)+'</div>':'')+(h.exitReason?'<div class="hld-memo"><b>手仕舞い</b>：'+_escH(h.exitReason)+'</div>':'')+(h.lesson?'<div class="hld-memo"><b>学び</b>：'+_escH(h.lesson)+'</div>':'')+'<div class="hld-btns"><button class="tkbtn hld-noteb" onclick="hldNote(event,'+i+')">✎ノート</button><button class="tkbtn hld-noteb" onclick="hldEditClosed(event,'+i+')">決済編集</button><button class="tkbtn" onclick="hldDel(event,'+i+')">削除</button></div></td><td colspan="3">'+_escH(h.dt||'')+ ...<TRUNCATED>
+015359: function hldRender(){var box=document.getElementById('hldList');if(!box)return;var a=hldLoad(),actions='<div class="ci-row2" style="margin-top:8px;gap:6px;flex-wrap:wrap"><button class="memx" onclick="hldExport()">📤 ノート書き出し(MD)</button><button class="memx" onclick="hldExportJSON()">💾 JSONバックアップ</button><button class="memx" onclick="hldImportJSON()">📥 JSON復元</button></div>';if(!a.length){box.innerHTML='<div class="mut" style="font-size:11px;padding:8px 0">まだ記録なし。買った銘柄を上で追加。</div>'+actions;return;}var open=[],closed=[];a.forEach(function(h,i){if(h.status==='closed')closed.push([h,i]);else open.push([h,i]);});var ob=open.map(function(x){return _hldOpenRow(x[0],x[1]);}).join(''),ot=open.length?'<table class="ptab calc-tab"><thead><tr><th class="l">銘柄</th><th>残株</th><th>残株平均</th><th>経過日数</th></tr></thead><tbody>'+ob+'</tbody></table>':'<div class="mut" style="font-size:11px;padding:6px 0">保有中なし。</div>',ch='';if(closed.length){var rs=closed.map(function(x){return _hldRealized(x[0]).R;}).filter(function(v){return v!=null;}),sm='';if(rs.length){var w=rs.filter(function(v){return v>0;}).length,sum=rs.reduce(function(s,v){return s+v;},0);sm='勝率 '+(100*w/rs.length).toFixed(0)+'%（'+w+'/'+rs.le ...<TRUNCATED>
+015360: if(document.readyState!=='loading'){try{hldRender();}catch(e){}}else{document.addEventListener('DOMContentLoaded',function(){try{hldRender();}catch(e){}});}
+015361: function _swFillStop(){
+015362:   var c=_swCand(), exel=document.getElementById('swExit'), ex=exel?exel.value:'e21l';
+015363:   var sh=document.getElementById('swStopHint'), si=document.getElementById('swStop');
+015364:   if(ex==='manual'){ if(sh)sh.textContent='手入力'; return; }
+015365:   var lab=(ex==='s10')?'10日線':'21EMA安値';
+015366:   if(!c){ if(si)si.value=''; if(sh)sh.textContent=lab+'（候補を選ぶと自動）'; return; }
+...
+015406:   if(!(e1>0&&asset>0)){
+015407:     out.innerHTML='<div class="mut" style="padding:10px 0">総資産・エントリー①を入れると、'
+015408:       +'<b>総資産'+(sizePct||8)+'%サイズの2分割株数</b>が円と%で出ます（ストップ未入力でも株数は出ます）。候補を選ぶと自動入力。</div>'; return;
+015409:   }
+015410:   // 銘柄サイズ＝総資産の sizePct%。2分割で①今すぐ50%・②押し目/ブレイク50%。ストップは株数に影響しない。
+015411:   var budgetYen=asset*(sizePct/100), budgetUsd=budgetYen/fx;
+015412:   var p2=hasE2?e2:e1;
+015413:   var sh1=Math.max(0,Math.floor((budgetUsd*0.5)/e1)), sh2=Math.max(0,Math.floor((budgetUsd*0.5)/p2));
+015414:   var shares=sh1+sh2;
+015415:   var eAvg=shares>0?(sh1*e1+sh2*p2)/shares:e1;   // 加重平均建値（①②は金額50/50＝株数が異なるので株数加重が正）
+015416:   var cost1=sh1*e1*fx, cost2=sh2*p2*fx, cost=cost1+cost2, costPct=asset?cost/asset*100:0;
+015417:   var tpPx=eAvg*(1+tpPct/100), shTp=Math.floor(shares*tpF/100), shTrail=shares-shTp;
+015418:   var hasStop=(s>0&&s<eAvg);                                            // ハードストップは参考の損失計算だけに使う
+015419:   var lossYen=hasStop?shares*(eAvg-s)*fx:0, lossPct=(hasStop&&asset)?lossYen/asset*100:0, stopDrop=hasStop?((s/eAvg-1)*100):0;
+015420:   var box=function(lab,px,pct,cls,sub){return '<div class="swb '+cls+'"><div class="swbl">'+lab+'</div>'
+015421:     +'<div class="swbp">'+(px!=null?'$'+px.toFixed(2):'—')+'</div><div class="swbc">'+pct+'</div>'+(sub?'<div class="swbs">'+sub+'</div>':'')+'</div>';};
+015422:   var ladder='<div class="swladder">'
+015423:     +box('ハードストップ',(hasStop?s:null),(hasStop?stopDrop.toFixed(1)+'%':'未設定'),'swb-stop',(hasStop?'−¥'+_swfmt(lossYen):exLab))
+015424:     +box('①今すぐ',e1,'50%','swb-ent',sh1+'株')
+015425:     +box('②押し目/ブレイク',p2,'50%','swb-ent',sh2+'株')
+015426:     +box('部分利確 +'+tpPct.toFixed(0)+'%',tpPx,tpF.toFixed(0)+'%','swb-t3',shTp+'株利確')
+015427:     +'</div>';
+015428:   out.innerHTML=
+015429:     '<div class="swkey">買う株数（合計） <b>'+shares+' 株</b>'
+015430:       +'<span class="mut"> ・ 2分割 '+sh1+' + '+sh2+'株 ・ 投入 ¥'+_swfmt(cost)+'（総資産の'+costPct.toFixed(1)+'%＝目標'+sizePct+'%）</span></div>'
+015431:     +ladder
+015432:     +'<div class="swline"><span>① 今すぐ（50%）</span><b>'+sh1+'株 @ $'+e1.toFixed(2)+'</b><span class="mut">¥'+_swfmt(cost1)+'</span></div>'
+015433:     +'<div class="swline"><span>② 押し目/ブレイク（50%）</span><b>'+sh2+'株 @ $'+p2.toFixed(2)+'</b><span class="mut">'+(hasE2?('¥'+_swfmt(cost2)):'②未入力＝①と同値で計算')+'</span></div>'
+015434:     +'<div class="swline"><span>銘柄サイズ（総資産の'+sizePct+'%）</span><b>¥'+_swfmt(budgetYen)+'</b><span class="mut">平均建値$'+eAvg.toFixed(2)+'</span></div>'
+015435:     +(hasStop
+015436:         ? '<div class="swline"><span>ハードストップ $'+s.toFixed(2)+'（'+exLab+'・'+stopDrop.toFixed(1)+'%）に当たると</span><b class="neg">−¥'+_swfmt(lossYen)+'</b><span class="mut">総資産の−'+lossPct.toFixed(2)+'%</span></div>'
+015437:         : '<div class="swline"><span>ハードストップ</span><b class="mut">未設定</b><span class="mut">撤退ラインを選ぶか手入力（'+exLab+'）</span></div>')
+015438:     +'<div class="swline"><span>+'+tpPct.toFixed(0)+'%（$'+tpPx.toFixed(2)+'）到達で</span>'
+015439:       +'<b class="pos">'+shTp+'株（'+tpF.toFixed(0)+'%）利確</b><span class="mut">残り'+shTrail+'株</span></div>'
+015440:     +'<div class="swline"><span>部分利確のあと 残り'+shTrail+'株は</span><b>'+exLab+'割れで手仕舞い</b></div>'
+015441:     +'<div class="mut" style="font-size:11px;margin-top:8px"><b>裁量ツール（正式出口 max(建値×0.75, ピーク×0.70) とは別ルール）</b>。'
+015442:       +'株数は<b>総資産の'+sizePct+'%を2分割</b>（①今すぐ50%＋②押し目/ブレイク50%）で決定。'
+015443:       +'<b>ハードストップ（'+exLab+'）はサイズ計算に使わず</b>、そこに当たったら撤退。'
+015444:       +'<b>+'+tpPct.toFixed(0)+'%で'+tpF.toFixed(0)+'%利確 → 残りは'+exLab+'割れでトレール</b>（建値移動なし）。</div>';
+015445:   var _pk=document.getElementById('swPick');
+015446:   window._lastPlan={t:(_pk?(_pk.value||'').trim().toUpperCase():''), sh:shares, sh1:sh1, px1:e1,
+015447:     sh2:sh2, px2:(hasE2?p2:null), plannedSh2:sh2, plannedPx2:(hasE2?p2:null), hasLeg2:true, leg2PriceSet:hasE2,
+015448:     px:eAvg, avgPx:eAvg, stop:(hasStop?s:null), exitType:exSel, exitLabel:exLab,
+015449:     tpPct:tpPct, tpFraction:tpF, tpPrice:tpPx, tpShares:shTp, remainingShares:shares, partialDone:false};
+015450: }
+015451: function rsPeriod(btn){
+015452:   var cur=btn.getAttribute('data-cur')||'189';
+015453:   var nxt = (cur==='189')?'63':(cur==='63')?'21':'189';
+015454:   btn.setAttribute('data-cur',nxt);
+015455:   var lab={'189':'189日','63':'63日','21':'21日'}[nxt];
+015456:   btn.innerHTML='RS期間: <b>'+lab+'</b> ▾（タップで切替・全表連動）';
+015457:   document.querySelectorAll('.rsv').forEach(function(el){
+...
+015625: }
+015626: if(document.readyState!=='loading'){ _entApply(); }
+015627: else { document.addEventListener('DOMContentLoaded',_entApply); }
+015628: 
+015629: // --- 個別ティッカーのコピー（リスト用copyTkとは別・イベント伝播を止める） ---
+015630: var _EN_MAP={
+015631:  "今日のマーケット":"Market Summary","マーケットステータス推移":"Regime History",
+015632:  "マーケット・パフォーマンス":"Performance","先導株モメンタム・ラン":"Leader Momentum",
+015633:  "リーダーの強さ":"Leader Temperature","セクター温度マップ":"Sector Heatmap",
+015634:  "セクターETF強弱":"Sector ETF Strength","レジーム警戒灯":"Regime Early-Warning",
+015635:  "リーダー・ブレッドス警戒灯":"Leader Breadth","転換初動リーダーボード":"Reversal Leaders",
+015636:  "フォロースルー・デイ":"Follow-Through Day","VIX期間構造（1M÷3M）":"VIX Term Structure",
+015637:  "センチメント（群衆温度計）":"Sentiment","エクイティカーブ×21EMA":"Equity Curve",
+015638:  "金利":"Yields","広域ブレッドス":"Market Breadth","データ品質":"Data Quality",
+015639:  "指数の200日線乖離":"Index vs 200DMA","前回からの変化":"Change Log",
+015640:  "圧縮コイル（VCP）ウォッチ":"VCP Watch","テクニカル・パターン別":"Chart Patterns",
+015641:  "本日のピックアップ":"Todays Setups","リーダー監視":"Leaders","銘柄検索":"Ticker Search",
+015642:  "エントリー候補ボード":"Entry Board","ポケットピボット（10D）":"Pocket Pivots (10D)","新規参入":"New Entrants",
+015643:  "業種ローテ（定点観測）":"Sector Rotation","強い業種の主導株":"Leaders in Strong Groups",
+015644:  "テーマ・ドリルダウン":"Theme Drilldown","マーケット感応度（β vs QQQ）":"Beta vs QQQ",
+015645:  "システムルール（v2・確定）":"System Rules","資金配分・株数計算":"Position Sizing",
+015646:  "エクイティ記録":"Equity Log","隔週リバランス点検（月曜）":"Rebalance Check",
+015647:  "順位落ち保有（出口監視）":"Demoted Holdings","RSリーダー控え":"Bench",
+015648:  "本日の新高値圏":"New Highs","本日の押し目シグナル":"Pullback Signals",
+015649:  "テンバガー・レーダー":"Moonshot Radar","押し目質スクリーナー":"Pullback Quality",
+015650:  "オプション想定変動幅":"Expected Move","クレジット推移":"Credit Spread",
+015651:  "サブテーマ別RS":"Sub-Theme RS","スイング・プランナー":"Trade Planner",
+015652:  "テーマ・ローテーション":"Theme Rotation (RRG)","ディストリビューション・デイ":"Distribution Days",
+015653:  "ブレッドス推移":"Breadth Trend","ポートフォリオ":"Portfolio",
+015654:  "レバレッジ・コンディション":"Leverage Conditions","売買代金 参加度":"Volume Participation",
+015655:  "広がりの勢い":"McClellan Oscillator","攻守ローテーション":"Risk-On/Off Rotation",
+015656:  "集積／分散":"Accumulation/Distribution","ポジション・サイザー":"Position Sizer",
+015657:  "本日の新高値圏":"New Highs","本日の押し目シグナル":"Pullback Signals",
+015658:  "指数の200日線乖離":"Index vs 200DMA","テーマ・ドリルダウン":"Theme Drilldown",
+015659:  "マーケット感応度":"Beta vs QQQ","業種ローテ":"Sector Rotation"
+015660: };
+015661: function enLabels(){
+015662:   try{
+015663:     document.querySelectorAll(".card h2").forEach(function(h){
+015664:       if(h.querySelector(".h2en")) return;
+015665:       var base=h.childNodes[0] && h.childNodes[0].nodeType===3 ? h.childNodes[0].textContent.trim() : h.textContent.trim();
+015666:       for(var k in _EN_MAP){
+015667:         if(base.indexOf(k)===0){
+...
+015980:     extra = {}
+015981:     for t in m.index:
+015982:         _hh = hold.get(t) or {}
+015983:         try:
+015984:             _hep = float(_hh["ep"]) if _hh.get("ep") is not None else None
+015985:         except Exception:
+015986:             _hep = None
+015987:         extra[t] = {"sec": _h(theme_of(t, s2t)),
+015988:                     "sth": _h(subtheme_of(t, s2t, e2j.get(s2i.get(t), "—"))),
+015989:                     "cap": caps.get(t),
+015990:                     "loc": [_h(x) for x in (loc.get(t, []) or [])],
+015991:                     "since": _since(t),
+015992:                     "hep": _hep}
+015993:     return extra
+015994: 
+015995: def _det_json(m, names, tapset, extra=None, opts=None):
+015996:     """§4: compact per-ticker data for the tap-to-detail panel (displayed tickers only)."""
+...
+016549:                 f'<span class="mut" style="font-size:10px"> {s["tk"]}</span></td>{cells}</tr>')
+016550:     if topbottom and len(rs) > 10:
+016551:         top, bot = rs[:5], rs[-5:]
+016552:         h = lambda lab: f'<tr class="secsub"><td colspan="5" class="l">{lab}</td></tr>'
+016553:         return (h("強い") + "".join(row(i + 1, s) for i, s in enumerate(top))
+016554:                 + h("弱い") + "".join(row(len(rs) - 4 + i, s) for i, s in enumerate(bot)))
+016555:     return "".join(row(i + 1, s) for i, s in enumerate(rs))
+016556: 
+016557: def _rotation_card(sectors, m):
+016558:     """ローテーション時間軸: どの詳細サブテーマに資金が来ているか（短期1wk・中期1mo・長期RS）。
+016559:        初動（短期加速×広がり×非集中）を先頭に。まだ追っても遅くないテーマを上に。"""
+016560:     if not sectors:
+016561:         return ""
+016562:     order = {"初動": 0, "改善": 1, "強い継続": 2, "監視": 3, "弱い": 4}
+016563:     ranked = sorted(sectors, key=lambda s: (order.get(s.get("rot", "弱い"), 4), -s.get("d_w1", 0)))
+016564:     scol = {"初動": "#4ade80", "改善": "#7dd3fc", "強い継続": "#a78bfa", "監視": "#9fb0c5", "弱い": "#6b7280"}
+016565:     def arr(v):
+016566:         if v >= 4: return f'<span class="pos">▲{v:+.0f}</span>'
+016567:         if v <= -4: return f'<span class="neg">▼{v:+.0f}</span>'
+016568:         return f'<span class="mut">{v:+.0f}</span>'
+016569:     rows = ""; _rot_tk = []
+016570:     for s in ranked[:12]:
+016571:         rot = s.get("rot", "弱い"); col = scol.get(rot, "#9fb0c5")
+...
+016595:             f'<th class="rsort act" onclick="rotSort(\'rot\',this)">状態</th>'
+016596:             f'<th class="rsort" onclick="rotSort(\'w1\',this)">短期</th>'
+016597:             f'<th class="rsort" onclick="rotSort(\'m1\',this)">中期</th>'
+016598:             f'<th class="rsort" onclick="rotSort(\'l189\',this)">長期</th>'
+016599:             f'<th class="rsort" onclick="rotSort(\'brd\',this)">広がり</th>'
+016600:             f'<th class="l">主導株</th></tr>{rows}</table></div>')
+016601: 
+016602: 
+016603: def _sector_rank_card(ranks):
+016604:     if not ranks or not (ranks.get("macro") or ranks.get("micro")):
+016605:         return ""
+016606:     tbls = ""
+016607:     for grp in ("macro", "micro"):
+016608:         recs = ranks.get(grp, [])
+016609:         tb = (grp == "micro")
+016610:         for tf in ("d1", "w1", "m1"):
+016611:             disp = "" if (grp == "macro" and tf == "d1") else "display:none"
+016612:             head = ('<table><tr><th class="l">#</th><th class="l">セクター</th>'
+016613:                     '<th>日</th><th>週</th><th>月</th></tr>')
+016614:             tbls += (f'<div class="sectbl" id="sec-{grp}-{tf}" style="{disp}">'
+016615:                      f'{head}{_sec_rows(recs, tf, tb)}</table></div>')
+016616:     return (f'<div class="card"><h2>セクターETF強弱</h2>'
+016617:             f'<div class="sub">S&amp;P500の11セクターETFと業種テーマETFの騰落率（下のサブテーマ別RSは個別株のRS中央値・別物）</div>'
+016618:             f'<div class="sectog">'
+016619:             f'<button class="stg-g active" onclick="secG(\'macro\',this)">大分類</button>'
+016620:             f'<button class="stg-g" onclick="secG(\'micro\',this)">小分類</button>'
+016621:             f'<span class="stg-sep">|</span>'
+016622:             f'<button class="stg-t active" onclick="secT(\'d1\',this)">日</button>'
+016623:             f'<button class="stg-t" onclick="secT(\'w1\',this)">週</button>'
+016624:             f'<button class="stg-t" onclick="secT(\'m1\',this)">月</button>'
+016625:             f'</div>{tbls}</div>'
+016626:             f'<script>var _sg="macro",_st="d1";'
+016627:             f'function _secShow(){{document.querySelectorAll(".sectbl").forEach(function(e){{e.style.display="none"}});'
+016628:             f'var el=document.getElementById("sec-"+_sg+"-"+_st);if(el)el.style.display="";}}'
+...
+017080:             acct_html = ('<div class="card"><h2>自分 vs QQQ円建て <span class="h2en">My Week</span></h2>'
+017081:                          '<div class="sub mut">equity.csvの記録が2行以上たまると、記録間リターン・QQQ円建て比較・超過をここに表示。</div></div>')
+017082:     except Exception as e:
+017083:         sys.stderr.write("[wk_acct] %r\n" % repr(e)[:100])
+017084:     return diff_html, board_html, acct_html
+017085: 
+017086: 
+017087: def render(names, m, mri, breakdown, dropped, aux, setups, picks, cand,
+017088:            sectors, breadth, yields, asof, sar, mkt, leaders, s2i, e2j, s2t, W=None):
+017089:     band_lab, band_cls = mri_band(aux["hl"])
+017090:     mk = max(0, min(100, aux["cur"]))
+017091:     # ---- トレンド判定 pill (file=確定 / live=推定 / none=無判定グレー). logic hidden
+017092:     sar_color, sar_src = sar
+017093:     if sar_color is None:                       # everything failed -> gray no-judgment
+017094:         s_lab, s_jud, s_lot, s_cls = "—", "判定不可", "データ取得不可", "sar-gray"
+017095:     else:
+017096:         s_lab, s_jud, s_lot, s_cls = SAR_JUDGMENT.get(sar_color, SAR_JUDGMENT["Blue"])
+...
+017168:     except Exception as _e:
+017169:         sys.stderr.write("[cat_commentary] failed: %r\n" % (repr(_e)[:200]))
+017170:         cat_commentary = ""
+017171:     try:
+017172:         comment = _market_comment(aux, mkt, sar, breadth, cat_commentary)
+017173:     except Exception as _e:
+017174:         sys.stderr.write("[market_comment] failed: %r\n" % (repr(_e)[:200]))
+017175:         comment = '<div class="card cmt mkt20"><h2>今日のマーケット</h2><div class="sub">コメント生成でエラー（データ確認中）</div></div>'
+017176:     rotation = _rotation_comment(mkt)
+017177:     pick_set = {t for t, _, _ in picks}
+017178:     buytoday = build_buy_today(m, s2i, e2j, s2t, pick_set=pick_set)
+017179:     vcp_rows = build_vcp(m, s2i, e2j, s2t)
+017180:     patterns = build_patterns(m, s2i, e2j, s2t)
+017181:     # スイング・プランナー候補（保有＋控え＋VCP・各自の確定ストップ付き）
+017182:     _sw_seen = set(); swing_data = []
+017183:     for _src in ([t for t, _, _ in picks], list(cand.index[N_PORT:N_PORT + 15]), [r["t"] for r in vcp_rows]):
+017184:         for t in _src:
+...
+017240:     _pick_pos = [pos for pos, t in enumerate(cand.index, 1) if t in _pick_set]
+017241:     _disp_cap = max((_pick_pos[-1] if _pick_pos else 0), min(len(cand), 3 * N_PORT))
+017242:     rows = []
+017243:     for i, (t, r) in enumerate(cand.iterrows(), 1):
+017244:         if i > _disp_cap:
+017245:             break
+017246:         if i == 2 * N_PORT + 1:
+017247:             rows.append(f'<tr class="bdry"><td colspan="6">── 継続境界（上位{CONTINUE_TOP_N}＝2N）ここまで継続保有OK・以下は監視ゾーン ──</td></tr>')
+017248:         sth = subtheme_of(t, s2t, e2j.get(s2i.get(t), "—"))
+017249:         is_l, code, _lab, _rsn = leader_state(r)
+017250:         nu_tag, _nun, nu_cls = momentum_nuance(r)
+017251:         _selected = t in _pick_set
+017252:         _exq = bool(r.get("excluded_theme")); _lag = bool(r.get("laggard")); _nl = bool(r.get("nonleader"))
+017253:         if _exq:
+017254:             continue          # 除外テーマは選定対象外。灰色表示で残すと一覧が読みにくい。
+017255:         _lag_tag = '<span class="lagb">出遅れ</span>' if _lag else ''   # 買う対象・タグのみ
+017256:         # 選外バッジ / 急落情報バッジ
+...
+017380:         if "excluded_theme" in cand.columns else cand
+017381:     _dpos = 0
+017382:     for _pos, _tk in enumerate(_deck_src.index):
+017383:         if _tk in _pick_set:
+017384:             _dpos = _pos
+017385:     deck = _deck_src.iloc[_dpos+1:_dpos+1+15]   # 保有表の下から15(次の繰上げ候補)
+017386:     wrows = []
+017387:     for rank, (t, r) in enumerate(deck.iterrows(), start=_last_pos+2):
+017388:         _sth = subtheme_of(t, s2t, e2j.get(s2i.get(t), "—"))
+017389:         _il, _code, _l, _rsn = leader_state(r)
+017390:         _nt, _nn, _nc = momentum_nuance(r)
+017391:         _exq = bool(r.get("excluded_theme"))
+017392:         if _exq:
+017393:             continue          # 控えも同様に行ごと出さない
+017394:         _lag = bool(r.get("laggard"))
+017395:         _nl = bool(r.get("nonleader"))
+017396:         _lag_tag = '<span class="lagb">出遅れ</span>' if _lag else ''
+...
+017420:     if _carry:
+017421:         _TQMAP = theme_quad_map(m, s2t)
+017422:         crows = []
+017423:         for t in _carry:
+017424:             if t not in m.index:
+017425:                 continue
+017426:             r = m.loc[t]
+017427:             _rk = {tk: i + 1 for i, tk in enumerate(cand.index)}.get(t, "—")
+017428:             _sth = subtheme_of(t, s2t, e2j.get(s2i.get(t), "—"))
+017429:             _il, _code, _l, _rsn = leader_state(r)
+017430:             _nt, _nn, _nc = momentum_nuance(r)
+017431:             _th = theme_of(t, s2t)
+017432:             _hh = _hv.get(t) or {}
+017433:             _due = bool(_hh.get("sell_due"))
+017434:             _due_date = _hh.get("sell_due_date")
+017435:             _carry_badge = (f'<span class="exq">売却予定 {(_due_date or "次回月曜")}</span>' if _due
+017436:                             else '<span class="carryb">順位落ち・保有中</span>')
+...
+017573:         _ok = (rs == rs)
+017574:         _rs = f'{rs:.0f}' if _ok else '—'
+017575:         _hot = ' hot' if (_ok and rs >= 90) else ''
+017576:         return (f'<span class="chip{_hot}" data-tkone="{t}">{t}'
+017577:                 f'<span class="rsb">{_rs}</span></span>')
+017578:     def _dz(x): return f'{x:.5f}' if (x is not None and x == x) else 'nan'
+017579:     _rotcol = {"初動": "#4ade80", "改善": "#7dd3fc", "強い継続": "#a78bfa", "監視": "#9fb0c5", "弱い": "#6b7280"}
+017580:     srows = []
+017581:     for i, s in enumerate(sectors, 1):
+017582:         chips = "".join(_chip(t, rs) for t, rs in s.get("members", []))
+017583:         _rot = s.get("rot", "弱い"); _rc = _rotcol.get(_rot, "#9fb0c5")
+017584:         _rotord = {"初動": 5, "改善": 4, "強い継続": 3, "監視": 2, "弱い": 1}.get(_rot, 0)
+017585:         srows.append(
+017586:             f'<tbody class="secgrp" data-score="{s["score"]:.3f}" data-d1="{_dz(s.get("d1"))}" '
+017587:             f'data-w1="{_dz(s.get("w1"))}" data-m1="{_dz(s.get("m1"))}" data-rot="{_rotord}">'
+017588:             f'<tr class="secrow" onclick="secToggle(\'sec{i}\')">'
+017589:             f'<td class="l mut secnum">{i}</td>'
+...
+017592:             f'<div class="secparent">{_h(s.get("parent","—"))}</div></td>'
+017593:             f'<td><span class="rotb" style="color:{_rc};border-color:{_rc}66">{_rot}</span></td>'
+017594:             f'<td class="{color_pct(s.get("d1"))}">{fmt_pct(s.get("d1"))}</td>'
+017595:             f'<td class="{color_pct(s.get("w1"))}">{fmt_pct(s.get("w1"))}</td>'
+017596:             f'<td class="{color_pct(s.get("m1"))}">{fmt_pct(s.get("m1"))}</td></tr>'
+017597:             f'<tr id="sec{i}" class="secsub"><td></td>'
+017598:             f'<td colspan="5"><div class="secchips">{_cp([t for t, _ in s.get("members", [])])}{chips}</div></td></tr>'
+017599:             f'</tbody>')
+017600:     _imp = sorted([x for x in sectors if x.get("drs", 0) >= 5], key=lambda x: -x["drs"])[:5]
+017601:     _wor = sorted([x for x in sectors if x.get("drs", 0) <= -5], key=lambda x: x["drs"])[:5]
+017602:     _shift = ""
+017603:     if _imp or _wor:
+017604:         _shift = ('<div class="shiftrow">'
+017605:                   + (('<span class="shl">改善</span>' + "".join(f'<span class="chip shp">{_h(x["ja"])} <b>+{x["drs"]:.0f}</b></span>' for x in _imp)) if _imp else "")
+017606:                   + (('<span class="shl shl-n">悪化</span>' + "".join(f'<span class="chip shn">{_h(x["ja"])} <b>{x["drs"]:.0f}</b></span>' for x in _wor)) if _wor else "")
+017607:                   + '</div>')
+017608:     sector = (f'<div class="card"><h2>サブテーマ別RS（ユニバース内）</h2>'
+017609:               f'<div class="sub">構成銘柄の<b>63日RS×189日RS</b>（中央値・均等ブレンド）をサブテーマ単位で0-100ランク（≥2社）。'
+017610:               f'<b>状態</b>＝ローテの局面（初動→改善→強い継続→監視→弱い）。▲▼＝約1ヶ月前との差＝資金の向き。'
+017611:               f'<b>見出しタップで並べ替え</b>・行タップで構成銘柄。市場全体の強弱</div>'
+017612:               + _shift +
+017613:               f'<table class="secrs"><thead><tr><th class="l">#</th>'
+017614:               f'<th class="l sortable act" onclick="secSort(\'score\',this)">サブテーマ <span class="so">⇅RS</span></th>'
+017615:               f'<th class="sortable" onclick="secSort(\'rot\',this)">状態</th>'
+017616:               f'<th class="sortable" onclick="secSort(\'d1\',this)">日</th>'
+017617:               f'<th class="sortable" onclick="secSort(\'w1\',this)">週</th>'
+017618:               f'<th class="sortable" onclick="secSort(\'m1\',this)">月</th></tr></thead>'
+017619:               + "".join(srows) + '</table></div>')
+017620: 
+017621:     # 強い業種の主導株（強いグループ×その中で個別も強い銘柄＝O'Neil「強い株を強いグループで」）
+017622:     _sl_rows = ""
+017623:     _sl_all = []
+017624:     for s in sectors[:8]:                          # 強さ上位8サブテーマ
+017625:         leads = []
+017626:         for t, _rs63 in (s.get("members") or []):
+017627:             if t not in m.index:
+017628:                 continue
+017629:             rr = m.loc[t]
+017630:             rs189 = rr.get("rs189"); cl = rr.get("close"); s200 = rr.get("sma200")
+017631:             if (rs189 == rs189 and rs189 >= 85 and cl == cl and s200 == s200 and cl > s200):
+017632:                 leads.append((t, float(rs189), float(rr.get("dvol") or 0)))
+...
+017636:             continue
+017637:         chips = "".join(
+017638:             f'<span class="chip hot" data-liq="{dv/1e6:.1f}" data-tkone="{t}">{t} '
+017639:             f'<span class="mut" style="font-size:10px">RS{rs:.0f}</span></span>' for t, rs, dv in leads)
+017640:         _sl_all += [t for t, _, _ in leads]
+017641:         _sl_rows += (f'<div class="slrow"><div class="slname">{_h(s["ja"])}'
+017642:                      f'<span class="mut" style="font-size:11px">（{_h(s.get("parent","—"))}・強さ{s.get("score",0):.0f}）</span></div>'
+017643:                      f'<div class="chips">{chips}</div></div>')
+017644:     sector_leaders = ("" if not _sl_rows else
+017645:         f'<div class="card"><div class="hdr"><h2>強い業種の主導株</h2>{_cp(_sl_all)}</div>'
+017646:         f'<div class="sub"><b>強い業種（RS上位サブテーマ）× その中で個別も強い銘柄</b>（189日RS≥85・200MA上）＝'
+017647:         f'O\'Neil「強い株を、強いグループで」。上位8業種の主導株を最大3つずつ・タップで詳細。'
+017648:         f'業種の強さと個別の強さが揃った所が、順張りの一等地。</div>{_sl_rows}</div>')
+017649: 
+017650:     # ---- TAB マーケット
+017651:     market = (
+017652:         # ═══ 5章構成: 結論と行動 / 温度計 / 先行灯 / 転換 / 口座と参考 ═══
+017653:         _mkt_section("① 結論と行動", "今日・1週間・1カ月・ローテを一画面", en="Verdict & Action")
+017654:         + banner
+017655:         + comment
+017656:         + rotation
+017657:         + _changelog_card(mkt.get("chlog"), mkt.get("chref"))
+017658:         + _mkt_section("② 相場の強さ", "広がり・参加度・主導株", en="Market Strength")
+017659:         + _svg_mri(mkt.get("mri_ts", []))
+017660:         + _perf_card(mkt.get("perf", {}))
+017661:         + _svg_breadth(mkt.get("breadth_ts", []), breadth["n"])
+017662:         + _dollarvol_card(mkt.get("dollarvol_ts"))
+017663:         + _updown_vol_card(mkt.get("updown_ts"))
+017664:         + _leader_temp_card(mkt.get("leader_temp"))
+...
+017812: 
+017813:     body = (_data_health_banner(mkt)
+017814:             + build_today_action(sar, mkt, asof)
+017815:             + '<nav>'
+017816:             '<a class="tabx on" href="#t-market" onclick="tab(\'t-market\',this);return false;">Daily</a>'
+017817:             '<a class="tabx" href="#t-alloc" onclick="tab(\'t-alloc\',this);return false;">Positions</a>'
+017818:             '<a class="tabx" href="#t-port" onclick="tab(\'t-port\',this);return false;">Core 12</a>'
+017819:             '<a class="tabx" href="#t-today" onclick="tab(\'t-today\',this);return false;">Setups</a>'
+017820:             '<a class="tabx" href="#t-rotation" onclick="tab(\'t-rotation\',this);return false;">Rotation</a>'
+017821:             '<a class="tabx" href="#t-movers" onclick="tab(\'t-movers\',this);return false;">Movers</a>'
+017822:             '<a class="tabx" href="#t-rs" onclick="tab(\'t-rs\',this);return false;">RS</a>'
+017823:             '<a class="tabx" href="#t-weekly" onclick="tab(\'t-weekly\',this);return false;">Weekly</a>'
+017824:             '<a class="tabx" href="#t-post1" onclick="tab(\'t-post1\',this);return false;">Publish</a>'
+017825:             '<a class="tabx" href="#t-rules" onclick="tab(\'t-rules\',this);return false;">Rules</a></nav>'
+017826:             f'<section id="t-market" class="on">{market}</section>'
+017827:             f'<section id="t-rotation">'
+017828:             # 上から「市場全体 → その中身 → 自ユニバース → 個別」の順。粒度が一方向に細かくなる。
+017829:             + _mkt_section("① どこに資金が向かっているか", "重複のないGICS11＋スタイルで測る資金フロー", en="Where the Money Is")
+017830:             + f'{_rrg_card(mkt.get("rrg_gics"), None, None, 100, "資金フロー（GICS11＋スタイル）", _RRG_GICS_DESC)}'
+017831:             + f'{_heatmap_card(mkt.get("sector_ranks"))}'
+017832:             + _mkt_section("② その資金は広いか、数銘柄か", "指数（時価総額加重）と中身（等加重）の乖離", en="Index vs Breadth")
+017833:             + f'{_index_vs_breadth_card(mkt.get("idx_breadth"))}'
+017834:             + _mkt_section("③ 自ユニバースで主導しているのは誰か", "セクター→業種→細目テーマ→銘柄。タップで降りる", en="Leading Groups")
+017835:             + f'{_big_group_card(mkt.get("big_groups"))}'
+017836:             + _mkt_section("④ その中で買える銘柄はどれか", "強いグループ×個別も強い＝順張りの一等地", en="Leaders in Strong Groups")
+017837:             + f'{sector_leaders}'
+017838:             + _mkt_section("⑤ 一覧で確認する", "見出しタップで並べ替え・行タップで構成銘柄", en="Full Rankings")
+017839:             + f'{_sector_rank_card(mkt.get("sector_ranks"))}'
+017840:             + f'{sector}'
+017841:             + f'{_rrg_card(mkt.get("rrg_etf"), None, None, 100, "テーマETFの温度計（重複あり）", _RRG_ETF_DESC)}</section>'
+017842:             f'<section id="t-movers">{build_movers_tab(m, s2t)}</section>'
+017843:             f'<section id="t-rs">{rs_compare}</section>'
+017844:             f'<section id="t-today">'
+017845:             # 検索を最上段に固定。以降「発火前 → 発火済み」の順で粒度を混ぜない。
+017846:             + search_card
+017847:             # 流動性フィルタはタブ全体に効くので、セクション②の中ではなく最上段に置く。
+017848:             + _liq_bar()
+...
+017866:             + _mkt_section("トレード計画・保有記録", "買う前に株数・撤退・部分利確を決め、そのまま保有に記録", en="Plan & Holdings")
+017867:             + _swing_planner_card()
+017868:             + _alloc_body
+017869:             + _mkt_section("資産推移・口座", "資産曲線・要因分解・非常口ブレーキ", en="Equity & Account")
+017870:             + equity_tab + '</section>'
+017871:             f'<section id="t-weekly">{mkt_weekly}</section>'
+017872:             f'<section id="t-rules">{rules}</section>'
+017873:             f'<section id="t-post1">'
+017874:             + _mkt_section("マーケット概略", "SNS共有用カード", en="Market Overview")
+017875:             + '__POSTCARD1__'
+017876:             + _mkt_section("セクター・ローテーション", "SNS共有用カード", en="Sector Rotation")
+017877:             + '__POSTCARD2__</section>')
+017878: 
+017879:     # #10 分析用の唯一の基準日は asof_bar（価格DataFrameの実確定営業日）。ヘッダもこれを表示する。
+017880:     #   生metadataのasof（キャッシュ取得時刻。2099等の誤値が入り得る）は「取得」として別表示にし、分析日とは混同しない。
+017881:     _an_asof = None
+017882:     try:
+017883:         _ab = (mkt or {}).get("asof_bar")
+017884:         if _ab is not None:
+...
+018128:     html = html.replace("color-scheme:dark", "color-scheme:light")
+018129:     light_fix = ("<style>"
+018130:                  "html,body{background:#eceae3;color:#1b1d1c}"
+018131:                  # 一部のアプリ内プレビューは body 背景を透過扱いにして暗い地が透ける。
+018132:                  # 固定下地レイヤなら body{background:transparent!important} を注入されても紙色が残る。
+018133:                  'body::before{content:"";position:fixed;inset:0;background:#eceae3;z-index:-1;pointer-events:none}'
+018134:                  "nav{background:rgba(236,234,227,.93);border-bottom:1px solid #d6d2c5}"
+018135:                  ".card{background:#f6f4ef;border-color:#dedacd}"
+018136:                  # 定点観測（X共有）カード: 濃紺グラデを廃し、カードに馴染むフラットな紙パネルに
+018137:                  ".mkt-post{background:#f1efe7;border:1px solid #e3e0d5}"
+018138:                  ".mkt-post-hook{border-bottom-color:#e3e0d5}"
+018139:                  "</style>")
+018140:     html = html.replace("</head>", light_fix + "</head>", 1)
+018141:     return html
+018142: 
+018143: _EN_TITLE_MAP = {
+018144:     "今日のマーケット": "Market Summary", "マーケットステータス推移": "Regime History",
+018145:     "マーケット・パフォーマンス": "Performance", "先導株モメンタム・ラン": "Leader Momentum",
+018146:     "リーダーの強さ": "Leader Temperature", "セクター温度マップ": "Sector Heatmap",
+018147:     "セクターETF強弱": "Sector ETF Strength", "レジーム警戒灯": "Regime Early-Warning",
+018148:     "リーダー・ブレッドス警戒灯": "Leader Breadth", "転換初動リーダーボード": "Reversal Leaders",
+018149:     "フォロースルー・デイ": "Follow-Through Day", "VIX期間構造": "VIX Term Structure",
+018150:     "センチメント": "Sentiment", "エクイティカーブ": "Equity Curve", "金利": "Yields",
+018151:     "広域ブレッドス": "Market Breadth", "データ品質": "Data Quality",
+018152:     "指数の200日線乖離": "Index vs 200DMA", "前回からの変化": "Change Log",
+018153:     "圧縮コイル": "VCP Watch", "テクニカル・パターン別": "Chart Patterns",
+018154:     "本日のピックアップ": "Today's Setups", "リーダー監視": "Leaders", "銘柄検索": "Ticker Search",
+018155:     "業種ローテ": "Sector Rotation", "強い業種の主導株": "Leaders in Strong Groups",
+018156:     "テーマ・ドリルダウン": "Theme Drilldown", "マーケット感応度": "Beta vs QQQ",
+018157:     "システムルール": "System Rules", "資金配分・株数計算": "Position Sizing",
+018158:     "エクイティ記録": "Equity Log", "隔週リバランス点検": "Rebalance Check",
+018159:     "非常口": "Emergency Brake", "RS189 継続性": "Leadership Persistence",
+018160:     "順位落ち保有": "Demoted Holdings", "RSリーダー控え": "Bench",
+018161:     "本日の新高値圏": "New Highs", "本日の押し目シグナル": "Pullback Signals",
+018162:     "テンバガー・レーダー": "Moonshot Radar", "押し目質スクリーナー": "Pullback Quality",
+018163:     "オプション想定変動幅": "Expected Move", "クレジット推移": "Credit Spread",
+018164:     "サブテーマ別RS": "Sub-Theme RS", "スイング・プランナー": "Trade Planner",
+018165:     "テーマ・ローテーション": "Theme Rotation (RRG)", "ディストリビューション・デイ": "Distribution Days",
+018166:     "ブレッドス推移": "Breadth Trend", "ポートフォリオ": "Portfolio",
+018167:     "レバレッジ・コンディション": "Leverage Conditions", "売買代金 参加度": "Volume Participation",
+018168:     "広がりの勢い": "McClellan Oscillator", "攻守ローテーション": "Risk-On/Off Rotation",
+018169:     "集積／分散": "Accumulation/Distribution", "ポジション・サイザー": "Position Sizer",
+018170:     "エントリー候補ボード": "Entry Board", "セクター・ローテーション": "Sector Rotation (RRG)", "ポケットピボット": "Pocket Pivots (10D)",
+018171:     "新規参入": "New Entrants", "兆候の重なり": "Signal Confluence",
+018172: }
+018173: 
+018174: def _inject_en_titles(html):
+018175:     """全<h2>タイトルにサーバー側で英語併記を注入（JS非依存で確実）。"""
+018176:     import re as _re
+018177:     keys = sorted(_EN_TITLE_MAP.keys(), key=len, reverse=True)
+018178:     def _rep(mobj):
+...
+018183:         head = _re.sub(r"<[^>]+>.*$", "", inner).strip()
+018184:         for k in keys:
+018185:             if head.startswith(k):
+018186:                 return f'<h2>{inner}<span class="h2en">{_EN_TITLE_MAP[k]}</span></h2>'
+018187:         return mobj.group(0)
+018188:     return _re.sub(r"<h2>(.*?)</h2>", _rep, html, flags=_re.S)
+018189: 
+018190: # ----------------------------------------------------------------------------- selftest
+018191: def selftest(html, picks, setups, sectors, mkt=None, W=None, cutdate=None):
+018192:     errs = []
+018193:     warns = []          # #10 非致命（ビルドは通すが注意喚起）。critical=errs はビルド停止。
+018194:     if os.environ.get("V38_FORCE_SELFTEST_FAIL") == "1":
+018195:         errs.append("forced failure (test hook)")   # 受入テスト用: 通常ビルドで失敗時に本番stateを触らないことの検証
+018196:     if os.environ.get("V38_FORCE_SELFTEST_WARN") == "1":
+018197:         warns.append("forced warning (test hook)")
+018198:     # データ鮮度・カバレッジは劣化warning（機能はする）: 時価総額カバー率、マクロ欠損
+018199:     try:
+...
+018375:         _sc_open = len(_re4.findall(r'<script\b', html, _re4.I))
+018376:         _sc_close = len(_re4.findall(r'</script\s*>', html, _re4.I))
+018377:         if _sc_open != _sc_close:
+018378:             errs.append("HTML <script> open/close mismatch (possible breakout): %d/%d" % (_sc_open, _sc_close))
+018379:         for _sc in _re4.findall(r'<script\b[^>]*>(.*?)</script\s*>', html, flags=_re4.S | _re4.I):
+018380:             if _re4.search(r'</\s*script', _sc, _re4.I) or _re4.search(r'<\s*script\b', _sc, _re4.I):
+018381:                 errs.append("nested/raw <script> inside a script block (injection/breakout)")
+018382:                 break
+018383:         # 重複ID（従来はshare HTMLのみ→メインにも）。srcdoc内(エスケープ済み)は id=&quot; なので非マッチ。
+018384:         _ids = _re4.findall(r'\bid="([^"]+)"', html)
+018385:         _seen, _dups = set(), set()
+018386:         for _i in _ids:
+018387:             if _i in _seen: _dups.add(_i)
+018388:             _seen.add(_i)
+018389:         if _dups:
+018390:             errs.append("HTML duplicate id: " + repr(sorted(_dups)[:6]))
+018391:     except Exception as _e:
+...
+018509:             errs.append(f"冗長な注記が画面に残存: {_bad}")
+018510:     if mkt:
+018511:         _cc2 = mkt.get("calc") or {}
+018512:         try:
+018513:             if _cc2.get("next_rebal") and _cc2.get("rebal_anchor") and not is_rebalance_date(_cc2["next_rebal"], _cc2["rebal_anchor"]):
+018514:                 errs.append("次回リバランス日が隔週アンカーと不整合")
+018515:         except Exception:
+018516:             errs.append("リバランス日検証に失敗")
+018517:     for sid in ["t-today","t-movers","t-market","t-weekly","t-port","t-alloc","t-rs","t-rotation","t-rules","t-post1"]:
+018518:         if f'id="{sid}"' not in html:
+018519:             errs.append(f"missing tab {sid}")
+018520:     for _lab in ("③ コンフルエンス（事実表示）", "④ 発火トリガー", "⑤ セットアップ評価", "⑥ 底打ち（構造ピボット）", "⑦ W30ブレイク（30週線）", "⑧ リーダー母集団"):
+018521:         if _lab not in html:
+018522:             errs.append(f"pickup section missing: {_lab}")
+018523:     if "Setups</button>" not in html and "Setups</a>" not in html:
+018524:         errs.append("setups(pickup) tab label missing")
+018525:     if "RSマルチタイムフレーム比較" not in html: errs.append("RS comparison tab missing")
+...
+018543:     if gate_coeffs("Red")    != (0.0, 0.0): errs.append("gate: 赤=撤退0が正")
+018544:     if gate_coeffs("Green")  != (1.0, 0.5): errs.append("gate: 緑")
+018545:     if "建値×0.70（−30" in html or "−30%初期" in html: errs.append("旧stop30が残存")
+018546:     if "落ちるナイフ" in html or "刃物" in html: errs.append("旧・ナイフ用語が残存")
+018547:     if "セリングクライマックス" not in html and "投げ" not in html: print("[warn] 投げ確認ルールの説明が見当たらない")
+018548:     if "出遅れ" not in html and "業種内" not in html: print("[warn] 出遅れ株除外の説明が見当たらない")
+018549:     if "新規停止" not in html and "新規エントリーは停止" not in html: print("[warn] 黄=新規停止の表示が見当たらない(黄以外の日は正常)")
+018550:     if "小型創薬" not in html: print("[warn] 小型創薬除外の説明が見当たらない")
+018551:     if EXCLUDE_SUBTHEMES != ("臨床段階・中小型バイオ",): errs.append("バイオ除外サブテーマが変更されている")
+018552:     if ">nan<" in html or " nan%" in html or "nan/100" in html: errs.append("literal nan in html")
+018553:     if "リーダー監視" not in html: errs.append("leaders card missing")
+018554:     if "本日のピックアップ" not in html: errs.append("pickup card missing")
+018555:     if not sectors: errs.append("sector RS empty")
+018556:     if "VIX期間構造" not in html: errs.append("VIX term chart missing")
+018557:     if "todayact" not in html: errs.append("today action header missing")
+018558:     if "騰落ライン" not in html: errs.append("A/D line chart missing")
+018559:     if f"上位{N_PORT}" not in html: errs.append("N reflected text missing")
+018560:     # --- v3 additions
+018561:     if "センチメント（群衆温度計）" not in html: errs.append("sentiment card missing")
+018562:     if ("エクイティカーブ×2" not in html): errs.append("equity card missing")
+018563:     if "前回からの変化" not in html: errs.append("changelog card missing")
+018564:     if "データ品質" not in html: errs.append("quality card missing")
+018565:     if "セクター温度マップ" not in html and "hmgrid" not in html: errs.append("sector heatmap missing")
+018566:     if "トレール" not in html: errs.append("trail column missing")
+018567:     if "先導株の強さ" not in html: print("[warn] leader temp gauge missing (データ不足の可能性)")
+018568:     if "theme-color" not in html: errs.append("theme meta missing")
+018569:     if "テーマ・ローテーション" not in html: errs.append("RRG card missing")
+018570:     if "ステージ2" not in html: errs.append("stage analysis (DET) missing")
+018571:     if "Day4以降" not in html: errs.append("FTD canonical text missing")
+018572:     if "レバレッジ・コンディション" not in html: errs.append("lev-env panel missing")
+018573:     # --- FRED金利カードの回帰ガード ---
+...
+018850:                       const rx=_tickerData("NEWX");
+018851:                       if(!rx||rx.kind!=="ref"||rx.px!==null) throw new Error("FMP reference catalog");
+018852:                       if(!_tickerMatches("NEW","hold",8).some(x=>x.t==="NEWX")) throw new Error("FMP reference suggest");
+018853:                       const lh=_hldNormalize(_hldNewTrade("TQQQ","lev","2026-07-01"));
+018854:                       if(lh.strat!=="lev"||_hldStratMeta(lh.strat).lab!=="レバETF") throw new Error("leveraged strategy");
+018855:                       // トレードノート回帰: 50@100→10@110利確→50@120追加→90@130全決済
+018856:                       let h=_hldInitFilled(_hldNewTrade("TST","swing","2026-07-01"),100,50,"2026-07-01");
+018857:                       h.initialStop=90; h.initialRiskTotal=_hldRiskTotal(h,90); h.tpFraction=33; h.tpPct=25;
+018858:                       h=_hldRecordExit(h,{type:"partial",date:"2026-07-02",price:110,shares:10,reason:"TP"});
+018859:                       h=_hldApplyFill(h,2,"2026-07-03",120,50);
+018860:                       const av=h.remainingCost/h.remainingShares;
+018861:                       if(Math.abs(av-111.1111111111)>1e-6) throw new Error("remaining avg "+av);
+018862:                       h=_hldRecordExit(h,{type:"final",date:"2026-07-04",price:130,shares:90,reason:"close"});
+018863:                       _hldFinalize(h,"2026-07-04");
+018864:                       const rr=_hldRealized(h);
+018865:                       if(Math.abs(rr.pnl-1800)>1e-6) throw new Error("pnl "+rr.pnl);
+018866:                       if(Math.abs(rr.R-0.9)>1e-6) throw new Error("R "+rr.R);
+018867:                       console.log("CALCRUN_OK"); console.log("TRADELEDGER_OK"); console.log("LEVETF_OK");
+018868:                     }catch(e){console.log("CALCRUN_ERR:"+(e&&e.message||e));}
+018869:                     """.replace("__JS__", _js)
+018870:                     with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as _f2:
+...
+018909: 
+018910: def shutil_which_safe(name):
+018911:     try:
+018912:         import shutil
+018913:         return shutil.which(name)
+018914:     except Exception:
+018915:         return None
+018916: 
+018917: def selftest_share(share_html):
+018918:     """シェアHTML(1200x675カード)の検査: HTML非空・重複ID・SVG内NaN・空d=""パス・<script>構文。"""
+018919:     errs = []
+018920:     try:
+018921:         if not share_html or len(share_html) < 200:
+018922:             errs.append("share HTML empty/too short"); return errs
+018923:         import re as _r
+018924:         # 重複 id
+018925:         _ids = _r.findall(r'\bid="([^"]+)"', share_html)
+018926:         _dups = sorted({x for x in _ids if _ids.count(x) > 1})
+018927:         if _dups:
+018928:             errs.append("share duplicate id: " + repr(_dups[:5]))
+018929:         # SVG内 NaN / 空パス
+018930:         if "NaN" in share_html:
+018931:             errs.append("share contains NaN")
+018932:         if _r.search(r'\bd="\s*"', share_html) or _r.search(r'\bd="M?\s*"', share_html):
+018933:             errs.append("share has empty SVG path")
+018934:         # <script> 構文（あれば node --check）
+018935:         _m = _r.search(r'<script[^>]*>(.*?)</script>', share_html, _r.S)
+018936:         if _m and _m.group(1).strip():
+018937:             import tempfile as _tf, subprocess as _sp
+018938:             with _tf.NamedTemporaryFile("w", suffix=".js", delete=False) as _f:
+018939:                 _f.write(_m.group(1)); _jp = _f.name
+018940:             try:
+018941:                 _r2 = _sp.run(["node", "--check", _jp], capture_output=True, text=True, timeout=15)
+018942:                 if _r2.returncode != 0:
+018943:                     _msg = (_r2.stderr or _r2.stdout).strip().splitlines()
+018944:                     errs.append("share JS syntax: " + (_msg[-1] if _msg else "unknown"))
+018945:             except Exception:
+018946:                 pass
+018947:     except Exception as _e:
+018948:         errs.append("share selftest raised: " + repr(_e)[:80])
+018949:     return errs
+018950: 
+018951: # ----------------------------------------------------------------------------- main
+018952: def _scard(label, fn, *args, default=None, **kwargs):
+018953:     """表示カード/派生データのビルダーを安全に呼ぶ。スケール時の想定外データ形状で個別に失敗しても、
+018954:        その1カードだけ default に落として全体ビルドは継続する（本体HTMLは既に計算済み・可用性優先）。"""
+018955:     try:
+018956:         return fn(*args, **kwargs)
+...
+018970:     offline_selftest = ("--selftest" in sys.argv) and not integration
+018971:     explicit_test = ("--selftest" in sys.argv) or integration
+018972:     production_run = (not diag) and (not explicit_test)
+018973:     _PERSIST_CACHES = production_run     # テスト(selftest/integration)時はmcap/earnings/FRED等のキャッシュを書かない
+018974:     if offline_selftest:
+018975:         # オフラインselftestは価格/FRED/出力先も固定fixture必須（デフォルトの本番パスへ落とさない）。
+018976:         _missing = []
+018977:         for _lab, _pth, _need_env in (("V38_UNIVERSE_CSV", UNIVERSE_CSV, False),
+018978:                                       ("V38_SECTOR_JSON", SECTOR_JSON, False),
+018979:                                       ("V38_CACHE", CACHE, False),
+018980:                                       ("V38_FRED_CACHE", os.environ.get("V38_FRED_CACHE"), True),
+018981:                                       ("V38_OUT_HTML", os.environ.get("V38_OUT_HTML"), True)):
+018982:             if _need_env:
+018983:                 if not _pth:
+018984:                     _missing.append(f"{_lab}=<selftest専用>")
+018985:             elif not _pth or not os.path.exists(_pth):
+018986:                 _missing.append(f"{_lab}={_pth}")
+018987:         if _missing:
+018988:             raise SystemExit(
+018989:                 "[selftest] オフラインfixture/出力先が不足しています（--selftestは完全オフライン前提・本番と分離）:\n  "
+018990:                 + "\n  ".join(_missing) + "\n"
+018991:                 "  例:\n"
+018992:                 "    V38_UNIVERSE_CSV=<universe.csv> V38_SECTOR_JSON=<sector.json> \\\n"
+018993:                 "    V38_CACHE=<prices.pkl(固定)> V38_FRED_CACHE=<fred.json(専用)> V38_OUT_HTML=<out(専用)> \\\n"
+018994:                 "    python build_dashboard.py --selftest\n"
+018995:                 "  実データ/実ネットワークで検証する場合は --integration-test を付けてください。")
+018996:         _ALLOW_NETWORK = False
+018997:         print("[selftest] offline mode: 全ネットワーク停止・本番state/履歴/キャッシュは読み書きしない（strict fixture）")
+018998:     if UNIVERSE_AUTO and not os.path.exists(UNIVERSE_CSV) and _net_ok():
+018999:         # 自動生成モードでは初回にCSVが無くてよい（ここで作る）
+019000:         _scard("universe_bootstrap", refresh_universe_csv, default=False)
+...
+019075:     m["tier_key"]  = _tier.map(lambda x: x[0])
+019076:     m["tier_lab"]  = _tier.map(lambda x: x[1])
+019077:     m["tier_rank"] = _tier.map(lambda x: x[2])
+019078:     mri, breakdown, dropped, active, vals = mri_frame(macro, W)
+019079:     aux = mri_auxiliary(mri, vals, m)
+019080:     setups = build_setups(m)
+019081:     picks, cand = build_portfolio(m, s2t)
+019082:     leaders = build_leaders(m, s2i, e2j, s2t)
+019083:     sectors = build_sector_rs(m, s2i, e2j, s2t)
+019084:     breadth = build_breadth(m)
+019085:     yields = build_yields(macro)
+019086:     # 金利＋圧力系列を1回で取得し、50秒の全体予算を共有する。
+019087:     # 以前の2回呼び出し（50秒×2）による最大100秒超の停止を防ぐ。
+019088:     _fred_all = fetch_fred_context(FRED_ALL_SERIES, history_days=1200, time_budget=50.0, persist_cache=production_run)
+019089:     macro_context = {sid: _fred_all[sid] for sid in FRED_SERIES if sid in _fred_all}
+019090:     macro_pressure_ctx = {sid: _fred_all[sid] for sid in FRED_PRESSURE_SERIES if sid in _fred_all}
+019091:     sar = read_sar_state(asof_date=asof_bar.date(), strict=offline_selftest)
+019092:     _prev_state = load_state(strict=offline_selftest, fail_closed=production_run)   # 破損時は本番のみ停止/復元。offline時は明示env以外読まない
+019093:     _rebal_anchor = resolve_rebal_anchor(_prev_state, asof_bar.date())
+019094:     _rebal_next = next_rebalance_date(asof_bar.date(), _rebal_anchor, include_today=is_rebalance_date(asof_bar.date(), _rebal_anchor))
+019095:     _thist, _tprev = load_trend_history(sar[0], asof_bar.date(), persist=False, strict=offline_selftest, fail_closed=production_run)   # 破損時は本番停止/復元。保存はcommit段で
+019096:     _extras = load_market_extras(asof_date=asof_bar.date())
+019097:     _ftd = _scard("ftd", build_ftd, macro, default=[])
+019098:     _distrib = _scard("distrib", build_distribution, macro, _ftd, default={})
+019099:     mkt = {"distrib": _distrib, "ftd": _ftd,
+019100:            "perf": _scard("perf", build_perf, macro, _extras),
+019101:            "sector_ranks": _scard("sector_ranks", build_sector_ranks, macro, _extras),
+019102:            "breadth_ts": _scard("breadth_ts", build_breadth_ts, W),
+019103:            "dollarvol_ts": _scard("dollarvol_ts", build_dollarvol_ts, W, macro, lookback=CHART_LB),
+019104:            "updown_ts": _scard("updown_ts", build_updown_vol_ts, W, macro),
+019105:            "credit_ts": (_scard("credit_ts", build_ratio_ts, macro, "HYG", ["IEI"]) if (macro.get("IEI") is not None) else _scard("credit_ts", build_ratio_ts, macro, "HYG", ["LQD"])),
+019106:            "credit_den": ("IEI" if (macro.get("IEI") is not None) else "LQD"),
+019107:            "defensive_ts": _scard("defensive_ts", build_ratio_ts, macro, "RSPD", ["RSPS", "RSPU"]),
+019108:            "vixterm_ts": _scard("vixterm_ts", build_vix_term_ts, macro),
+019109:            "vix_cycle": _scard("vix_cycle", build_vix_cycle, macro, asof=asof_bar),
+...
+019174:     # 全タブの「業種」表記を一本化（Publish/Setups/Movers/RS比較/銘柄詳細まで波及）
+019175:     INDUSTRY_RAW.clear()
+019176:     INDUSTRY_RAW.update(_indmap)
+019177:     INDUSTRY_DISPLAY.clear()
+019178:     for _t, _v in _indmap.items():
+019179:         if isinstance(_v, list) and len(_v) >= 2 and _v[1]:
+019180:             INDUSTRY_DISPLAY[_t] = _ind_ja(_v[1])
+019181:     mkt["etf_hier"] = _scard("etf_hier", build_etf_hier, m, s2t, ind_map=_indmap)
+019182:     # etf_hier(=大分類キー)を作ってから集計する。順序を逆にすると空になる。
+019183:     mkt["big_groups"] = _scard("big_groups", build_big_groups, mkt.get("etf_hier"))
+019184:     mkt["idx_breadth"] = _scard("idx_breadth", build_index_vs_breadth, mkt, default=[])
+019185:     mkt["options"] = _scard("options", load_options, default={}) or {}
+019186:     mkt["optwall_touch"] = _scard("optwall_touch", build_optwall_touch, m,
+019187:                                   mkt.get("options"), default=[])
+019188:     mkt["pre_breakout"] = _scard("pre_breakout", build_pre_breakout, m,
+019189:                                  _indmap, mkt.get("etf_hier"), mkt.get("ftd"), default=[])
+019190:     _scard("opt_targets", write_option_targets, picks,
+019191:            mkt.get("pre_breakout"), None, default=None)
+019192:     mkt["sectors_rs"] = sectors
+019193:     mkt["theme_hier"] = _scard("theme_hier", build_theme_hierarchy, m, s2t)
+019194:     mkt["lev_env"] = _scard("lev_env", build_lev_env, macro)
+019195:     mkt["calc"] = _scard("calc", build_calc_extras, picks, sar[0], cand)
+019196:     if mkt.get("calc") is not None:
+019197:         mkt["calc"]["asof"] = str(asof_bar.date())
+019198:     # SOXL投入帯 → 配分計算のTQQQ:SOXL比に自動反映（投入帯なら50/50、帯外は全額TQQQ）
+019199:     _le = mkt["lev_env"] or {}
+019200:     if mkt["calc"] is not None:
+...
+019271:     mkt["carry"] = _carry                         # 順位落ちだが継続条件を満たす保有（出口監視継続）
+019272:     mkt["corr"] = portfolio_corr(W, [t for t, _, _ in picks])
+019273:     # レジーム値（changelog＋状態保存用）: SOXL投入帯 / 売買代金トレンド / 集積分散
+019274:     _soxl_ok = bool((mkt.get("lev_env") or {}).get("up") and (mkt.get("lev_env") or {}).get("entry_ok"))
+019275:     _dvts = mkt.get("dollarvol_ts") if isinstance(mkt.get("dollarvol_ts"), dict) else None
+019276:     _turn_dir = ((_dvts or {}).get("uni_trend") or {}).get("dir")
+019277:     _udts = mkt.get("updown_ts")
+019278:     _ud_reg = _updown_state(_udts[-1][1])[2] if _udts else None
+019279:     _chlog, _chref, _major = build_changelog(_prev_state, sar[0], aux, mkt["senti"], picks, asof_bar.date(),
+019280:                                              soxl_ok=_soxl_ok, turnover_dir=_turn_dir, updown_reg=_ud_reg,
+019281:                                              emergency_active=bool((mkt.get("emergency") or {}).get("active")))
+019282:     mkt["chlog"], mkt["chref"] = _chlog, _chref
+019283:     _er_tickers = [t for t, _, _ in picks] + list(cand.index[N_PORT:N_PORT + 15])
+019284:     mkt["er"] = load_earnings(_er_tickers, live=(_net_ok() and not offline_selftest), strict=offline_selftest)
+019285:     # #19 カバー率: universe(order) のうち価格Close列に存在する率・RS189算出可能率。「候補なし」と「データ欠損」を区別。
+019286:     try:
+019287:         _price_cols = set(W["Close"].columns) if isinstance(W, dict) and hasattr(W.get("Close"), "columns") else set()
+...
+019350:             print(f"  {k:8s} {len(v):4d}   {', '.join(v[:8])}{' ...' if len(v)>8 else ''}")
+019351:         bs, bys = leaders
+019352:         ltot = sum(len(v) for v in bs.values())
+019353:         print(f"\nLeaders (RS>=85 & >200MA): {ltot} total")
+019354:         for code, lab, _ in STATE_DEF:
+019355:             print(f"  {code} {lab:14s} {len(bs.get(code,[])):4d}")
+019356:         print(f"本日◎押し目 (③ buys): {len(bys)}  " +
+019357:               ", ".join(b['t'] for b in bys[:12]) + (' ...' if len(bys) > 12 else ''))
+019358:         print(f"\nSector RS top8:")
+019359:         for s in sectors[:8]:
+019360:             print(f"  {s['score']:5.1f}  {s['ja'][:24]:24s} (n={s['n']})")
+019361:         print(f"Sector RS bottom5:")
+019362:         for s in sectors[-5:]:
+019363:             print(f"  {s['score']:5.1f}  {s['ja'][:24]:24s} (n={s['n']})")
+019364:         _d200 = (f"{breadth['pa200']:.0f}%" if _finite(breadth.get('pa200')) else "—")
+019365:         _d50  = (f"{breadth['pa50']:.0f}%"  if _finite(breadth.get('pa50'))  else "—")
+019366:         print(f"\nBreadth: >200MA {_d200} | >50MA {_d50} | adv/dec {breadth['adv']}/{breadth['dec']} | 52wH {breadth['nh']}")
+019367:         print(f"Yields(yf互換): " + " | ".join(f"{k} {d['y']:.2f}%({d['chg']:+.2f})" for k,d in yields.items()))
+019368:         print("FRED rates:")
+019369:         for _sid in ("DGS2", "DFII10", "T10YIE", "T10Y2Y"):
+019370:             _d = (macro_context or {}).get(_sid, {})
+...
+019389:         if pf and pf.get("indices"):
+019390:             for ix in pf["indices"]:
+019391:                 print(f"{ix['label']} perf: YTD {fmt_pct(ix['ytd'])} 1W {fmt_pct(ix['w1'])} "
+019392:                       f"1M {fmt_pct(ix['m1'])} 1Y {fmt_pct(ix['y1'])} | 52w-pos "
+019393:                       f"{(ix['pos52'] if ix.get('pos52') is not None else float('nan')):.0f}%")
+019394:             if pf.get("vix") is not None:
+019395:                 print(f"VIX {pf['vix']:.1f} | curve {pf.get('vixcurve')}")
+019396:             print(f"divergence: {pf.get('divergence')}")
+019397:         sr = mkt["sector_ranks"]
+019398:         for grp, lab in [("macro", "大分類"), ("micro", "小分類")]:
+019399:             rr = sorted(sr.get(grp, []), key=lambda x: (-(x["d1"] if x["d1"] == x["d1"] else -9)))
+019400:             print(f"\nSector {lab} ({len(rr)}) by 1d:")
+019401:             for s in rr:
+019402:                 print(f"  {s['ja']:10s} {s['tk']:5s}  d{fmt_pct(s['d1'])} w{fmt_pct(s['w1'])} m{fmt_pct(s['m1'])}")
+019403:         bts = mkt["breadth_ts"]
+019404:         if bts:
+019405:             print(f"Breadth TS (>200MA): {len(bts)} pts, {bts[0][1]:.0f}% -> {bts[-1][1]:.0f}%")
+019406:         print(f"SAR-bullish count: {(m['sar_bull']==True).sum()} / {m['sar_bull'].notna().sum()} valid")
+019407:         return
+019408: 
+...
+019412:         if _asof_ts.tzinfo is None:
+019413:             _asof_ts = _asof_ts.tz_localize('UTC')
+019414:         _ov_asof = _asof_ts.tz_convert('Asia/Tokyo').strftime('%Y-%m-%d %H:%M JST')
+019415:     except Exception:
+019416:         _ov_asof = str(asof or '')
+019417:     try:
+019418:         mkt['post1_html'], mkt['post2_html'] = build_overview_cards(dict(
+019419:             aux=aux, sar=sar, macro=macro, extras=_extras, mkt=mkt,
+019420:             breadth=breadth, sectors=sectors, m=m, asof_disp=_ov_asof))
+019421:     except Exception as _e:
+019422:         sys.stderr.write('[overview] build failed: %r\n' % repr(_e)[:200])
+019423:         mkt['post1_html'] = mkt['post2_html'] = None
+019424:     html = render(names, m, mri, breakdown, dropped, aux, setups, picks, cand,
+019425:                   sectors, breadth, yields, asof, sar, mkt, leaders, s2i, e2j, s2t, W=W)
+019426:     # シェアHTMLもselftest前に生成し、両方を検査する（#17）
+019427:     try:
+019428:         _ts2 = pd.Timestamp(asof)
+019429:         if _ts2.tzinfo is None:
+019430:             _ts2 = _ts2.tz_localize("UTC")
+019431:         _ad = _ts2.tz_convert("Asia/Tokyo").strftime("%Y-%m-%d")
+019432:     except Exception:
+019433:         _ad = str(asof_bar.date())
+019434:     share = build_share_html(aux, sar, mkt, picks, mkt.get("senti"), _ad)
+019435:     # シェアHTML出力先: 拡張子が無い/ディレクトリ名に.htmlを含むケースでメインを上書きしないよう pathlib で厳密化（#18）
+019436:     _op = _Path(OUT_HTML)
+019437:     share_path = str(_op.with_name(_op.stem + "_share" + (_op.suffix or ".html")))
+019438:     assert share_path != OUT_HTML, "share_path が OUT_HTML と衝突"
+019439: 
+019440:     _selftest_partial = False
+019441:     if do_self:
+019442:         errs, warns = selftest(html, picks, setups, sectors, mkt=mkt, W=W, cutdate=_cutdate)
+019443:         errs += selftest_share(share)           # シェアHTMLも検査（JS構文/重複ID/SVG NaN/必須要素）
+019444:         bs_, bys_ = leaders
+019445:         _req_missing = [w for w in warns if str(w).startswith("REQUIRED-CHECK-SKIPPED")]   # 必須検査未実行
+019446:         _quality_warns = [w for w in warns if not str(w).startswith("REQUIRED-CHECK-SKIPPED")]
+019447:         _release = ("--release" in sys.argv) or (os.environ.get("V38_RELEASE") == "1")
+019448:         # --- 最終判定は必ず1つだけ出す（FAILED / PARTIAL / OK[/ with warnings]）---
+019449:         if errs:
+019450:             print("SELFTEST FAILED:")
+019451:             for e in errs: print("  -", e)
+...
+019458:             for w in _quality_warns: print("  - " + str(w))
+019459:             sys.exit(3)
+019460:         elif _quality_warns and _release:
+019461:             print("SELFTEST PARTIAL (releaseではデータ品質注意も非合格):")
+019462:             for w in _quality_warns: print("  - " + str(w))
+019463:             sys.exit(3)
+019464:         elif _quality_warns:
+019465:             _selftest_partial = True
+019466:             print("SELFTEST OK WITH WARNINGS (N=%d, leaders=%d, buys=%d, sectors=%d): %s" %
+019467:                   (len(picks), sum(len(v) for v in bs_.values()), len(bys_), len(sectors), "; ".join(str(w) for w in _quality_warns)))
+019468:         else:
+019469:             print("SELFTEST OK (10 tabs consolidated, restored pickup layout, X-ready market digest, market health v2, emergency brake, RS compare+IN/OUT+continuity, N=%d, leaders=%d, buys=%d, sectors=%d, no None/nan)" %
+019470:                   (len(picks), sum(len(v) for v in bs_.values()), len(bys_), len(sectors)))
+019471: 
+019472:     # 両HTMLを原子的に書き出し（途中終了で半端ファイルを残さない・#20）
+019473:     atomic_write_text(OUT_HTML, html)
+019474:     print("WROTE", OUT_HTML, f"({len(html)//1024} KB)")
+019475:     atomic_write_text(share_path, share)
+019476:     print("WROTE", share_path, "(X投稿用シェアカード 1200x675・スクショして使う)")
+019477: 
+019478:     # ここまで全て成功して初めて本番stateをcommit（テスト失敗時は本番stateを一切触らない）
+019479:     if production_run:
+019480:         _manifest = {"html": "ok", "share": "ok", "state": "pending", "trend": "pending", "log": "pending", "webhook": "skipped", "caches": "pending"}
+019481:         _critical_fail = []
+019482:         # #5 state/trend/log はトランザクションで一括commit（全tmp成功時のみ置換・部分commitを残さない）
+019483:         try:
+019484:             _logc = _build_log_csv_content(
+019485:                 (os.environ.get("V38_LOG_CSV") or os.path.join(os.path.dirname(CACHE), "daily_log.csv")),
+019486:                 asof_bar.date(), sar[0], aux, mkt["senti"], picks)
+019487:             _commit_state_trend_log(_pending_state, _thist, _logc)   # 確定した_thistを保存（commitで再読込しない・#3）
+019488:             _manifest["state"] = _manifest["trend"] = _manifest["log"] = "ok"
+019489:         except Exception as _e:
+019490:             _manifest["state"] = _manifest["trend"] = _manifest["log"] = "failed"
+019491:             _critical_fail.append("state/trend/log transaction: " + repr(_e)[:140])
+019492:         # #8 critical(state/trend/log)が失敗したら、cache/webhook/backtest manifestは一切更新しない。
+019493:         if not _critical_fail:
+019494:             _cres = _flush_pending_caches()                      # #6/#8 selftest後にここで初めて反映・per-file結果
+019495:             _manifest["caches"] = ("ok" if all(v == "ok" for v in _cres.values()) else _cres) if _cres else "ok"
+019496:             if _major:                                           # #8 webhookは非critical・戻り値で成否
+019497:                 _wr = post_webhook(_chlog, sar[0])
+019498:                 _manifest["webhook"] = _wr if _wr in ("ok", "failed", "skipped") else "unknown"
+019499:             try:                                                 # #12/#13 検証manifest（critical成功時のみ・testedハッシュは書き換えない）
+019500:                 _bm = dict(BACKTEST_MANIFEST); _bm["current_build_hash"] = LOGIC_HASH
+019501:                 atomic_write_json(os.path.join(os.path.dirname(OUT_HTML) or ".", "backtest_manifest.json"), _bm)
+019502:             except Exception:
+019503:                 pass
+019504:         else:
+019505:             _manifest["caches"] = "skipped(critical-fail)"; _manifest["webhook"] = "skipped(critical-fail)"
+019506:         try:
+019507:             atomic_write_json(os.path.join(os.path.dirname(OUT_HTML) or ".", "commit_manifest.json"), _manifest)
+019508:         except Exception:
+019509:             pass
+019510:         print("COMMIT", _manifest)
+019511:         if _critical_fail:
+019512:             # HTML/shareは既に書けている。state/trend/logはトランザクション(全か無か+ロールバック)なので、
+019513:             # 失敗しても部分コミットは残らず旧ファイルは無傷。次回実行で再試行される。
+019514:             # PermissionError/OSError等の環境要因(read-only/権限)や一時的失敗で、成功した本体ビルドを
+019515:             # 赤くしない。警告は目立つ形で残す。
+019516:             _is_env = any(("PermissionError" in e or "OSError" in e or "ReadOnly" in e
+019517:                            or "Read-only" in e or "No space" in e or "Errno 13" in e or "Errno 30" in e)
+019518:                           for e in _critical_fail)
+019519:             print("[commit] WARNING: state/trend/log を書き込めませんでした（トランザクションはロールバック済み・旧ファイル保持）:")
+019520:             for e in _critical_fail:
