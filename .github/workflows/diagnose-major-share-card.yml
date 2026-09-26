@@ -1,0 +1,51 @@
+name: Diagnose major sector share card
+
+on:
+  push:
+    branches:
+      - fix/sector-share-card-major-data
+    paths:
+      - ".github/workflows/diagnose-major-share-card.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode source and extract major contexts
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -xJf bootstrap/recovery-assets.tar.xz
+          python - <<'PY'
+          from pathlib import Path
+          import base64,lzma,hashlib
+          parts=sorted(Path('sources/build_dashboard_4').glob('build_dashboard_4.py.lzma.b85.part*'))
+          raw=lzma.decompress(base64.b85decode(''.join(p.read_text().strip() for p in parts).encode()))
+          assert hashlib.sha256(raw).hexdigest()=='ee306726ee4b629f92c5d2d6687c06869702030f60922c93f44ead713bc8bb80'
+          text=raw.decode('utf-8')
+          lines=text.splitlines()
+          needles=['var MAJ','prgMaj','majflow','rank flow','major_data','maj_data','MAJ =','MAJ=']
+          out=[]
+          for needle in needles:
+              for i,line in enumerate(lines):
+                  if needle.lower() in line.lower():
+                      out.append(f'\n===== {needle} @ {i+1} =====\n')
+                      for j in range(max(0,i-50),min(len(lines),i+100)):
+                          s=lines[j]
+                          if len(s)>1600:s=s[:1600]+' ...'
+                          out.append(f'{j+1:06d}: {s}\n')
+          Path('diagnostics').mkdir(exist_ok=True)
+          Path('diagnostics/maj_source.txt').write_text(''.join(out),encoding='utf-8')
+          PY
+      - name: Commit report
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add diagnostics/maj_source.txt
+          git commit -m "Diagnostic: major sector source context" || exit 0
+          git push origin HEAD:fix/sector-share-card-major-data
