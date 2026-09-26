@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 from v38 import live_acquisition as la  # noqa: E402
 from provider_inputs import (  # noqa: E402
+    ProviderError,
     compare_current_closes,
     compute_massive_market_structure,
     fetch_fred_inputs,
@@ -400,4 +401,15 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        exit_code = main()
+    except ProviderError as exc:
+        print(f"SOURCE_MC57_FAILURE=PROVIDER_ERROR:{exc}", flush=True)
+        raise
+    except RuntimeError as exc:
+        print(f"SOURCE_MC57_FAILURE=QUALITY_GATE:{exc}", flush=True)
+        raise
+    except Exception as exc:
+        print(f"SOURCE_MC57_FAILURE=UNEXPECTED_{type(exc).__name__}", flush=True)
+        raise
+    raise SystemExit(exit_code)
