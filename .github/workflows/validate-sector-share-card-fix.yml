@@ -1,0 +1,58 @@
+name: Validate sector share-card fix
+
+on:
+  push:
+    branches:
+      - fix/sector-share-card-major-data
+    paths:
+      - ".github/workflows/validate-sector-share-card-fix.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Restore source assets
+        run: tar -xJf bootstrap/recovery-assets.tar.xz
+
+      - name: Install dependencies
+        run: >-
+          python -m pip install
+          "numpy<3" "pandas<3" "yfinance==0.2.66"
+          requests beautifulsoup4 lxml pytest
+
+      - name: Run unit tests
+        run: python -m pytest
+
+      - name: Reconstruct and inspect patched source
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import py_compile
+          from scripts.build_exact_source_mc57_clone import reconstruct_source
+
+          out = Path("/tmp/build_dashboard_4.py")
+          reconstruct_source(Path("sources/build_dashboard_4"), out)
+          text = out.read_text(encoding="utf-8")
+          required = [
+              'ret63=ret63, ret126=ret126, ret189=ret189',
+              'if len(c) < 190:',
+              '"RSPT","情報技術"',
+          ]
+          missing = [x for x in required if x not in text]
+          if missing:
+              raise SystemExit("patched source markers missing: " + repr(missing))
+          py_compile.compile(str(out), doraise=True)
+          print("PATCHED_SOURCE_OK")
+          PY
