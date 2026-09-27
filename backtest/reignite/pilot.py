@@ -36,7 +36,7 @@ ETFS = {"SOXL", "SOXS", "TQQQ", "SQQQ", "LABU", "LABD", "TZA", "TNA", "UVXY", "S
         "NVDL", "NVDS", "NVDQ", "TSLL", "TSLQ", "TSLZ", "TSLS", "MSTU", "MSTZ", "CONL", "BITX", "SPXS", "SPXU",
         "SDOW", "UDOW", "YANG", "YINN", "FAZ", "FAS", "DRIP", "GUSH", "BOIL", "KOLD", "UCO", "SCO", "ZSL",
         "AGQ", "JDST", "JNUG", "NUGT", "DUST", "SOXS", "TECS", "TECL", "WEBS", "FNGD", "BERZ", "HIBS", "SPDN",
-        "SH", "PSQ", "SDS", "QID", "DXD", "ETHU", "ETHD", "SBIT", "BITI", "MSTX", "AMDL", "PLTD", "NVD", "TSLT"}
+        "SH", "PSQ", "MSOX", "SDS", "QID", "DXD", "ETHU", "ETHD", "SBIT", "BITI", "MSTX", "AMDL", "PLTD", "NVD", "TSLT"}
 
 
 def _rows(text: str, ncols: int) -> list[str]:
@@ -59,19 +59,26 @@ def ingest() -> None:
         m = re.match(r"(\S+) 1minute (\d{4}-\d{2}-\d{2})\.\.", text)
         if not m:
             continue
-        ticker, day = m.groups()
+        ticker, first = m.groups()
         rows = _rows(text, 7)
-        df = pd.read_csv(io.StringIO("\n".join(rows))) if rows else pd.DataFrame(columns=["time"])
+        df = pd.read_csv(io.StringIO("\n".join(rows))) if len(rows) > 1 else pd.DataFrame(columns=["time"])
+        days = {first: pd.DataFrame(columns=data.MINUTE_COLS)}
         if not df.empty:
             ts = pd.to_datetime(df["time"].str.rstrip("Z"), utc=True).dt.tz_convert(ET)
-            df = df.assign(day=ts.dt.strftime("%Y-%m-%d"), m=ts.dt.hour * 60 + ts.dt.minute)
-            df = df[df["day"] == day].rename(columns={"open": "o", "high": "h", "low": "l", "close": "c",
-                                                     "volume": "v", "vwap": "vw"})
-            # a truncated last line could only affect a later day; the first day is complete
-        out = data.minute_path(ticker, day)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        (df[data.MINUTE_COLS] if not df.empty else pd.DataFrame(columns=data.MINUTE_COLS)).to_parquet(out, index=False)
-        n += 1
+            df = df.assign(day=ts.dt.strftime("%Y-%m-%d"), m=ts.dt.hour * 60 + ts.dt.minute).rename(
+                columns={"open": "o", "high": "h", "low": "l", "close": "c", "volume": "v", "vwap": "vw"})
+            present = sorted(df["day"].unique())
+            if "[truncated" in text:            # the last day in a truncated file may be partial
+                present = present[:-1] or present[:1]
+            for d in present:
+                days[d] = df[df["day"] == d][data.MINUTE_COLS]
+        for d, part in days.items():
+            out = data.minute_path(ticker, d)
+            if d != first and out.exists():
+                continue
+            out.parent.mkdir(parents=True, exist_ok=True)
+            part.reset_index(drop=True).to_parquet(out, index=False)
+            n += 1
     print(f"grouped days: {len(list((PILOT / 'grouped').glob('*.csv')))}, minute files ingested: {n}")
 
 
