@@ -2,3 +2,5 @@ data/
 work/
 __pycache__/
 *.pyc
+.env
+backtest/reignite/cache/
