@@ -90,6 +90,9 @@ def build(D, lev, und):
     d = uc.diff()
     X["u_sma5"] = uc.rolling(5).mean()
     X["MR"] = ((d < 0) & (d.shift() < 0) & (d.shift(2) < 0) & (uc > X.u_sma200)).fillna(False)
+    # ③' IBS押し目: 原指数の終値が日中レンジ下位20% & 3日安値更新 & 200DMA上 → 終値>前日高値で翌寄り撤退（最大10日, ストップなし）
+    ibs = (uc - X.u_l) / (X.u_h - X.u_l).replace(0, np.nan)
+    X["IB"] = ((ibs < 0.2) & (X.u_l < X.u_l.shift().rolling(3).min()) & (uc > X.u_sma200)).fillna(False)
     # ④ 55日高値ブレイク（G1内, 初回ブレイク日）
     hi55 = uc.rolling(55).max()
     X["BO"] = ((uc >= hi55) & (uc.shift() < hi55.shift()) & X.G1).fillna(False)
@@ -145,6 +148,9 @@ def stats(T):
 def mr_trades(X):
     return swing(X, X.MR, maxhold=10, stop=False, exit_=X.u_c > X.u_sma5)
 
+def ib_trades(X):
+    return swing(X, X.IB, maxhold=10, stop=False, exit_=X.u_c > X.u_h.shift())
+
 def report(D):
     res = {}
     for lev, und in PAIRS.items():
@@ -161,7 +167,7 @@ def report(D):
         Tg = swing(Xs, Xs["PB"]); Tg["ext"] = Xs.ext200.reindex(Tg.signal).values
         bt[f"PB(G2あり) 乖離<{EXT[lev]:.0%}"] = stats(Tg[Tg.ext < EXT[lev]])
         bt[f"PB(G2あり) 乖離>={EXT[lev]:.0%}"] = stats(Tg[Tg.ext >= EXT[lev]])
-        for name, T in [("MR 3連続安リバーサル", mr_trades(Xs)), ("BO 55日高値ブレイク", swing(Xs, Xs.BO))]:
+        for name, T in [("MR 3連続安リバーサル", mr_trades(Xs)), ("IB IBS押し目", ib_trades(Xs)), ("BO 55日高値ブレイク", swing(Xs, Xs.BO))]:
             bt[name] = {"ALL": stats(T), "IS": stats(T[T.entry < SPLIT]), "OOS": stats(T[T.entry >= SPLIT])}
         if lev == "SOXL":
             for nm, col in [("PB", "PB"), ("BO", "BO")]:
@@ -181,9 +187,10 @@ def report(D):
             lev_sma50=round(r.l_sma50, 2), lev_ema21=round(r.l_ema21, 2), lev_sma100=round(r.l_sma100, 2),
             lev_lo5_stop=round(r.l_lo5 * 0.995, 2), lev_atr_pct=round(r.l_atrp, 2),
             lev_from_52wH_pct=round((r.c / r.l_hi252 - 1) * 100, 1),
-            signal_today={"FTD": bool(r.FTD), "PB": bool(r.PB), "MR": bool(r.MR), "BO": bool(r.BO)},
+            signal_today={"FTD": bool(r.FTD), "PB": bool(r.PB), "MR": bool(r.MR), "IB": bool(r.IB), "BO": bool(r.BO)},
             RS_soxx_over_qqq=bool(r.RS),
             recent_MR=[str(d.date()) for d in recent.index[recent.MR]][-5:],
+            recent_IB=[str(d.date()) for d in recent.index[recent.IB]][-5:],
             recent_BO=[str(d.date()) for d in recent.index[recent.BO]],
             open_MR=None if mr_live.empty else {k: (str(v.date()) if hasattr(v, "date") else round(float(v), 3))
                                                  for k, v in mr_live.iloc[-1][["signal", "entry", "ep", "ret"]].items()},
@@ -204,7 +211,7 @@ def print_md(res):
         print(f"- lev 21EMA {r['lev_ema21']} / 50SMA {r['lev_sma50']} / 100SMA {r['lev_sma100']} / 5日安値ストップ {r['lev_lo5_stop']}")
         print(f"- 本日シグナル {r['signal_today']} / 直近FTD {r['recent_FTD']} / 直近PB {r['recent_PB']}")
         print(f"- 保有中想定トレード {r['open_trade']}")
-        print(f"- SOXX/QQQ相対強度(>50日平均) {'SOXX優位' if r['RS_soxx_over_qqq'] else 'QQQ優位'} / 直近MR {r['recent_MR']} / 直近BO {r['recent_BO']} / MR保有中 {r['open_MR']}")
+        print(f"- SOXX/QQQ相対強度(>50日平均) {'SOXX優位' if r['RS_soxx_over_qqq'] else 'QQQ優位'} / 直近MR {r['recent_MR']} / 直近IB {r['recent_IB']} / 直近BO {r['recent_BO']} / MR保有中 {r['open_MR']}")
         print("| setup | 期間 | n | win% | avg% | avgWin | avgLoss | PF | days |")
         print("|---|---|---|---|---|---|---|---|---|")
         for k, v in r["backtest"].items():
