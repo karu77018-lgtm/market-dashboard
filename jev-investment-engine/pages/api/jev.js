@@ -190,6 +190,54 @@ function sameJson(a, b) {
   return canonicalJson(a ?? null) === canonicalJson(b ?? null);
 }
 
+async function loadQuestionSet(questionSetVersion) {
+  const db = getPool();
+  const result = await db.query(
+    `SELECT qs.id AS question_set_id, qs.version, qs.default_runs,
+            q.question_id, q.question_type, q.instructions, q.options_json,
+            q.binary_threshold, q.score_scale_min, q.score_scale_max, q.ordinal
+     FROM question_sets qs
+     JOIN questions q ON q.question_set_id = qs.id
+     WHERE qs.version = $1
+       AND qs.status IN ('shadow','validation','production')
+       AND q.active = true
+     ORDER BY q.ordinal`,
+    [questionSetVersion]
+  );
+
+  if (!result.rowCount) {
+    const error = new Error(`Unknown or inactive question set: ${questionSetVersion}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const questions = {};
+  for (const row of result.rows) {
+    const q = {
+      type: row.question_type,
+      instructions: row.instructions
+    };
+    if (row.question_type === "choice") q.options = row.options_json || {};
+    questions[row.question_id] = q;
+  }
+
+  return {
+    id: result.rows[0].question_set_id,
+    version: result.rows[0].version,
+    defaultRuns: result.rows[0].default_runs || 3,
+    questions
+  };
+}
+
+function gatewayCostUsd(results) {
+  return results.reduce((sum, run) => {
+    const gateway = run?.providerMetadata?.gateway || {};
+    const raw = gateway.cost ?? gateway.gatewayCost ?? gateway.inferenceCost ?? 0;
+    const value = Number(raw);
+    return sum + (Number.isFinite(value) ? value : 0);
+  }, 0);
+}
+
 async function persistEvaluation({
   state,
   questions,
@@ -447,13 +495,17 @@ export default async function handler(req, res) {
         supported: Boolean(process.env.DATABASE_URL),
         enabledWhen: "persist === true"
       },
+      fullSetMode: {
+        supported: Boolean(process.env.DATABASE_URL),
+        usage: "Omit questions and provide questionSetVersion to load all active questions from Neon"
+      },
       input: {
         state: "string | object | array",
-        questions: "object",
-        runs: "optional integer 1..5, default 3",
+        questions: "optional object; omit to auto-load full question set from Neon",
+        runs: "optional integer 1..5; defaults to question-set default or 3",
         persist: "optional boolean, default false",
-        ticker: "required for ticker-specific persisted evaluations",
-        questionSetVersion: "required when persist is true",
+        ticker: "recommended for ticker-specific evaluations",
+        questionSetVersion: "required for persistence or full-set auto-load",
         asofTimestamp: "optional ISO-8601 timestamp"
       }
     });
@@ -468,29 +520,49 @@ export default async function handler(req, res) {
   }
 
   const body = req.body || {};
-  const { state, questions } = body;
-  const runs = Number.isInteger(body.runs) ? body.runs : 3;
+  const { state } = body;
   const persist = body.persist === true;
 
   if (state === undefined || state === null) {
     return res.status(400).json({ ok: false, error: "state_required" });
   }
 
-  if (!questions || typeof questions !== "object" || Array.isArray(questions) || !Object.keys(questions).length) {
-    return res.status(400).json({ ok: false, error: "questions_required" });
-  }
-
-  if (runs < 1 || runs > 5) {
-    return res.status(400).json({ ok: false, error: "runs_must_be_between_1_and_5" });
-  }
-
   if (persist && !body.questionSetVersion) {
     return res.status(400).json({ ok: false, error: "questionSetVersion_required_when_persisting" });
   }
 
-  const startedAt = Date.now();
-
   try {
+    let questions = body.questions;
+    let questionSource = "request";
+    let loadedQuestionSet = null;
+
+    const hasRequestQuestions =
+      questions &&
+      typeof questions === "object" &&
+      !Array.isArray(questions) &&
+      Object.keys(questions).length > 0;
+
+    if (!hasRequestQuestions) {
+      if (!body.questionSetVersion) {
+        return res.status(400).json({
+          ok: false,
+          error: "questions_or_questionSetVersion_required"
+        });
+      }
+      loadedQuestionSet = await loadQuestionSet(body.questionSetVersion);
+      questions = loadedQuestionSet.questions;
+      questionSource = "neon";
+    }
+
+    const runs = Number.isInteger(body.runs)
+      ? body.runs
+      : (loadedQuestionSet?.defaultRuns || 3);
+
+    if (runs < 1 || runs > 5) {
+      return res.status(400).json({ ok: false, error: "runs_must_be_between_1_and_5" });
+    }
+
+    const startedAt = Date.now();
     const results = await Promise.all(
       Array.from({ length: runs }, () => evaluateOnce(state, questions))
     );
@@ -517,7 +589,10 @@ export default async function handler(req, res) {
       ok: true,
       model: MODEL,
       runs,
+      questionSource,
+      questionCount: Object.keys(questions).length,
       durationMs,
+      gatewayCostUsd: gatewayCostUsd(results),
       aggregate,
       rawRuns: results,
       persistence
