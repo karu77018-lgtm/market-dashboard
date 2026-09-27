@@ -5,3 +5,4 @@ __pycache__/
 .env
 backtest/reignite/cache/
 backtest/reignite/output/
+backtest/reignite/pilot/grouped/
