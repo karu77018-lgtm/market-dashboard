@@ -1,0 +1,78 @@
+{
+  "version": "jev-text-v1",
+  "status": "shadow",
+  "model": "typesafe-ai/jev",
+  "default_runs": 3,
+  "questions": {
+    "RF01_dilution": {
+      "type": "boolean",
+      "instructions": "Does the supplied text indicate new or increased equity dilution risk, including a public offering, ATM program, PIPE, convertible financing, warrant issuance, or other issuance that can materially dilute common shareholders?"
+    },
+    "RF02_going_concern": {
+      "type": "boolean",
+      "instructions": "Does the supplied text indicate a going-concern warning, severe liquidity concern, or material doubt about the company's ability to continue operating?"
+    },
+    "RF03_accounting": {
+      "type": "boolean",
+      "instructions": "Does the supplied text indicate a material accounting problem, restatement, material weakness, auditor issue, or unreliable financial reporting?"
+    },
+    "RF04_management_change": {
+      "type": "boolean",
+      "instructions": "Does the supplied text indicate an abrupt or potentially adverse departure or change involving the CEO, CFO, auditor, or another key control role?"
+    },
+    "RF05_legal_regulatory": {
+      "type": "boolean",
+      "instructions": "Does the supplied text indicate a material increase in legal, regulatory, enforcement, investigation, or litigation risk?"
+    },
+    "RF06_guidance_cut": {
+      "type": "boolean",
+      "instructions": "Does the supplied text indicate that management lowered, withdrew, or materially weakened forward guidance or expectations?"
+    },
+    "CAT01_guidance_raise": {
+      "type": "boolean",
+      "instructions": "Does the supplied text indicate that management raised or materially improved forward guidance or expectations?"
+    },
+    "CAT02_demand_acceleration": {
+      "type": "boolean",
+      "instructions": "Does the supplied text indicate accelerating customer demand, bookings, orders, usage, backlog, or another demand signal?"
+    },
+    "CAT03_major_contract": {
+      "type": "boolean",
+      "instructions": "Does the supplied text describe a new contract, order, partnership, or customer win that appears materially important to the company?"
+    },
+    "CAT04_new_product": {
+      "type": "boolean",
+      "instructions": "Does the supplied text describe a new product, service, platform, or technology launch that could be a meaningful company-specific catalyst?"
+    },
+    "CAT05_regulatory_approval": {
+      "type": "boolean",
+      "instructions": "Does the supplied text describe a material regulatory, clinical, FDA, licensing, or government approval milestone?"
+    },
+    "CAT06_company_specific": {
+      "type": "boolean",
+      "instructions": "Is the main catalyst in the supplied text primarily company-specific rather than a broad sector, macro, or market-wide development?"
+    },
+    "TXT01_management_tone_improved": {
+      "type": "boolean",
+      "instructions": "Compared with the prior context included in the state, does management communication indicate a meaningful improvement in business tone or outlook?"
+    },
+    "TXT02_margin_pressure": {
+      "type": "boolean",
+      "instructions": "Does the supplied text indicate increasing pressure on gross margin, operating margin, unit economics, or profitability?"
+    },
+    "THEME01_primary_theme": {
+      "type": "choice",
+      "instructions": "Which primary business or investment theme best describes the company's current revenue or growth driver based only on the supplied text?",
+      "options": {
+        "ai_infrastructure": "AI infrastructure, accelerators, data-center hardware, networking, or enabling infrastructure",
+        "semiconductors": "Semiconductor design, manufacturing, equipment, materials, or components not primarily classified as AI infrastructure",
+        "cloud_software": "Cloud software, SaaS, developer tools, enterprise applications, or cybersecurity",
+        "consumer_internet": "Consumer internet, digital media, marketplaces, social, advertising, or e-commerce",
+        "biotech_healthcare": "Biotechnology, pharmaceuticals, medical devices, diagnostics, or healthcare services",
+        "industrial_energy": "Industrials, energy, power, materials, transportation, aerospace, or physical infrastructure",
+        "financials": "Banks, brokers, insurers, payments, fintech, asset managers, or financial infrastructure",
+        "other": "None of the listed themes clearly fits"
+      }
+    }
+  }
+}
