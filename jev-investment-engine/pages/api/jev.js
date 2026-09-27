@@ -182,7 +182,7 @@ async function evaluateOnce(state, questions) {
       state,
       questions
     }),
-    signal: AbortSignal.timeout(20000)
+    signal: AbortSignal.timeout(60000)
   });
 
   const text = await response.text();
