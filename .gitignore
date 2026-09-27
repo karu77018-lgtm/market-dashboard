@@ -6,3 +6,4 @@ __pycache__/
 backtest/reignite/cache/
 backtest/reignite/output/
 backtest/reignite/pilot/grouped/
+backtest/reignite/pilot/need.txt
