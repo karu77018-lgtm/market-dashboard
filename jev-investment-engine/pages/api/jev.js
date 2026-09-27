@@ -60,9 +60,22 @@ function std(values) {
 function getProbability(answer) {
   if (typeof answer === "number" && Number.isFinite(answer)) return answer;
   if (!answer || typeof answer !== "object") return null;
-  for (const key of ["probability", "noul", "confidence"]) {
+
+  for (const key of ["probability", "noul"]) {
     if (typeof answer[key] === "number" && Number.isFinite(answer[key])) return answer[key];
   }
+
+  const choice = getChoice(answer);
+  const distribution = getChoiceDistribution(answer);
+  if (
+    choice &&
+    distribution &&
+    typeof distribution[choice] === "number" &&
+    Number.isFinite(distribution[choice])
+  ) {
+    return distribution[choice];
+  }
+
   return null;
 }
 
@@ -217,7 +230,7 @@ async function loadQuestionSet(questionSetVersion) {
       type: row.question_type,
       instructions: row.instructions
     };
-    if (row.question_type === "choice") q.options = row.options_json || {};
+    if (row.question_type === "choice") q.criteria = row.options_json || {};
     questions[row.question_id] = q;
   }
 
@@ -291,8 +304,11 @@ async function persistEvaluation({
       if (requestQuestion.instructions !== row.instructions) {
         throw new Error(`Question instructions mismatch for ${row.question_id}`);
       }
-      if (row.question_type === "choice" && !sameJson(requestQuestion.options, row.options_json)) {
-        throw new Error(`Question options mismatch for ${row.question_id}`);
+      if (
+        row.question_type === "choice" &&
+        !sameJson(requestQuestion.criteria ?? requestQuestion.options, row.options_json)
+      ) {
+        throw new Error(`Question criteria mismatch for ${row.question_id}`);
       }
     }
 
@@ -486,6 +502,29 @@ export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
   if (req.method === "GET") {
+    let questionSet = null;
+    const inspectVersion =
+      typeof req.query?.inspectQuestionSet === "string"
+        ? req.query.inspectQuestionSet
+        : null;
+
+    if (inspectVersion) {
+      try {
+        const loaded = await loadQuestionSet(inspectVersion);
+        questionSet = {
+          version: loaded.version,
+          questionCount: Object.keys(loaded.questions).length,
+          defaultRuns: loaded.defaultRuns
+        };
+      } catch (error) {
+        return res.status(error?.statusCode || 500).json({
+          ok: false,
+          error: "question_set_inspection_failed",
+          message: error?.message || "Unknown error"
+        });
+      }
+    }
+
     return res.status(200).json({
       ok: true,
       endpoint: "/api/jev",
@@ -499,6 +538,7 @@ export default async function handler(req, res) {
         supported: Boolean(process.env.DATABASE_URL),
         usage: "Omit questions and provide questionSetVersion to load all active questions from Neon"
       },
+      questionSet,
       input: {
         state: "string | object | array",
         questions: "optional object; omit to auto-load full question set from Neon",
