@@ -85,14 +85,28 @@ def build(D, lev, und):
     X["PB_raw"] = (X.G1 & (X.u_sma50 > X.u_sma200)
                    & (X.u_l.rolling(3).min() <= X.u_ema21 * 1.005)
                    & (uc > X.u_ema21) & (uc > X.u_h.shift())).fillna(False)
+
+    # ③ 短期リバーサル: 原指数3連続安 & 200DMA上 → 原指数終値>5SMAで翌寄り撤退（最大10日, ストップなし）
+    d = uc.diff()
+    X["u_sma5"] = uc.rolling(5).mean()
+    X["MR"] = ((d < 0) & (d.shift() < 0) & (d.shift(2) < 0) & (uc > X.u_sma200)).fillna(False)
+    # ④ 55日高値ブレイク（G1内, 初回ブレイク日）
+    hi55 = uc.rolling(55).max()
+    X["BO"] = ((uc >= hi55) & (uc.shift() < hi55.shift()) & X.G1).fillna(False)
+    # ⑤ 相対強度: SOXX/QQQ が50日平均より上（SOXLのみ採用）
+    rs = (D["SOXX"].c / D["QQQ"].c).reindex(X.index)
+    X["RS"] = (rs > rs.rolling(50).mean()).fillna(False)
     return X.dropna(subset=["u_sma200"])
 
 
 # ---------------- backtest ----------------
-def swing(X, sig, maxhold=60):
-    """翌日寄り付きでエントリー / 損切り=lev5日安値×0.995 / 撤退=lev終値<50SMA → 翌寄り"""
+def swing(X, sig, maxhold=60, stop=True, exit_=None):
+    """翌日寄り付きでエントリー / 損切り=lev5日安値×0.995 / 撤退=lev終値<50SMA → 翌寄り
+    stop=False で損切りなし、exit_ で撤退条件(bool Series)を差し替え"""
     o, l, c = X.o.values, X.l.values, X.c.values
-    S = sig.values; SP = (X.l_lo5 * 0.995).values; XS = (X.c < X.l_sma50).values
+    S = sig.values
+    SP = (X.l_lo5 * 0.995).values if stop else np.full(len(X), -np.inf)
+    XS = (X.c < X.l_sma50).values if exit_ is None else exit_.values
     n, i, out = len(X), 1, []
     while i < n - 1:
         if not S[i]:
@@ -105,17 +119,17 @@ def swing(X, sig, maxhold=60):
             if l[j] <= sp:
                 px = sp if j == i + 1 else min(o[j], sp); why = "stop"; break
             if XS[j] or j - i >= maxhold:
-                why = "sma50" if XS[j] else "time"
+                why = "exit" if XS[j] else "time"
                 if j + 1 < n: px, j = o[j + 1], j + 1
                 else: px = c[j]
                 break
             j += 1
         if px is None: px, j = c[-1], n - 1
         out.append(dict(signal=X.index[i], entry=X.index[i + 1], ep=ep, stop=sp, exit_px=px,
-                        ret=px / ep - 1 - 2 * COST, R=(px - ep) / (ep - sp), days=j - i,
+                        ret=px / ep - 1 - 2 * COST, R=(px - ep) / (ep - sp) if stop else np.nan, days=j - i,
                         dy63=X.dy63.iloc[i], why=why))
         i = j + 1
-    return pd.DataFrame(out)
+    return pd.DataFrame(out, columns=["signal", "entry", "ep", "stop", "exit_px", "ret", "R", "days", "dy63", "why"])
 
 def stats(T):
     if len(T) == 0: return dict(n=0)
@@ -128,6 +142,9 @@ def stats(T):
 
 
 # ---------------- report ----------------
+def mr_trades(X):
+    return swing(X, X.MR, maxhold=10, stop=False, exit_=X.u_c > X.u_sma5)
+
 def report(D):
     res = {}
     for lev, und in PAIRS.items():
@@ -144,10 +161,19 @@ def report(D):
         Tg = swing(Xs, Xs["PB"]); Tg["ext"] = Xs.ext200.reindex(Tg.signal).values
         bt[f"PB(G2あり) 乖離<{EXT[lev]:.0%}"] = stats(Tg[Tg.ext < EXT[lev]])
         bt[f"PB(G2あり) 乖離>={EXT[lev]:.0%}"] = stats(Tg[Tg.ext >= EXT[lev]])
+        for name, T in [("MR 3連続安リバーサル", mr_trades(Xs)), ("BO 55日高値ブレイク", swing(Xs, Xs.BO))]:
+            bt[name] = {"ALL": stats(T), "IS": stats(T[T.entry < SPLIT]), "OOS": stats(T[T.entry >= SPLIT])}
+        if lev == "SOXL":
+            for nm, col in [("PB", "PB"), ("BO", "BO")]:
+                T = swing(Xs, Xs[col]); T["rs"] = Xs.RS.reindex(T.signal).values
+                for k, m in [("SOXX優位", T.rs), ("SOXX劣位", ~T.rs.astype(bool))]:
+                    bt[f"{nm} & {k}"] = {"IS": stats(T[m & (T.entry < SPLIT)]), "OOS": stats(T[m & (T.entry >= SPLIT)])}
 
         recent = X[X.index >= X.index[-60]]
         live = swing(X[X.index >= X.index[-80]], X[X.index >= X.index[-80]]["FTD"] | X[X.index >= X.index[-80]]["PB"])
         live = live[live.why == "open"]
+        Xl = X[X.index >= X.index[-30]]
+        mr_live = mr_trades(Xl); mr_live = mr_live[mr_live.why == "open"]
         res[lev] = dict(
             date=str(X.index[-1].date()), close=round(r.c, 2),
             G1_trend=bool(r.G1), G2_rate=bool(r.G2), G3_not_extended=bool(r.ext200 < EXT[lev]), y10=round(r.y10, 3), dy63_bp=round(r.dy63, 0),
@@ -155,7 +181,12 @@ def report(D):
             lev_sma50=round(r.l_sma50, 2), lev_ema21=round(r.l_ema21, 2), lev_sma100=round(r.l_sma100, 2),
             lev_lo5_stop=round(r.l_lo5 * 0.995, 2), lev_atr_pct=round(r.l_atrp, 2),
             lev_from_52wH_pct=round((r.c / r.l_hi252 - 1) * 100, 1),
-            signal_today={"FTD": bool(r.FTD), "PB": bool(r.PB)},
+            signal_today={"FTD": bool(r.FTD), "PB": bool(r.PB), "MR": bool(r.MR), "BO": bool(r.BO)},
+            RS_soxx_over_qqq=bool(r.RS),
+            recent_MR=[str(d.date()) for d in recent.index[recent.MR]][-5:],
+            recent_BO=[str(d.date()) for d in recent.index[recent.BO]],
+            open_MR=None if mr_live.empty else {k: (str(v.date()) if hasattr(v, "date") else round(float(v), 3))
+                                                 for k, v in mr_live.iloc[-1][["signal", "entry", "ep", "ret"]].items()},
             recent_FTD=[str(d.date()) for d in recent.index[recent.FTD]],
             recent_PB=[str(d.date()) for d in recent.index[recent.PB]],
             open_trade=None if live.empty else {k: (str(v.date()) if hasattr(v, "date") else round(float(v), 3))
@@ -173,10 +204,11 @@ def print_md(res):
         print(f"- lev 21EMA {r['lev_ema21']} / 50SMA {r['lev_sma50']} / 100SMA {r['lev_sma100']} / 5日安値ストップ {r['lev_lo5_stop']}")
         print(f"- 本日シグナル {r['signal_today']} / 直近FTD {r['recent_FTD']} / 直近PB {r['recent_PB']}")
         print(f"- 保有中想定トレード {r['open_trade']}")
+        print(f"- SOXX/QQQ相対強度(>50日平均) {'SOXX優位' if r['RS_soxx_over_qqq'] else 'QQQ優位'} / 直近MR {r['recent_MR']} / 直近BO {r['recent_BO']} / MR保有中 {r['open_MR']}")
         print("| setup | 期間 | n | win% | avg% | avgWin | avgLoss | PF | days |")
         print("|---|---|---|---|---|---|---|---|---|")
         for k, v in r["backtest"].items():
-            rows = v.items() if "ALL" in v else [("-", v)]
+            rows = v.items() if "IS" in v else [("-", v)]
             for per, s in rows:
                 if s.get("n", 0) == 0: continue
                 print(f"| {k} | {per} | {s['n']} | {s['win']} | {s['avg']} | {s['avgWin']} | {s['avgLoss']} | {s['PF']} | {s['days']} |")
