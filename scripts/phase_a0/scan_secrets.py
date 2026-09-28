@@ -47,11 +47,11 @@ SECRET_ENV_NAMES = (
 SAFE_VALUE_MARKERS = (
     "${{", "${", "$", "process.env", "os.environ", "redacted",
     "placeholder", "example", "not_configured", "your_", "args.",
-    "re.compile", "{", "<", "***",
+    "not-a-real", "re.compile", "{", "<", "***",
 )
 SAFE_REFERENCE_VALUES = {
     "access_token", "api_key", "authorization", "bearer_token", "client_secret",
-    "database_url", "password", "refresh_token",
+    "database_url", "massive_key", "password", "refresh_token",
 }
 
 
@@ -76,7 +76,7 @@ def tracked_files(root: Path) -> list[str]:
 
 
 def is_placeholder(value: str) -> bool:
-    lowered = value.lower()
+    lowered = value.strip().rstrip(",;)]}").lower()
     return lowered in SAFE_REFERENCE_VALUES or any(
         marker.lower() in lowered for marker in SAFE_VALUE_MARKERS
     )
