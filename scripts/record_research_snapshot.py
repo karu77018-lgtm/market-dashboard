@@ -145,7 +145,7 @@ def main() -> int:
                         %(completed_at)s,
                         %(metadata)s
                     )
-                    ON CONFLICT (snapshot_manifest_id, provider, copy_attempt_key) DO NOTHING
+                    ON CONFLICT DO NOTHING
                     RETURNING id
                     """,
                     {
