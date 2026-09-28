@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Record a research snapshot manifest in Neon.
+"""Record a research snapshot manifest and storage-copy event in Neon.
 
-The connection should use a dedicated role that can INSERT/SELECT only on
-snapshot_manifests. Failures are recorded to a local JSON and do not stop the
-market publication pipeline.
+The connection should use a dedicated role that can INSERT/SELECT only on the
+snapshot manifest tables. Failures are recorded to a local JSON and do not stop
+the market publication pipeline.
 """
 from __future__ import annotations
 
@@ -54,15 +54,6 @@ def main() -> int:
         import psycopg
         from psycopg.types.json import Jsonb
 
-        storage_uris = []
-        if drive.get("copy_status") == "success" and drive.get("drive_file_id"):
-            storage_uris.append(
-                {
-                    "provider": "google_drive",
-                    "file_id": drive["drive_file_id"],
-                }
-            )
-
         with psycopg.connect(database_url, connect_timeout=10) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -77,9 +68,6 @@ def main() -> int:
                         schema_version,
                         code_sha,
                         generated_at,
-                        drive_file_id,
-                        copy_status,
-                        storage_uris,
                         metadata
                     )
                     VALUES (
@@ -92,9 +80,6 @@ def main() -> int:
                         %(schema_version)s,
                         %(code_sha)s,
                         %(generated_at)s,
-                        %(drive_file_id)s,
-                        %(copy_status)s,
-                        %(storage_uris)s,
                         %(metadata)s
                     )
                     ON CONFLICT (github_run_id) DO NOTHING
@@ -110,14 +95,10 @@ def main() -> int:
                         "schema_version": archive["schema_version"],
                         "code_sha": archive["code_sha"],
                         "generated_at": archive.get("generated_at"),
-                        "drive_file_id": drive.get("drive_file_id"),
-                        "copy_status": drive.get("copy_status", "failed"),
-                        "storage_uris": Jsonb(storage_uris),
                         "metadata": Jsonb(
                             {
                                 "archive_created_at": archive.get("archive_created_at"),
                                 "file_count": archive.get("file_count"),
-                                "drive_uploaded_at": drive.get("uploaded_at"),
                             }
                         ),
                     },
@@ -144,6 +125,49 @@ def main() -> int:
                         raise RuntimeError("github_run_id already exists with a different archive hash")
                     status = "duplicate"
 
+                cur.execute(
+                    """
+                    INSERT INTO snapshot_storage_copies (
+                        snapshot_manifest_id,
+                        provider,
+                        copy_status,
+                        storage_object_id,
+                        attempted_at,
+                        completed_at,
+                        metadata
+                    )
+                    VALUES (
+                        %(snapshot_manifest_id)s,
+                        'google_drive',
+                        %(copy_status)s,
+                        %(storage_object_id)s,
+                        %(attempted_at)s,
+                        %(completed_at)s,
+                        %(metadata)s
+                    )
+                    ON CONFLICT (snapshot_manifest_id, provider, copy_attempt_key) DO NOTHING
+                    RETURNING id
+                    """,
+                    {
+                        "snapshot_manifest_id": record_id,
+                        "copy_status": drive.get("copy_status", "failed"),
+                        "storage_object_id": drive.get("drive_file_id"),
+                        "attempted_at": drive.get("attempted_at") or utc_now(),
+                        "completed_at": drive.get("uploaded_at") or drive.get("failed_at"),
+                        "metadata": Jsonb(
+                            {
+                                "drive_file_name": drive.get("drive_file_name"),
+                                "drive_file_size": drive.get("drive_file_size"),
+                                "drive_created_time": drive.get("drive_created_time"),
+                                "drive_md5": drive.get("drive_md5"),
+                                "error_type": drive.get("error_type"),
+                                "error": drive.get("error"),
+                            }
+                        ),
+                    },
+                )
+                copy_inserted = cur.fetchone()
+
             conn.commit()
 
         write_json(
@@ -152,6 +176,7 @@ def main() -> int:
                 **base,
                 "record_status": status,
                 "snapshot_manifest_id": record_id,
+                "snapshot_storage_copy_recorded": bool(copy_inserted),
                 "recorded_at": recorded_at.isoformat().replace("+00:00", "Z"),
             },
         )
