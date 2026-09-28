@@ -86,8 +86,13 @@ def merge_massive_grouped(existing: Path, delta: bytes) -> bytes:
     incoming = json.loads(delta)
     sessions = current.get("sessions") if isinstance(current.get("sessions"), dict) else {}
     sessions.update(incoming.get("sessions") or {})
-    current.update({key: value for key, value in incoming.items() if key != "sessions"})
+    fallbacks = current.get("fallback_sessions") if isinstance(current.get("fallback_sessions"), dict) else {}
+    fallbacks.update(incoming.get("fallback_sessions") or {})
+    current.update({key: value for key, value in incoming.items()
+                    if key not in {"sessions", "fallback_sessions"}})
     current["sessions"] = dict(sorted(sessions.items()))
+    if fallbacks:
+        current["fallback_sessions"] = dict(sorted(fallbacks.items()))
     return (json.dumps(current, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode()
 
 
