@@ -11,8 +11,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts.phase_a0.common import sha256_file
+from scripts.phase_a0.build_snapshot import write_session_massive_grouped
 from scripts.phase_a0.recover_interim_snapshot import github_artifact_created_at
 from scripts.phase_a0.resolve_snapshot_mode import resolve
+from scripts.phase_a0.restore_snapshot_chain import merge_massive_grouped
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -263,6 +265,30 @@ def test_monthly_full_and_daily_delta_preserve_evidence_and_restore_same_day_run
     )
     assert wrong_order.returncode != 0
     assert "(session_date, github_run_id)" in wrong_order.stderr
+
+
+def test_massive_delta_records_yahoo_fallback_without_fake_massive_rows(tmp_path: Path) -> None:
+    source = tmp_path / "massive.json"
+    delta = tmp_path / "delta.json"
+    source.write_text(json.dumps({
+        "schema": "grouped",
+        "sessions": {"2026-09-25": {"A": {"c": 10}}},
+        "fallback_sessions": {
+            "2026-09-28": {"source": "Yahoo Finance adjusted OHLCV", "reason": "HTTP 403"},
+        },
+    }), encoding="utf-8")
+    write_session_massive_grouped(source, delta, "2026-09-28")
+    payload = json.loads(delta.read_text(encoding="utf-8"))
+    assert payload["sessions"] == {}
+    assert payload["fallback_sessions"]["2026-09-28"]["source"].startswith("Yahoo")
+
+    base = tmp_path / "base.json"
+    base.write_text(json.dumps({
+        "schema": "grouped", "sessions": {"2026-09-25": {"A": {"c": 10}}},
+    }), encoding="utf-8")
+    merged = json.loads(merge_massive_grouped(base, delta.read_bytes()))
+    assert set(merged["sessions"]) == {"2026-09-25"}
+    assert "2026-09-28" in merged["fallback_sessions"]
 
 
 def test_successful_monthly_full_marker_controls_snapshot_mode(tmp_path: Path) -> None:
