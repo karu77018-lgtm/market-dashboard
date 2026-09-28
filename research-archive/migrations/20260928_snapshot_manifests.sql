@@ -31,10 +31,6 @@ CREATE TABLE IF NOT EXISTS snapshot_storage_copies (
     completed_at timestamptz,
     recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
-    copy_attempt_key text GENERATED ALWAYS AS (
-        coalesce(storage_object_id, '') || '|' || attempted_at::text || '|' || copy_status
-    ) STORED,
-    UNIQUE (snapshot_manifest_id, provider, copy_attempt_key),
     CHECK (
         (copy_status = 'success' AND storage_object_id IS NOT NULL AND completed_at IS NOT NULL)
         OR
@@ -43,6 +39,15 @@ CREATE TABLE IF NOT EXISTS snapshot_storage_copies (
         (copy_status = 'not_configured')
     )
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS snapshot_storage_copies_attempt_uidx
+    ON snapshot_storage_copies (
+        snapshot_manifest_id,
+        provider,
+        attempted_at,
+        copy_status,
+        coalesce(storage_object_id, '')
+    );
 
 CREATE INDEX IF NOT EXISTS snapshot_storage_copies_manifest_idx
     ON snapshot_storage_copies (snapshot_manifest_id, provider, recorded_at);
