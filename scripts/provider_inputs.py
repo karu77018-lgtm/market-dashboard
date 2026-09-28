@@ -72,6 +72,47 @@ def _write_json(path: Path, obj: dict[str, Any]) -> None:
     )
 
 
+def load_massive_reference_cache(cache_path: str | Path) -> dict[str, dict[str, Any]]:
+    payload = _read_json(Path(cache_path))
+    rows = payload.get("rows")
+    if not isinstance(rows, list) or not rows:
+        raise ProviderError("Massive reference cache is unavailable")
+    return {
+        str(row["ticker"]).upper(): row
+        for row in rows if isinstance(row, dict) and row.get("ticker")
+    }
+
+
+def load_massive_grouped_cache(
+    cache_path: str | Path,
+) -> dict[str, dict[str, dict[str, float | int]]]:
+    payload = _read_json(Path(cache_path))
+    sessions = payload.get("sessions")
+    if not isinstance(sessions, dict) or not sessions:
+        raise ProviderError("Massive grouped cache is unavailable")
+    return {
+        str(day): rows for day, rows in sessions.items()
+        if isinstance(rows, dict) and rows
+    }
+
+
+def record_grouped_fallback(cache_path: str | Path, session_date: str, reason: str) -> None:
+    path = Path(cache_path)
+    payload = _read_json(path)
+    sessions = payload.get("sessions")
+    if not isinstance(sessions, dict):
+        raise ProviderError("Massive grouped cache is unavailable")
+    fallbacks = payload.get("fallback_sessions")
+    if not isinstance(fallbacks, dict):
+        fallbacks = {}
+    fallbacks[session_date] = {
+        "source": "Yahoo Finance adjusted OHLCV",
+        "reason": reason[:240],
+    }
+    payload["fallback_sessions"] = fallbacks
+    _write_json(path, payload)
+
+
 def _url_with_key(url: str, api_key: str) -> str:
     parts = urlsplit(url)
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
@@ -342,11 +383,94 @@ def select_expanded_universe(
     }
 
 
+def select_preserved_count_fallback_universe(
+    broad_rows: list[dict[str, Any]],
+    reference: dict[str, dict[str, Any]],
+    grouped: dict[str, dict[str, dict[str, float | int]]],
+    *,
+    preserved_tickers: Iterable[str],
+    target_count: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Keep the prior universe count when current Massive bars are unavailable."""
+    if target_count <= 0:
+        raise ProviderError("Yahoo fallback requires a positive prior universe count")
+    cached_session = max(grouped)
+    candidates, stats = select_expanded_universe(
+        broad_rows, reference, grouped, target_session=cached_session,
+    )
+    by_ticker = {str(row["ticker"]).upper(): row for row in candidates}
+    prior = list(dict.fromkeys(str(ticker).upper() for ticker in preserved_tickers))
+    chosen = [ticker for ticker in prior if ticker in by_ticker]
+    chosen_set = set(chosen)
+    replacements = sorted(
+        (ticker for ticker in by_ticker if ticker not in chosen_set),
+        key=lambda ticker: (
+            not bool(by_ticker[ticker].get("buy_filter_eligible")),
+            -float(by_ticker[ticker].get("market_cap") or 0),
+            ticker,
+        ),
+    )
+    chosen.extend(replacements[:max(target_count - len(chosen), 0)])
+    if len(chosen) < target_count:
+        raise ProviderError(
+            f"Yahoo fallback cannot preserve universe count: {len(chosen)}/{target_count}"
+        )
+    chosen = chosen[:target_count]
+    selected = []
+    for ticker in chosen:
+        row = dict(by_ticker[ticker])
+        row["source"] = "TradingView fundamentals + cached Massive reference + Yahoo current OHLCV"
+        row["current_session_provider"] = "Yahoo Finance"
+        selected.append(row)
+    selected.sort(key=lambda row: row["ticker"])
+    preserved = sum(ticker in set(prior) for ticker in chosen)
+    stats.update({
+        "active_universe": len(selected),
+        "fallback_mode": "YAHOO_PRESERVED_COUNT",
+        "fallback_cached_massive_session": cached_session,
+        "fallback_target_count": target_count,
+        "fallback_preserved_tickers": preserved,
+        "fallback_replacements": target_count - preserved,
+    })
+    return selected, stats
+
+
+def grouped_history_from_yahoo_ohlcv(
+    ohlcv_csv: str | Path,
+    tickers: Iterable[str],
+    *,
+    target_session: str,
+) -> dict[str, dict[str, dict[str, float | int]]]:
+    frame = pd.read_csv(ohlcv_csv)
+    required = {"ticker", "date", "open", "high", "low", "close", "volume"}
+    if not required.issubset(frame.columns):
+        raise ProviderError("Yahoo OHLCV cache is missing required columns")
+    allowed = {str(ticker).upper() for ticker in tickers}
+    frame["ticker"] = frame["ticker"].astype(str).str.upper()
+    frame["date"] = frame["date"].astype(str)
+    frame = frame[(frame["ticker"].isin(allowed)) & (frame["date"] <= target_session)]
+    dates = sorted(frame["date"].dropna().unique())[-20:]
+    frame = frame[frame["date"].isin(dates)]
+    history: dict[str, dict[str, dict[str, float | int]]] = {}
+    for row in frame.itertuples(index=False):
+        values = {name: _finite(getattr(row, name)) for name in ("open", "high", "low", "close", "volume")}
+        if any(values[name] is None for name in ("high", "low", "close", "volume")):
+            continue
+        history.setdefault(str(row.date), {})[str(row.ticker)] = {
+            "o": values["open"], "h": values["high"], "l": values["low"],
+            "c": values["close"], "v": values["volume"],
+        }
+    if target_session not in history or not history[target_session]:
+        raise ProviderError(f"Yahoo OHLCV has no rows for fallback session {target_session}")
+    return history
+
+
 def compute_massive_market_structure(
     tickers: Iterable[str],
     grouped: dict[str, dict[str, dict[str, float | int]]],
     *,
     target_session: str,
+    source: str = "Massive split-adjusted grouped daily aggregates",
 ) -> dict[str, Any]:
     ticker_list = list(tickers)
     dates = sorted(d for d in grouped if d <= target_session)
@@ -386,7 +510,7 @@ def compute_massive_market_structure(
         "up_down_volume_ratio": up_volume / max(down_volume, 1.0),
         "up_4pct": up4, "down_4pct": down4, "four_pct_net": up4 - down4,
         "coverage": compared / max(len(ticker_list), 1),
-        "source": "Massive split-adjusted grouped daily aggregates",
+        "source": source,
     }
 
 
