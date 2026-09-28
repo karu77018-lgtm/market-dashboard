@@ -19,7 +19,9 @@ function getPool() {
       connectionString: process.env.DATABASE_URL,
       max: 3,
       idleTimeoutMillis: 10000,
-      connectionTimeoutMillis: 10000
+      connectionTimeoutMillis: 10000,
+      statement_timeout: 15000,
+      query_timeout: 15000
     });
   }
   return pool;
@@ -157,10 +159,14 @@ function aggregateRuns(runs) {
   return aggregate;
 }
 
-function isAuthorized(req) {
+function authStatus(req) {
   const expected = process.env.JEV_API_SECRET;
-  if (!expected) return true;
-  return (req.headers.authorization || "") === `Bearer ${expected}`;
+  if (!expected) return { ok: false, statusCode: 503, error: "JEV_API_SECRET_not_configured" };
+  const actual = req.headers.authorization || "";
+  if (actual !== `Bearer ${expected}`) {
+    return { ok: false, statusCode: 401, error: "unauthorized" };
+  }
+  return { ok: true };
 }
 
 async function evaluateOnce(state, questions) {
@@ -182,7 +188,7 @@ async function evaluateOnce(state, questions) {
       state,
       questions
     }),
-    signal: AbortSignal.timeout(60000)
+    signal: AbortSignal.timeout(45000)
   });
 
   const text = await response.text();
@@ -251,17 +257,183 @@ function gatewayCostUsd(results) {
   }, 0);
 }
 
+function usageTotals(results) {
+  return results.reduce((acc, run) => {
+    const gateway = run?.providerMetadata?.gateway || {};
+    const rawCost = gateway.cost ?? gateway.gatewayCost ?? gateway.inferenceCost ?? 0;
+    const cost = Number(rawCost);
+    acc.gatewayCostUsd += Number.isFinite(cost) ? cost : 0;
+    acc.inputTokens += Number(run?.usage?.inputTokens || 0);
+    acc.outputTokens += Number(run?.usage?.outputTokens || 0);
+    return acc;
+  }, { gatewayCostUsd: 0, inputTokens: 0, outputTokens: 0 });
+}
+
+function normalizeTicker(value) {
+  if (typeof value !== "string") return null;
+  const ticker = value.trim().toUpperCase();
+  return ticker || null;
+}
+
+function parseAsofTimestamp(value) {
+  if (typeof value !== "string" || !/([zZ]|[+-]\d{2}:\d{2})$/.test(value)) {
+    const error = new Error("asofTimestamp must be timezone-aware ISO-8601");
+    error.statusCode = 400;
+    error.errorCode = "invalid_asofTimestamp";
+    throw error;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    const error = new Error("Invalid asofTimestamp");
+    error.statusCode = 400;
+    error.errorCode = "invalid_asofTimestamp";
+    throw error;
+  }
+  if (date.getTime() > Date.now()) {
+    const error = new Error("asofTimestamp cannot be in the future");
+    error.statusCode = 400;
+    error.errorCode = "future_asofTimestamp";
+    throw error;
+  }
+  return date.toISOString();
+}
+
+function buildIdentity({ state, asofIso, questionSetVersion, sourceDocumentId, ticker }) {
+  const statePayload = typeof state === "string" ? { text: state } : state;
+  const stateTextHash = sha256Canonical(statePayload);
+  const dedupeKey = sha256Canonical({
+    asof_timestamp: asofIso,
+    question_set_version: questionSetVersion,
+    requested_model: MODEL,
+    source_document_id: sourceDocumentId ?? null,
+    state_text_hash: stateTextHash,
+    ticker
+  });
+  return { statePayload, stateTextHash, dedupeKey };
+}
+
+async function findExistingEvaluation(dedupeKey) {
+  const result = await getPool().query(
+    `SELECT id, ticker, asof_timestamp, evaluation_kind, validation_eligible, run_count, status
+     FROM jev_evaluations
+     WHERE dedupe_key = $1
+     LIMIT 1`,
+    [dedupeKey]
+  );
+  return result.rows[0] || null;
+}
+
+async function startAttempt({
+  ticker,
+  asofIso,
+  questionSetId,
+  evaluationKind,
+  sourceDocumentId,
+  stateTextHash,
+  dedupeKey
+}) {
+  const result = await getPool().query(
+    `INSERT INTO jev_attempts
+      (ticker, asof_timestamp, question_set_id, evaluation_kind, source_document_id,
+       state_text_hash, dedupe_key, run_count, status)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,3,'started')
+     RETURNING id, started_at`,
+    [ticker, asofIso, questionSetId, evaluationKind, sourceDocumentId ?? null, stateTextHash, dedupeKey]
+  );
+  return result.rows[0];
+}
+
+async function finishAttempt(attemptId, {
+  status,
+  startedAt,
+  httpStatus = null,
+  errorCode = null,
+  errorMessage = null,
+  successfulRuns = 0,
+  results = [],
+  evaluationId = null,
+  metadata = {}
+}) {
+  const totals = usageTotals(results);
+  const durationMs = Math.max(0, Date.now() - new Date(startedAt).getTime());
+  const result = await getPool().query(
+    `UPDATE jev_attempts
+     SET status=$2, completed_at=now(), duration_ms=$3, http_status=$4,
+         error_code=$5, error_message=$6, successful_runs=$7,
+         gateway_cost_usd=$8, input_tokens=$9, output_tokens=$10,
+         evaluation_id=$11, metadata=$12::jsonb
+     WHERE id=$1 AND status='started' AND completed_at IS NULL
+     RETURNING id`,
+    [
+      attemptId,
+      status,
+      durationMs,
+      httpStatus,
+      errorCode,
+      errorMessage,
+      successfulRuns,
+      totals.gatewayCostUsd,
+      totals.inputTokens,
+      totals.outputTokens,
+      evaluationId,
+      JSON.stringify(metadata || {})
+    ]
+  );
+  return result.rowCount === 1;
+}
+
+function classifyRunFailure(reason) {
+  const name = reason?.name || "";
+  const message = reason?.message || "";
+  if (name === "TimeoutError" || name === "AbortError" || /timeout|aborted/i.test(message)) {
+    return { status: "timeout", httpStatus: 504, errorCode: "jev_timeout" };
+  }
+  return {
+    status: "gateway_error",
+    httpStatus: reason?.statusCode || 502,
+    errorCode: "jev_gateway_error"
+  };
+}
+
+function summaryText({
+  ticker,
+  asofIso,
+  questionCount,
+  runs,
+  evaluationId,
+  durationMs,
+  gatewayCostUsd,
+  duplicate = false,
+  attemptId = null
+}) {
+  return [
+    duplicate ? "Jev DUPLICATE" : "Jev OK",
+    `Ticker: ${ticker}`,
+    `As-of: ${asofIso}`,
+    `Questions: ${questionCount}`,
+    `Runs: ${runs}`,
+    `Evaluation: #${evaluationId}`,
+    `Attempt: ${attemptId ? "#" + attemptId : "-"}`,
+    `Duration: ${durationMs} ms`,
+    `Cost: $${Number(gatewayCostUsd || 0).toFixed(6)}`
+  ].join("\n");
+}
+
 async function persistEvaluation({
-  state,
+  statePayload,
+  stateTextHash,
+  dedupeKey,
   questions,
   runs,
   results,
   aggregate,
   durationMs,
   ticker,
-  asofTimestamp,
+  asofIso,
   questionSetVersion,
-  sourceDocumentId
+  sourceDocumentId,
+  evaluationKind,
+  validationEligible
 }) {
   const db = getPool();
   const client = await db.connect();
@@ -347,32 +519,19 @@ async function persistEvaluation({
     );
     const modelVersion = mvResult.rows[0];
 
-    const statePayload = typeof state === "string" ? { text: state } : state;
-    const stateHash = sha256Canonical(statePayload);
-    const asof = asofTimestamp ? new Date(asofTimestamp) : new Date();
-    if (Number.isNaN(asof.getTime())) throw new Error("Invalid asofTimestamp");
-
-    const dedupeKey = sha256Canonical({
-      asof_timestamp: asof.toISOString(),
-      question_set_version: questionSetVersion,
-      requested_model: MODEL,
-      source_document_id: sourceDocumentId ?? null,
-      state_text_hash: stateHash,
-      ticker: ticker ? String(ticker).trim().toUpperCase() : null
-    });
-
     const evalResult = await client.query(
       `INSERT INTO jev_evaluations
         (dedupe_key, ticker, asof_timestamp, source_document_id, question_set_id,
          model_version_id, requested_model, response_model, model_revision,
          state_payload, state_text_hash, hash_canonicalization_version,
-         run_count, duration_ms, aggregate_json, status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15::jsonb,'success')
+         run_count, duration_ms, aggregate_json, status, evaluation_kind, validation_eligible)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15::jsonb,'success',$16,$17)
+       ON CONFLICT (dedupe_key) DO NOTHING
        RETURNING id`,
       [
         dedupeKey,
-        ticker ? String(ticker).trim().toUpperCase() : null,
-        asof.toISOString(),
+        ticker,
+        asofIso,
         sourceDocumentId ?? null,
         qset.id,
         modelVersion.id,
@@ -380,13 +539,31 @@ async function persistEvaluation({
         responseModel,
         modelRevision,
         JSON.stringify(statePayload),
-        stateHash,
+        stateTextHash,
         CANON_VERSION,
         runs,
         durationMs,
-        JSON.stringify(aggregate)
+        JSON.stringify(aggregate),
+        evaluationKind,
+        Boolean(validationEligible)
       ]
     );
+
+    if (evalResult.rowCount !== 1) {
+      await client.query("ROLLBACK");
+      const existing = await findExistingEvaluation(dedupeKey);
+      return {
+        saved: false,
+        duplicateRace: true,
+        evaluationId: existing ? String(existing.id) : null,
+        existingKind: existing?.evaluation_kind || null,
+        stateTextHash,
+        modelVersionKey,
+        questionSetVersion,
+        canonicalizationVersion: CANON_VERSION
+      };
+    }
+
     const evaluationId = evalResult.rows[0].id;
 
     for (let i = 0; i < results.length; i++) {
@@ -418,8 +595,6 @@ async function persistEvaluation({
         const probs = feature.rawAnswers.map(getProbability).filter((v) => typeof v === "number");
         if (probs.length !== runs) throw new Error(`Missing boolean probabilities for ${row.question_id}`);
         const labels = probs.map((p) => p >= row.binary_threshold ? "1" : "0");
-        const binaryDisagreementRate = majorityDisagreement(labels);
-
         await client.query(
           `INSERT INTO jev_text_features
             (evaluation_id, question_id, answer_type, probability_mean, probability_std,
@@ -431,7 +606,7 @@ async function persistEvaluation({
             mean(probs),
             std(probs),
             row.binary_threshold,
-            binaryDisagreementRate,
+            majorityDisagreement(labels),
             JSON.stringify(feature.rawAnswers)
           ]
         );
@@ -441,8 +616,6 @@ async function persistEvaluation({
         if (choices.length !== runs || probs.length !== runs) {
           throw new Error(`Missing choice values/probabilities for ${row.question_id}`);
         }
-        const distribution = feature.choiceDistribution || {};
-
         await client.query(
           `INSERT INTO jev_text_features
             (evaluation_id, question_id, answer_type, probability_mean, probability_std,
@@ -454,7 +627,7 @@ async function persistEvaluation({
             mean(probs),
             std(probs),
             feature.majorityChoice,
-            JSON.stringify(distribution),
+            JSON.stringify(feature.choiceDistribution || {}),
             feature.choiceDisagreementRate ?? 0,
             JSON.stringify(feature.rawAnswers)
           ]
@@ -462,7 +635,6 @@ async function persistEvaluation({
       } else if (row.question_type === "score") {
         const scores = feature.rawAnswers.map(getScore).filter((v) => typeof v === "number");
         if (scores.length !== runs) throw new Error(`Missing scores for ${row.question_id}`);
-
         await client.query(
           `INSERT INTO jev_text_features
             (evaluation_id, question_id, answer_type, score_mean, score_std,
@@ -484,14 +656,15 @@ async function persistEvaluation({
     await client.query("COMMIT");
     return {
       saved: true,
+      duplicateRace: false,
       evaluationId: String(evaluationId),
-      stateTextHash: stateHash,
+      stateTextHash,
       modelVersionKey,
       questionSetVersion,
       canonicalizationVersion: CANON_VERSION
     };
   } catch (error) {
-    await client.query("ROLLBACK");
+    try { await client.query("ROLLBACK"); } catch {}
     throw error;
   } finally {
     client.release();
@@ -536,17 +709,20 @@ export default async function handler(req, res) {
       },
       fullSetMode: {
         supported: Boolean(process.env.DATABASE_URL),
-        usage: "Omit questions and provide questionSetVersion to load all active questions from Neon"
+        usage: "For persisted evaluations, omit questions and provide questionSetVersion"
       },
       questionSet,
       input: {
         state: "string | object | array",
-        questions: "optional object; omit to auto-load full question set from Neon",
-        runs: "optional integer 1..5; defaults to question-set default or 3",
+        questions: "allowed only when persist=false",
+        runs: "persist=true requires exactly 3; otherwise 1..5",
         persist: "optional boolean, default false",
-        ticker: "recommended for ticker-specific evaluations",
-        questionSetVersion: "required for persistence or full-set auto-load",
-        asofTimestamp: "optional ISO-8601 timestamp"
+        ticker: "required when persist=true",
+        questionSetVersion: "required when persist=true or auto-loading a question set",
+        asofTimestamp: "required timezone-aware ISO-8601 when persist=true",
+        evaluationKind: "required when persist=true: smoke|manual_shadow|backfill|live",
+        validationEligible: "optional boolean; DB only permits true for eligible sourced backfill/live rows",
+        responseMode: "optional: summary"
       }
     });
   }
@@ -555,21 +731,43 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: "method_not_allowed" });
   }
 
-  if (!isAuthorized(req)) {
-    return res.status(401).json({ ok: false, error: "unauthorized" });
+  const auth = authStatus(req);
+  if (!auth.ok) {
+    return res.status(auth.statusCode).json({ ok: false, error: auth.error });
   }
 
   const body = req.body || {};
   const { state } = body;
   const persist = body.persist === true;
+  const responseMode = body.responseMode === "summary" ? "summary" : "json";
 
   if (state === undefined || state === null) {
     return res.status(400).json({ ok: false, error: "state_required" });
   }
 
-  if (persist && !body.questionSetVersion) {
-    return res.status(400).json({ ok: false, error: "questionSetVersion_required_when_persisting" });
+  if (persist) {
+    if (!body.questionSetVersion) {
+      return res.status(400).json({ ok: false, error: "questionSetVersion_required_when_persisting" });
+    }
+    if (body.questions !== undefined) {
+      return res.status(400).json({ ok: false, error: "questions_forbidden_when_persisting" });
+    }
+    if (!normalizeTicker(body.ticker)) {
+      return res.status(400).json({ ok: false, error: "ticker_required_when_persisting" });
+    }
+    if (!body.asofTimestamp) {
+      return res.status(400).json({ ok: false, error: "asofTimestamp_required_when_persisting" });
+    }
+    if (!["smoke","manual_shadow","backfill","live"].includes(body.evaluationKind)) {
+      return res.status(400).json({ ok: false, error: "evaluationKind_required_when_persisting" });
+    }
+    if (body.runs !== undefined && body.runs !== 3) {
+      return res.status(400).json({ ok: false, error: "persisted_runs_must_equal_3" });
+    }
   }
+
+  let attempt = null;
+  let fulfilledResults = [];
 
   try {
     let questions = body.questions;
@@ -592,63 +790,328 @@ export default async function handler(req, res) {
       loadedQuestionSet = await loadQuestionSet(body.questionSetVersion);
       questions = loadedQuestionSet.questions;
       questionSource = "neon";
+
+      if (
+        persist &&
+        body.questionSetVersion === "jev-text-v1" &&
+        Object.keys(questions).length !== 15
+      ) {
+        return res.status(500).json({
+          ok: false,
+          error: "jev_text_v1_question_count_mismatch",
+          expected: 15,
+          actual: Object.keys(questions).length
+        });
+      }
     }
 
-    const runs = Number.isInteger(body.runs)
-      ? body.runs
-      : (loadedQuestionSet?.defaultRuns || 3);
+    const runs = persist
+      ? 3
+      : (Number.isInteger(body.runs) ? body.runs : (loadedQuestionSet?.defaultRuns || 3));
 
     if (runs < 1 || runs > 5) {
       return res.status(400).json({ ok: false, error: "runs_must_be_between_1_and_5" });
     }
 
-    const startedAt = Date.now();
-    const results = await Promise.all(
-      Array.from({ length: runs }, () => evaluateOnce(state, questions))
-    );
-    const durationMs = Date.now() - startedAt;
-    const aggregate = aggregateRuns(results);
-
-    let persistence = { saved: false };
-    if (persist) {
-      persistence = await persistEvaluation({
-        state,
-        questions,
+    if (!persist) {
+      const startedAt = Date.now();
+      const results = await Promise.all(
+        Array.from({ length: runs }, () => evaluateOnce(state, questions))
+      );
+      const durationMs = Date.now() - startedAt;
+      return res.status(200).json({
+        ok: true,
+        model: MODEL,
         runs,
-        results,
-        aggregate,
+        questionSource,
+        questionCount: Object.keys(questions).length,
         durationMs,
-        ticker: body.ticker || null,
-        asofTimestamp: body.asofTimestamp || null,
-        questionSetVersion: body.questionSetVersion,
-        sourceDocumentId: body.sourceDocumentId || null
+        gatewayCostUsd: gatewayCostUsd(results),
+        aggregate: aggregateRuns(results),
+        rawRuns: results,
+        persistence: { saved: false }
       });
     }
 
-    return res.status(200).json({
+    const ticker = normalizeTicker(body.ticker);
+    const asofIso = parseAsofTimestamp(body.asofTimestamp);
+    const evaluationKind = body.evaluationKind;
+    const sourceDocumentId = body.sourceDocumentId ?? null;
+    const validationEligible = body.validationEligible === true;
+
+    if (
+      validationEligible &&
+      (!["backfill","live"].includes(evaluationKind) || sourceDocumentId === null)
+    ) {
+      return res.status(400).json({ ok: false, error: "validationEligible_requires_sourced_backfill_or_live" });
+    }
+
+    const identity = buildIdentity({
+      state,
+      asofIso,
+      questionSetVersion: body.questionSetVersion,
+      sourceDocumentId,
+      ticker
+    });
+
+    try {
+      attempt = await startAttempt({
+        ticker,
+        asofIso,
+        questionSetId: loadedQuestionSet.id,
+        evaluationKind,
+        sourceDocumentId,
+        stateTextHash: identity.stateTextHash,
+        dedupeKey: identity.dedupeKey
+      });
+    } catch (error) {
+      console.error("jev_attempt_start_failed", { message: error?.message });
+      return res.status(503).json({ ok: false, error: "attempt_log_unavailable" });
+    }
+
+    const existing = await findExistingEvaluation(identity.dedupeKey);
+    if (existing) {
+      if (existing.evaluation_kind !== evaluationKind) {
+        await finishAttempt(attempt.id, {
+          status: "duplicate",
+          startedAt: attempt.started_at,
+          httpStatus: 409,
+          errorCode: "dedupe_kind_conflict",
+          errorMessage: `Existing evaluation kind is ${existing.evaluation_kind || "null"}`,
+          evaluationId: existing.id,
+          metadata: { requestedKind: evaluationKind, existingKind: existing.evaluation_kind || null }
+        });
+        return res.status(409).json({
+          ok: false,
+          error: "dedupe_kind_conflict",
+          existingEvaluationId: String(existing.id),
+          existingKind: existing.evaluation_kind || null
+        });
+      }
+
+      await finishAttempt(attempt.id, {
+        status: "duplicate",
+        startedAt: attempt.started_at,
+        httpStatus: 200,
+        evaluationId: existing.id
+      });
+
+      const duplicatePayload = {
+        ok: true,
+        duplicate: true,
+        ticker,
+        asofTimestamp: asofIso,
+        questionCount: Object.keys(questions).length,
+        runs: 3,
+        evaluationId: String(existing.id),
+        durationMs: 0,
+        gatewayCostUsd: 0,
+        attemptId: String(attempt.id)
+      };
+
+      if (responseMode === "summary") {
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        return res.status(200).send(summaryText({ ...duplicatePayload, asofIso }));
+      }
+      return res.status(200).json(duplicatePayload);
+    }
+
+    const startedAt = Date.now();
+    const settled = await Promise.allSettled(
+      Array.from({ length: 3 }, () => evaluateOnce(state, questions))
+    );
+    const durationMs = Date.now() - startedAt;
+    fulfilledResults = settled
+      .filter((item) => item.status === "fulfilled")
+      .map((item) => item.value);
+
+    const rejected = settled.filter((item) => item.status === "rejected");
+    if (rejected.length) {
+      const firstFailure = classifyRunFailure(rejected[0].reason);
+      const terminalStatus = fulfilledResults.length > 0 ? "partial" : firstFailure.status;
+      await finishAttempt(attempt.id, {
+        status: terminalStatus,
+        startedAt: attempt.started_at,
+        httpStatus: firstFailure.httpStatus,
+        errorCode: firstFailure.errorCode,
+        errorMessage: rejected[0].reason?.message || "Jev run failed",
+        successfulRuns: fulfilledResults.length,
+        results: fulfilledResults,
+        metadata: { failedRuns: rejected.length }
+      });
+      return res.status(firstFailure.httpStatus).json({
+        ok: false,
+        error: terminalStatus,
+        successfulRuns: fulfilledResults.length,
+        failedRuns: rejected.length
+      });
+    }
+
+    const aggregate = aggregateRuns(fulfilledResults);
+    const questionIds = Object.keys(questions);
+    if (
+      Object.keys(aggregate).length !== questionIds.length ||
+      questionIds.some((id) => !aggregate[id] || aggregate[id].rawAnswers.length !== 3)
+    ) {
+      await finishAttempt(attempt.id, {
+        status: "partial",
+        startedAt: attempt.started_at,
+        httpStatus: 502,
+        errorCode: "incomplete_question_set",
+        errorMessage: "Not all questions returned three answers",
+        successfulRuns: 3,
+        results: fulfilledResults
+      });
+      return res.status(502).json({ ok: false, error: "incomplete_question_set" });
+    }
+
+    const persistence = await persistEvaluation({
+      statePayload: identity.statePayload,
+      stateTextHash: identity.stateTextHash,
+      dedupeKey: identity.dedupeKey,
+      questions,
+      runs: 3,
+      results: fulfilledResults,
+      aggregate,
+      durationMs,
+      ticker,
+      asofIso,
+      questionSetVersion: body.questionSetVersion,
+      sourceDocumentId,
+      evaluationKind,
+      validationEligible
+    });
+
+    if (persistence.duplicateRace) {
+      if (persistence.existingKind !== evaluationKind) {
+        await finishAttempt(attempt.id, {
+          status: "duplicate",
+          startedAt: attempt.started_at,
+          httpStatus: 409,
+          errorCode: "dedupe_kind_conflict",
+          errorMessage: `Existing evaluation kind is ${persistence.existingKind || "null"}`,
+          successfulRuns: 3,
+          results: fulfilledResults,
+          evaluationId: persistence.evaluationId
+        });
+        return res.status(409).json({
+          ok: false,
+          error: "dedupe_kind_conflict",
+          existingEvaluationId: persistence.evaluationId,
+          existingKind: persistence.existingKind
+        });
+      }
+
+      await finishAttempt(attempt.id, {
+        status: "duplicate",
+        startedAt: attempt.started_at,
+        httpStatus: 200,
+        successfulRuns: 3,
+        results: fulfilledResults,
+        evaluationId: persistence.evaluationId,
+        metadata: { concurrentDuplicate: true }
+      });
+
+      const totals = usageTotals(fulfilledResults);
+      const duplicatePayload = {
+        ok: true,
+        duplicate: true,
+        ticker,
+        asofTimestamp: asofIso,
+        questionCount: Object.keys(questions).length,
+        runs: 3,
+        evaluationId: persistence.evaluationId,
+        durationMs,
+        gatewayCostUsd: totals.gatewayCostUsd,
+        attemptId: String(attempt.id)
+      };
+      if (responseMode === "summary") {
+        res.setHeader("Content-Type", "text/plain; charset=utf-8");
+        return res.status(200).send(summaryText({ ...duplicatePayload, asofIso }));
+      }
+      return res.status(200).json(duplicatePayload);
+    }
+
+    let attemptFinalized = true;
+    try {
+      attemptFinalized = await finishAttempt(attempt.id, {
+        status: "success",
+        startedAt: attempt.started_at,
+        httpStatus: 200,
+        successfulRuns: 3,
+        results: fulfilledResults,
+        evaluationId: persistence.evaluationId
+      });
+    } catch (error) {
+      attemptFinalized = false;
+      console.error("jev_attempt_finalize_failed", { message: error?.message, attemptId: attempt.id });
+    }
+
+    const totals = usageTotals(fulfilledResults);
+    const payload = {
       ok: true,
+      duplicate: false,
       model: MODEL,
-      runs,
+      ticker,
+      asofTimestamp: asofIso,
+      runs: 3,
       questionSource,
       questionCount: Object.keys(questions).length,
       durationMs,
-      gatewayCostUsd: gatewayCostUsd(results),
+      gatewayCostUsd: totals.gatewayCostUsd,
+      evaluationId: persistence.evaluationId,
+      attemptId: String(attempt.id),
+      attemptFinalized,
+      persistence,
       aggregate,
-      rawRuns: results,
-      persistence
-    });
+      rawRuns: fulfilledResults
+    };
+
+    if (responseMode === "summary") {
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      return res.status(200).send(summaryText({
+        ticker,
+        asofIso,
+        questionCount: payload.questionCount,
+        runs: 3,
+        evaluationId: payload.evaluationId,
+        durationMs,
+        gatewayCostUsd: totals.gatewayCostUsd,
+        attemptId: payload.attemptId
+      }));
+    }
+
+    return res.status(200).json(payload);
   } catch (error) {
     console.error("jev_evaluate_failed", {
       message: error?.message,
       statusCode: error?.statusCode,
-      details: error?.details
+      errorCode: error?.errorCode
     });
+
+    if (attempt) {
+      try {
+        await finishAttempt(attempt.id, {
+          status: "db_error",
+          startedAt: attempt.started_at,
+          httpStatus: error?.statusCode || 500,
+          errorCode: error?.errorCode || "jev_evaluate_failed",
+          errorMessage: error?.message || "Unknown error",
+          successfulRuns: fulfilledResults.length,
+          results: fulfilledResults
+        });
+      } catch (attemptError) {
+        console.error("jev_attempt_finalize_failed", {
+          message: attemptError?.message,
+          attemptId: attempt.id
+        });
+      }
+    }
 
     return res.status(error?.statusCode || 500).json({
       ok: false,
-      error: "jev_evaluate_failed",
-      message: error?.message || "Unknown error",
-      details: error?.details || null
+      error: error?.errorCode || "jev_evaluate_failed",
+      message: error?.message || "Unknown error"
     });
   }
 }
