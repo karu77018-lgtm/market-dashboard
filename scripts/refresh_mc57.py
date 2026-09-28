@@ -25,8 +25,13 @@ from provider_inputs import (  # noqa: E402
     fetch_fred_inputs,
     fetch_massive_grouped_history,
     fetch_massive_reference,
+    grouped_history_from_yahoo_ohlcv,
+    load_massive_grouped_cache,
+    load_massive_reference_cache,
+    record_grouped_fallback,
     secret_from_env,
     select_expanded_universe,
+    select_preserved_count_fallback_universe,
 )
 
 
@@ -159,6 +164,33 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
         "target_session_received": target_ok, "target_session_coverage": coverage,
         "failed_tickers": failed, "incremental_cache_used": bool(cached_tickers),
     }
+
+
+def prior_universe_tickers(root: Path, ohlcv_path: Path) -> list[str]:
+    if ohlcv_path.is_file():
+        try:
+            frame = pd.read_csv(ohlcv_path, usecols=["ticker"])
+            tickers = sorted(set(frame["ticker"].dropna().astype(str).str.upper()))
+            if tickers:
+                return tickers
+        except Exception:
+            pass
+    index_path = root / "chart-data" / "index.json"
+    if index_path.is_file():
+        payload = json.loads(index_path.read_text(encoding="utf-8"))
+        mapping = payload.get("ticker_to_shard")
+        if isinstance(mapping, dict) and mapping:
+            return sorted(str(ticker).upper() for ticker in mapping)
+    raise ProviderError("Yahoo fallback cannot recover the prior universe ticker list")
+
+
+def prior_universe_count(root: Path, tickers: list[str]) -> int:
+    try:
+        manifest = json.loads((root / "latest-manifest.json").read_text(encoding="utf-8"))
+        count = int(manifest.get("universe", {}).get("active_universe", 0))
+        return count if count > 0 else len(tickers)
+    except Exception:
+        return len(tickers)
 
 
 def _price_frame(raw: pd.DataFrame, symbol: str) -> pd.Series:
@@ -309,7 +341,10 @@ def main() -> int:
     data, work = root / "data", root / "work"
     data.mkdir(parents=True, exist_ok=True)
     generated_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
-    massive_key = secret_from_env(("MASSIVE_API_KEY", "POLYGON_API_KEY"))
+    try:
+        massive_key = secret_from_env(("MASSIVE_API_KEY", "POLYGON_API_KEY"))
+    except ProviderError:
+        massive_key = ""
     fred_key = secret_from_env(("FRED_API_KEY",))
     sessions = recent_completed_sessions(20)
     target = sessions[-1]
@@ -317,15 +352,44 @@ def main() -> int:
 
     tv = la.fetch_tradingview_response()
     broad_universe, tradingview_stats = la.parse_tradingview_universe(tv, session_date=target)
-    reference, reference_stats = fetch_massive_reference(
-        massive_key, work / "massive-reference.json", asof_date=target,
-    )
-    grouped, grouped_stats = fetch_massive_grouped_history(
-        massive_key, sessions, set(reference), work / "massive-grouped.json",
-    )
-    universe, expansion_stats = select_expanded_universe(
-        broad_universe, reference, grouped, target_session=target,
-    )
+    fallback_reason = ""
+    try:
+        if not massive_key:
+            raise ProviderError("Massive API key is unavailable")
+        reference, reference_stats = fetch_massive_reference(
+            massive_key, work / "massive-reference.json", asof_date=target,
+        )
+    except ProviderError as exc:
+        fallback_reason = str(exc)
+        reference = load_massive_reference_cache(work / "massive-reference.json")
+        reference_stats = {"status": "CACHED_FALLBACK", "source": "cache", "reason": fallback_reason,
+                           "eligible_reference_tickers": len(reference)}
+    try:
+        if not massive_key:
+            raise ProviderError("Massive API key is unavailable")
+        grouped, grouped_stats = fetch_massive_grouped_history(
+            massive_key, sessions, set(reference), work / "massive-grouped.json",
+        )
+    except ProviderError as exc:
+        fallback_reason = str(exc)
+        grouped = load_massive_grouped_cache(work / "massive-grouped.json")
+        grouped_stats = {"status": "YAHOO_FALLBACK", "reason": fallback_reason,
+                         "latest_session": max(grouped), "sessions": len(grouped),
+                         "requested_sessions": len(sessions), "fetched_sessions": []}
+
+    yahoo_fallback = bool(fallback_reason) or target not in grouped
+    if yahoo_fallback:
+        prior_tickers = prior_universe_tickers(root, work / "ohlcv.csv")
+        frozen_count = prior_universe_count(root, prior_tickers)
+        universe, expansion_stats = select_preserved_count_fallback_universe(
+            broad_universe, reference, grouped, preserved_tickers=prior_tickers,
+            target_count=frozen_count,
+        )
+        record_grouped_fallback(work / "massive-grouped.json", target, fallback_reason or "current session unavailable")
+    else:
+        universe, expansion_stats = select_expanded_universe(
+            broad_universe, reference, grouped, target_session=target,
+        )
     universe_stats = {
         **tradingview_stats, **expansion_stats,
         "broad_tradingview_universe": len(broad_universe),
@@ -335,7 +399,8 @@ def main() -> int:
     tickers = [r["ticker"] for r in universe]
     rs = {"session_date": target, "generated_at": generated_at, "status": "READY",
           "coverage": 1.0, "coverage_detail": universe_stats, "rows": universe,
-          "source": "TradingView fundamentals + Massive reference/grouped daily"}
+          "source": ("TradingView fundamentals + cached Massive reference + Yahoo current OHLCV"
+                     if yahoo_fallback else "TradingView fundamentals + Massive reference/grouped daily")}
     dump(data / "rs.json", rs)
     mktcap = {r["ticker"]: {"value": r["market_cap"], "checked_at": generated_at, "status": "ok"}
                for r in universe}
@@ -348,23 +413,35 @@ def main() -> int:
     dump(data / "theme_membership.json", theme)
 
     yahoo_stats = stock_ohlcv(tickers, target, work / "ohlcv.csv")
-    market_structure = compute_massive_market_structure(tickers, grouped, target_session=target)
-    cross_vendor = compare_current_closes(
-        work / "ohlcv.csv", grouped, target_session=target, universe_count=len(tickers),
-    )
-    if cross_vendor["coverage"] < .95:
-        raise RuntimeError(
-            f"Yahoo/Massive cross-vendor current-close coverage below 95%: {cross_vendor['coverage']:.4f}"
+    if yahoo_fallback:
+        structure_history = grouped_history_from_yahoo_ohlcv(
+            work / "ohlcv.csv", tickers, target_session=target,
         )
+        market_structure = compute_massive_market_structure(
+            tickers, structure_history, target_session=target,
+            source="Yahoo Finance adjusted OHLCV fallback",
+        )
+        cross_vendor = {"status": "NOT_APPLICABLE", "coverage": None,
+                        "reason": "Massive current-session grouped data unavailable"}
+    else:
+        market_structure = compute_massive_market_structure(tickers, grouped, target_session=target)
+        cross_vendor = compare_current_closes(
+            work / "ohlcv.csv", grouped, target_session=target, universe_count=len(tickers),
+        )
+        if cross_vendor["coverage"] < .95:
+            raise RuntimeError(
+                f"Yahoo/Massive cross-vendor current-close coverage below 95%: {cross_vendor['coverage']:.4f}"
+            )
     fred = fetch_fred_inputs(
         fred_key, target_session=target, generated_at=generated_at,
     )
     provider_inputs = {
         "schema": "source-mc57.provider-inputs.1", "session_date": target,
         "generated_at": generated_at, "massive": {
-            "status": "READY", "reference": reference_stats,
+            "status": "FALLBACK_YAHOO" if yahoo_fallback else "READY", "reference": reference_stats,
             "grouped": grouped_stats, "market_structure": market_structure,
             "cross_vendor": cross_vendor,
+            "fallback_reason": fallback_reason or None,
         },
         "fred": fred,
     }
@@ -384,8 +461,10 @@ def main() -> int:
                      "mcap_coverage": len(mktcap) / len(universe),
                      "provider_status": {
                          "fred": fred["status"], "fred_required_coverage": fred["required_coverage"],
-                         "massive": "READY", "massive_current_coverage": expansion_stats["massive_current_coverage"],
+                         "massive": "FALLBACK_YAHOO" if yahoo_fallback else "READY",
+                         "massive_current_coverage": (None if yahoo_fallback else expansion_stats["massive_current_coverage"]),
                          "cross_vendor_coverage": cross_vendor["coverage"],
+                         "current_session_provider": "Yahoo Finance" if yahoo_fallback else "Massive",
                      },
                      "universe_expansion": {
                          "legacy": expansion_stats["legacy_universe"],
