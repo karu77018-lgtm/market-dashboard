@@ -441,7 +441,7 @@ def main() -> int:
         write_summary(output_path, summary)
         append_actions_summary(summary)
         print(f"::warning title=Jev live shadow not configured::Missing {', '.join(missing)}")
-        return 0
+        return 1
 
     jev_url = validate_jev_url(os.environ.get("JEV_API_URL", DEFAULT_JEV_URL).strip())
     start = cutoff - timedelta(days=args.lookback_days)
