@@ -42,9 +42,9 @@ SECRET_ENV_NAMES = (
 )
 
 SUSPICIOUS_PATTERNS = (
-    ("api_key_query", re.compile(rb"(?i)(?:api[_-]?key|apikey)=[^&\\s\\\"'<>]{6,}")),
-    ("bearer_token", re.compile(rb"(?i)\\bbearer\\s+[A-Za-z0-9._~+\\-/=]{12,}")),
-    ("postgres_url", re.compile(rb"(?i)\\bpostgres(?:ql)?://[^\\s\\\"'<>]+")),
+    ("api_key_query", re.compile(rb"(?i)(?:api[_-]?key|apikey)=[^&\s\"'<>]{6,}")),
+    ("bearer_token", re.compile(rb"(?i)\bbearer\s+[A-Za-z0-9._~+\-/=]{12,}")),
+    ("postgres_url", re.compile(rb"(?i)\bpostgres(?:ql)?://[^\s\"'<>]+")),
 )
 
 
