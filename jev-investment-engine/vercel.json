@@ -3,5 +3,8 @@
     "pages/api/*.js": {
       "maxDuration": 60
     }
+  },
+  "git": {
+    "deploymentEnabled": false
   }
 }
