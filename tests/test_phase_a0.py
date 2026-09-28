@@ -42,6 +42,12 @@ def test_secret_scan_allows_environment_reference(tmp_path: Path) -> None:
     assert run_script("scripts/phase_a0/scan_secrets.py", "safe.yml", cwd=tmp_path).returncode == 0
 
 
+def test_secret_scan_allows_named_runtime_variable_reference(tmp_path: Path) -> None:
+    key_name = "api" + "_key"
+    (tmp_path / "safe.py").write_text(f"fetch({key_name}=massive_key)\n", encoding="utf-8")
+    assert run_script("scripts/phase_a0/scan_secrets.py", "safe.py", cwd=tmp_path).returncode == 0
+
+
 def test_secret_scan_detects_unquoted_assignment(tmp_path: Path) -> None:
     key_name = "api" + "_key"
     (tmp_path / "bad.yml").write_text(f"{key_name}: super-secret-value-123\n", encoding="utf-8")
