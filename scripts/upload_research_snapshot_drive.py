@@ -132,6 +132,7 @@ def main() -> int:
     base = {
         "session_date": archive_result["session_date"],
         "github_run_id": archive_result["github_run_id"],
+        "github_run_attempt": archive_result["github_run_attempt"],
         "archive_sha256": archive_result["archive_sha256"],
         "archive_name": archive_result["archive_name"],
         "attempted_at": utc_now(),
