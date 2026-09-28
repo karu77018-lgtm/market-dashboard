@@ -17,6 +17,7 @@ from run_jev_live_shadow import (  # noqa: E402
     embedded_json,
     evaluate_jev,
     load_dashboard,
+    main,
     normalize_news,
     validate_jev_url,
 )
@@ -151,3 +152,35 @@ def test_evaluate_jev_uses_fixed_persisted_shadow_contract():
     assert client.request["json"]["evaluationKind"] == "live"
     assert client.request["json"]["validationEligible"] is False
     assert client.request["json"]["asofTimestamp"] == "2026-09-28T12:00:00Z"
+
+
+def test_missing_required_configuration_is_a_failed_shadow_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    (tmp_path / "latest-manifest.json").write_text(
+        json.dumps({"session_date": "2026-09-25", "generated_at": "2026-09-28T12:00:00Z"}),
+        encoding="utf-8",
+    )
+    (tmp_path / "source-mc57.html").write_text(
+        '<script>window.DET={"AAA":{"sec":"Tech"}};</script>'
+        '<script>window.CALC={"names":[{"t":"AAA","rk":1,"rs":99}]};</script>',
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("MASSIVE_API_KEY", raising=False)
+    monkeypatch.delenv("JEV_API_SECRET", raising=False)
+    monkeypatch.setattr(sys, "argv", ["run_jev_live_shadow.py", "--root", str(tmp_path)])
+
+    assert main() == 1
+    summary = json.loads(
+        (tmp_path / ".preservation/jev/live-shadow-summary.json").read_text(encoding="utf-8")
+    )
+    assert summary["status"] == "configuration_missing"
+    assert summary["missing"] == ["MASSIVE_API_KEY", "JEV_API_SECRET"]
+
+
+def test_jev_audit_artifact_includes_hidden_summary():
+    workflow = (ROOT / ".github/workflows/refresh-source-mc57.yml").read_text(encoding="utf-8")
+    block = workflow.split("- name: Save Jev shadow audit summary", 1)[1].split(
+        "- name: Report Jev shadow failure", 1
+    )[0]
+    assert "include-hidden-files: true" in block
