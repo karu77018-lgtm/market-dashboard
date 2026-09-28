@@ -1,4 +1,5 @@
 data/
 work/
+.preservation/
 __pycache__/
 *.pyc

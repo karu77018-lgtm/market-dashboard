@@ -6,16 +6,10 @@ on:
     - cron: "45 21 * * 1-5"
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/refresh-source-mc57.yml"
-      - "scripts/**"
-      - "src/**"
-      - "bootstrap/**"
-      - "sources/**"
-      - "seed/**"
-      - "tests/**"
+    paths: [".github/workflows/refresh-source-mc57.yml", "scripts/**", "src/**", "bootstrap/**", "sources/**", "seed/**", "tests/**"]
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -32,34 +26,34 @@ jobs:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
+        with: {fetch-depth: 1}
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-
+        with: {python-version: "3.11", cache: pip}
       - name: Restore audited source assets
         run: tar -xJf bootstrap/recovery-assets.tar.xz
-
       - name: Install exact acquisition dependencies
         run: >-
-          python -m pip install
-          "numpy<3" "pandas<3" "yfinance==0.2.66"
-          requests beautifulsoup4 lxml pytest
-
+          python -m pip install "numpy<3" "pandas<3" "yfinance==0.2.66"
+          "psycopg[binary]==3.2.10" requests beautifulsoup4 lxml pytest
       - name: Verify FRED secret
-        shell: bash
         run: test -n "$FRED_API_KEY"
-
       - name: Verify Massive secret
-        shell: bash
         run: test -n "$MASSIVE_API_KEY"
-
+      - name: Verify private preservation secrets
+        env:
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          test -n "$GOOGLE_DRIVE_CLIENT_ID"
+          test -n "$GOOGLE_DRIVE_CLIENT_SECRET"
+          test -n "$GOOGLE_DRIVE_REFRESH_TOKEN"
+          test -n "$GOOGLE_DRIVE_FOLDER_ID"
+          test -n "$NEON_DATABASE_URL"
       - name: Run deterministic provider tests
         run: python -m pytest
-
       - name: Restore prior successful OHLCV baseline
         uses: actions/cache@v4
         with:
@@ -68,9 +62,7 @@ jobs:
             work/massive-reference.json
             work/massive-grouped.json
           key: source-mc57-ohlcv-${{ github.run_id }}
-          restore-keys: |
-            source-mc57-ohlcv-
-
+          restore-keys: source-mc57-ohlcv-
       - name: Acquire current session and calculate MC57
         shell: bash
         run: |
@@ -84,7 +76,6 @@ jobs:
             echo "::error title=source-mc57 acquisition::${code}"
             exit "$status"
           fi
-
       - name: Preserve failed acquisition cache
         if: failure()
         uses: actions/cache/save@v4
@@ -94,30 +85,104 @@ jobs:
             work/massive-reference.json
             work/massive-grouped.json
           key: source-mc57-ohlcv-${{ github.run_id }}
-
       - name: Build frozen source page with current data
         run: >-
-          python scripts/build_exact_source_mc57_clone.py
-          --repo-root . --data-dir data
-          --source-dir sources/build_dashboard_4
-          --work-dir work --output source-mc57.html
-
+          python scripts/build_exact_source_mc57_clone.py --repo-root . --data-dir data
+          --source-dir sources/build_dashboard_4 --work-dir work --output source-mc57.html
       - name: Add post-September-16 improvements
-        shell: bash
         run: |
           session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
-          python scripts/enhance_source_mc57.py \
-            --html source-mc57.html --ohlcv work/ohlcv.csv \
+          python scripts/enhance_source_mc57.py --html source-mc57.html --ohlcv work/ohlcv.csv \
             --chart-dir chart-data --session "$session"
-
       - name: Publication gates
         run: python scripts/validate_publication.py --root .
-
-      - name: Save reproducible preservation snapshot
+      - name: Resolve immutable run metadata
+        id: run_meta
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: |
+          started_at="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --jq .run_started_at)"
+          test -n "$started_at" && test "$started_at" != "null"
+          session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
+          echo "actions_started_at=$started_at" >> "$GITHUB_OUTPUT"
+          echo "session_date=$session" >> "$GITHUB_OUTPUT"
+      - name: Secret leak gate
+        run: >-
+          python scripts/phase_a0/scan_secrets.py --root . --include-tracked
+          source-mc57.html chart-data latest-manifest.json data work/ohlcv.csv
+          work/massive-reference.json work/massive-grouped.json
+      - name: Build complete private snapshot and SHA-256 manifest
+        id: snapshot
+        run: >-
+          python scripts/phase_a0/build_snapshot.py --root .
+          --session-date "${{ steps.run_meta.outputs.session_date }}" --run-id "${{ github.run_id }}"
+          --run-attempt "${{ github.run_attempt }}"
+          --actions-started-at "${{ steps.run_meta.outputs.actions_started_at }}"
+          --code-sha "${{ github.sha }}" --repository "${{ github.repository }}"
+          --workflow-ref "${{ github.workflow_ref }}"
+      - name: Prepare Neon manifest and check immutable run id
+        id: neon_lookup
+        env: {NEON_DATABASE_URL: "${{ secrets.NEON_DATABASE_URL }}"}
+        run: >-
+          python scripts/phase_a0/neon_manifest.py
+          --migration jev-investment-engine/migrations/20260928_phase_a0_snapshot_manifests.sql lookup
+          --run-id "${{ github.run_id }}" --snapshot-sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}"
+          --manifest-sha256 "${{ steps.snapshot.outputs.manifest_sha256 }}" --code-sha "${{ github.sha }}"
+      - name: Create private Google Drive snapshot
+        if: steps.neon_lookup.outputs.exists != 'true'
+        id: drive_upload
+        env:
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: python scripts/phase_a0/upload_google_drive.py "${{ steps.snapshot.outputs.snapshot_path }}"
+      - name: Append successful copy to Neon manifest
+        if: steps.neon_lookup.outputs.exists != 'true'
+        env: {NEON_DATABASE_URL: "${{ secrets.NEON_DATABASE_URL }}"}
+        run: >-
+          python scripts/phase_a0/neon_manifest.py
+          --migration jev-investment-engine/migrations/20260928_phase_a0_snapshot_manifests.sql record
+          --session-date "${{ steps.run_meta.outputs.session_date }}" --run-id "${{ github.run_id }}"
+          --run-attempt "${{ github.run_attempt }}"
+          --actions-started-at "${{ steps.run_meta.outputs.actions_started_at }}"
+          --recorded-at "${{ steps.snapshot.outputs.recorded_at }}" --code-sha "${{ github.sha }}"
+          --repository "${{ github.repository }}" --workflow-ref "${{ github.workflow_ref }}"
+          --snapshot-sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}"
+          --manifest-sha256 "${{ steps.snapshot.outputs.manifest_sha256 }}"
+          --snapshot-bytes "${{ steps.snapshot.outputs.snapshot_bytes }}"
+          --drive-file-id "${{ steps.drive_upload.outputs.drive_file_id }}"
+          --drive-file-name "${{ steps.drive_upload.outputs.drive_file_name }}"
+      - name: Resolve immutable Drive reference
+        id: drive_ref
+        env:
+          EXISTING_ID: ${{ steps.neon_lookup.outputs.drive_file_id }}
+          EXISTING_NAME: ${{ steps.neon_lookup.outputs.drive_file_name }}
+          CREATED_ID: ${{ steps.drive_upload.outputs.drive_file_id }}
+          CREATED_NAME: ${{ steps.drive_upload.outputs.drive_file_name }}
+        run: |
+          drive_file_id="${EXISTING_ID:-$CREATED_ID}"
+          drive_file_name="${EXISTING_NAME:-$CREATED_NAME}"
+          test -n "$drive_file_id" && test -n "$drive_file_name"
+          echo "drive_file_id=$drive_file_id" >> "$GITHUB_OUTPUT"
+          echo "drive_file_name=$drive_file_name" >> "$GITHUB_OUTPUT"
+      - name: Write run-id hash history
+        id: hash_record
+        run: >-
+          python scripts/phase_a0/write_hash_record.py --root .
+          --session-date "${{ steps.run_meta.outputs.session_date }}" --run-id "${{ github.run_id }}"
+          --run-attempt "${{ github.run_attempt }}"
+          --actions-started-at "${{ steps.run_meta.outputs.actions_started_at }}"
+          --recorded-at "${{ steps.snapshot.outputs.recorded_at }}" --code-sha "${{ github.sha }}"
+          --sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}"
+          --manifest-sha256 "${{ steps.snapshot.outputs.manifest_sha256 }}"
+          --drive-file-id "${{ steps.drive_ref.outputs.drive_file_id }}"
+          --drive-file-name "${{ steps.drive_ref.outputs.drive_file_name }}"
+          --repository "${{ github.repository }}" --workflow-ref "${{ github.workflow_ref }}"
+      - name: Save public reproducibility artifact (Massive raw excluded)
         uses: actions/upload-artifact@v4
         with:
           name: source-mc57-preservation-${{ github.run_id }}
-          retention-days: 30
+          retention-days: 90
           compression-level: 6
           path: |
             source-mc57.html
@@ -131,19 +196,14 @@ jobs:
             data/theme_membership.json
             data/provider_inputs.json
             work/ohlcv.csv
-            work/massive-reference.json
-            work/massive-grouped.json
-
+            ${{ steps.snapshot.outputs.manifest_path }}
+            ${{ steps.hash_record.outputs.hash_record_path }}
       - name: Publish source-only outputs
-        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- source-mc57.html chart-data latest-manifest.json
-          if git diff --cached --quiet; then
-            echo "No publication change"
-            exit 0
-          fi
+          git add -- source-mc57.html chart-data latest-manifest.json "${{ steps.hash_record.outputs.hash_record_path }}"
+          if git diff --cached --quiet; then echo "No publication change"; exit 0; fi
           session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
           git commit -m "Update source-mc57 through ${session} [skip refresh]"
           git push origin HEAD:main

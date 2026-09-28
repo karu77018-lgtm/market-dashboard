@@ -5,6 +5,9 @@
     }
   },
   "git": {
-    "deploymentEnabled": false
+    "deploymentEnabled": {
+      "*": false,
+      "jev-prod": true
+    }
   }
 }
