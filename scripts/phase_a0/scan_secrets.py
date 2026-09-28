@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
+import urllib.parse
 from pathlib import Path
 
 
@@ -25,6 +27,21 @@ ASSIGNMENT = re.compile(
              password|passwd|authorization|bearer[_-]?token)["']?
     \s*[:=]\s*["']([^"'\s,}]{12,})["']
     '''
+)
+URL_QUERY_SECRET = re.compile(
+    r'''(?ix)\b(?:api[_-]?key|apikey|access[_-]?token|refresh[_-]?token|token)=
+        ([^&\s#"'<>]{8,})'''
+)
+POSTGRES_DSN = re.compile(r'''(?ix)\bpostgres(?:ql)?://[^:\s/@]+:([^@\s/]+)@''')
+BEARER_TOKEN = re.compile(r'''(?ix)\bBearer\s+([A-Za-z0-9._~+/=-]{12,})''')
+SECRET_ENV_NAMES = (
+    "FRED_API_KEY",
+    "MASSIVE_API_KEY",
+    "NEON_DATABASE_URL",
+    "GOOGLE_DRIVE_CLIENT_ID",
+    "GOOGLE_DRIVE_CLIENT_SECRET",
+    "GOOGLE_DRIVE_REFRESH_TOKEN",
+    "GOOGLE_DRIVE_FOLDER_ID",
 )
 SAFE_VALUE_MARKERS = (
     "${{", "${", "$", "process.env", "os.environ", "redacted",
@@ -52,19 +69,51 @@ def tracked_files(root: Path) -> list[str]:
     return [item.decode("utf-8") for item in completed.stdout.split(b"\0") if item]
 
 
-def scan_file(path: Path) -> list[tuple[int, str]]:
+def is_placeholder(value: str) -> bool:
+    lowered = value.lower()
+    return any(marker.lower() in lowered for marker in SAFE_VALUE_MARKERS)
+
+
+def secret_needles() -> dict[str, set[str]]:
+    needles: dict[str, set[str]] = {}
+    for name in SECRET_ENV_NAMES:
+        value = os.environ.get(name, "")
+        if len(value) < 8:
+            continue
+        variants = {
+            value,
+            urllib.parse.quote(value, safe=""),
+            urllib.parse.quote_plus(value, safe=""),
+        }
+        needles[name] = {variant for variant in variants if len(variant) >= 8}
+    return needles
+
+
+def scan_file(path: Path, exact_needles: dict[str, set[str]]) -> list[tuple[int, str]]:
     if path.suffix.lower() not in TEXT_SUFFIXES and path.name not in {"Dockerfile", "Makefile"}:
         return []
     findings: list[tuple[int, str]] = []
     with path.open("r", encoding="utf-8", errors="ignore") as handle:
         for line_no, line in enumerate(handle, 1):
+            labels: set[str] = set()
             for label, pattern in TOKEN_PATTERNS:
                 if pattern.search(line):
-                    findings.append((line_no, label))
+                    labels.add(label)
             for match in ASSIGNMENT.finditer(line):
-                value = match.group(1).lower()
-                if not any(marker.lower() in value for marker in SAFE_VALUE_MARKERS):
-                    findings.append((line_no, "credential-assignment"))
+                if not is_placeholder(match.group(1)):
+                    labels.add("credential-assignment")
+            for label, pattern in (
+                ("credential-in-url-query", URL_QUERY_SECRET),
+                ("postgres-credentials-in-url", POSTGRES_DSN),
+                ("bearer-token", BEARER_TOKEN),
+            ):
+                for match in pattern.finditer(line):
+                    if not is_placeholder(match.group(1)):
+                        labels.add(label)
+            for env_name, variants in exact_needles.items():
+                if any(variant in line for variant in variants):
+                    labels.add(f"exact-secret:{env_name}")
+            findings.extend((line_no, label) for label in sorted(labels))
     return findings
 
 
@@ -80,10 +129,11 @@ def main() -> int:
     if args.include_tracked:
         requested.extend(tracked_files(root))
     files = iter_files(root, sorted(set(requested)))
+    exact_needles = secret_needles()
     findings: list[str] = []
     for path in files:
         relative = path.relative_to(root)
-        for line_no, label in scan_file(path):
+        for line_no, label in scan_file(path, exact_needles):
             findings.append(f"{relative}:{line_no}: {label}")
 
     if findings:

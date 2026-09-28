@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path
 
 try:
     from scripts.phase_a0.common import write_github_output
@@ -20,13 +19,41 @@ def connect(database_url: str):
     return psycopg.connect(database_url, connect_timeout=15)
 
 
-def ensure_schema(connection, migration_path: Path) -> None:
-    sql = migration_path.read_text(encoding="utf-8")
-    statements = [part.strip() for part in sql.split("-- statement-breakpoint") if part.strip()]
+def assert_writer_contract(connection) -> None:
     with connection.cursor() as cursor:
-        for statement in statements:
-            cursor.execute(statement)
-    connection.commit()
+        cursor.execute("SELECT to_regclass('public.research_snapshot_manifests')")
+        if cursor.fetchone()[0] is None:
+            raise SystemExit("research_snapshot_manifests is missing; apply the migration once as an administrator")
+        cursor.execute(
+            """
+            SELECT
+              current_user,
+              has_table_privilege(current_user, 'public.research_snapshot_manifests', 'SELECT'),
+              has_table_privilege(current_user, 'public.research_snapshot_manifests', 'INSERT'),
+              has_table_privilege(current_user, 'public.research_snapshot_manifests', 'UPDATE'),
+              has_table_privilege(current_user, 'public.research_snapshot_manifests', 'DELETE'),
+              has_table_privilege(current_user, 'public.research_snapshot_manifests', 'TRUNCATE'),
+              has_sequence_privilege(current_user, 'public.research_snapshot_manifests_id_seq', 'USAGE'),
+              (SELECT pg_get_userbyid(relowner) = current_user
+                 FROM pg_class WHERE oid = 'public.research_snapshot_manifests'::regclass),
+              (SELECT NOT rolcanlogin OR rolinherit OR rolsuper OR rolcreatedb OR rolcreaterole
+                      OR rolreplication OR rolbypassrls
+                 FROM pg_roles WHERE rolname = current_user)
+              OR EXISTS (
+                SELECT 1 FROM pg_auth_members membership
+                JOIN pg_roles role ON role.oid = membership.member
+                WHERE role.rolname = current_user
+              )
+            """
+        )
+        (role, can_select, can_insert, can_update, can_delete, can_truncate,
+         can_use_sequence, owns_table, elevated_role) = cursor.fetchone()
+    if role != "snapshot_writer":
+        raise SystemExit(f"database role {role} is not the dedicated snapshot_writer role")
+    if not (can_select and can_insert and can_use_sequence):
+        raise SystemExit(f"database role {role} lacks SELECT, INSERT, or sequence USAGE")
+    if can_update or can_delete or can_truncate or owns_table or elevated_role:
+        raise SystemExit(f"database role {role} is over-privileged; use the snapshot_writer connection")
 
 
 def lookup(connection, run_id: int, snapshot_sha256: str, manifest_sha256: str, code_sha: str) -> int:
@@ -65,7 +92,6 @@ def record(connection, args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Lookup or append a Phase A-0 Neon snapshot manifest")
     parser.add_argument("--database-url", default=os.environ.get("NEON_DATABASE_URL"))
-    parser.add_argument("--migration", required=True)
     subparsers = parser.add_subparsers(dest="command", required=True)
     lookup_parser = subparsers.add_parser("lookup")
     lookup_parser.add_argument("--run-id", type=int, required=True)
@@ -87,7 +113,7 @@ def main() -> int:
     if not args.database_url:
         raise SystemExit("NEON_DATABASE_URL is not configured")
     with connect(args.database_url) as connection:
-        ensure_schema(connection, Path(args.migration))
+        assert_writer_contract(connection)
         if args.command == "lookup":
             return lookup(connection, args.run_id, args.snapshot_sha256, args.manifest_sha256, args.code_sha)
         return record(connection, args)

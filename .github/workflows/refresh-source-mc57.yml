@@ -40,6 +40,8 @@ jobs:
       - name: Verify Massive secret
         run: test -n "$MASSIVE_API_KEY"
       - name: Verify private preservation secrets
+        id: preservation_secrets
+        continue-on-error: true
         env:
           GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
           GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
@@ -95,6 +97,7 @@ jobs:
           python scripts/enhance_source_mc57.py --html source-mc57.html --ohlcv work/ohlcv.csv \
             --chart-dir chart-data --session "$session"
       - name: Publication gates
+        id: publication_gates
         run: python scripts/validate_publication.py --root .
       - name: Resolve immutable run metadata
         id: run_meta
@@ -106,6 +109,13 @@ jobs:
           echo "actions_started_at=$started_at" >> "$GITHUB_OUTPUT"
           echo "session_date=$session" >> "$GITHUB_OUTPUT"
       - name: Secret leak gate
+        id: secret_scan
+        env:
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
         run: >-
           python scripts/phase_a0/scan_secrets.py --root . --include-tracked
           source-mc57.html chart-data latest-manifest.json data work/ohlcv.csv
@@ -120,16 +130,19 @@ jobs:
           --code-sha "${{ github.sha }}" --repository "${{ github.repository }}"
           --workflow-ref "${{ github.workflow_ref }}"
       - name: Prepare Neon manifest and check immutable run id
+        if: steps.preservation_secrets.outcome == 'success'
         id: neon_lookup
+        continue-on-error: true
         env: {NEON_DATABASE_URL: "${{ secrets.NEON_DATABASE_URL }}"}
         run: >-
           python scripts/phase_a0/neon_manifest.py
-          --migration jev-investment-engine/migrations/20260928_phase_a0_snapshot_manifests.sql lookup
-          --run-id "${{ github.run_id }}" --snapshot-sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}"
+          lookup --run-id "${{ github.run_id }}"
+          --snapshot-sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}"
           --manifest-sha256 "${{ steps.snapshot.outputs.manifest_sha256 }}" --code-sha "${{ github.sha }}"
       - name: Create private Google Drive snapshot
-        if: steps.neon_lookup.outputs.exists != 'true'
+        if: steps.neon_lookup.outcome == 'success' && steps.neon_lookup.outputs.exists != 'true'
         id: drive_upload
+        continue-on-error: true
         env:
           GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
           GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
@@ -137,12 +150,14 @@ jobs:
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
         run: python scripts/phase_a0/upload_google_drive.py "${{ steps.snapshot.outputs.snapshot_path }}"
       - name: Append successful copy to Neon manifest
-        if: steps.neon_lookup.outputs.exists != 'true'
+        if: steps.neon_lookup.outcome == 'success' && steps.neon_lookup.outputs.exists != 'true' && steps.drive_upload.outcome == 'success'
+        id: neon_record
+        continue-on-error: true
         env: {NEON_DATABASE_URL: "${{ secrets.NEON_DATABASE_URL }}"}
         run: >-
           python scripts/phase_a0/neon_manifest.py
-          --migration jev-investment-engine/migrations/20260928_phase_a0_snapshot_manifests.sql record
-          --session-date "${{ steps.run_meta.outputs.session_date }}" --run-id "${{ github.run_id }}"
+          record --session-date "${{ steps.run_meta.outputs.session_date }}"
+          --run-id "${{ github.run_id }}"
           --run-attempt "${{ github.run_attempt }}"
           --actions-started-at "${{ steps.run_meta.outputs.actions_started_at }}"
           --recorded-at "${{ steps.snapshot.outputs.recorded_at }}" --code-sha "${{ github.sha }}"
@@ -153,7 +168,9 @@ jobs:
           --drive-file-id "${{ steps.drive_upload.outputs.drive_file_id }}"
           --drive-file-name "${{ steps.drive_upload.outputs.drive_file_name }}"
       - name: Resolve immutable Drive reference
+        if: steps.neon_lookup.outcome == 'success' && (steps.neon_lookup.outputs.exists == 'true' || steps.neon_record.outcome == 'success')
         id: drive_ref
+        continue-on-error: true
         env:
           EXISTING_ID: ${{ steps.neon_lookup.outputs.drive_file_id }}
           EXISTING_NAME: ${{ steps.neon_lookup.outputs.drive_file_name }}
@@ -166,7 +183,9 @@ jobs:
           echo "drive_file_id=$drive_file_id" >> "$GITHUB_OUTPUT"
           echo "drive_file_name=$drive_file_name" >> "$GITHUB_OUTPUT"
       - name: Write run-id hash history
+        if: steps.drive_ref.outcome == 'success'
         id: hash_record
+        continue-on-error: true
         run: >-
           python scripts/phase_a0/write_hash_record.py --root .
           --session-date "${{ steps.run_meta.outputs.session_date }}" --run-id "${{ github.run_id }}"
@@ -178,7 +197,8 @@ jobs:
           --drive-file-id "${{ steps.drive_ref.outputs.drive_file_id }}"
           --drive-file-name "${{ steps.drive_ref.outputs.drive_file_name }}"
           --repository "${{ github.repository }}" --workflow-ref "${{ github.workflow_ref }}"
-      - name: Save public reproducibility artifact (Massive raw excluded)
+      - name: Save public reproducibility artifact (vendor raw excluded)
+        if: steps.hash_record.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: source-mc57-preservation-${{ github.run_id }}
@@ -192,17 +212,33 @@ jobs:
             data/state.json
             data/rs.json
             data/market_inputs.json
-            data/mktcap.json
             data/theme_membership.json
             data/provider_inputs.json
-            work/ohlcv.csv
             ${{ steps.snapshot.outputs.manifest_path }}
             ${{ steps.hash_record.outputs.hash_record_path }}
+      - name: Report private preservation failure
+        if: >-
+          always() && (
+            steps.preservation_secrets.outcome == 'failure' ||
+            steps.neon_lookup.outcome == 'failure' ||
+            steps.drive_upload.outcome == 'failure' ||
+            steps.neon_record.outcome == 'failure' ||
+            steps.drive_ref.outcome == 'failure' ||
+            steps.hash_record.outcome == 'failure'
+          )
+        run: |
+          echo "::warning title=Phase A-0 preservation failed::Dashboard publication will continue, but no public preservation Artifact or hash record will be created for this run."
+          echo "## Phase A-0 preservation warning" >> "$GITHUB_STEP_SUMMARY"
+          echo "Private Drive/Neon preservation failed. Dashboard publication continued; inspect the failed preservation step before the next run." >> "$GITHUB_STEP_SUMMARY"
       - name: Publish source-only outputs
+        if: always() && steps.publication_gates.outcome == 'success' && steps.secret_scan.outcome == 'success' && steps.snapshot.outcome == 'success'
+        env:
+          HASH_RECORD_PATH: ${{ steps.hash_record.outputs.hash_record_path }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- source-mc57.html chart-data latest-manifest.json "${{ steps.hash_record.outputs.hash_record_path }}"
+          git add -- source-mc57.html chart-data latest-manifest.json
+          if test -n "$HASH_RECORD_PATH"; then git add -- "$HASH_RECORD_PATH"; fi
           if git diff --cached --quiet; then echo "No publication change"; exit 0; fi
           session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
           git commit -m "Update source-mc57 through ${session} [skip refresh]"

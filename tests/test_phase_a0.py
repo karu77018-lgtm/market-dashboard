@@ -12,9 +12,11 @@ from scripts.phase_a0.common import sha256_file
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def run_script(script: str, *args: str, cwd: Path) -> subprocess.CompletedProcess[str]:
+def run_script(script: str, *args: str, cwd: Path,
+               extra_env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env["PYTHONPATH"] = str(ROOT)
+    env.update(extra_env or {})
     return subprocess.run([sys.executable, str(ROOT / script), *args], cwd=cwd, text=True,
                           capture_output=True, check=False, env=env)
 
@@ -30,6 +32,36 @@ def test_secret_scan_detects_embedded_api_key(tmp_path: Path) -> None:
 def test_secret_scan_allows_environment_reference(tmp_path: Path) -> None:
     (tmp_path / "safe.yml").write_text('api_key: "${{ secrets.API_KEY }}"\n', encoding="utf-8")
     assert run_script("scripts/phase_a0/scan_secrets.py", "safe.yml", cwd=tmp_path).returncode == 0
+
+
+def test_secret_scan_detects_url_dsn_and_bearer_forms(tmp_path: Path) -> None:
+    query_key = "api" + "Key"
+    database_scheme = "postgre" + "sql://"
+    bearer_prefix = "Bear" + "er"
+    (tmp_path / "leaks.txt").write_text(
+        f"https://example.test/data?{query_key}=abcd1234efgh5678\n"
+        f"{database_scheme}writer:p4ssword-value@db.example.test/app\n"
+        f"Authorization: {bearer_prefix} abcdefghijklmnopqrstuvwxyz123456\n",
+        encoding="utf-8",
+    )
+    result = run_script("scripts/phase_a0/scan_secrets.py", "leaks.txt", cwd=tmp_path)
+    assert result.returncode == 2
+    assert "credential-in-url-query" in result.stdout
+    assert "postgres-credentials-in-url" in result.stdout
+    assert "bearer-token" in result.stdout
+
+
+def test_secret_scan_matches_raw_and_url_encoded_environment_values(tmp_path: Path) -> None:
+    raw_secret = "abc/def+ghi=jkl"
+    (tmp_path / "encoded.txt").write_text("abc%2Fdef%2Bghi%3Djkl\n", encoding="utf-8")
+    result = run_script(
+        "scripts/phase_a0/scan_secrets.py",
+        "encoded.txt",
+        cwd=tmp_path,
+        extra_env={"MASSIVE_API_KEY": raw_secret},
+    )
+    assert result.returncode == 2
+    assert "exact-secret:MASSIVE_API_KEY" in result.stdout
 
 
 def test_snapshot_and_hash_record_are_immutable(tmp_path: Path) -> None:
@@ -55,3 +87,22 @@ def test_snapshot_and_hash_record_are_immutable(tmp_path: Path) -> None:
     record = json.loads((tmp_path / "research-hashes/2026/09/28/123456789.json").read_text())
     assert record["copy_status"] == "success"
     assert record["drive_file_id"] == "drive-id-1"
+
+
+def test_workflow_keeps_vendor_raw_out_of_public_artifact() -> None:
+    workflow = (ROOT / ".github/workflows/refresh-source-mc57.yml").read_text(encoding="utf-8")
+    artifact = workflow.split("Save public reproducibility artifact", 1)[1].split(
+        "Report private preservation failure", 1
+    )[0]
+    assert "retention-days: 90" in artifact
+    assert "work/ohlcv.csv" not in artifact
+    assert "data/mktcap.json" not in artifact
+    assert "work/massive-reference.json" not in artifact
+    assert "work/massive-grouped.json" not in artifact
+
+
+def test_actions_never_runs_the_neon_migration() -> None:
+    workflow = (ROOT / ".github/workflows/refresh-source-mc57.yml").read_text(encoding="utf-8")
+    assert "--migration" not in workflow
+    assert "continue-on-error: true" in workflow
+    assert "if: always() && steps.publication_gates.outcome == 'success'" in workflow
