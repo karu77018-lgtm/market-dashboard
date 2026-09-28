@@ -1,8 +1,8 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
   "coverage": 1.0,
-  "generated_at": "2026-09-26T09:53:37Z",
-  "mc57": 31.623784590436227,
+  "generated_at": "2026-09-28T09:43:49Z",
+  "mc57": 31.62272926273979,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
   "mcap_coverage": 1.0,
@@ -11,11 +11,11 @@
   "peer_theme_status": "DATA_REQUIRED",
   "positions_status": "DATA_REQUIRED",
   "provider_status": {
-    "cross_vendor_coverage": 0.9808467741935484,
+    "cross_vendor_coverage": 0.9815842583249244,
     "fred": "READY",
     "fred_required_coverage": 1.0,
     "massive": "READY",
-    "massive_current_coverage": 0.9810987903225806
+    "massive_current_coverage": 0.9818365287588294
   },
   "publication_scope": "source-mc57 only; V38 and data/*.json are not committed",
   "schema_version": "v38.acquisition.1",
@@ -31,10 +31,10 @@
   "status": "READY",
   "structural_clinical_biotech_status": "DATA_REQUIRED",
   "universe": {
-    "active_universe": 3968,
+    "active_universe": 3964,
     "below_floor_rows": 0,
     "biotech_heuristic_applied": false,
-    "broad_tradingview_universe": 4017,
+    "broad_tradingview_universe": 4016,
     "buy_filter_eligible": 1108,
     "buy_filter_rules": {
       "market_cap_min": 50000000.0,
@@ -49,12 +49,12 @@
     },
     "duplicate_class_rows": 0,
     "duplicate_symbol_rows": 0,
-    "expansion_candidates": 572,
-    "legacy_universe": 3396,
+    "expansion_candidates": 576,
+    "legacy_universe": 3388,
     "malformed_rows": 0,
-    "massive_broad_expansion": 572,
-    "massive_current_coverage": 0.9810987903225806,
-    "massive_current_covered": 3893,
+    "massive_broad_expansion": 576,
+    "massive_current_coverage": 0.9818365287588294,
+    "massive_current_covered": 3892,
     "massive_grouped": {
       "fetched_sessions": [],
       "latest_eligible_rows": 5541,
@@ -75,22 +75,22 @@
       "legacy_route": "market_cap >= 200M and price >= 1",
       "selection_filters_applied": false
     },
-    "response_rows": 4018,
-    "response_total_count": 4018,
+    "response_rows": 4017,
+    "response_total_count": 4017,
     "special_security_rows": 1
   },
   "universe_expansion": {
-    "active": 3968,
-    "added": 572,
+    "active": 3964,
+    "added": 576,
     "buy_filter_eligible": 1108,
-    "legacy": 3396
+    "legacy": 3388
   },
   "yahoo": {
     "failed_tickers": [],
-    "history_received": 3967,
+    "history_received": 3963,
     "incremental_cache_used": true,
-    "requested": 3968,
+    "requested": 3964,
     "target_session_coverage": 1.0,
-    "target_session_received": 3968
+    "target_session_received": 3964
   }
 }
