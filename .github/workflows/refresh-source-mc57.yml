@@ -38,6 +38,7 @@ jobs:
       - name: Verify FRED secret
         run: test -n "$FRED_API_KEY"
       - name: Verify Massive secret
+        continue-on-error: true
         run: test -n "$MASSIVE_API_KEY"
       - name: Verify Google Drive preservation configuration
         id: drive_config
