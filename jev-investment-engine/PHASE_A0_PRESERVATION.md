@@ -62,4 +62,6 @@ tokens without printing the detected value.
 
 The record links `github_run_id`, Actions `run_started_at`, source `code_sha`, `recorded_at`,
 `drive_file_id`, and both SHA-256 values. Git commit time is not the point-in-time authority;
-the later push is the durable public record containing that JSON.
+the later push is the durable public record containing that JSON. Snapshot `recorded_at` is
+anchored to the run start and `run_attempt` is kept outside the hashed manifest, so rerunning
+the same run with identical inputs produces the same immutable hashes.

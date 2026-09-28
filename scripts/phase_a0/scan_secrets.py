@@ -25,7 +25,7 @@ ASSIGNMENT = re.compile(
     r'''(?ix)
     ["']?(?:api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|
              password|passwd|authorization|bearer[_-]?token)["']?
-    \s*[:=]\s*["']([^"'\s,}]{12,})["']
+    \s*[:=]\s*["']?([^"'\s,}]{12,})["']?
     '''
 )
 URL_QUERY_SECRET = re.compile(
@@ -45,8 +45,13 @@ SECRET_ENV_NAMES = (
 )
 SAFE_VALUE_MARKERS = (
     "${{", "${", "$", "process.env", "os.environ", "redacted",
-    "placeholder", "example", "not_configured", "your_", "<", "***",
+    "placeholder", "example", "not_configured", "your_", "args.",
+    "re.compile", "{", "<", "***",
 )
+SAFE_REFERENCE_VALUES = {
+    "access_token", "api_key", "authorization", "bearer_token", "client_secret",
+    "database_url", "password", "refresh_token",
+}
 
 
 def iter_files(root: Path, requested: list[str]) -> list[Path]:
@@ -71,7 +76,9 @@ def tracked_files(root: Path) -> list[str]:
 
 def is_placeholder(value: str) -> bool:
     lowered = value.lower()
-    return any(marker.lower() in lowered for marker in SAFE_VALUE_MARKERS)
+    return lowered in SAFE_REFERENCE_VALUES or any(
+        marker.lower() in lowered for marker in SAFE_VALUE_MARKERS
+    )
 
 
 def secret_needles() -> dict[str, set[str]]:

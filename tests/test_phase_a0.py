@@ -34,6 +34,14 @@ def test_secret_scan_allows_environment_reference(tmp_path: Path) -> None:
     assert run_script("scripts/phase_a0/scan_secrets.py", "safe.yml", cwd=tmp_path).returncode == 0
 
 
+def test_secret_scan_detects_unquoted_assignment(tmp_path: Path) -> None:
+    key_name = "api" + "_key"
+    (tmp_path / "bad.yml").write_text(f"{key_name}: super-secret-value-123\n", encoding="utf-8")
+    result = run_script("scripts/phase_a0/scan_secrets.py", "bad.yml", cwd=tmp_path)
+    assert result.returncode == 2
+    assert "credential-assignment" in result.stdout
+
+
 def test_secret_scan_detects_url_dsn_and_bearer_forms(tmp_path: Path) -> None:
     query_key = "api" + "Key"
     database_scheme = "postgre" + "sql://"
@@ -89,12 +97,33 @@ def test_snapshot_and_hash_record_are_immutable(tmp_path: Path) -> None:
     assert record["drive_file_id"] == "drive-id-1"
 
 
+def test_snapshot_hash_is_stable_across_run_attempts(tmp_path: Path) -> None:
+    (tmp_path / "first").mkdir()
+    (tmp_path / "second").mkdir()
+    for directory in (tmp_path / "first", tmp_path / "second"):
+        (directory / "payload.json").write_text('{"value":1}\n', encoding="utf-8")
+    common = (
+        "--root", ".", "--session-date", "2026-09-28", "--run-id", "123456789",
+        "--actions-started-at", "2026-09-28T01:02:03Z", "--code-sha", "a" * 40,
+        "--repository", "owner/repo", "--workflow-ref", "owner/repo/test.yml@refs/heads/main",
+        "--path", "payload.json",
+    )
+    first = run_script("scripts/phase_a0/build_snapshot.py", *common, "--run-attempt", "1",
+                       cwd=tmp_path / "first")
+    second = run_script("scripts/phase_a0/build_snapshot.py", *common, "--run-attempt", "2",
+                        cwd=tmp_path / "second")
+    assert first.returncode == second.returncode == 0
+    assert json.loads(first.stdout)["snapshot_sha256"] == json.loads(second.stdout)["snapshot_sha256"]
+    assert json.loads(first.stdout)["manifest_sha256"] == json.loads(second.stdout)["manifest_sha256"]
+
+
 def test_workflow_keeps_vendor_raw_out_of_public_artifact() -> None:
     workflow = (ROOT / ".github/workflows/refresh-source-mc57.yml").read_text(encoding="utf-8")
     artifact = workflow.split("Save public reproducibility artifact", 1)[1].split(
         "Report private preservation failure", 1
     )[0]
     assert "retention-days: 90" in artifact
+    assert "include-hidden-files: true" in artifact
     assert "work/ohlcv.csv" not in artifact
     assert "data/mktcap.json" not in artifact
     assert "work/massive-reference.json" not in artifact

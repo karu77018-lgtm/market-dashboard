@@ -204,6 +204,7 @@ jobs:
           name: source-mc57-preservation-${{ github.run_id }}
           retention-days: 90
           compression-level: 6
+          include-hidden-files: true
           path: |
             source-mc57.html
             chart-data/
