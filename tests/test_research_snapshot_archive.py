@@ -33,6 +33,15 @@ def test_secret_scan_rejects_api_key_query(tmp_path: Path, monkeypatch):
         archive.scan_for_secrets(tmp_path, [payload])
 
 
+def test_secret_scan_rejects_bearer_token(tmp_path: Path, monkeypatch):
+    payload = tmp_path / "payload.txt"
+    payload.write_text("Authorization: Bearer abcdefghijklmnop123456", encoding="utf-8")
+    monkeypatch.delenv("MASSIVE_API_KEY", raising=False)
+
+    with pytest.raises(RuntimeError, match="bearer_token"):
+        archive.scan_for_secrets(tmp_path, [payload])
+
+
 def test_secret_scan_allows_safe_provider_url(tmp_path: Path, monkeypatch):
     payload = tmp_path / "payload.json"
     payload.write_text('{"url":"https://example.test/data"}', encoding="utf-8")
