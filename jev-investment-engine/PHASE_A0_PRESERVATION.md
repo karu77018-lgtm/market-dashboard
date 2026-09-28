@@ -10,8 +10,9 @@ excludes Massive raw files, `work/ohlcv.csv`, and `data/mktcap.json`. `chart-dat
 public until its site dependencies and provenance are separated in the next phase.
 
 Drive or Neon failure produces an Actions warning and suppresses the public preservation
-Artifact and hash record, but it does not stop the dashboard publication. Secret leakage,
-publication validation, or snapshot construction failure remains a hard stop.
+Artifact and hash record. The dashboard is published first, then the final step fails the job
+so normal GitHub failure notifications still fire. Secret leakage, publication validation, or
+snapshot construction failure remains a hard stop.
 
 ## 1. Create the Drive folder with the OAuth app
 
@@ -61,7 +62,9 @@ tokens without printing the detected value.
 ## Point-in-time evidence
 
 The record links `github_run_id`, Actions `run_started_at`, source `code_sha`, `recorded_at`,
-`drive_file_id`, and both SHA-256 values. Git commit time is not the point-in-time authority;
-the later push is the durable public record containing that JSON. Snapshot `recorded_at` is
-anchored to the run start and `run_attempt` is kept outside the hashed manifest, so rerunning
-the same run with identical inputs produces the same immutable hashes.
+Drive `createdTime`, `drive_file_id`, and both SHA-256 values. Git commit time is not the
+point-in-time authority; the later push is the durable public record containing that JSON.
+`recorded_at` is the actual snapshot construction time and Neon `inserted_at` is the database
+availability time to use for point-in-time research. Both `recorded_at` and `run_attempt` stay
+outside the hashed snapshot manifest, so rerunning the same run with identical inputs still
+produces the same immutable hashes.

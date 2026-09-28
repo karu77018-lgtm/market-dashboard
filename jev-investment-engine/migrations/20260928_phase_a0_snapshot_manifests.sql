@@ -15,9 +15,21 @@ CREATE TABLE IF NOT EXISTS research_snapshot_manifests (
   snapshot_bytes bigint NOT NULL CHECK (snapshot_bytes > 0),
   drive_file_id text NOT NULL UNIQUE,
   drive_file_name text NOT NULL,
+  drive_created_at timestamptz NOT NULL,
   copy_status text NOT NULL CHECK (copy_status = 'success'),
   inserted_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE research_snapshot_manifests
+  ADD COLUMN IF NOT EXISTS drive_created_at timestamptz;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM research_snapshot_manifests WHERE drive_created_at IS NULL) THEN
+    RAISE EXCEPTION 'drive_created_at must be backfilled before applying NOT NULL';
+  END IF;
+END;
+$$;
+ALTER TABLE research_snapshot_manifests
+  ALTER COLUMN drive_created_at SET NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_research_snapshot_manifests_session
   ON research_snapshot_manifests(session_date DESC, github_run_id DESC);
 CREATE OR REPLACE FUNCTION protect_research_snapshot_manifests()

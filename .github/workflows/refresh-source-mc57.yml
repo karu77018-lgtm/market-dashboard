@@ -167,38 +167,54 @@ jobs:
           --snapshot-bytes "${{ steps.snapshot.outputs.snapshot_bytes }}"
           --drive-file-id "${{ steps.drive_upload.outputs.drive_file_id }}"
           --drive-file-name "${{ steps.drive_upload.outputs.drive_file_name }}"
-      - name: Resolve immutable Drive reference
+          --drive-created-at "${{ steps.drive_upload.outputs.drive_created_time }}"
+      - name: Resolve immutable preservation reference
         if: steps.neon_lookup.outcome == 'success' && (steps.neon_lookup.outputs.exists == 'true' || steps.neon_record.outcome == 'success')
-        id: drive_ref
+        id: preservation_ref
         continue-on-error: true
         env:
           EXISTING_ID: ${{ steps.neon_lookup.outputs.drive_file_id }}
           EXISTING_NAME: ${{ steps.neon_lookup.outputs.drive_file_name }}
+          EXISTING_CREATED_AT: ${{ steps.neon_lookup.outputs.drive_created_at }}
+          EXISTING_RECORDED_AT: ${{ steps.neon_lookup.outputs.recorded_at }}
+          EXISTING_RUN_ATTEMPT: ${{ steps.neon_lookup.outputs.run_attempt }}
           CREATED_ID: ${{ steps.drive_upload.outputs.drive_file_id }}
           CREATED_NAME: ${{ steps.drive_upload.outputs.drive_file_name }}
+          CREATED_AT: ${{ steps.drive_upload.outputs.drive_created_time }}
+          RECORDED_AT: ${{ steps.snapshot.outputs.recorded_at }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           drive_file_id="${EXISTING_ID:-$CREATED_ID}"
           drive_file_name="${EXISTING_NAME:-$CREATED_NAME}"
-          test -n "$drive_file_id" && test -n "$drive_file_name"
+          drive_created_at="${EXISTING_CREATED_AT:-$CREATED_AT}"
+          recorded_at="${EXISTING_RECORDED_AT:-$RECORDED_AT}"
+          run_attempt="${EXISTING_RUN_ATTEMPT:-$RUN_ATTEMPT}"
+          test -n "$drive_file_id" && test -n "$drive_file_name" && test -n "$drive_created_at"
+          test -n "$recorded_at" && test -n "$run_attempt"
           echo "drive_file_id=$drive_file_id" >> "$GITHUB_OUTPUT"
           echo "drive_file_name=$drive_file_name" >> "$GITHUB_OUTPUT"
+          echo "drive_created_at=$drive_created_at" >> "$GITHUB_OUTPUT"
+          echo "recorded_at=$recorded_at" >> "$GITHUB_OUTPUT"
+          echo "run_attempt=$run_attempt" >> "$GITHUB_OUTPUT"
       - name: Write run-id hash history
-        if: steps.drive_ref.outcome == 'success'
+        if: steps.preservation_ref.outcome == 'success'
         id: hash_record
         continue-on-error: true
         run: >-
           python scripts/phase_a0/write_hash_record.py --root .
           --session-date "${{ steps.run_meta.outputs.session_date }}" --run-id "${{ github.run_id }}"
-          --run-attempt "${{ github.run_attempt }}"
+          --run-attempt "${{ steps.preservation_ref.outputs.run_attempt }}"
           --actions-started-at "${{ steps.run_meta.outputs.actions_started_at }}"
-          --recorded-at "${{ steps.snapshot.outputs.recorded_at }}" --code-sha "${{ github.sha }}"
+          --recorded-at "${{ steps.preservation_ref.outputs.recorded_at }}" --code-sha "${{ github.sha }}"
           --sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}"
           --manifest-sha256 "${{ steps.snapshot.outputs.manifest_sha256 }}"
-          --drive-file-id "${{ steps.drive_ref.outputs.drive_file_id }}"
-          --drive-file-name "${{ steps.drive_ref.outputs.drive_file_name }}"
+          --drive-file-id "${{ steps.preservation_ref.outputs.drive_file_id }}"
+          --drive-file-name "${{ steps.preservation_ref.outputs.drive_file_name }}"
+          --drive-created-at "${{ steps.preservation_ref.outputs.drive_created_at }}"
           --repository "${{ github.repository }}" --workflow-ref "${{ github.workflow_ref }}"
       - name: Save public reproducibility artifact (vendor raw excluded)
         if: steps.hash_record.outcome == 'success'
+        id: public_artifact
         uses: actions/upload-artifact@v4
         with:
           name: source-mc57-preservation-${{ github.run_id }}
@@ -224,14 +240,16 @@ jobs:
             steps.neon_lookup.outcome == 'failure' ||
             steps.drive_upload.outcome == 'failure' ||
             steps.neon_record.outcome == 'failure' ||
-            steps.drive_ref.outcome == 'failure' ||
-            steps.hash_record.outcome == 'failure'
+            steps.preservation_ref.outcome == 'failure' ||
+            steps.hash_record.outcome == 'failure' ||
+            steps.public_artifact.outcome == 'failure'
           )
         run: |
           echo "::warning title=Phase A-0 preservation failed::Dashboard publication will continue, but no public preservation Artifact or hash record will be created for this run."
           echo "## Phase A-0 preservation warning" >> "$GITHUB_STEP_SUMMARY"
           echo "Private Drive/Neon preservation failed. Dashboard publication continued; inspect the failed preservation step before the next run." >> "$GITHUB_STEP_SUMMARY"
       - name: Publish source-only outputs
+        id: publish
         if: always() && steps.publication_gates.outcome == 'success' && steps.secret_scan.outcome == 'success' && steps.snapshot.outcome == 'success'
         env:
           HASH_RECORD_PATH: ${{ steps.hash_record.outputs.hash_record_path }}
@@ -244,3 +262,17 @@ jobs:
           session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
           git commit -m "Update source-mc57 through ${session} [skip refresh]"
           git push origin HEAD:main
+      - name: Fail after publication when private preservation failed
+        if: >-
+          always() && steps.publish.outcome == 'success' && (
+            steps.preservation_secrets.outcome == 'failure' ||
+            steps.neon_lookup.outcome == 'failure' ||
+            steps.drive_upload.outcome == 'failure' ||
+            steps.neon_record.outcome == 'failure' ||
+            steps.preservation_ref.outcome == 'failure' ||
+            steps.hash_record.outcome == 'failure' ||
+            steps.public_artifact.outcome == 'failure'
+          )
+        run: |
+          echo "::error title=Phase A-0 preservation failed::Dashboard publication completed, but private preservation failed."
+          exit 1

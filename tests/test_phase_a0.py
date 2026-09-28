@@ -89,12 +89,14 @@ def test_snapshot_and_hash_record_are_immutable(tmp_path: Path) -> None:
         "--recorded-at", output["recorded_at"], "--code-sha", "a" * 40,
         "--sha256", output["snapshot_sha256"], "--manifest-sha256", output["manifest_sha256"],
         "--drive-file-id", "drive-id-1", "--drive-file-name", snapshot.name,
+        "--drive-created-at", "2026-09-28T01:03:10Z",
         "--repository", "owner/repo", "--workflow-ref", "owner/repo/test.yml@refs/heads/main")
     assert run_script("scripts/phase_a0/write_hash_record.py", *args, cwd=tmp_path).returncode == 0
     assert run_script("scripts/phase_a0/write_hash_record.py", *args, cwd=tmp_path).returncode != 0
     record = json.loads((tmp_path / "research-hashes/2026/09/28/123456789.json").read_text())
     assert record["copy_status"] == "success"
     assert record["drive_file_id"] == "drive-id-1"
+    assert record["drive_created_at"] == "2026-09-28T01:03:10Z"
 
 
 def test_snapshot_hash_is_stable_across_run_attempts(tmp_path: Path) -> None:
@@ -109,12 +111,17 @@ def test_snapshot_hash_is_stable_across_run_attempts(tmp_path: Path) -> None:
         "--path", "payload.json",
     )
     first = run_script("scripts/phase_a0/build_snapshot.py", *common, "--run-attempt", "1",
+                       "--recorded-at", "2026-09-28T01:03:04Z",
                        cwd=tmp_path / "first")
     second = run_script("scripts/phase_a0/build_snapshot.py", *common, "--run-attempt", "2",
+                        "--recorded-at", "2026-09-28T01:15:00Z",
                         cwd=tmp_path / "second")
     assert first.returncode == second.returncode == 0
     assert json.loads(first.stdout)["snapshot_sha256"] == json.loads(second.stdout)["snapshot_sha256"]
     assert json.loads(first.stdout)["manifest_sha256"] == json.loads(second.stdout)["manifest_sha256"]
+    manifest = json.loads((tmp_path / "first/.preservation/private/snapshot-manifest.json").read_text())
+    assert "recorded_at" not in manifest
+    assert "github_run_attempt" not in manifest
 
 
 def test_workflow_keeps_vendor_raw_out_of_public_artifact() -> None:
@@ -135,3 +142,8 @@ def test_actions_never_runs_the_neon_migration() -> None:
     assert "--migration" not in workflow
     assert "continue-on-error: true" in workflow
     assert "if: always() && steps.publication_gates.outcome == 'success'" in workflow
+    assert workflow.index("id: publish") < workflow.index(
+        "Fail after publication when private preservation failed"
+    )
+    assert "steps.publish.outcome == 'success'" in workflow
+    assert "--drive-created-at" in workflow

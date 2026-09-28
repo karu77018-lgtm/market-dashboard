@@ -67,14 +67,11 @@ def main() -> int:
     output_dir = root / args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     files = collect_files(root, args.paths or list(DEFAULT_PATHS))
-    # A rerun keeps github.run_id but increments github.run_attempt. Anchor the
-    # hashed snapshot metadata to the stable Actions start time so an identical
-    # rerun can recover a copy that was recorded before the original push failed.
-    recorded_at = iso_utc(args.recorded_at or args.actions_started_at)
+    recorded_at = iso_utc(args.recorded_at)
     manifest = {
         "schema_version": "phase-a0-v1", "session_date": args.session_date,
         "github_run_id": str(args.run_id),
-        "github_actions_started_at": iso_utc(args.actions_started_at), "recorded_at": recorded_at,
+        "github_actions_started_at": iso_utc(args.actions_started_at),
         "code_sha": args.code_sha, "repository": args.repository, "workflow_ref": args.workflow_ref,
         "files": [{"path": path.relative_to(root).as_posix(), "bytes": path.stat().st_size,
                    "sha256": sha256_file(path)} for path in files],

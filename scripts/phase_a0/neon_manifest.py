@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from datetime import datetime, timezone
 
 try:
     from scripts.phase_a0.common import write_github_output
@@ -24,6 +25,16 @@ def assert_writer_contract(connection) -> None:
         cursor.execute("SELECT to_regclass('public.research_snapshot_manifests')")
         if cursor.fetchone()[0] is None:
             raise SystemExit("research_snapshot_manifests is missing; apply the migration once as an administrator")
+        cursor.execute(
+            """SELECT EXISTS (
+                 SELECT 1 FROM information_schema.columns
+                 WHERE table_schema = 'public'
+                   AND table_name = 'research_snapshot_manifests'
+                   AND column_name = 'drive_created_at'
+               )"""
+        )
+        if not cursor.fetchone()[0]:
+            raise SystemExit("drive_created_at is missing; apply the current migration as an administrator")
         cursor.execute(
             """
             SELECT
@@ -56,19 +67,29 @@ def assert_writer_contract(connection) -> None:
         raise SystemExit(f"database role {role} is over-privileged; use the snapshot_writer connection")
 
 
+def iso_utc(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
 def lookup(connection, run_id: int, snapshot_sha256: str, manifest_sha256: str, code_sha: str) -> int:
     with connection.cursor() as cursor:
-        cursor.execute("""SELECT snapshot_sha256, manifest_sha256, code_sha, drive_file_id, drive_file_name
+        cursor.execute("""SELECT snapshot_sha256, manifest_sha256, code_sha, drive_file_id, drive_file_name,
+                   drive_created_at, recorded_at, github_run_attempt
             FROM research_snapshot_manifests WHERE github_run_id = %s""", (run_id,))
         row = cursor.fetchone()
     if row is None:
         write_github_output({"exists": "false", "drive_file_id": "", "drive_file_name": ""})
         print(json.dumps({"exists": False, "github_run_id": str(run_id)}))
         return 0
-    actual_snapshot, actual_manifest, actual_code, drive_id, drive_name = row
+    (actual_snapshot, actual_manifest, actual_code, drive_id, drive_name,
+     drive_created_at, recorded_at, run_attempt) = row
     if (actual_snapshot, actual_manifest, actual_code) != (snapshot_sha256, manifest_sha256, code_sha):
         raise SystemExit("github_run_id already exists with different immutable hashes")
-    write_github_output({"exists": "true", "drive_file_id": drive_id, "drive_file_name": drive_name})
+    write_github_output({
+        "exists": "true", "drive_file_id": drive_id, "drive_file_name": drive_name,
+        "drive_created_at": iso_utc(drive_created_at), "recorded_at": iso_utc(recorded_at),
+        "run_attempt": run_attempt,
+    })
     print(json.dumps({"exists": True, "github_run_id": str(run_id), "drive_file_id": drive_id}))
     return 0
 
@@ -78,11 +99,11 @@ def record(connection, args: argparse.Namespace) -> int:
         cursor.execute("""INSERT INTO research_snapshot_manifests (
               session_date, github_run_id, github_run_attempt, github_actions_started_at, recorded_at,
               code_sha, repository, workflow_ref, snapshot_sha256, manifest_sha256, snapshot_bytes,
-              drive_file_id, drive_file_name, copy_status
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'success')""",
+              drive_file_id, drive_file_name, drive_created_at, copy_status
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'success')""",
             (args.session_date, args.run_id, args.run_attempt, args.actions_started_at, args.recorded_at,
              args.code_sha, args.repository, args.workflow_ref, args.snapshot_sha256, args.manifest_sha256,
-             args.snapshot_bytes, args.drive_file_id, args.drive_file_name))
+             args.snapshot_bytes, args.drive_file_id, args.drive_file_name, args.drive_created_at))
     connection.commit()
     print(json.dumps({"status": "success", "github_run_id": str(args.run_id),
                       "drive_file_id": args.drive_file_id}))
@@ -100,7 +121,8 @@ def build_parser() -> argparse.ArgumentParser:
     lookup_parser.add_argument("--code-sha", required=True)
     record_parser = subparsers.add_parser("record")
     for name in ("session-date", "actions-started-at", "recorded-at", "code-sha", "repository",
-                 "workflow-ref", "snapshot-sha256", "manifest-sha256", "drive-file-id", "drive-file-name"):
+                 "workflow-ref", "snapshot-sha256", "manifest-sha256", "drive-file-id", "drive-file-name",
+                 "drive-created-at"):
         record_parser.add_argument(f"--{name}", required=True)
     record_parser.add_argument("--run-id", type=int, required=True)
     record_parser.add_argument("--run-attempt", type=int, required=True)
