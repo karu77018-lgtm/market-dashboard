@@ -1,0 +1,35 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//@version=6
+// Strategy version of the adopted rule, for reproducing the research backtest inside TradingView.
+//   Long TQQQ while QQQ close > QQQ SMA(len) (optional hysteresis band), flat otherwise.
+//   Orders are placed on the daily close and fill at the next bar's open (process_orders_on_close = false).
+//   Cost: 0.05% per side, modelled as commission. Python reference: reports/sma200_filter_trades.csv
+// Use on a daily chart of NASDAQ:TQQQ.
+strategy("TQQQ Regime Filter (QQQ > SMA)", shorttitle = "TQQQ Filter Strat", overlay = true,
+     initial_capital = 10000, default_qty_type = strategy.percent_of_equity, default_qty_value = 100,
+     commission_type = strategy.commission.percent, commission_value = 0.05,
+     process_orders_on_close = false, calc_on_every_tick = false, margin_long = 0, pyramiding = 0)
+
+qSym   = input.symbol("NASDAQ:QQQ", "Regime symbol")
+smaLen = input.int(200, "Long SMA length", minval = 20)
+band   = input.float(0.0, "Hysteresis band %", minval = 0.0, step = 0.5) / 100
+startT = input.time(timestamp("2011-02-10"), "Backtest start")
+
+[qClose, qSma] = request.security(qSym, timeframe.period, [close, ta.sma(close, smaLen)], lookahead = barmerge.lookahead_off)
+
+var bool inFilter = false
+if na(qSma)
+    inFilter := false
+else if not inFilter and qClose > qSma * (1 + band)
+    inFilter := true
+else if inFilter and qClose < qSma * (1 - band)
+    inFilter := false
+
+active = time >= startT
+if active and inFilter and strategy.position_size == 0
+    strategy.entry("Long", strategy.long)
+if active and not inFilter and strategy.position_size > 0
+    strategy.close("Long", comment = "QQQ<SMA")
+
+plot(ta.sma(close, 200), "TQQQ SMA200", color = #52514e, linewidth = 1)
+bgcolor(inFilter ? color.new(#008300, 92) : color.new(#e34948, 94), title = "Filter state")

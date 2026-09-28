@@ -1,8 +1,8 @@
 # TQQQ EMA21 / AVWAP 乖離スイング検証
 
-進捗: Step 1–2（データ・イベントスタディ）と **Step 3（戦略バックテスト）完了**。Step 4（Pine実装）は採用ルールの確認待ち。
+進捗: **Step 1–4 すべて完了**（データ → イベントスタディ → バックテスト → Pine v6 実装）。
 
-- 再現: `python3 research/tqqq_swing/event_study.py` → `reports/01_event_study.md`、`python3 research/tqqq_swing/run_step3.py` → `reports/02_backtest.md`・`grid.csv`・`fig_*.png`（約15秒）
+- 再現: `python3 research/tqqq_swing/event_study.py` → `reports/01_event_study.md`、`python3 research/tqqq_swing/run_step3.py` → `reports/02_backtest.md`・`grid.csv`・`fig_*.png`（約15秒）、`python3 research/tqqq_swing/regime_filter_check.py` → `reports/03_regime_filter.md`・`sma200_filter_trades.csv`・`pine_crosscheck.csv`
 - コード: `lib.py`（読み込み・指標・AVWAP・前方リターン）、`event_study.py`、`backtest.py`（約定エンジン・シグナル・指標）、`run_step3.py`（グリッド・WF・図）
 - データ: `data/{TQQQ,QQQ}_tv_1d.parquet`（TradingView、分割調整済み・配当未調整。Massive と直近434本でOHLCが完全一致）
 
@@ -85,3 +85,49 @@
 ### Step 4 への提案
 - Pine化する価値があるのは、**「QQQ>SMA200 の間だけTQQQを保有」**（オーバーレイ＋エントリー/手仕舞いアラート）。
 - 乖離・AVWAP は売買ルールではなく、表示用の補助（Dev/DevZ、AVWAP±1ATRゾーン）として載せる。
+
+## Step 4: 採用ルールと Pine v6 実装
+
+### 採用ルール（1本）
+**QQQ の終値が SMA200 を上回っている間だけ TQQQ を保有し、下回ったら現金。** 判定は日足の終値、約定は翌日寄り付き。
+
+| 期間 | CAGR | MaxDD | MAR | 取引数 | 露出率 |
+|---|---|---|---|---|---|
+| FULL 2011-02〜 | 30.2% | −57.7% | 0.52 | 41 | 84% |
+| IS 2011–2018 | 17.4% | −55.4% | 0.31 | 26 | 87% |
+| OOS 2019〜 | 44.7% | −57.7% | 0.77 | 15 | 81% |
+| （参考）TQQQ B&H FULL | 38.8% | −81.8% | 0.47 | – | 100% |
+
+**このルールはドローダウンを抑えるためのもので、リターンを増やすものではない**（`reports/03_regime_filter.md`）。
+- 近傍の16構成（SMA 100/150/200/250 × ヒステリシス 0/1/2/3%）のうち SMA100 を除く12構成すべてで、MaxDD は −58〜−68%（B&H は −82%）。DD の改善は頑健。
+- 一方 MAR が B&H を上回るかはパラメータ次第。SMA150–250 × バンド0–2% の9構成のうち、FULL で B&H を上回るのは 44%、IS では 0%。
+- FULL での優位はほぼ2022年（B&H −79%、フィルタ −39%）の1局面に依存している。
+- CAGR は B&H より毎年のように低い（2011–2018 は 17% 対 34%）。長い上昇相場では、ダマシによる損失が積み重なる。
+- バンド1% は 3期間とも MAR がわずかに良く、取引数が半分（41→21）になる。ただし同じデータを見て選ぶことになるため、既定値は 0% のまま、入力で変更できるようにした。
+
+### Pine ファイル（`pine/`）
+- `tqqq_regime_overlay.pine`（indicator, overlay）
+  - 売買: フィルタON/OFF の矢印（IN/OUT）。アラートは「TQQQ filter ON / OFF / change」。
+  - 表示のみ:
+    - EMA21/SMA50/SMA200
+    - レジームの背景色（R1 青 / R2 黄 / R3 赤）
+    - スイング安値・高値AVWAP と ±1ATR ゾーン（左右5本ピボットの確定後から、起点20本以内のみ）
+    - ステータス表（Filter / Regime / QQQ乖離 / Dev / Dev% / DevZ / AVWAP経過本数）
+  - 参考マーカー B・C（既定OFF、「エッジなし」と明記）
+- `tqqq_regime_strategy.pine`（strategy）
+  - Python のバックテストを TradingView 上で再現する版。翌寄りで約定し、片道0.05% を手数料として計上する。
+  - 期待される取引一覧は `reports/sma200_filter_trades.csv`。
+
+### TradingView での確認手順
+1. NASDAQ:TQQQ の日足を開き、両スクリプトを Pine エディタに貼り付けて追加する。
+   - この環境には Pine コンパイラがないため、構文は目視で確認しただけ。コンパイルエラーが出たらエラー文を共有してほしい。
+2. strategy の「取引一覧」と `reports/sma200_filter_trades.csv` の日付を突き合わせる。直近は 2025-05-13 IN → 2026-03-23 OUT、2026-04-09 IN（保有中）。
+3. overlay のステータス表（Dev / DevZ / AVWAP）と `reports/pine_crosscheck.csv`（直近60本）を照合する。
+   - EMA と ATR は、計算の初期値の違いで小数点以下がわずかにずれることがある。200本以上経てばほぼ一致する。
+   - AVWAP は、同値の安値が並んだときのピボットの判定が Pine と Python で異なる可能性がある。
+4. アラートは「Once Per Bar Close」で作成する。
+
+### 実運用上の注意
+- 配当・税・借入コストは計算に入れていない。TQQQ の経費率（約0.8%/年）は価格に反映済み。
+- 判定は終値、約定は翌寄りなので、夜間のギャップはそのまま被る。2020-03 のような急落では、フィルタOFF の翌寄りで大きく下げた価格で売ることになる。
+- 乖離（Dev）・AVWAP を使った押し目買い・利確ルールは、この検証では採用しない（Step 2–3 の結論）。

@@ -1,0 +1,151 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//@version=6
+// TQQQ regime filter + deviation / AVWAP overlay (research/tqqq_swing, step 4)
+//
+// Trading rule (the only rule adopted after steps 2-3):
+//   hold TQQQ while QQQ close > QQQ SMA200; decided on the daily close, executed at the next open.
+//   This is a drawdown-control rule, not a return enhancer: 2011-02..2026-09 it cut MaxDD from -82% to -58%
+//   while CAGR fell from 39% to 30% (see reports/02_backtest.md, 03_regime_filter.md).
+// Everything else (Dev, DevZ, AVWAP zones, B/C markers) is display only. The pullback / AVWAP-retest /
+// capitulation entries showed no usable edge in the backtests; markers are off by default.
+//
+// Use on a daily chart of NASDAQ:TQQQ. Create alerts with "Once Per Bar Close" so signals use the confirmed close.
+// Note: ta.ema/ta.atr seed differently from the Python research code; values converge after ~200 bars.
+indicator("TQQQ Regime + Deviation Overlay", shorttitle = "TQQQ Regime", overlay = true, max_bars_back = 500, max_labels_count = 500)
+
+// ---------------------------------------------------------------- inputs
+grpR = "Regime (QQQ)"
+qSym      = input.symbol("NASDAQ:QQQ", "Regime symbol", group = grpR)
+smaLen    = input.int(200, "Long SMA length", minval = 20, group = grpR)
+band      = input.float(0.0, "Hysteresis band %", minval = 0.0, step = 0.5, group = grpR, tooltip = "Enter when QQQ > SMA*(1+b), exit when QQQ < SMA*(1-b). Researched default is 0 (not optimised).") / 100
+showBg    = input.bool(true, "Shade regime R1/R2/R3", group = grpR)
+
+grpI = "Deviation / AVWAP (display)"
+showMA    = input.bool(true, "Show EMA21 / SMA50 / SMA200", group = grpI)
+pivLR     = input.int(5, "Pivot left/right bars", minval = 1, group = grpI)
+avMaxAge  = input.int(20, "AVWAP max age from anchor (bars)", minval = 5, group = grpI)
+zoneMult  = input.float(1.0, "Zone width (x ATR14)", minval = 0.1, step = 0.1, group = grpI)
+showAvL   = input.bool(true, "Show swing-low AVWAP zone", group = grpI)
+showAvH   = input.bool(false, "Show swing-high AVWAP zone", group = grpI)
+showTable = input.bool(true, "Show status table", group = grpI)
+
+grpS = "Reference markers (no edge found)"
+showB     = input.bool(false, "Mark B: AVWAP-zone retest reclaim (R1/R2)", group = grpS)
+showC     = input.bool(false, "Mark C: DevZ <= -2.5 then reclaim", group = grpS)
+
+// ---------------------------------------------------------------- QQQ regime
+[qClose, qSma, qEma21, qSma50] = request.security(qSym, timeframe.period, [close, ta.sma(close, smaLen), ta.ema(close, 21), ta.sma(close, 50)], lookahead = barmerge.lookahead_off)
+
+var bool inFilter = false
+if na(qSma)
+    inFilter := false
+else if not inFilter and qClose > qSma * (1 + band)
+    inFilter := true
+else if inFilter and qClose < qSma * (1 - band)
+    inFilter := false
+
+aboveLong = qClose > qSma
+r1 = aboveLong and qEma21 > qSma50
+r2 = aboveLong and not r1
+r3 = not na(qSma) and not aboveLong
+regimeTxt = na(qSma) ? "n/a" : r1 ? "R1" : r2 ? "R2" : "R3"
+
+enterSig = inFilter and not inFilter[1]
+exitSig  = not inFilter and inFilter[1]
+
+// ---------------------------------------------------------------- chart-symbol indicators
+ema21  = ta.ema(close, 21)
+sma50  = ta.sma(close, 50)
+sma200 = ta.sma(close, 200)
+atr14  = ta.atr(14)
+dev    = (close - ema21) / atr14
+devPct = close / ema21 - 1
+devMu  = ta.sma(dev[1], 252)
+devSd  = ta.stdev(dev[1], 252, false)   // sample std, prior 252 bars (today excluded)
+devZ   = (dev - devMu) / devSd
+
+// ---------------------------------------------------------------- anchored VWAP from confirmed pivots
+cumPV = ta.cum(hlc3 * volume)
+cumV  = ta.cum(volume)
+
+var int anchorL = na
+var int anchorH = na
+pl = ta.pivotlow(low, pivLR, pivLR)
+ph = ta.pivothigh(high, pivLR, pivLR)
+if not na(pl)
+    anchorL := bar_index - pivLR          // pivot bar; known only now (pivLR bars later)
+if not na(ph)
+    anchorH := bar_index - pivLR
+
+avwapFrom(int anchor) =>
+    float result = na
+    if not na(anchor)
+        age = bar_index - anchor
+        if age <= avMaxAge
+            k = age + 1                    // cum through anchor-1 is k bars back
+            dv = cumV - nz(cumV[k])
+            result := dv > 0 ? (cumPV - nz(cumPV[k])) / dv : na
+    result
+
+avL = avwapFrom(anchorL)
+avH = avwapFrom(anchorH)
+ageL = na(avL) ? na : bar_index - anchorL
+
+// ---------------------------------------------------------------- plots
+bgcolor(showBg and r1 ? color.new(#2a78d6, 93) : showBg and r2 ? color.new(#eda100, 90) : showBg and r3 ? color.new(#e34948, 90) : na, title = "Regime shade")
+
+plot(showMA ? ema21 : na, "EMA21", color = #2a78d6, linewidth = 2)
+plot(showMA ? sma50 : na, "SMA50", color = #eb6834, linewidth = 1)
+plot(showMA ? sma200 : na, "SMA200", color = #52514e, linewidth = 2)
+
+pAvL  = plot(showAvL ? avL : na, "AVWAP swing low", color = #1baf7a, linewidth = 2, style = plot.style_linebr)
+pAvLu = plot(showAvL and not na(avL) ? avL + zoneMult * atr14 : na, "AVWAP-L zone top", color = color.new(#1baf7a, 70), style = plot.style_linebr)
+pAvLd = plot(showAvL and not na(avL) ? avL - zoneMult * atr14 : na, "AVWAP-L zone bottom", color = color.new(#1baf7a, 70), style = plot.style_linebr)
+fill(pAvLu, pAvLd, color = color.new(#1baf7a, 88), title = "AVWAP-L zone")
+
+pAvH  = plot(showAvH ? avH : na, "AVWAP swing high", color = #e87ba4, linewidth = 2, style = plot.style_linebr)
+pAvHu = plot(showAvH and not na(avH) ? avH + zoneMult * atr14 : na, "AVWAP-H zone top", color = color.new(#e87ba4, 70), style = plot.style_linebr)
+pAvHd = plot(showAvH and not na(avH) ? avH - zoneMult * atr14 : na, "AVWAP-H zone bottom", color = color.new(#e87ba4, 70), style = plot.style_linebr)
+fill(pAvHu, pAvHd, color = color.new(#e87ba4, 88), title = "AVWAP-H zone")
+
+plotshape(enterSig, "Filter ON (buy next open)", shape.triangleup, location.belowbar, color = #008300, size = size.small, text = "IN")
+plotshape(exitSig, "Filter OFF (sell next open)", shape.triangledown, location.abovebar, color = #e34948, size = size.small, text = "OUT")
+
+// reference markers (display only)
+reclaim = close > high[1]
+touchL  = not na(avL) and low <= avL + zoneMult * atr14 and close >= avL - zoneMult * atr14
+bSig    = reclaim and (touchL or touchL[1] or touchL[2]) and (r1 or r2)
+capBars = ta.barssince(devZ <= -2.5)
+cSig    = reclaim and not na(capBars[1]) and capBars[1] <= 4
+plotshape(showB and bSig, "B marker", shape.circle, location.belowbar, color = color.new(#4a3aa7, 20), size = size.tiny, text = "B")
+plotshape(showC and cSig, "C marker", shape.diamond, location.belowbar, color = color.new(#eb6834, 20), size = size.tiny, text = "C")
+
+// ---------------------------------------------------------------- status table
+var table tb = table.new(position.top_right, 2, 7, bgcolor = color.new(#fcfcfb, 10), border_color = color.new(#c3c2b7, 0), border_width = 1)
+if showTable and barstate.islast
+    table.cell(tb, 0, 0, "Filter", text_color = #52514e)
+    table.cell(tb, 1, 0, inFilter ? "ON (hold)" : "OFF (cash)", text_color = inFilter ? #006300 : #d03b3b)
+    table.cell(tb, 0, 1, "Regime", text_color = #52514e)
+    table.cell(tb, 1, 1, regimeTxt, text_color = #0b0b0b)
+    table.cell(tb, 0, 2, "QQQ / SMA" + str.tostring(smaLen), text_color = #52514e)
+    table.cell(tb, 1, 2, str.tostring((qClose / qSma - 1) * 100, "#.##") + "%", text_color = #0b0b0b)
+    table.cell(tb, 0, 3, "Dev (ATR)", text_color = #52514e)
+    table.cell(tb, 1, 3, str.tostring(dev, "#.##"), text_color = #0b0b0b)
+    table.cell(tb, 0, 4, "Dev %", text_color = #52514e)
+    table.cell(tb, 1, 4, str.tostring(devPct * 100, "#.##") + "%", text_color = #0b0b0b)
+    table.cell(tb, 0, 5, "DevZ (252)", text_color = #52514e)
+    table.cell(tb, 1, 5, str.tostring(devZ, "#.##"), text_color = #0b0b0b)
+    table.cell(tb, 0, 6, "AVWAP-L age", text_color = #52514e)
+    table.cell(tb, 1, 6, na(ageL) ? "–" : str.tostring(ageL), text_color = #0b0b0b)
+
+// ---------------------------------------------------------------- alerts (once per confirmed daily close)
+alertcondition(enterSig, "TQQQ filter ON", "QQQ closed above its long SMA: BUY TQQQ at next open. {{ticker}} close {{close}}")
+alertcondition(exitSig, "TQQQ filter OFF", "QQQ closed below its long SMA: SELL TQQQ at next open. {{ticker}} close {{close}}")
+alertcondition(enterSig or exitSig, "TQQQ filter change", "TQQQ regime filter changed state. {{ticker}} close {{close}}")
+alertcondition(bSig, "Reference: B AVWAP retest", "Reference only (no edge found): AVWAP-zone retest reclaim on {{ticker}}")
+alertcondition(cSig, "Reference: C capitulation reclaim", "Reference only (no edge found): DevZ<=-2.5 reclaim on {{ticker}}")
+
+if barstate.isconfirmed and enterSig
+    alert("TQQQ filter ON: QQQ " + str.tostring(qClose) + " > SMA" + str.tostring(smaLen) + " " + str.tostring(qSma, "#.##") + " -> buy TQQQ at next open", alert.freq_once_per_bar_close)
+if barstate.isconfirmed and exitSig
+    alert("TQQQ filter OFF: QQQ " + str.tostring(qClose) + " < SMA" + str.tostring(smaLen) + " " + str.tostring(qSma, "#.##") + " -> sell TQQQ at next open", alert.freq_once_per_bar_close)
