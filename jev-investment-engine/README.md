@@ -44,3 +44,24 @@ If `JEV_API_SECRET` is configured, callers must send:
 - Jev outputs are research features, not trade orders.
 - Model/question versions must be persisted before production backfill.
 - Point-in-time and tradable-at timestamps are mandatory for historical research.
+
+## Automatic live shadow run
+
+The weekday/manual `Refresh source-mc57` workflow invokes
+`scripts/run_jev_live_shadow.py` after the dashboard publication gates pass.
+It evaluates up to 12 current MC57 names using at most eight Massive news items
+published during the preceding 30 days and no later than
+`latest-manifest.json.generated_at`.
+
+- Each eligible ticker runs the frozen `jev-text-v1` question set three times.
+- Results and the supplied state are stored in Neon by the Jev API.
+- Runs are `evaluationKind=live`, `validationEligible=false`, and shadow-only.
+- Tickers without point-in-time news are skipped instead of asking Jev to guess.
+- Push-triggered rebuilds do not invoke Jev; scheduled and manual runs do.
+- A Jev failure cannot block the dashboard or Phase A-0 preservation.
+- The 90-day GitHub audit Artifact contains only ticker, counts, evaluation IDs,
+  cost, and the state SHA-256. Vendor news text is never written to GitHub.
+
+GitHub Actions needs a `JEV_API_SECRET` repository Secret whose value exactly
+matches the `JEV_API_SECRET` configured for the Vercel project. The optional
+`JEV_API_URL` repository Variable may override the production endpoint.
