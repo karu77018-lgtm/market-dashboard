@@ -47,7 +47,7 @@ jobs:
         run: >-
           python -m pip install
           "numpy<3" "pandas<3" "yfinance==0.2.66"
-          requests beautifulsoup4 lxml pytest
+          requests beautifulsoup4 lxml pytest "psycopg[binary]<4"
 
       - name: Verify FRED secret
         shell: bash
@@ -106,40 +106,84 @@ jobs:
         shell: bash
         run: |
           session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
-          python scripts/enhance_source_mc57.py \
-            --html source-mc57.html --ohlcv work/ohlcv.csv \
-            --chart-dir chart-data --session "$session"
+          python scripts/enhance_source_mc57.py             --html source-mc57.html --ohlcv work/ohlcv.csv             --chart-dir chart-data --session "$session"
 
       - name: Publication gates
         run: python scripts/validate_publication.py --root .
 
-      - name: Save reproducible preservation snapshot
+      - name: Build and secret-scan deterministic research snapshot
+        env:
+          SNAPSHOT_DATABASE_URL: ${{ secrets.SNAPSHOT_DATABASE_URL }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+        run: >-
+          python scripts/research_snapshot_archive.py
+          --repo-root .
+          --run-id "${{ github.run_id }}"
+          --code-sha "${{ github.sha }}"
+          --result-json work/research-snapshot/archive-result.json
+
+      - name: Upload research snapshot to Google Drive
+        id: drive
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        shell: bash
+        run: |
+          python scripts/upload_research_snapshot_drive.py             --archive-result work/research-snapshot/archive-result.json             --result-json work/research-snapshot/drive-result.json
+          status="$(python -c 'import json; print(json.load(open("work/research-snapshot/drive-result.json"))["copy_status"])')"
+          echo "copy_status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Record research snapshot manifest in Neon
+        id: neon
+        env:
+          SNAPSHOT_DATABASE_URL: ${{ secrets.SNAPSHOT_DATABASE_URL }}
+        shell: bash
+        run: |
+          python scripts/record_research_snapshot.py             --archive-result work/research-snapshot/archive-result.json             --drive-result work/research-snapshot/drive-result.json             --result-json work/research-snapshot/neon-result.json
+          status="$(python -c 'import json; print(json.load(open("work/research-snapshot/neon-result.json"))["record_status"])')"
+          echo "record_status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Write append-only public hash record
+        id: hash
+        shell: bash
+        run: |
+          hash_path="$(python scripts/finalize_research_hash_record.py             --archive-result work/research-snapshot/archive-result.json             --drive-result work/research-snapshot/drive-result.json             --neon-result work/research-snapshot/neon-result.json)"
+          echo "hash_path=$hash_path" >> "$GITHUB_OUTPUT"
+
+      - name: Save public-safe preservation snapshot
         uses: actions/upload-artifact@v4
         with:
-          name: source-mc57-preservation-${{ github.run_id }}
-          retention-days: 30
+          name: source-mc57-public-preservation-${{ github.run_id }}
+          retention-days: 90
           compression-level: 6
           path: |
             source-mc57.html
             chart-data/
             latest-manifest.json
-            data/mc57.json
-            data/state.json
-            data/rs.json
-            data/market_inputs.json
-            data/mktcap.json
-            data/theme_membership.json
-            data/provider_inputs.json
-            work/ohlcv.csv
-            work/massive-reference.json
-            work/massive-grouped.json
+            ${{ steps.hash.outputs.hash_path }}
 
-      - name: Publish source-only outputs
+      - name: Temporary raw fallback until Drive copy succeeds
+        if: steps.drive.outputs.copy_status != 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-mc57-raw-fallback-${{ github.run_id }}
+          retention-days: 30
+          compression-level: 6
+          path: |
+            work/research-snapshot/*.tar.gz
+            work/research-snapshot/archive-result.json
+            work/research-snapshot/drive-result.json
+            work/research-snapshot/neon-result.json
+
+      - name: Publish source-only outputs and research hash
         shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- source-mc57.html chart-data latest-manifest.json
+          git add -- source-mc57.html chart-data latest-manifest.json research-hashes
           if git diff --cached --quiet; then
             echo "No publication change"
             exit 0
