@@ -790,6 +790,19 @@ export default async function handler(req, res) {
       loadedQuestionSet = await loadQuestionSet(body.questionSetVersion);
       questions = loadedQuestionSet.questions;
       questionSource = "neon";
+
+      if (
+        persist &&
+        body.questionSetVersion === "jev-text-v1" &&
+        Object.keys(questions).length !== 15
+      ) {
+        return res.status(500).json({
+          ok: false,
+          error: "jev_text_v1_question_count_mismatch",
+          expected: 15,
+          actual: Object.keys(questions).length
+        });
+      }
     }
 
     const runs = persist
