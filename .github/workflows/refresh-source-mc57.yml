@@ -108,6 +108,13 @@ jobs:
           session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
           echo "actions_started_at=$started_at" >> "$GITHUB_OUTPUT"
           echo "session_date=$session" >> "$GITHUB_OUTPUT"
+      - name: Resolve successful monthly-full policy
+        id: snapshot_policy
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: >-
+          python scripts/phase_a0/resolve_snapshot_mode.py --root .
+          --session-date "${{ steps.run_meta.outputs.session_date }}"
+          --repository "${{ github.repository }}" --ref main
       - name: Secret leak gate
         id: secret_scan
         env:
@@ -130,6 +137,7 @@ jobs:
           --actions-started-at "${{ steps.run_meta.outputs.actions_started_at }}"
           --code-sha "${{ github.sha }}" --repository "${{ github.repository }}"
           --workflow-ref "${{ github.workflow_ref }}"
+          --snapshot-mode "${{ steps.snapshot_policy.outputs.snapshot_mode }}"
       - name: Prepare Neon manifest and check immutable run id
         if: steps.preservation_secrets.outcome == 'success'
         id: neon_lookup
@@ -288,6 +296,32 @@ jobs:
             ${{ steps.interim.outputs.enc_path }}
             ${{ steps.interim.outputs.sha_path }}
             ${{ steps.interim.outputs.metadata_path }}
+      - name: Record successful monthly full snapshot
+        if: >-
+          always() && steps.snapshot.outputs.snapshot_mode == 'full' && (
+            steps.hash_record.outcome == 'success' ||
+            steps.interim_artifact.outcome == 'success'
+          )
+        id: full_marker
+        continue-on-error: true
+        env:
+          DRIVE_FILE_ID: ${{ steps.preservation_ref.outputs.drive_file_id }}
+        run: |
+          if test "${{ steps.hash_record.outcome }}" = "success"; then
+            source="google_drive_live"
+            reference="$DRIVE_FILE_ID"
+          else
+            source="interim_encrypted_artifact"
+            reference="private-encrypted-snapshot-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          fi
+          test -n "$reference"
+          python scripts/phase_a0/write_full_snapshot_marker.py --root . \
+            --session-date "${{ steps.run_meta.outputs.session_date }}" \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --code-sha "$GITHUB_SHA" \
+            --snapshot-sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}" \
+            --manifest-sha256 "${{ steps.snapshot.outputs.manifest_sha256 }}" \
+            --preservation-source "$source" --preservation-reference "$reference"
       - name: Save public reproducibility artifact (vendor raw excluded)
         if: always() && steps.snapshot.outcome == 'success'
         id: public_artifact
@@ -309,6 +343,7 @@ jobs:
             data/theme_membership.json
             ${{ steps.snapshot.outputs.manifest_path }}
             ${{ steps.hash_record.outputs.hash_record_path }}
+            ${{ steps.full_marker.outputs.full_marker_path }}
       - name: Report private preservation failure
         if: >-
           always() && (
@@ -318,6 +353,7 @@ jobs:
             steps.neon_record.outcome == 'failure' ||
             steps.preservation_ref.outcome == 'failure' ||
             steps.hash_record.outcome == 'failure' ||
+            steps.full_marker.outcome == 'failure' ||
             steps.public_artifact.outcome == 'failure'
           )
         run: |
@@ -335,11 +371,13 @@ jobs:
         if: always() && steps.publication_gates.outcome == 'success' && steps.secret_scan.outcome == 'success' && steps.snapshot.outcome == 'success'
         env:
           HASH_RECORD_PATH: ${{ steps.hash_record.outputs.hash_record_path }}
+          FULL_MARKER_PATH: ${{ steps.full_marker.outputs.full_marker_path }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- source-mc57.html chart-data latest-manifest.json
           if test -n "$HASH_RECORD_PATH"; then git add -- "$HASH_RECORD_PATH"; fi
+          if test -n "$FULL_MARKER_PATH"; then git add -- "$FULL_MARKER_PATH"; fi
           if git diff --cached --quiet; then echo "No publication change"; exit 0; fi
           session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
           git commit -m "Update source-mc57 through ${session} [skip refresh]"
@@ -348,6 +386,7 @@ jobs:
         if: >-
           always() && steps.publish.outcome == 'success' && (
             steps.public_artifact.outcome == 'failure' ||
+            steps.full_marker.outcome == 'failure' ||
             (
               steps.interim_artifact.outcome != 'success' && (
                 steps.preservation_secrets.outcome == 'failure' ||

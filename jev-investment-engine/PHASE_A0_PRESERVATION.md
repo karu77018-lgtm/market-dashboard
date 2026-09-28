@@ -19,15 +19,33 @@ Secret leakage, publication validation, or snapshot construction failure remains
 
 ## Snapshot size and reconstruction policy
 
-The first observed US market session in each calendar month is a self-contained `full`
-snapshot. Other sessions are `delta` snapshots. A delta contains the current session only from
-`work/ohlcv.csv` and `work/massive-grouped.json`, plus the current private generated inputs.
-Large public outputs (`source-mc57.html`, `chart-data`, and `latest-manifest.json`) remain in the
-linked Git commit; their paths, sizes, and SHA-256 values are recorded as `external_files` in
-the private manifest instead of duplicating their bytes every day.
+The first **successfully preserved** snapshot in each calendar month is a self-contained `full`
+snapshot. A full is considered successful only after either Drive/Neon/hash recording or the
+encrypted fallback Artifact succeeds. The workflow then commits an immutable marker at
+`research-snapshot-index/YYYY/MM/full.json`. Until that marker exists, every later run in the
+month tries a full snapshot again; a failed first trading-day run therefore cannot leave the
+month without a baseline.
+
+Other runs are `delta` snapshots. A delta contains the current session only from
+`work/ohlcv.csv` and `work/massive-grouped.json`, plus the current private generated inputs,
+`source-mc57.html`, and `latest-manifest.json`. Only `chart-data` remains in the linked Git
+commit; its paths, sizes, and SHA-256 values are recorded as `external_files` in the private
+manifest instead of duplicating its bytes every day.
+
+Before reducing the two rolling raw files, the manifest records each original file's SHA-256,
+byte size, row count, and (for Massive grouped data) session count under
+`source_before_delta`. This proves which complete rolling input was used, but does not make that
+input reconstructable from the delta alone. Yahoo's automatically adjusted history and
+Massive's `adjusted=true` history can rewrite old daily bars after splits or dividends. A chain
+of deltas therefore reconstructs the values observed for each saved session, not the complete
+rolling history exactly as it appeared on every individual run. This is sufficient for future
+label calculations that use the retained session values; use a full snapshot when the complete
+historical input as-of a particular run is required.
 
 To reconstruct a delta, restore the latest preceding monthly full snapshot and apply every
-subsequent delta in session order. Then check each external file against the linked Git commit
+subsequent delta in `(session_date, github_run_id)` order. Multiple runs from the same session
+are valid; the later run ID replaces that session's earlier ticker/date and grouped values.
+Then check each external file against the linked Git commit
 using the hashes in `snapshot-manifest.json`. Do not delete a monthly full while any retained
 delta depends on it. The pre-policy fallback for run `36405274864` is a full snapshot and is the
 September 2026 baseline.

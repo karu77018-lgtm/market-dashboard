@@ -25,11 +25,7 @@ DEFAULT_PATHS = (
     "work/massive-reference.json", "work/massive-grouped.json",
 )
 
-DELTA_EXTERNAL_PATHS = {
-    "source-mc57.html",
-    "chart-data",
-    "latest-manifest.json",
-}
+DELTA_EXTERNAL_PATHS = {"chart-data"}
 
 
 def iso_utc(value: str | None = None) -> str:
@@ -47,29 +43,41 @@ def collect_files(root: Path, requested: list[str]) -> list[Path]:
     return sorted(files, key=lambda path: path.relative_to(root).as_posix())
 
 
-def first_observed_session_in_month(ohlcv_path: Path, session_date: str) -> str:
-    month = session_date[:7]
-    observed: set[str] = set()
-    with ohlcv_path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle)
-        if "date" not in (reader.fieldnames or []):
-            raise ValueError("work/ohlcv.csv does not contain a date column")
-        for row in reader:
-            value = str(row.get("date") or "")
-            if value.startswith(month + "-"):
-                observed.add(value)
-    if session_date not in observed:
-        raise ValueError(f"work/ohlcv.csv has no rows for session {session_date}")
-    return min(observed)
+def resolve_snapshot_mode(requested_mode: str) -> str:
+    if requested_mode == "auto":
+        raise ValueError(
+            "snapshot mode must be resolved from the successful monthly-full marker before building"
+        )
+    return requested_mode
 
 
-def resolve_snapshot_mode(root: Path, requested_mode: str, session_date: str) -> str:
-    if requested_mode != "auto":
-        return requested_mode
-    ohlcv_path = root / "work/ohlcv.csv"
-    if not ohlcv_path.is_file():
-        return "full"
-    return "full" if first_observed_session_in_month(ohlcv_path, session_date) == session_date else "delta"
+def csv_row_count(path: Path) -> int:
+    with path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.reader(handle)
+        next(reader, None)
+        return sum(1 for _ in reader)
+
+
+def grouped_counts(path: Path) -> tuple[int, int]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    sessions = payload.get("sessions")
+    if not isinstance(sessions, dict):
+        raise ValueError("work/massive-grouped.json does not contain a sessions object")
+    return sum(len(rows) for rows in sessions.values() if isinstance(rows, dict)), len(sessions)
+
+
+def file_evidence(path: Path, relative: str) -> dict[str, int | str]:
+    evidence: dict[str, int | str] = {
+        "bytes": path.stat().st_size,
+        "sha256": sha256_file(path),
+    }
+    if relative == "work/ohlcv.csv":
+        evidence["row_count"] = csv_row_count(path)
+    elif relative == "work/massive-grouped.json":
+        row_count, session_count = grouped_counts(path)
+        evidence["row_count"] = row_count
+        evidence["session_count"] = session_count
+    return evidence
 
 
 def write_session_ohlcv(source: Path, destination: Path, session_date: str) -> None:
@@ -137,7 +145,7 @@ def main() -> int:
     parser.add_argument("--repository", required=True)
     parser.add_argument("--workflow-ref", required=True)
     parser.add_argument("--recorded-at")
-    parser.add_argument("--snapshot-mode", choices=("auto", "full", "delta"), default="auto")
+    parser.add_argument("--snapshot-mode", choices=("full", "delta"), default="full")
     parser.add_argument("--path", action="append", dest="paths")
     args = parser.parse_args()
 
@@ -146,13 +154,13 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     requested_paths = args.paths or list(DEFAULT_PATHS)
     files = collect_files(root, requested_paths)
-    snapshot_mode = resolve_snapshot_mode(root, args.snapshot_mode, args.session_date)
+    snapshot_mode = resolve_snapshot_mode(args.snapshot_mode)
     recorded_at = iso_utc(args.recorded_at)
 
     with tempfile.TemporaryDirectory(dir=output_dir) as temp_raw:
         temp = Path(temp_raw)
         staging = temp / "staging"
-        archived: list[tuple[Path, str]] = []
+        archived: list[tuple[Path, str, Path]] = []
         external: list[Path] = []
         for path in files:
             relative = path.relative_to(root).as_posix()
@@ -163,7 +171,14 @@ def main() -> int:
                 external.append(path)
                 continue
             staged = stage_delta_file(root, path, staging, args.session_date) if snapshot_mode == "delta" else path
-            archived.append((staged, relative))
+            archived.append((staged, relative, path))
+
+        file_rows = []
+        for staged, relative, original in archived:
+            row = {"path": relative, **file_evidence(staged, relative)}
+            if snapshot_mode == "delta" and staged != original:
+                row["source_before_delta"] = file_evidence(original, relative)
+            file_rows.append(row)
 
         manifest = {
             "schema_version": "phase-a0-v2", "session_date": args.session_date,
@@ -171,16 +186,14 @@ def main() -> int:
             "github_actions_started_at": iso_utc(args.actions_started_at),
             "code_sha": args.code_sha, "repository": args.repository, "workflow_ref": args.workflow_ref,
             "snapshot_mode": snapshot_mode,
-            "full_snapshot_policy": "first observed US market session of each calendar month",
+            "full_snapshot_policy": "first successfully preserved full snapshot of each calendar month",
             "recovery_contract": (
                 "self-contained" if snapshot_mode == "full"
-                else "apply after the latest preceding full snapshot and each intervening delta; "
+                else "apply after the latest preceding full snapshot and each intervening delta in "
+                     "(session_date, github_run_id) order; later same-session runs replace earlier values; "
                      "external_files are preserved in the linked Git commit"
             ),
-            "files": [
-                {"path": relative, "bytes": path.stat().st_size, "sha256": sha256_file(path)}
-                for path, relative in archived
-            ],
+            "files": file_rows,
             "external_files": [
                 {"path": path.relative_to(root).as_posix(), "bytes": path.stat().st_size,
                  "sha256": sha256_file(path)} for path in external
@@ -194,7 +207,7 @@ def main() -> int:
         manifest_sha256 = sha256_file(manifest_path)
         tar_path, gzip_path = temp / "snapshot.tar", temp / "snapshot.tar.gz"
         with tarfile.open(tar_path, "w", format=tarfile.PAX_FORMAT) as archive:
-            for path, relative in archived:
+            for path, relative, _original in archived:
                 archive.add(path, arcname=relative, recursive=False, filter=normalized_tar_info)
             archive.add(manifest_path, arcname="snapshot-manifest.json", recursive=False, filter=normalized_tar_info)
         with tar_path.open("rb") as source, gzip_path.open("wb") as destination:

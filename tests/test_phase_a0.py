@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import os
 import subprocess
@@ -11,6 +12,7 @@ from unittest.mock import patch
 
 from scripts.phase_a0.common import sha256_file
 from scripts.phase_a0.recover_interim_snapshot import github_artifact_created_at
+from scripts.phase_a0.resolve_snapshot_mode import resolve
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -130,7 +132,7 @@ def test_snapshot_hash_is_stable_across_run_attempts(tmp_path: Path) -> None:
     assert "github_run_attempt" not in manifest
 
 
-def test_snapshot_auto_uses_monthly_full_then_daily_delta(tmp_path: Path) -> None:
+def test_monthly_full_and_daily_delta_preserve_evidence_and_restore_same_day_runs(tmp_path: Path) -> None:
     (tmp_path / "work").mkdir()
     (tmp_path / "chart-data").mkdir()
     (tmp_path / "data").mkdir()
@@ -159,8 +161,6 @@ def test_snapshot_auto_uses_monthly_full_then_daily_delta(tmp_path: Path) -> Non
                      "work/ohlcv.csv", "work/massive-reference.json", "work/massive-grouped.json"):
         requested.extend(("--path", relative))
 
-    full = run_script("scripts/phase_a0/build_snapshot.py", *common, "--session-date", "2026-09-01",
-                      "--run-id", "1", *requested, cwd=tmp_path)
     (tmp_path / "work/ohlcv.csv").write_text(
         base_ohlcv + "AAA,2026-09-28,11\nBBB,2026-09-28,12\n",
         encoding="utf-8",
@@ -171,8 +171,10 @@ def test_snapshot_auto_uses_monthly_full_then_daily_delta(tmp_path: Path) -> Non
             "2026-09-28": {"AAA": {"c": 11}, "BBB": {"c": 12}},
         },
     }), encoding="utf-8")
+    full = run_script("scripts/phase_a0/build_snapshot.py", *common, "--session-date", "2026-09-28",
+                      "--run-id", "1", "--snapshot-mode", "full", *requested, cwd=tmp_path)
     delta = run_script("scripts/phase_a0/build_snapshot.py", *common, "--session-date", "2026-09-28",
-                       "--run-id", "2", *requested, cwd=tmp_path)
+                       "--run-id", "2", "--snapshot-mode", "delta", *requested, cwd=tmp_path)
     assert full.returncode == delta.returncode == 0, full.stderr + delta.stderr
     full_output, delta_output = json.loads(full.stdout), json.loads(delta.stdout)
     assert full_output["snapshot_mode"] == "full"
@@ -181,9 +183,9 @@ def test_snapshot_auto_uses_monthly_full_then_daily_delta(tmp_path: Path) -> Non
 
     with tarfile.open(tmp_path / delta_output["snapshot_path"], "r:gz") as archive:
         names = set(archive.getnames())
-        assert "source-mc57.html" not in names
+        assert "source-mc57.html" in names
         assert "chart-data/index.json" not in names
-        assert "latest-manifest.json" not in names
+        assert "latest-manifest.json" in names
         ohlcv = archive.extractfile("work/ohlcv.csv").read().decode()
         assert "2026-09-01" not in ohlcv
         assert ohlcv.count("2026-09-28") == 2
@@ -191,19 +193,45 @@ def test_snapshot_auto_uses_monthly_full_then_daily_delta(tmp_path: Path) -> Non
         assert list(grouped["sessions"]) == ["2026-09-28"]
         manifest = json.load(archive.extractfile("snapshot-manifest.json"))
         assert manifest["snapshot_mode"] == "delta"
-        assert {row["path"] for row in manifest["external_files"]} == {
-            "source-mc57.html", "chart-data/index.json", "latest-manifest.json",
-        }
+        assert {row["path"] for row in manifest["external_files"]} == {"chart-data/index.json"}
+        entries = {row["path"]: row for row in manifest["files"]}
+        assert entries["work/ohlcv.csv"]["row_count"] == 2
+        assert entries["work/ohlcv.csv"]["source_before_delta"]["row_count"] == 502
+        assert entries["work/massive-grouped.json"]["row_count"] == 2
+        assert entries["work/massive-grouped.json"]["source_before_delta"]["session_count"] == 2
+        assert len(entries["work/ohlcv.csv"]["source_before_delta"]["sha256"]) == 64
+
+    (tmp_path / "work/ohlcv.csv").write_text(
+        base_ohlcv + "AAA,2026-09-28,99\nBBB,2026-09-28,12\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "work/massive-grouped.json").write_text(json.dumps({
+        "schema": "grouped", "sessions": {
+            "2026-09-01": base_grouped,
+            "2026-09-28": {"AAA": {"c": 99}, "BBB": {"c": 12}},
+        },
+    }), encoding="utf-8")
+    later_same_day = run_script(
+        "scripts/phase_a0/build_snapshot.py", *common, "--session-date", "2026-09-28",
+        "--run-id", "3", "--snapshot-mode", "delta", *requested, cwd=tmp_path,
+    )
+    assert later_same_day.returncode == 0, later_same_day.stderr
+    later_output = json.loads(later_same_day.stdout)
 
     restored = run_script(
         "scripts/phase_a0/restore_snapshot_chain.py",
-        full_output["snapshot_path"], delta_output["snapshot_path"],
+        full_output["snapshot_path"], delta_output["snapshot_path"], later_output["snapshot_path"],
         "--output", "restored", cwd=tmp_path,
     )
     assert restored.returncode == 0, restored.stderr
     restored_ohlcv = (tmp_path / "restored/work/ohlcv.csv").read_text(encoding="utf-8")
     assert restored_ohlcv.count("2026-09-01") == 500
     assert restored_ohlcv.count("2026-09-28") == 2
+    restored_rows = list(csv.DictReader(restored_ohlcv.splitlines()))
+    assert next(
+        row for row in restored_rows
+        if row["ticker"] == "AAA" and row["date"] == "2026-09-28"
+    )["close"] == "99"
     restored_grouped = json.loads(
         (tmp_path / "restored/work/massive-grouped.json").read_text(encoding="utf-8")
     )
@@ -211,7 +239,50 @@ def test_snapshot_auto_uses_monthly_full_then_daily_delta(tmp_path: Path) -> Non
     report = json.loads(
         (tmp_path / "restored/.preservation/reconstruction-report.json").read_text(encoding="utf-8")
     )
-    assert [row["snapshot_mode"] for row in report["applied"]] == ["full", "delta"]
+    assert [row["snapshot_mode"] for row in report["applied"]] == ["full", "delta", "delta"]
+    assert [row["github_run_id"] for row in report["applied"]] == ["1", "2", "3"]
+    wrong_order = run_script(
+        "scripts/phase_a0/restore_snapshot_chain.py",
+        full_output["snapshot_path"], later_output["snapshot_path"], delta_output["snapshot_path"],
+        "--output", "wrong-order", cwd=tmp_path,
+    )
+    assert wrong_order.returncode != 0
+    assert "(session_date, github_run_id)" in wrong_order.stderr
+
+
+def test_successful_monthly_full_marker_controls_snapshot_mode(tmp_path: Path) -> None:
+    missing = run_script(
+        "scripts/phase_a0/resolve_snapshot_mode.py", "--root", ".",
+        "--session-date", "2026-10-02", "--repository", "", cwd=tmp_path,
+    )
+    assert missing.returncode == 0
+    assert json.loads(missing.stdout)["snapshot_mode"] == "full"
+
+    marker_args = (
+        "--root", ".", "--session-date", "2026-10-02", "--run-id", "42",
+        "--run-attempt", "1", "--code-sha", "a" * 40,
+        "--snapshot-sha256", "b" * 64, "--manifest-sha256", "c" * 64,
+        "--preservation-source", "interim_encrypted_artifact",
+        "--preservation-reference", "private-encrypted-snapshot-42-1",
+    )
+    first = run_script("scripts/phase_a0/write_full_snapshot_marker.py", *marker_args, cwd=tmp_path)
+    same = run_script("scripts/phase_a0/write_full_snapshot_marker.py", *marker_args, cwd=tmp_path)
+    assert first.returncode == same.returncode == 0
+    resolved = run_script(
+        "scripts/phase_a0/resolve_snapshot_mode.py", "--root", ".",
+        "--session-date", "2026-10-03", "--repository", "", cwd=tmp_path,
+    )
+    assert json.loads(resolved.stdout)["snapshot_mode"] == "delta"
+    with patch("scripts.phase_a0.resolve_snapshot_mode.github_marker", side_effect=OSError("offline")):
+        fallback = resolve(tmp_path, "2026-10-03", "owner/repo", "main", "token")
+    assert fallback["snapshot_mode"] == "delta"
+    assert fallback["marker_source"] == "local"
+
+    changed = list(marker_args)
+    changed[changed.index("42")] = "43"
+    assert run_script(
+        "scripts/phase_a0/write_full_snapshot_marker.py", *changed, cwd=tmp_path
+    ).returncode != 0
 
 
 def test_recovery_fetches_artifact_created_at_from_github() -> None:
@@ -256,3 +327,6 @@ def test_actions_never_runs_the_neon_migration() -> None:
     assert "private-encrypted-snapshot-${{ github.run_id }}-${{ github.run_attempt }}" in workflow
     assert "if: always() && steps.snapshot.outcome == 'success'" in workflow
     assert "steps.interim_artifact.outcome != 'success'" in workflow
+    assert "resolve_snapshot_mode.py" in workflow
+    assert '--snapshot-mode "${{ steps.snapshot_policy.outputs.snapshot_mode }}"' in workflow
+    assert "write_full_snapshot_marker.py" in workflow
