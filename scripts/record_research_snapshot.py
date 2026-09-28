@@ -40,6 +40,7 @@ def main() -> int:
     base = {
         "session_date": archive["session_date"],
         "github_run_id": archive["github_run_id"],
+        "github_run_attempt": archive["github_run_attempt"],
         "archive_sha256": archive["archive_sha256"],
         "attempted_at": utc_now(),
     }
@@ -61,6 +62,7 @@ def main() -> int:
                     INSERT INTO snapshot_manifests (
                         session_date,
                         github_run_id,
+                        github_run_attempt,
                         archive_name,
                         archive_sha256,
                         manifest_sha256,
@@ -73,6 +75,7 @@ def main() -> int:
                     VALUES (
                         %(session_date)s,
                         %(github_run_id)s,
+                        %(github_run_attempt)s,
                         %(archive_name)s,
                         %(archive_sha256)s,
                         %(manifest_sha256)s,
@@ -82,12 +85,13 @@ def main() -> int:
                         %(generated_at)s,
                         %(metadata)s
                     )
-                    ON CONFLICT (github_run_id) DO NOTHING
+                    ON CONFLICT (github_run_id, github_run_attempt) DO NOTHING
                     RETURNING id, recorded_at
                     """,
                     {
                         "session_date": archive["session_date"],
                         "github_run_id": int(archive["github_run_id"]),
+                        "github_run_attempt": int(archive["github_run_attempt"]),
                         "archive_name": archive["archive_name"],
                         "archive_sha256": archive["archive_sha256"],
                         "manifest_sha256": archive["manifest_sha256"],
@@ -113,9 +117,9 @@ def main() -> int:
                         """
                         SELECT id, recorded_at, archive_sha256
                         FROM snapshot_manifests
-                        WHERE github_run_id = %s
+                        WHERE github_run_id = %s AND github_run_attempt = %s
                         """,
-                        (int(archive["github_run_id"]),),
+                        (int(archive["github_run_id"]), int(archive["github_run_attempt"])),
                     )
                     existing = cur.fetchone()
                     if not existing:
