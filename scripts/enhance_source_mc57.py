@@ -91,7 +91,8 @@ def provider_cards(payload: dict) -> str:
     massive = payload.get("massive", {})
     structure = massive.get("market_structure", {})
     if structure.get("status") != "READY":
-        raise RuntimeError("Massive market structure is not READY")
+        raise RuntimeError("market structure is not READY")
+    yahoo_fallback = massive.get("status") == "FALLBACK_YAHOO"
     advances = int(structure.get("advances", 0))
     declines = int(structure.get("declines", 0))
     ad_net = int(structure.get("advance_decline_net", 0))
@@ -99,7 +100,7 @@ def provider_cards(payload: dict) -> str:
     ud_ratio = _num(structure.get("up_down_volume_ratio"), 2)
     compared = int(structure.get("compared_tickers", 0))
     cross = massive.get("cross_vendor", {})
-    cross_pct = _num(float(cross.get("coverage", 0)) * 100, 1)
+    cross_pct = _num(float(cross.get("coverage") or 0) * 100, 1)
 
     fred = payload.get("fred", {})
     series = fred.get("series", {})
@@ -114,14 +115,19 @@ def provider_cards(payload: dict) -> str:
         (str(row.get("last_date")) for row in series.values() if row.get("last_date")),
         default="—",
     )
+    provider_note = (
+        "Massive当日データ未提供のため、同じ銘柄数を維持してYahoo Financeで更新しています。"
+        if yahoo_fallback else f"Yahooとの当日終値照合率 {cross_pct}%です。"
+    )
     return (
         '<div class="card" data-source-improvement="massive-market-structure">'
-        '<div class="chd"><h2>全市場 内部構造（Massive）</h2>'
+        f'<div class="chd"><h2>全市場 内部構造（{"Yahoo代替" if yahoo_fallback else "Massive"}）</h2>'
         f'<div class="chd-now" style="color:{"#37b56c" if ad_net >= 0 else "#d95b5b"}">'
         f'<b>{ad_net:+d}</b><span>上昇 {advances:,} / 下落 {declines:,}</span></div></div>'
         '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
         f'比較対象 {compared:,}銘柄。騰落差は上昇銘柄数−下落銘柄数。4%以上騰落差 {four_net:+d}、'
-        f'上昇/下落出来高比 {ud_ratio}倍。Yahooとの当日終値照合率 {cross_pct}%です。'
+        f'上昇/下落出来高比 {ud_ratio}倍。'
+        f'{provider_note}'
         '</div></details></div>'
         '<div class="card" data-source-improvement="fred-macro-risk">'
         '<div class="chd"><h2>金利・信用環境（FRED）</h2>'

@@ -25,11 +25,13 @@ def main() -> int:
         "Daily", "Positions", "Core 12", "Setups", "Rotation", "Movers",
         "Weekly", "Publish", "Rules", "ブレッドス推移（50日線上の割合）",
         "52週 新高値 − 新安値", "mc57-candle-script",
-        "全市場 内部構造（Massive）", "金利・信用環境（FRED）",
+        "金利・信用環境（FRED）",
     ]
     missing = [marker for marker in required if marker not in html]
     if missing:
         raise SystemExit("HTML markers missing: " + ", ".join(missing))
+    if not any(marker in html for marker in ("全市場 内部構造（Massive）", "全市場 内部構造（Yahoo代替）")):
+        raise SystemExit("market-structure provider marker is missing")
     if re.search(r"\\bvar\\s+MAJ\\s*=\\s*\\[\\s*\\]\\s*;", html):
         raise SystemExit("Sector Rotation share card major-sector data is empty (MAJ=[])")
     if session not in html:
@@ -49,11 +51,11 @@ def main() -> int:
     fred = providers.get("fred", {})
     structure = massive.get("market_structure", {})
     cross = massive.get("cross_vendor", {})
-    if massive.get("status") != "READY" or structure.get("status") != "READY":
-        raise SystemExit("Massive provider inputs are not READY")
+    if massive.get("status") not in {"READY", "FALLBACK_YAHOO"} or structure.get("status") != "READY":
+        raise SystemExit("market-structure provider inputs are not READY")
     if float(structure.get("coverage", 0)) < .95:
         raise SystemExit("Massive market-structure coverage below 95%")
-    if float(cross.get("coverage", 0)) < .95:
+    if massive.get("status") == "READY" and float(cross.get("coverage", 0)) < .95:
         raise SystemExit("Yahoo/Massive cross-vendor coverage below 95%")
     if fred.get("status") not in {"READY", "PARTIAL"}:
         raise SystemExit("FRED provider inputs are not usable")
