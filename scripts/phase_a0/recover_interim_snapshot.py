@@ -70,7 +70,9 @@ def github_artifact_created_at(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Recover an interim encrypted Artifact into Drive and Neon")
+    parser = argparse.ArgumentParser(
+        description="Recover an interim encrypted Artifact into Drive and optionally index it in Neon"
+    )
     parser.add_argument("encrypted_snapshot")
     parser.add_argument("metadata")
     parser.add_argument("--root", default=".")
@@ -90,7 +92,6 @@ def main() -> int:
         "GOOGLE_DRIVE_CLIENT_ID": args.client_id,
         "GOOGLE_DRIVE_CLIENT_SECRET": args.client_secret,
         "GOOGLE_DRIVE_REFRESH_TOKEN": args.refresh_token,
-        "NEON_DATABASE_URL": args.database_url,
     }.items() if not value]
     if missing_config:
         raise SystemExit("Missing recovery configuration: " + ", ".join(missing_config))
@@ -119,16 +120,6 @@ def main() -> int:
     hash_path = Path(args.root) / "research-hashes" / year / month / day / f"{metadata['github_run_id']}.json"
     if hash_path.exists():
         raise SystemExit(f"immutable hash record already exists: {hash_path}")
-    with connect(args.database_url) as connection:
-        assert_writer_contract(connection)
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT EXISTS (SELECT 1 FROM research_snapshot_manifests WHERE github_run_id = %s)",
-                (int(metadata["github_run_id"]),),
-            )
-            if cursor.fetchone()[0]:
-                raise SystemExit("Neon manifest already exists for this github_run_id")
-
     with tempfile.TemporaryDirectory() as temp_raw:
         snapshot_name = (
             f"snapshot-{metadata['session_date']}-{metadata['github_run_id']}-"
@@ -153,21 +144,6 @@ def main() -> int:
         if not drive_id or not drive_created_at:
             raise SystemExit("Drive recovery upload did not return id and createdTime")
 
-        record_args = argparse.Namespace(
-            session_date=metadata["session_date"], run_id=int(metadata["github_run_id"]),
-            run_attempt=int(metadata["github_run_attempt"]),
-            actions_started_at=metadata["github_actions_started_at"],
-            recorded_at=metadata["recorded_at"], code_sha=metadata["code_sha"],
-            repository=metadata["repository"], workflow_ref=metadata["workflow_ref"],
-            snapshot_sha256=metadata["snapshot_sha256"],
-            manifest_sha256=metadata["manifest_sha256"], snapshot_bytes=snapshot.stat().st_size,
-            drive_file_id=drive_id, drive_file_name=drive_name, drive_created_at=drive_created_at,
-            source="interim_artifact_recovery", artifact_created_at=artifact_created_at,
-        )
-        with connect(args.database_url) as connection:
-            assert_writer_contract(connection)
-            record(connection, record_args)
-
         hash_script = Path(__file__).with_name("write_hash_record.py")
         subprocess.run([
             sys.executable, str(hash_script), "--root", args.root,
@@ -184,10 +160,33 @@ def main() -> int:
             "--snapshot-mode", snapshot_mode,
         ], check=True)
 
+        neon_status = "not_configured"
+        if args.database_url:
+            record_args = argparse.Namespace(
+                session_date=metadata["session_date"], run_id=int(metadata["github_run_id"]),
+                run_attempt=int(metadata["github_run_attempt"]),
+                actions_started_at=metadata["github_actions_started_at"],
+                recorded_at=metadata["recorded_at"], code_sha=metadata["code_sha"],
+                repository=metadata["repository"], workflow_ref=metadata["workflow_ref"],
+                snapshot_sha256=metadata["snapshot_sha256"],
+                manifest_sha256=metadata["manifest_sha256"], snapshot_bytes=snapshot.stat().st_size,
+                drive_file_id=drive_id, drive_file_name=drive_name, drive_created_at=drive_created_at,
+                source="interim_artifact_recovery", artifact_created_at=artifact_created_at,
+            )
+            try:
+                with connect(args.database_url) as connection:
+                    assert_writer_contract(connection)
+                    record(connection, record_args)
+                neon_status = "success"
+            except (Exception, SystemExit) as exc:
+                neon_status = "failed"
+                print(f"warning: optional Neon manifest was not recorded: {type(exc).__name__}")
+
     print(json.dumps({
         "status": "success", "github_run_id": str(metadata["github_run_id"]),
         "drive_file_id": drive_id, "source": "interim_artifact_recovery",
         "snapshot_mode": snapshot_mode, "artifact_created_at": artifact_created_at,
+        "available_at": artifact_created_at, "neon_status": neon_status,
     }, sort_keys=True))
     return 0
 

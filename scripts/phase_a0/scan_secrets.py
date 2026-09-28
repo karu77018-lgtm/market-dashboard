@@ -42,7 +42,6 @@ SECRET_ENV_NAMES = (
     "GOOGLE_DRIVE_CLIENT_ID",
     "GOOGLE_DRIVE_CLIENT_SECRET",
     "GOOGLE_DRIVE_REFRESH_TOKEN",
-    "GOOGLE_DRIVE_FOLDER_ID",
 )
 SAFE_VALUE_MARKERS = (
     "${{", "${", "$", "process.env", "os.environ", "redacted",

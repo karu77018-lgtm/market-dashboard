@@ -104,7 +104,22 @@ def test_snapshot_and_hash_record_are_immutable(tmp_path: Path) -> None:
     assert record["copy_status"] == "success"
     assert record["drive_file_id"] == "drive-id-1"
     assert record["drive_created_at"] == "2026-09-28T01:03:10Z"
+    assert record["available_at"] == "2026-09-28T01:03:10Z"
     assert record["source"] == "google_drive_live"
+
+    recovery_args = list(args)
+    recovery_args[recovery_args.index("123456789")] = "123456790"
+    recovery_args += (
+        "--source", "interim_artifact_recovery",
+        "--artifact-created-at", "2026-09-28T01:03:05Z",
+    )
+    assert run_script(
+        "scripts/phase_a0/write_hash_record.py", *recovery_args, cwd=tmp_path
+    ).returncode == 0
+    recovery = json.loads(
+        (tmp_path / "research-hashes/2026/09/28/123456790.json").read_text()
+    )
+    assert recovery["available_at"] == "2026-09-28T01:03:05Z"
 
 
 def test_snapshot_hash_is_stable_across_run_attempts(tmp_path: Path) -> None:
@@ -301,7 +316,7 @@ def test_recovery_fetches_artifact_created_at_from_github() -> None:
 def test_workflow_keeps_vendor_raw_out_of_public_artifact() -> None:
     workflow = (ROOT / ".github/workflows/refresh-source-mc57.yml").read_text(encoding="utf-8")
     artifact = workflow.split("Save public reproducibility artifact", 1)[1].split(
-        "Report private preservation failure", 1
+        "Report primary preservation failure", 1
     )[0]
     assert "retention-days: 90" in artifact
     assert "include-hidden-files: true" in artifact
@@ -330,3 +345,23 @@ def test_actions_never_runs_the_neon_migration() -> None:
     assert "resolve_snapshot_mode.py" in workflow
     assert '--snapshot-mode "${{ steps.snapshot_policy.outputs.snapshot_mode }}"' in workflow
     assert "write_full_snapshot_marker.py" in workflow
+    assert "vars.GOOGLE_DRIVE_FOLDER_ID" in workflow
+    drive_step = workflow.split("Create private Google Drive snapshot", 1)[1].split(
+        "Write run-id hash history", 1
+    )[0]
+    assert "steps.drive_config.outcome == 'success'" in drive_step
+    assert "neon" not in drive_step.lower()
+    hash_step = workflow.split("Write run-id hash history", 1)[1].split(
+        "Optionally append copy to Neon manifest", 1
+    )[0]
+    assert "steps.drive_upload.outcome == 'success'" in hash_step
+    final_failure = workflow.split("Fail after publication when private preservation failed", 1)[1]
+    assert "steps.neon_record.outcome" not in final_failure
+
+
+def test_interim_recovery_does_not_require_neon() -> None:
+    recovery = (ROOT / "scripts/phase_a0/recover_interim_snapshot.py").read_text(encoding="utf-8")
+    required = recovery.split("missing_config =", 1)[1].split("if missing_config:", 1)[0]
+    assert "NEON_DATABASE_URL" not in required
+    assert 'neon_status = "not_configured"' in recovery
+    assert "optional Neon manifest was not recorded" in recovery

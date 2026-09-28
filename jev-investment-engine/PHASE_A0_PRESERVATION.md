@@ -2,15 +2,16 @@
 
 `Refresh source-mc57` scans tracked files and snapshot inputs for credential leaks, creates a
 monthly-full or daily-delta snapshot containing vendor raw data, uploads it to a private Google Drive folder,
-records the immutable metadata in Neon, and writes
+and writes the authoritative immutable metadata to
 `research-hashes/YYYY/MM/DD/<github.run_id>.json`.
+Neon is an optional, rebuildable query index and never gates Drive preservation.
 
 The public Artifact excludes Massive raw files, `work/ohlcv.csv`, `data/mktcap.json`, Yahoo
 history in `data/market_inputs.json`, and FRED history in `data/provider_inputs.json`.
 `chart-data` remains public until its site dependencies and provenance are separated in the
 next phase.
 
-The public raw-free Artifact is independent of Drive and Neon. If private Drive/Neon
+The public raw-free Artifact is independent of Drive and Neon. If private Drive
 preservation is unavailable, the same private snapshot is encrypted with AES-256-CBC/PBKDF2 and
 stored as a 90-day fallback Artifact. A successful encrypted fallback produces a warning but
 does not fail the job. If both primary and interim preservation fail, the dashboard is
@@ -20,7 +21,7 @@ Secret leakage, publication validation, or snapshot construction failure remains
 ## Snapshot size and reconstruction policy
 
 The first **successfully preserved** snapshot in each calendar month is a self-contained `full`
-snapshot. A full is considered successful only after either Drive/Neon/hash recording or the
+snapshot. A full is considered successful only after either Drive/hash recording or the
 encrypted fallback Artifact succeeds. The workflow then commits an immutable marker at
 `research-snapshot-index/YYYY/MM/full.json`. Until that marker exists, every later run in the
 month tries a full snapshot again; a failed first trading-day run therefore cannot leave the
@@ -78,12 +79,17 @@ python scripts/phase_a0/create_google_drive_folder.py
 ```
 
 The helper reuses the single app-visible folder when it already exists and returns its folder
-ID. It refuses a folder with an `anyone` permission. Store the returned ID as
-`GOOGLE_DRIVE_FOLDER_ID`.
+ID. It refuses a folder with an `anyone` permission. Store the returned ID as the GitHub Actions
+**Variable** `GOOGLE_DRIVE_FOLDER_ID`; it is an opaque locator, not a credential. A legacy Secret
+with the same name is accepted temporarily for migration.
 
-## 2. Apply the Neon migration once
+## 2. Optional Neon index
 
-Run `migrations/20260928_phase_a0_snapshot_manifests.sql` once with a direct administrator
+Neon is not required for preservation. Drive stores the private bytes and server-issued
+`createdTime`; GitHub stores the hashes and Drive file ID. The Neon table can therefore be
+recreated later by importing `research-hashes`.
+
+If the query index is wanted, run `migrations/20260928_phase_a0_snapshot_manifests.sql` once with a direct administrator
 connection. GitHub Actions never executes DDL. The migration creates the append-only table,
 immutable trigger, and least-privilege `snapshot_writer` role.
 
@@ -93,19 +99,31 @@ Set a strong password separately without committing it:
 ALTER ROLE snapshot_writer PASSWORD '<strong-random-password>';
 ```
 
-The role receives only schema usage, table `SELECT`/`INSERT`, and sequence `USAGE`. Store only
-the `snapshot_writer` connection string as `NEON_DATABASE_URL`. The runtime verifies the exact
+The role receives only schema usage, table `SELECT`/`INSERT`, and sequence `USAGE`. Optionally
+store the `snapshot_writer` connection string as `NEON_DATABASE_URL`. The runtime verifies the exact
 role name, required grants, denied write operations, table ownership, role membership, and
-elevated role flags before every lookup or insert.
+elevated role flags before each insert. Missing or failed Neon indexing produces a warning only;
+it does not trigger the encrypted fallback and does not change a successful Drive result.
 
-## 3. GitHub Actions secrets
+## 3. GitHub Actions configuration
+
+Required Secrets for live Drive preservation:
 
 - `GOOGLE_DRIVE_CLIENT_ID`
 - `GOOGLE_DRIVE_CLIENT_SECRET`
 - `GOOGLE_DRIVE_REFRESH_TOKEN`
+
+Required Variable:
+
 - `GOOGLE_DRIVE_FOLDER_ID`
+
+Optional Secret:
+
 - `NEON_DATABASE_URL` (the `snapshot_writer` connection only)
-- `ARCHIVE_PASSPHRASE` (required until Drive is configured and retained for recovery)
+
+Fallback/recovery Secret:
+
+- `ARCHIVE_PASSPHRASE` (required until Drive is configured and retained while old encrypted Artifacts exist)
 
 Generate the interim passphrase locally and store it in both GitHub Actions Secrets and a
 password manager. Losing it makes every interim snapshot unrecoverable:
@@ -123,15 +141,17 @@ tokens without printing the detected value.
 The record links `github_run_id`, Actions `run_started_at`, source `code_sha`, `recorded_at`,
 Drive `createdTime`, `drive_file_id`, `snapshot_mode`, and both SHA-256 values. Git commit time is not the
 point-in-time authority; the later push is the durable public record containing that JSON.
-`recorded_at` is the actual snapshot construction time and Neon `inserted_at` is the database
-availability time to use for point-in-time research. Both `recorded_at` and `run_attempt` stay
+`recorded_at` is the actual snapshot construction time. For a live copy, Google Drive
+`createdTime` is the availability time to use for point-in-time research. Both `recorded_at` and `run_attempt` stay
 outside the hashed snapshot manifest, so rerunning the same run with identical inputs still
 produces the same immutable hashes.
 
 Use `available_at` as follows and never substitute `recorded_at` or Git commit time:
 
-- `google_drive_live`: Neon `inserted_at`
+- `google_drive_live`: Drive `createdTime`
 - `interim_artifact_recovery`: GitHub Artifact `created_at`, stored as `artifact_created_at`
+
+The selected value is also copied to `available_at` in each GitHub hash record.
 
 ## Recover an interim Artifact
 
@@ -147,6 +167,7 @@ python scripts/phase_a0/recover_interim_snapshot.py \
 
 The recovery tool obtains `created_at` from the GitHub Actions API using the immutable run ID
 and attempt in the metadata; it does not accept a manually entered PIT timestamp. It then
-verifies the encrypted and decrypted SHA-256 values, creates a new Drive file, records
-`source = interim_artifact_recovery` and the GitHub Artifact creation time in
-Neon, and writes the original run-id hash JSON. Commit that JSON before the Artifact expires.
+verifies the encrypted and decrypted SHA-256 values, creates a new Drive file, and writes the
+original run-id hash JSON with `source = interim_artifact_recovery` and the GitHub Artifact
+creation time. If `NEON_DATABASE_URL` is configured it also attempts the optional Neon insert;
+that insert cannot invalidate the Drive copy or hash record. Commit the JSON before the Artifact expires.
