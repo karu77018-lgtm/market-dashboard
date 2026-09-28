@@ -97,6 +97,7 @@ def test_snapshot_and_hash_record_are_immutable(tmp_path: Path) -> None:
     assert record["copy_status"] == "success"
     assert record["drive_file_id"] == "drive-id-1"
     assert record["drive_created_at"] == "2026-09-28T01:03:10Z"
+    assert record["source"] == "google_drive_live"
 
 
 def test_snapshot_hash_is_stable_across_run_attempts(tmp_path: Path) -> None:
@@ -147,3 +148,7 @@ def test_actions_never_runs_the_neon_migration() -> None:
     )
     assert "steps.publish.outcome == 'success'" in workflow
     assert "--drive-created-at" in workflow
+    assert "ARCHIVE_PASSPHRASE" in workflow
+    assert "private-encrypted-snapshot-${{ github.run_id }}-${{ github.run_attempt }}" in workflow
+    assert "if: always() && steps.snapshot.outcome == 'success'" in workflow
+    assert "steps.interim_artifact.outcome != 'success'" in workflow

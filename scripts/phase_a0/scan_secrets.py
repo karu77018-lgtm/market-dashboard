@@ -35,6 +35,7 @@ URL_QUERY_SECRET = re.compile(
 POSTGRES_DSN = re.compile(r'''(?ix)\bpostgres(?:ql)?://[^:\s/@]+:([^@\s/]+)@''')
 BEARER_TOKEN = re.compile(r'''(?ix)\bBearer\s+([A-Za-z0-9._~+/=-]{12,})''')
 SECRET_ENV_NAMES = (
+    "ARCHIVE_PASSPHRASE",
     "FRED_API_KEY",
     "MASSIVE_API_KEY",
     "NEON_DATABASE_URL",

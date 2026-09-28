@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS research_snapshot_manifests (
   drive_file_id text NOT NULL UNIQUE,
   drive_file_name text NOT NULL,
   drive_created_at timestamptz NOT NULL,
+  source text NOT NULL DEFAULT 'google_drive_live'
+    CHECK (source IN ('google_drive_live', 'interim_artifact_recovery')),
+  artifact_created_at timestamptz,
   copy_status text NOT NULL CHECK (copy_status = 'success'),
   inserted_at timestamptz NOT NULL DEFAULT now()
 );
@@ -30,6 +33,39 @@ END;
 $$;
 ALTER TABLE research_snapshot_manifests
   ALTER COLUMN drive_created_at SET NOT NULL;
+ALTER TABLE research_snapshot_manifests
+  ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'google_drive_live';
+ALTER TABLE research_snapshot_manifests
+  ADD COLUMN IF NOT EXISTS artifact_created_at timestamptz;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'research_snapshot_manifests_source_check'
+      AND conrelid = 'public.research_snapshot_manifests'::regclass
+  ) THEN
+    ALTER TABLE research_snapshot_manifests
+      ADD CONSTRAINT research_snapshot_manifests_source_check
+      CHECK (source IN ('google_drive_live', 'interim_artifact_recovery'));
+  END IF;
+END;
+$$;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'research_snapshot_manifests_source_time_check'
+      AND conrelid = 'public.research_snapshot_manifests'::regclass
+  ) THEN
+    ALTER TABLE research_snapshot_manifests
+      ADD CONSTRAINT research_snapshot_manifests_source_time_check
+      CHECK (
+        (source = 'google_drive_live' AND artifact_created_at IS NULL) OR
+        (source = 'interim_artifact_recovery' AND artifact_created_at IS NOT NULL)
+      );
+  END IF;
+END;
+$$;
 CREATE INDEX IF NOT EXISTS idx_research_snapshot_manifests_session
   ON research_snapshot_manifests(session_date DESC, github_run_id DESC);
 CREATE OR REPLACE FUNCTION protect_research_snapshot_manifests()

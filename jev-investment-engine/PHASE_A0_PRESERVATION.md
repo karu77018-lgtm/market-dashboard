@@ -9,10 +9,12 @@ The 90-day public Artifact is created only after Drive, Neon, and the hash recor
 excludes Massive raw files, `work/ohlcv.csv`, and `data/mktcap.json`. `chart-data` remains
 public until its site dependencies and provenance are separated in the next phase.
 
-Drive or Neon failure produces an Actions warning and suppresses the public preservation
-Artifact and hash record. The dashboard is published first, then the final step fails the job
-so normal GitHub failure notifications still fire. Secret leakage, publication validation, or
-snapshot construction failure remains a hard stop.
+The public raw-free Artifact is independent of Drive and Neon. If private Drive/Neon
+preservation is unavailable, the complete snapshot is encrypted with AES-256-CBC/PBKDF2 and
+stored as a 90-day fallback Artifact. A successful encrypted fallback produces a warning but
+does not fail the job. If both primary and interim preservation fail, the dashboard is
+published first and the final step fails the job so normal GitHub notifications still fire.
+Secret leakage, publication validation, or snapshot construction failure remains a hard stop.
 
 ## 1. Create the Drive folder with the OAuth app
 
@@ -54,6 +56,14 @@ elevated role flags before every lookup or insert.
 - `GOOGLE_DRIVE_REFRESH_TOKEN`
 - `GOOGLE_DRIVE_FOLDER_ID`
 - `NEON_DATABASE_URL` (the `snapshot_writer` connection only)
+- `ARCHIVE_PASSPHRASE` (required until Drive is configured and retained for recovery)
+
+Generate the interim passphrase locally and store it in both GitHub Actions Secrets and a
+password manager. Losing it makes every interim snapshot unrecoverable:
+
+```bash
+openssl rand -base64 32
+```
 
 The secret gate compares all supplied secret values against every scanned file, including
 URL-encoded forms. It also detects URL query keys, PostgreSQL credential URLs, and bearer
@@ -68,3 +78,19 @@ point-in-time authority; the later push is the durable public record containing 
 availability time to use for point-in-time research. Both `recorded_at` and `run_attempt` stay
 outside the hashed snapshot manifest, so rerunning the same run with identical inputs still
 produces the same immutable hashes.
+
+## Recover an interim Artifact
+
+Download the encrypted snapshot and its `.interim.json` metadata from the Actions Artifact.
+Use the Artifact `created_at` value reported by GitHub, then run:
+
+```bash
+python scripts/phase_a0/recover_interim_snapshot.py \
+  snapshot-YYYY-MM-DD-RUNID-HASH.tar.gz.enc \
+  snapshot-YYYY-MM-DD-RUNID-HASH.tar.gz.interim.json \
+  --artifact-created-at 2026-09-28T08:00:00Z
+```
+
+The recovery tool verifies the encrypted and decrypted SHA-256 values, creates a new Drive
+file, records `source = interim_artifact_recovery` and the GitHub Artifact creation time in
+Neon, and writes the original run-id hash JSON. Commit that JSON before the Artifact expires.

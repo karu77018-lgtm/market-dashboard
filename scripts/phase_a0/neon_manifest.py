@@ -26,15 +26,13 @@ def assert_writer_contract(connection) -> None:
         if cursor.fetchone()[0] is None:
             raise SystemExit("research_snapshot_manifests is missing; apply the migration once as an administrator")
         cursor.execute(
-            """SELECT EXISTS (
-                 SELECT 1 FROM information_schema.columns
+            """SELECT count(*) = 3 FROM information_schema.columns
                  WHERE table_schema = 'public'
                    AND table_name = 'research_snapshot_manifests'
-                   AND column_name = 'drive_created_at'
-               )"""
+                   AND column_name IN ('drive_created_at', 'source', 'artifact_created_at')"""
         )
         if not cursor.fetchone()[0]:
-            raise SystemExit("drive_created_at is missing; apply the current migration as an administrator")
+            raise SystemExit("current preservation columns are missing; apply the migration as an administrator")
         cursor.execute(
             """
             SELECT
@@ -74,7 +72,7 @@ def iso_utc(value: datetime) -> str:
 def lookup(connection, run_id: int, snapshot_sha256: str, manifest_sha256: str, code_sha: str) -> int:
     with connection.cursor() as cursor:
         cursor.execute("""SELECT snapshot_sha256, manifest_sha256, code_sha, drive_file_id, drive_file_name,
-                   drive_created_at, recorded_at, github_run_attempt
+                   drive_created_at, recorded_at, github_run_attempt, source, artifact_created_at
             FROM research_snapshot_manifests WHERE github_run_id = %s""", (run_id,))
         row = cursor.fetchone()
     if row is None:
@@ -82,13 +80,14 @@ def lookup(connection, run_id: int, snapshot_sha256: str, manifest_sha256: str, 
         print(json.dumps({"exists": False, "github_run_id": str(run_id)}))
         return 0
     (actual_snapshot, actual_manifest, actual_code, drive_id, drive_name,
-     drive_created_at, recorded_at, run_attempt) = row
+     drive_created_at, recorded_at, run_attempt, source, artifact_created_at) = row
     if (actual_snapshot, actual_manifest, actual_code) != (snapshot_sha256, manifest_sha256, code_sha):
         raise SystemExit("github_run_id already exists with different immutable hashes")
     write_github_output({
         "exists": "true", "drive_file_id": drive_id, "drive_file_name": drive_name,
         "drive_created_at": iso_utc(drive_created_at), "recorded_at": iso_utc(recorded_at),
-        "run_attempt": run_attempt,
+        "run_attempt": run_attempt, "source": source,
+        "artifact_created_at": iso_utc(artifact_created_at) if artifact_created_at else "",
     })
     print(json.dumps({"exists": True, "github_run_id": str(run_id), "drive_file_id": drive_id}))
     return 0
@@ -99,11 +98,12 @@ def record(connection, args: argparse.Namespace) -> int:
         cursor.execute("""INSERT INTO research_snapshot_manifests (
               session_date, github_run_id, github_run_attempt, github_actions_started_at, recorded_at,
               code_sha, repository, workflow_ref, snapshot_sha256, manifest_sha256, snapshot_bytes,
-              drive_file_id, drive_file_name, drive_created_at, copy_status
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'success')""",
+              drive_file_id, drive_file_name, drive_created_at, source, artifact_created_at, copy_status
+            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'success')""",
             (args.session_date, args.run_id, args.run_attempt, args.actions_started_at, args.recorded_at,
              args.code_sha, args.repository, args.workflow_ref, args.snapshot_sha256, args.manifest_sha256,
-             args.snapshot_bytes, args.drive_file_id, args.drive_file_name, args.drive_created_at))
+             args.snapshot_bytes, args.drive_file_id, args.drive_file_name, args.drive_created_at,
+             args.source, args.artifact_created_at))
     connection.commit()
     print(json.dumps({"status": "success", "github_run_id": str(args.run_id),
                       "drive_file_id": args.drive_file_id}))
@@ -127,6 +127,11 @@ def build_parser() -> argparse.ArgumentParser:
     record_parser.add_argument("--run-id", type=int, required=True)
     record_parser.add_argument("--run-attempt", type=int, required=True)
     record_parser.add_argument("--snapshot-bytes", type=int, required=True)
+    record_parser.add_argument(
+        "--source", choices=("google_drive_live", "interim_artifact_recovery"),
+        default="google_drive_live",
+    )
+    record_parser.add_argument("--artifact-created-at")
     return parser
 
 
@@ -138,6 +143,10 @@ def main() -> int:
         assert_writer_contract(connection)
         if args.command == "lookup":
             return lookup(connection, args.run_id, args.snapshot_sha256, args.manifest_sha256, args.code_sha)
+        if args.source == "interim_artifact_recovery" and not args.artifact_created_at:
+            raise SystemExit("--artifact-created-at is required for interim_artifact_recovery")
+        if args.source == "google_drive_live" and args.artifact_created_at:
+            raise SystemExit("--artifact-created-at is only valid for interim_artifact_recovery")
         return record(connection, args)
 
 

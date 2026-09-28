@@ -111,6 +111,7 @@ jobs:
       - name: Secret leak gate
         id: secret_scan
         env:
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
           GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
           GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
           GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
@@ -168,6 +169,7 @@ jobs:
           --drive-file-id "${{ steps.drive_upload.outputs.drive_file_id }}"
           --drive-file-name "${{ steps.drive_upload.outputs.drive_file_name }}"
           --drive-created-at "${{ steps.drive_upload.outputs.drive_created_time }}"
+          --source google_drive_live
       - name: Resolve immutable preservation reference
         if: steps.neon_lookup.outcome == 'success' && (steps.neon_lookup.outputs.exists == 'true' || steps.neon_record.outcome == 'success')
         id: preservation_ref
@@ -178,6 +180,8 @@ jobs:
           EXISTING_CREATED_AT: ${{ steps.neon_lookup.outputs.drive_created_at }}
           EXISTING_RECORDED_AT: ${{ steps.neon_lookup.outputs.recorded_at }}
           EXISTING_RUN_ATTEMPT: ${{ steps.neon_lookup.outputs.run_attempt }}
+          EXISTING_SOURCE: ${{ steps.neon_lookup.outputs.source }}
+          EXISTING_ARTIFACT_CREATED_AT: ${{ steps.neon_lookup.outputs.artifact_created_at }}
           CREATED_ID: ${{ steps.drive_upload.outputs.drive_file_id }}
           CREATED_NAME: ${{ steps.drive_upload.outputs.drive_file_name }}
           CREATED_AT: ${{ steps.drive_upload.outputs.drive_created_time }}
@@ -189,6 +193,7 @@ jobs:
           drive_created_at="${EXISTING_CREATED_AT:-$CREATED_AT}"
           recorded_at="${EXISTING_RECORDED_AT:-$RECORDED_AT}"
           run_attempt="${EXISTING_RUN_ATTEMPT:-$RUN_ATTEMPT}"
+          source="${EXISTING_SOURCE:-google_drive_live}"
           test -n "$drive_file_id" && test -n "$drive_file_name" && test -n "$drive_created_at"
           test -n "$recorded_at" && test -n "$run_attempt"
           echo "drive_file_id=$drive_file_id" >> "$GITHUB_OUTPUT"
@@ -196,6 +201,8 @@ jobs:
           echo "drive_created_at=$drive_created_at" >> "$GITHUB_OUTPUT"
           echo "recorded_at=$recorded_at" >> "$GITHUB_OUTPUT"
           echo "run_attempt=$run_attempt" >> "$GITHUB_OUTPUT"
+          echo "source=$source" >> "$GITHUB_OUTPUT"
+          echo "artifact_created_at=$EXISTING_ARTIFACT_CREATED_AT" >> "$GITHUB_OUTPUT"
       - name: Write run-id hash history
         if: steps.preservation_ref.outcome == 'success'
         id: hash_record
@@ -212,15 +219,83 @@ jobs:
           --drive-file-name "${{ steps.preservation_ref.outputs.drive_file_name }}"
           --drive-created-at "${{ steps.preservation_ref.outputs.drive_created_at }}"
           --repository "${{ github.repository }}" --workflow-ref "${{ github.workflow_ref }}"
-      - name: Save public reproducibility artifact (vendor raw excluded)
-        if: steps.hash_record.outcome == 'success'
-        id: public_artifact
+          --source "${{ steps.preservation_ref.outputs.source }}"
+          --artifact-created-at "${{ steps.preservation_ref.outputs.artifact_created_at }}"
+      - name: Build interim encrypted private snapshot
+        if: always() && steps.snapshot.outcome == 'success' && steps.hash_record.outcome != 'success'
+        id: interim
+        continue-on-error: true
+        env:
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
+          SNAP: ${{ steps.snapshot.outputs.snapshot_path }}
+          SESSION_DATE: ${{ steps.run_meta.outputs.session_date }}
+          ACTIONS_STARTED_AT: ${{ steps.run_meta.outputs.actions_started_at }}
+          RECORDED_AT: ${{ steps.snapshot.outputs.recorded_at }}
+          SNAPSHOT_SHA256: ${{ steps.snapshot.outputs.snapshot_sha256 }}
+          MANIFEST_SHA256: ${{ steps.snapshot.outputs.manifest_sha256 }}
+        run: |
+          test -n "$ARCHIVE_PASSPHRASE"
+          test -f "$SNAP"
+          enc_path="$SNAP.enc"
+          sha_path="$SNAP.sha256"
+          metadata_path="$SNAP.interim.json"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -in "$SNAP" -out "$enc_path" -pass env:ARCHIVE_PASSPHRASE
+          encrypted_sha256="$(sha256sum "$enc_path" | cut -d' ' -f1)"
+          sha256sum "$SNAP" "$enc_path" > "$sha_path"
+          python - "$metadata_path" "$encrypted_sha256" <<'PY'
+          import json
+          import os
+          import sys
+
+          payload = {
+              "schema_version": "phase-a0-interim-v1",
+              "source": "interim_encrypted_artifact",
+              "session_date": os.environ["SESSION_DATE"],
+              "github_run_id": os.environ["GITHUB_RUN_ID"],
+              "github_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "github_actions_started_at": os.environ["ACTIONS_STARTED_AT"],
+              "recorded_at": os.environ["RECORDED_AT"],
+              "code_sha": os.environ["GITHUB_SHA"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "workflow_ref": os.environ["GITHUB_WORKFLOW_REF"],
+              "snapshot_sha256": os.environ["SNAPSHOT_SHA256"],
+              "manifest_sha256": os.environ["MANIFEST_SHA256"],
+              "encrypted_sha256": sys.argv[2],
+          }
+          with open(sys.argv[1], "w", encoding="utf-8") as handle:
+              json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+          echo "enc_path=$enc_path" >> "$GITHUB_OUTPUT"
+          echo "sha_path=$sha_path" >> "$GITHUB_OUTPUT"
+          echo "metadata_path=$metadata_path" >> "$GITHUB_OUTPUT"
+      - name: Save interim encrypted snapshot
+        if: steps.interim.outcome == 'success'
+        id: interim_artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: source-mc57-preservation-${{ github.run_id }}
+          name: private-encrypted-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 90
+          compression-level: 0
+          include-hidden-files: true
+          if-no-files-found: error
+          path: |
+            ${{ steps.interim.outputs.enc_path }}
+            ${{ steps.interim.outputs.sha_path }}
+            ${{ steps.interim.outputs.metadata_path }}
+      - name: Save public reproducibility artifact (vendor raw excluded)
+        if: always() && steps.snapshot.outcome == 'success'
+        id: public_artifact
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-mc57-preservation-${{ github.run_id }}-${{ github.run_attempt }}
           retention-days: 90
           compression-level: 6
           include-hidden-files: true
+          if-no-files-found: error
           path: |
             source-mc57.html
             chart-data/
@@ -245,9 +320,15 @@ jobs:
             steps.public_artifact.outcome == 'failure'
           )
         run: |
-          echo "::warning title=Phase A-0 preservation failed::Dashboard publication will continue, but no public preservation Artifact or hash record will be created for this run."
+          echo "::warning title=Phase A-0 primary preservation failed::Dashboard publication and the public raw-free Artifact will continue."
           echo "## Phase A-0 preservation warning" >> "$GITHUB_STEP_SUMMARY"
-          echo "Private Drive/Neon preservation failed. Dashboard publication continued; inspect the failed preservation step before the next run." >> "$GITHUB_STEP_SUMMARY"
+          echo "Private Drive/Neon preservation failed. The public raw-free Artifact still runs; inspect the primary preservation step." >> "$GITHUB_STEP_SUMMARY"
+      - name: Report interim encrypted preservation
+        if: steps.interim_artifact.outcome == 'success'
+        run: |
+          echo "::warning title=Phase A-0 interim preservation::Private Drive/Neon preservation failed; an encrypted 90-day fallback Artifact was saved."
+          echo "## Phase A-0 interim preservation" >> "$GITHUB_STEP_SUMMARY"
+          echo "Encrypted fallback saved for this run. Recover it to Drive before the 90-day retention expires." >> "$GITHUB_STEP_SUMMARY"
       - name: Publish source-only outputs
         id: publish
         if: always() && steps.publication_gates.outcome == 'success' && steps.secret_scan.outcome == 'success' && steps.snapshot.outcome == 'success'
@@ -265,13 +346,17 @@ jobs:
       - name: Fail after publication when private preservation failed
         if: >-
           always() && steps.publish.outcome == 'success' && (
-            steps.preservation_secrets.outcome == 'failure' ||
-            steps.neon_lookup.outcome == 'failure' ||
-            steps.drive_upload.outcome == 'failure' ||
-            steps.neon_record.outcome == 'failure' ||
-            steps.preservation_ref.outcome == 'failure' ||
-            steps.hash_record.outcome == 'failure' ||
-            steps.public_artifact.outcome == 'failure'
+            steps.public_artifact.outcome == 'failure' ||
+            (
+              steps.interim_artifact.outcome != 'success' && (
+                steps.preservation_secrets.outcome == 'failure' ||
+                steps.neon_lookup.outcome == 'failure' ||
+                steps.drive_upload.outcome == 'failure' ||
+                steps.neon_record.outcome == 'failure' ||
+                steps.preservation_ref.outcome == 'failure' ||
+                steps.hash_record.outcome == 'failure'
+              )
+            )
           )
         run: |
           echo "::error title=Phase A-0 preservation failed::Dashboard publication completed, but private preservation failed."
