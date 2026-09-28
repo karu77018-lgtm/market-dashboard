@@ -7,6 +7,9 @@ import os
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 
 try:
@@ -26,11 +29,50 @@ REQUIRED_METADATA = {
 }
 
 
+def github_artifact_created_at(
+    repository: str,
+    run_id: str,
+    run_attempt: int,
+    token: str | None,
+    api_url: str = "https://api.github.com",
+) -> str:
+    expected_name = f"private-encrypted-snapshot-{run_id}-{run_attempt}"
+    query = urllib.parse.urlencode({"name": expected_name, "per_page": 100})
+    url = f"{api_url.rstrip('/')}/repos/{repository}/actions/runs/{run_id}/artifacts?{query}"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "market-dashboard-phase-a0-recovery",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as response:
+            payload = json.load(response)
+    except (urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"GitHub Artifact metadata lookup failed: {type(exc).__name__}") from exc
+    artifacts = [
+        artifact for artifact in payload.get("artifacts", [])
+        if artifact.get("name") == expected_name and not artifact.get("expired")
+    ]
+    if len(artifacts) != 1:
+        raise SystemExit(
+            f"expected exactly one live GitHub Artifact named {expected_name}; found {len(artifacts)}"
+        )
+    artifact = artifacts[0]
+    workflow_run = artifact.get("workflow_run") or {}
+    if str(workflow_run.get("id")) != str(run_id):
+        raise SystemExit("GitHub Artifact run id does not match interim metadata")
+    created_at = artifact.get("created_at")
+    if not isinstance(created_at, str) or not created_at:
+        raise SystemExit("GitHub Artifact metadata did not include created_at")
+    return created_at
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Recover an interim encrypted Artifact into Drive and Neon")
     parser.add_argument("encrypted_snapshot")
     parser.add_argument("metadata")
-    parser.add_argument("--artifact-created-at", required=True)
     parser.add_argument("--root", default=".")
     parser.add_argument("--passphrase", default=os.environ.get("ARCHIVE_PASSPHRASE"))
     parser.add_argument("--folder-id", default=os.environ.get("GOOGLE_DRIVE_FOLDER_ID"))
@@ -38,6 +80,8 @@ def main() -> int:
     parser.add_argument("--client-secret", default=os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET"))
     parser.add_argument("--refresh-token", default=os.environ.get("GOOGLE_DRIVE_REFRESH_TOKEN"))
     parser.add_argument("--database-url", default=os.environ.get("NEON_DATABASE_URL"))
+    parser.add_argument("--github-token", default=os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN"))
+    parser.add_argument("--github-api-url", default="https://api.github.com")
     args = parser.parse_args()
 
     missing_config = [name for name, value in {
@@ -63,6 +107,14 @@ def main() -> int:
         raise SystemExit("encrypted snapshot SHA-256 does not match interim metadata")
     if metadata.get("source") != "interim_encrypted_artifact":
         raise SystemExit("unexpected interim metadata source")
+    # phase-a0-interim-v1 artifacts created before delta support are full snapshots.
+    snapshot_mode = metadata.get("snapshot_mode", "full")
+    if snapshot_mode not in {"full", "delta"}:
+        raise SystemExit("unexpected snapshot_mode in interim metadata")
+    artifact_created_at = github_artifact_created_at(
+        metadata["repository"], str(metadata["github_run_id"]),
+        int(metadata["github_run_attempt"]), args.github_token, args.github_api_url,
+    )
     year, month, day = metadata["session_date"].split("-")
     hash_path = Path(args.root) / "research-hashes" / year / month / day / f"{metadata['github_run_id']}.json"
     if hash_path.exists():
@@ -110,7 +162,7 @@ def main() -> int:
             snapshot_sha256=metadata["snapshot_sha256"],
             manifest_sha256=metadata["manifest_sha256"], snapshot_bytes=snapshot.stat().st_size,
             drive_file_id=drive_id, drive_file_name=drive_name, drive_created_at=drive_created_at,
-            source="interim_artifact_recovery", artifact_created_at=args.artifact_created_at,
+            source="interim_artifact_recovery", artifact_created_at=artifact_created_at,
         )
         with connect(args.database_url) as connection:
             assert_writer_contract(connection)
@@ -128,12 +180,14 @@ def main() -> int:
             "--drive-file-id", drive_id, "--drive-file-name", drive_name,
             "--drive-created-at", drive_created_at, "--repository", metadata["repository"],
             "--workflow-ref", metadata["workflow_ref"], "--source", "interim_artifact_recovery",
-            "--artifact-created-at", args.artifact_created_at,
+            "--artifact-created-at", artifact_created_at,
+            "--snapshot-mode", snapshot_mode,
         ], check=True)
 
     print(json.dumps({
         "status": "success", "github_run_id": str(metadata["github_run_id"]),
         "drive_file_id": drive_id, "source": "interim_artifact_recovery",
+        "snapshot_mode": snapshot_mode, "artifact_created_at": artifact_created_at,
     }, sort_keys=True))
     return 0
 

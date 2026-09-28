@@ -121,7 +121,7 @@ jobs:
           python scripts/phase_a0/scan_secrets.py --root . --include-tracked
           source-mc57.html chart-data latest-manifest.json data work/ohlcv.csv
           work/massive-reference.json work/massive-grouped.json
-      - name: Build complete private snapshot and SHA-256 manifest
+      - name: Build monthly-full or daily-delta private snapshot and SHA-256 manifest
         id: snapshot
         run: >-
           python scripts/phase_a0/build_snapshot.py --root .
@@ -221,6 +221,7 @@ jobs:
           --repository "${{ github.repository }}" --workflow-ref "${{ github.workflow_ref }}"
           --source "${{ steps.preservation_ref.outputs.source }}"
           --artifact-created-at "${{ steps.preservation_ref.outputs.artifact_created_at }}"
+          --snapshot-mode "${{ steps.snapshot.outputs.snapshot_mode }}"
       - name: Build interim encrypted private snapshot
         if: always() && steps.snapshot.outcome == 'success' && steps.hash_record.outcome != 'success'
         id: interim
@@ -233,6 +234,7 @@ jobs:
           RECORDED_AT: ${{ steps.snapshot.outputs.recorded_at }}
           SNAPSHOT_SHA256: ${{ steps.snapshot.outputs.snapshot_sha256 }}
           MANIFEST_SHA256: ${{ steps.snapshot.outputs.manifest_sha256 }}
+          SNAPSHOT_MODE: ${{ steps.snapshot.outputs.snapshot_mode }}
         run: |
           test -n "$ARCHIVE_PASSPHRASE"
           test -f "$SNAP"
@@ -249,7 +251,7 @@ jobs:
           import sys
 
           payload = {
-              "schema_version": "phase-a0-interim-v1",
+              "schema_version": "phase-a0-interim-v2",
               "source": "interim_encrypted_artifact",
               "session_date": os.environ["SESSION_DATE"],
               "github_run_id": os.environ["GITHUB_RUN_ID"],
@@ -261,6 +263,7 @@ jobs:
               "workflow_ref": os.environ["GITHUB_WORKFLOW_REF"],
               "snapshot_sha256": os.environ["SNAPSHOT_SHA256"],
               "manifest_sha256": os.environ["MANIFEST_SHA256"],
+              "snapshot_mode": os.environ["SNAPSHOT_MODE"],
               "encrypted_sha256": sys.argv[2],
           }
           with open(sys.argv[1], "w", encoding="utf-8") as handle:
@@ -303,9 +306,7 @@ jobs:
             data/mc57.json
             data/state.json
             data/rs.json
-            data/market_inputs.json
             data/theme_membership.json
-            data/provider_inputs.json
             ${{ steps.snapshot.outputs.manifest_path }}
             ${{ steps.hash_record.outputs.hash_record_path }}
       - name: Report private preservation failure
