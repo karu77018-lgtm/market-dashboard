@@ -24,6 +24,7 @@ def main() -> int:
         default="google_drive_live",
     )
     parser.add_argument("--artifact-created-at")
+    parser.add_argument("--snapshot-mode", choices=("full", "delta"), required=True)
     args = parser.parse_args()
     if args.source == "interim_artifact_recovery" and not args.artifact_created_at:
         raise SystemExit("--artifact-created-at is required for interim_artifact_recovery")
@@ -39,6 +40,7 @@ def main() -> int:
         "sha256": args.sha256, "manifest_sha256": args.manifest_sha256, "recorded_at": args.recorded_at,
         "code_sha": args.code_sha, "repository": args.repository, "workflow_ref": args.workflow_ref,
         "drive_file_id": args.drive_file_id, "drive_file_name": args.drive_file_name, "copy_status": "success"}
+    payload["snapshot_mode"] = args.snapshot_mode
     payload["drive_created_at"] = args.drive_created_at
     payload["source"] = args.source
     if args.artifact_created_at:

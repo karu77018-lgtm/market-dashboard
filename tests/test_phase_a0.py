@@ -4,9 +4,13 @@ import json
 import os
 import subprocess
 import sys
+import tarfile
+from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.phase_a0.common import sha256_file
+from scripts.phase_a0.recover_interim_snapshot import github_artifact_created_at
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,6 +95,7 @@ def test_snapshot_and_hash_record_are_immutable(tmp_path: Path) -> None:
         "--drive-file-id", "drive-id-1", "--drive-file-name", snapshot.name,
         "--drive-created-at", "2026-09-28T01:03:10Z",
         "--repository", "owner/repo", "--workflow-ref", "owner/repo/test.yml@refs/heads/main")
+    args += ("--snapshot-mode", "full")
     assert run_script("scripts/phase_a0/write_hash_record.py", *args, cwd=tmp_path).returncode == 0
     assert run_script("scripts/phase_a0/write_hash_record.py", *args, cwd=tmp_path).returncode != 0
     record = json.loads((tmp_path / "research-hashes/2026/09/28/123456789.json").read_text())
@@ -125,6 +130,103 @@ def test_snapshot_hash_is_stable_across_run_attempts(tmp_path: Path) -> None:
     assert "github_run_attempt" not in manifest
 
 
+def test_snapshot_auto_uses_monthly_full_then_daily_delta(tmp_path: Path) -> None:
+    (tmp_path / "work").mkdir()
+    (tmp_path / "chart-data").mkdir()
+    (tmp_path / "data").mkdir()
+    base_ohlcv = "ticker,date,close\n" + "".join(
+        f"T{index:04d},2026-09-01,{10 + index / 100}\n" for index in range(500)
+    )
+    base_grouped = {f"T{index:04d}": {"c": 10 + index / 100} for index in range(500)}
+    (tmp_path / "work/ohlcv.csv").write_text(base_ohlcv, encoding="utf-8")
+    (tmp_path / "work/massive-grouped.json").write_text(json.dumps({
+        "schema": "grouped", "sessions": {"2026-09-01": base_grouped},
+    }), encoding="utf-8")
+    for relative in ("source-mc57.html", "chart-data/index.json", "latest-manifest.json",
+                     "data/value.json", "work/massive-reference.json"):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('{"value":1}\n', encoding="utf-8")
+
+    common = (
+        "--root", ".", "--output-dir", ".preservation/private",
+        "--run-attempt", "1", "--actions-started-at", "2026-09-28T01:02:03Z",
+        "--code-sha", "a" * 40, "--repository", "owner/repo",
+        "--workflow-ref", "owner/repo/test.yml@refs/heads/main",
+    )
+    requested = []
+    for relative in ("source-mc57.html", "chart-data", "latest-manifest.json", "data/value.json",
+                     "work/ohlcv.csv", "work/massive-reference.json", "work/massive-grouped.json"):
+        requested.extend(("--path", relative))
+
+    full = run_script("scripts/phase_a0/build_snapshot.py", *common, "--session-date", "2026-09-01",
+                      "--run-id", "1", *requested, cwd=tmp_path)
+    (tmp_path / "work/ohlcv.csv").write_text(
+        base_ohlcv + "AAA,2026-09-28,11\nBBB,2026-09-28,12\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "work/massive-grouped.json").write_text(json.dumps({
+        "schema": "grouped", "sessions": {
+            "2026-09-01": base_grouped,
+            "2026-09-28": {"AAA": {"c": 11}, "BBB": {"c": 12}},
+        },
+    }), encoding="utf-8")
+    delta = run_script("scripts/phase_a0/build_snapshot.py", *common, "--session-date", "2026-09-28",
+                       "--run-id", "2", *requested, cwd=tmp_path)
+    assert full.returncode == delta.returncode == 0, full.stderr + delta.stderr
+    full_output, delta_output = json.loads(full.stdout), json.loads(delta.stdout)
+    assert full_output["snapshot_mode"] == "full"
+    assert delta_output["snapshot_mode"] == "delta"
+    assert delta_output["snapshot_bytes"] < full_output["snapshot_bytes"]
+
+    with tarfile.open(tmp_path / delta_output["snapshot_path"], "r:gz") as archive:
+        names = set(archive.getnames())
+        assert "source-mc57.html" not in names
+        assert "chart-data/index.json" not in names
+        assert "latest-manifest.json" not in names
+        ohlcv = archive.extractfile("work/ohlcv.csv").read().decode()
+        assert "2026-09-01" not in ohlcv
+        assert ohlcv.count("2026-09-28") == 2
+        grouped = json.load(archive.extractfile("work/massive-grouped.json"))
+        assert list(grouped["sessions"]) == ["2026-09-28"]
+        manifest = json.load(archive.extractfile("snapshot-manifest.json"))
+        assert manifest["snapshot_mode"] == "delta"
+        assert {row["path"] for row in manifest["external_files"]} == {
+            "source-mc57.html", "chart-data/index.json", "latest-manifest.json",
+        }
+
+    restored = run_script(
+        "scripts/phase_a0/restore_snapshot_chain.py",
+        full_output["snapshot_path"], delta_output["snapshot_path"],
+        "--output", "restored", cwd=tmp_path,
+    )
+    assert restored.returncode == 0, restored.stderr
+    restored_ohlcv = (tmp_path / "restored/work/ohlcv.csv").read_text(encoding="utf-8")
+    assert restored_ohlcv.count("2026-09-01") == 500
+    assert restored_ohlcv.count("2026-09-28") == 2
+    restored_grouped = json.loads(
+        (tmp_path / "restored/work/massive-grouped.json").read_text(encoding="utf-8")
+    )
+    assert set(restored_grouped["sessions"]) == {"2026-09-01", "2026-09-28"}
+    report = json.loads(
+        (tmp_path / "restored/.preservation/reconstruction-report.json").read_text(encoding="utf-8")
+    )
+    assert [row["snapshot_mode"] for row in report["applied"]] == ["full", "delta"]
+
+
+def test_recovery_fetches_artifact_created_at_from_github() -> None:
+    payload = json.dumps({"artifacts": [{
+        "name": "private-encrypted-snapshot-123-2", "expired": False,
+        "created_at": "2026-09-28T08:00:00Z", "workflow_run": {"id": 123},
+    }]}).encode()
+    with patch("urllib.request.urlopen", return_value=BytesIO(payload)) as mocked:
+        actual = github_artifact_created_at("owner/repo", "123", 2, "token")
+    assert actual == "2026-09-28T08:00:00Z"
+    request = mocked.call_args.args[0]
+    assert request.headers["Authorization"] == "Bearer token"
+    assert "private-encrypted-snapshot-123-2" in request.full_url
+
+
 def test_workflow_keeps_vendor_raw_out_of_public_artifact() -> None:
     workflow = (ROOT / ".github/workflows/refresh-source-mc57.yml").read_text(encoding="utf-8")
     artifact = workflow.split("Save public reproducibility artifact", 1)[1].split(
@@ -136,6 +238,8 @@ def test_workflow_keeps_vendor_raw_out_of_public_artifact() -> None:
     assert "data/mktcap.json" not in artifact
     assert "work/massive-reference.json" not in artifact
     assert "work/massive-grouped.json" not in artifact
+    assert "data/market_inputs.json" not in artifact
+    assert "data/provider_inputs.json" not in artifact
 
 
 def test_actions_never_runs_the_neon_migration() -> None:
