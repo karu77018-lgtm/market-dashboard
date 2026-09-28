@@ -135,6 +135,7 @@ jobs:
           name: jev-live-shadow-${{ github.run_id }}-${{ github.run_attempt }}
           retention-days: 90
           compression-level: 6
+          include-hidden-files: true
           if-no-files-found: warn
           path: .preservation/jev/live-shadow-summary.json
       - name: Report Jev shadow failure
