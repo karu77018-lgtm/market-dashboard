@@ -399,6 +399,38 @@ def select_preserved_count_fallback_universe(
         broad_rows, reference, grouped, target_session=cached_session,
     )
     by_ticker = {str(row["ticker"]).upper(): row for row in candidates}
+    # A few symbols can be new since the last Massive EOD cache.  Keep the
+    # count stable by admitting currently listed TradingView rows that are
+    # confirmed active common shares/ADRs by the cached Massive reference.
+    for raw in broad_rows:
+        ticker = str(raw.get("ticker") or "").upper()
+        price, market_cap = _finite(raw.get("price")), _finite(raw.get("market_cap"))
+        if (
+            not ticker or ticker in by_ticker or ticker not in reference
+            or price is None or price < EXPANSION_MIN_PRICE
+            or market_cap is None or market_cap < EXPANSION_MIN_MCAP
+        ):
+            continue
+        observations = [
+            grouped[day][ticker] for day in sorted(grouped)[-20:]
+            if ticker in grouped[day]
+        ]
+        ddv = [float(row["c"]) * float(row["v"]) for row in observations
+               if row.get("c") and row.get("v")]
+        adr = [(float(row["h"]) - float(row["l"])) / float(row["c"])
+               for row in observations
+               if row.get("c") and row.get("h") is not None and row.get("l") is not None]
+        row = dict(raw)
+        row.update({
+            "median_dollar_volume_20": float(np.median(ddv)) if ddv else None,
+            "median_adr20": float(np.median(adr)) if adr else None,
+            "universe_route": "yahoo_fallback_fill",
+            "buy_filter_eligible": False,
+            "buy_filter_failures": ["massive_cached_history"],
+            "massive_security_type": reference[ticker].get("type"),
+            "massive_primary_exchange": reference[ticker].get("primary_exchange"),
+        })
+        by_ticker[ticker] = row
     prior = list(dict.fromkeys(str(ticker).upper() for ticker in preserved_tickers))
     chosen = [ticker for ticker in prior if ticker in by_ticker]
     chosen_set = set(chosen)

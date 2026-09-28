@@ -113,6 +113,26 @@ def test_yahoo_fallback_preserves_prior_universe_count():
     assert all(row["current_session_provider"] == "Yahoo Finance" for row in selected)
 
 
+def test_yahoo_fallback_fills_new_reference_ticker_missing_from_grouped_cache():
+    history = grouped_history()
+    broad = [
+        {"ticker": "CORE", "price": 12, "market_cap": 300_000_000},
+        {"ticker": "NEW", "price": 8, "market_cap": 80_000_000},
+    ]
+    reference = {
+        ticker: {"ticker": ticker, "type": "CS", "primary_exchange": "XNAS"}
+        for ticker in ("CORE", "NEW")
+    }
+    selected, stats = select_preserved_count_fallback_universe(
+        broad, reference, history,
+        preserved_tickers=["CORE", "MISSING"], target_count=2,
+    )
+    assert [row["ticker"] for row in selected] == ["CORE", "NEW"]
+    assert stats["fallback_replacements"] == 1
+    new = next(row for row in selected if row["ticker"] == "NEW")
+    assert new["universe_route"] == "yahoo_fallback_fill"
+
+
 def test_yahoo_ohlcv_becomes_grouped_fallback(tmp_path):
     path = tmp_path / "ohlcv.csv"
     path.write_text(
