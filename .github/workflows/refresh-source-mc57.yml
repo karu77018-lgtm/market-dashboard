@@ -100,14 +100,11 @@ jobs:
         run: >-
           python scripts/build_exact_source_mc57_clone.py --repo-root . --data-dir data
           --source-dir sources/build_dashboard_4 --work-dir work --output source-mc57.html
-      - name: Add post-September-16 improvements
+      - name: Add independent ticker candles without changing the original layout
         run: |
           session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
           python scripts/enhance_source_mc57.py --html source-mc57.html --ohlcv work/ohlcv.csv \
             --chart-dir chart-data --session "$session"
-      - name: Publication gates
-        id: publication_gates
-        run: python scripts/validate_publication.py --root .
       - name: Resolve immutable run metadata
         id: run_meta
         env: {GH_TOKEN: "${{ github.token }}"}
@@ -119,7 +116,6 @@ jobs:
           echo "session_date=$session" >> "$GITHUB_OUTPUT"
       - name: Run Jev live shadow research
         id: jev_shadow
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         continue-on-error: true
         env:
           JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
@@ -144,6 +140,15 @@ jobs:
         run: |
           echo "::warning title=Jev live shadow failed::Dashboard publication and Phase A-0 preservation will continue."
           echo "Jev is an isolated research layer; inspect its step and audit summary without treating the dashboard run as failed." >> "$GITHUB_STEP_SUMMARY"
+      - name: Render isolated Jev expected-value ranking tab
+        if: always()
+        run: >-
+          python scripts/render_jev_ranking.py
+          --html source-mc57.html --ranking data/jev-ranking.json
+      - name: Publication gates
+        if: always()
+        id: publication_gates
+        run: python scripts/validate_publication.py --root .
       - name: Resolve successful monthly-full policy
         id: snapshot_policy
         env: {GH_TOKEN: "${{ github.token }}"}
@@ -334,6 +339,7 @@ jobs:
             data/state.json
             data/rs.json
             data/theme_membership.json
+            data/jev-ranking.json
             ${{ steps.snapshot.outputs.manifest_path }}
             ${{ steps.hash_record.outputs.hash_record_path }}
             ${{ steps.full_marker.outputs.full_marker_path }}
@@ -369,7 +375,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- source-mc57.html chart-data latest-manifest.json
+          git add -- source-mc57.html chart-data latest-manifest.json data/jev-ranking.json
           if test -n "$HASH_RECORD_PATH"; then git add -- "$HASH_RECORD_PATH"; fi
           if test -n "$FULL_MARKER_PATH"; then git add -- "$FULL_MARKER_PATH"; fi
           if git diff --cached --quiet; then echo "No publication change"; exit 0; fi

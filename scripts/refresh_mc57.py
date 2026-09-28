@@ -472,7 +472,10 @@ def main() -> int:
                          "buy_filter_eligible": expansion_stats["buy_filter_eligible"],
                          "active": expansion_stats["active_universe"],
                      },
-                     "publication_scope": "source-mc57 only; V38 and data/*.json are not committed"})
+                     "publication_scope": (
+                         "source-mc57 plus derived data/jev-ranking.json only; "
+                         "V38 and vendor-input data JSON are not committed"
+                     )})
     dump(root / "latest-manifest.json", manifest)
     print(json.dumps({"session_date": target, "universe": len(tickers),
                       "coverage": yahoo_stats["target_session_coverage"],

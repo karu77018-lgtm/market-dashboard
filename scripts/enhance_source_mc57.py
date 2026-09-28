@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add post-2026-09-16 source-only improvements and independent candle shards."""
+"""Add independent candle shards without changing the recovered dashboard layout."""
 from __future__ import annotations
 
 import argparse
@@ -7,139 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-
-
-def axis_html(dates: list[pd.Timestamp]) -> str:
-    n = len(dates)
-    positions = sorted({0, round((n - 1) * .25), round((n - 1) * .5),
-                        round((n - 1) * .75), n - 1})
-    return '<div class="dax">' + ''.join(
-        f'<span>{dates[i].strftime("%y/%-m")}</span>' for i in positions
-    ) + '</div>'
-
-
-def svg_line(values: list[float], color: str, *, zero: bool = False) -> str:
-    width, height, pad = 680, 180, 7
-    good = [float(v) for v in values if np.isfinite(v)]
-    lo, hi = min(good), max(good)
-    if zero:
-        lo, hi = min(lo, 0.0), max(hi, 0.0)
-    margin = max((hi - lo) * .08, 1.0)
-    lo, hi = lo - margin, hi + margin
-    span = hi - lo or 1.0
-    x = lambda i: pad + i * (width - 2 * pad) / max(1, len(values) - 1)
-    y = lambda v: pad + (1 - (v - lo) / span) * (height - 2 * pad)
-    pts = ' '.join(f'{x(i):.1f},{y(float(v)):.1f}' for i, v in enumerate(values))
-    zero_line = ''
-    if zero and lo <= 0 <= hi:
-        zero_line = (f'<line x1="{pad}" y1="{y(0):.1f}" x2="{width-pad}" y2="{y(0):.1f}" '
-                     'stroke="#817e73" stroke-width="1" stroke-dasharray="4 3"/>')
-    return (f'<svg viewBox="0 0 {width} {height}" preserveAspectRatio="none">{zero_line}'
-            f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="2"/>'
-            f'<circle cx="{x(len(values)-1):.1f}" cy="{y(values[-1]):.1f}" r="3.5" fill="{color}"/>'
-            '</svg>')
-
-
-def breadth_cards(frame: pd.DataFrame) -> str:
-    close = frame.pivot_table(index="date", columns="ticker", values="close", aggfunc="last").sort_index()
-    sma50 = close.rolling(50, min_periods=50).mean()
-    valid50 = sma50.notna().sum(axis=1)
-    universe = close.notna().sum(axis=1)
-    pct50 = ((close > sma50).sum(axis=1) / valid50.replace(0, np.nan) * 100)
-    pct50 = pct50[valid50 >= (universe * .6).clip(lower=30)].dropna().iloc[-504:]
-
-    high52 = close.rolling(252, min_periods=252).max()
-    low52 = close.rolling(252, min_periods=252).min()
-    nh = ((close >= high52) & high52.notna()).sum(axis=1)
-    nl = ((close <= low52) & low52.notna()).sum(axis=1)
-    valid252 = high52.notna().sum(axis=1)
-    ok = valid252 >= (universe * .6).clip(lower=30)
-    net = (nh - nl)[ok].dropna().iloc[-504:]
-    dates50, dates_net = list(pct50.index), list(net.index)
-    if len(pct50) < 5 or len(net) < 5:
-        raise RuntimeError("not enough history for the 50MA and 52-week breadth cards")
-    return (
-        '<div class="card" data-source-improvement="50ma-participation">'
-        '<div class="chd"><h2>ブレッドス推移（50日線上の割合）</h2>'
-        f'<div class="chd-now" style="color:#7ff0a8"><b>{pct50.iloc[-1]:.0f}%</b><span>50日線上</span></div></div>'
-        '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
-        '全銘柄のうち終値が50日移動平均線を上回る割合。短中期の買い参加の広がり。</div></details>'
-        f'<div class="chart">{svg_line(pct50.tolist(), "#37b56c")}{axis_html(dates50)}</div></div>'
-        '<div class="card" data-source-improvement="52week-high-low">'
-        '<div class="chd"><h2>52週 新高値 − 新安値</h2>'
-        f'<div class="chd-now" style="color:{"#37b56c" if net.iloc[-1] >= 0 else "#d95b5b"}">'
-        f'<b>{int(net.iloc[-1]):+d}</b><span>新高値 {int(nh.loc[net.index[-1]])} / 新安値 {int(nl.loc[net.index[-1]])}</span></div></div>'
-        '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
-        '当日の52週新高値銘柄数から新安値銘柄数を引いた値。0より上は内部拡大、下は内部悪化。</div></details>'
-        f'<div class="chart">{svg_line(net.astype(float).tolist(), "#c65b55", zero=True)}{axis_html(dates_net)}</div></div>'
-    )
-
-
-def _num(value, digits: int = 2, signed: bool = False) -> str:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        return "—"
-    if not np.isfinite(number):
-        return "—"
-    return f"{number:+.{digits}f}" if signed else f"{number:.{digits}f}"
-
-
-def provider_cards(payload: dict) -> str:
-    massive = payload.get("massive", {})
-    structure = massive.get("market_structure", {})
-    if structure.get("status") != "READY":
-        raise RuntimeError("market structure is not READY")
-    yahoo_fallback = massive.get("status") == "FALLBACK_YAHOO"
-    advances = int(structure.get("advances", 0))
-    declines = int(structure.get("declines", 0))
-    ad_net = int(structure.get("advance_decline_net", 0))
-    four_net = int(structure.get("four_pct_net", 0))
-    ud_ratio = _num(structure.get("up_down_volume_ratio"), 2)
-    compared = int(structure.get("compared_tickers", 0))
-    cross = massive.get("cross_vendor", {})
-    cross_pct = _num(float(cross.get("coverage") or 0) * 100, 1)
-
-    fred = payload.get("fred", {})
-    series = fred.get("series", {})
-    hy = series.get("BAMLH0A0HYM2", {})
-    real10 = series.get("DFII10", {})
-    be10 = series.get("T10YIE", {})
-    curve = series.get("T10Y2Y", {})
-    nfci = series.get("NFCI", {})
-    fred_status = str(fred.get("status", "ERROR"))
-    fred_coverage = _num(float(fred.get("required_coverage", 0)) * 100, 0)
-    fred_latest = max(
-        (str(row.get("last_date")) for row in series.values() if row.get("last_date")),
-        default="—",
-    )
-    provider_note = (
-        "Massive当日データ未提供のため、同じ銘柄数を維持してYahoo Financeで更新しています。"
-        if yahoo_fallback else f"Yahooとの当日終値照合率 {cross_pct}%です。"
-    )
-    return (
-        '<div class="card" data-source-improvement="massive-market-structure">'
-        f'<div class="chd"><h2>全市場 内部構造（{"Yahoo代替" if yahoo_fallback else "Massive"}）</h2>'
-        f'<div class="chd-now" style="color:{"#37b56c" if ad_net >= 0 else "#d95b5b"}">'
-        f'<b>{ad_net:+d}</b><span>上昇 {advances:,} / 下落 {declines:,}</span></div></div>'
-        '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
-        f'比較対象 {compared:,}銘柄。騰落差は上昇銘柄数−下落銘柄数。4%以上騰落差 {four_net:+d}、'
-        f'上昇/下落出来高比 {ud_ratio}倍。'
-        f'{provider_note}'
-        '</div></details></div>'
-        '<div class="card" data-source-improvement="fred-macro-risk">'
-        '<div class="chd"><h2>金利・信用環境（FRED）</h2>'
-        f'<div class="chd-now" style="color:{"#d95b5b" if float(hy.get("last_value") or 0) >= 5 else "#6e6a5e"}">'
-        f'<b>{_num(hy.get("last_value"), 2)}%</b><span>米HY OAS</span></div></div>'
-        '<details class="cxpl" open><summary>公式系列</summary><div class="cxpl-b">'
-        f'10年実質金利 {_num(real10.get("last_value"), 2)}% / 10年期待インフレ {_num(be10.get("last_value"), 2)}% / '
-        f'10年−2年差 {_num(curve.get("last_value"), 2, signed=True)}%pt / NFCI {_num(nfci.get("last_value"), 2, signed=True)}。'
-        f'状態 {fred_status}、必須系列 {fred_coverage}%、最新観測日 {fred_latest}。'
-        '</div></details></div>'
-    )
-
 
 def write_candle_shards(frame: pd.DataFrame, out_dir: Path, session: str) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -201,7 +69,6 @@ def main() -> int:
     ap.add_argument("--html", default="source-mc57.html")
     ap.add_argument("--ohlcv", default="work/ohlcv.csv")
     ap.add_argument("--chart-dir", default="chart-data")
-    ap.add_argument("--provider-data", default="data/provider_inputs.json")
     ap.add_argument("--session", required=True)
     args = ap.parse_args()
     html_path, csv_path, chart_dir = Path(args.html), Path(args.ohlcv), Path(args.chart_dir)
@@ -211,17 +78,9 @@ def main() -> int:
     for c in ("open", "high", "low", "close", "volume"):
         frame[c] = pd.to_numeric(frame[c], errors="coerce")
     frame = frame[frame["date"].notna() & (frame["date"] <= pd.Timestamp(args.session))]
-    provider = json.loads(Path(args.provider_data).read_text(encoding="utf-8"))
-    cards = provider_cards(provider) + breadth_cards(frame)
     meta = write_candle_shards(frame, chart_dir, args.session)
 
     text = html_path.read_text(encoding="utf-8")
-    # The recovered page inserts an English subtitle inside the h2, so anchor
-    # before the visible Japanese title rather than assuming an immediate </h2>.
-    anchor = '<div class="card"><div class="chd"><h2>売買代金 参加度（200日平均比）'
-    if anchor not in text:
-        raise RuntimeError("volume participation anchor not found")
-    text = text.replace(anchor, cards + anchor, 1)
     spark = '<div id="dov-spark" class="dov-spark empty"></div>'
     if spark not in text:
         raise RuntimeError("ticker detail spark anchor not found")
@@ -230,7 +89,7 @@ def main() -> int:
     text = text.replace('</body>', SCRIPT + '</body>', 1)
     html_path.write_text(text, encoding="utf-8")
     print(json.dumps({"session_date": args.session, "ticker_count": meta["ticker_count"],
-                      "cards": ["Massive market structure", "FRED macro risk", "50MA participation", "52-week new highs minus new lows"],
+                      "layout": "recovered-original",
                       "candle_route": "independent sharded JSON"}, ensure_ascii=False))
     return 0
 

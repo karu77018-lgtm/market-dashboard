@@ -19,6 +19,7 @@ from run_jev_live_shadow import (  # noqa: E402
     load_dashboard,
     main,
     normalize_news,
+    ranking_row,
     validate_jev_url,
 )
 
@@ -123,7 +124,16 @@ def test_validate_jev_url_rejects_remote_http():
 def test_evaluate_jev_uses_fixed_persisted_shadow_contract():
     class Response:
         status_code = 200
-        text = "Jev OK\nEvaluation: #42\nCost: $0.000321\n"
+
+        @staticmethod
+        def json():
+            return {
+                "ok": True,
+                "duplicate": False,
+                "evaluationId": "42",
+                "gatewayCostUsd": 0.000321,
+                "aggregate": {"CAT01_guidance_raise": {"probabilityMean": 0.7}},
+            }
 
     class Session:
         request = None
@@ -144,7 +154,12 @@ def test_evaluate_jev_uses_fixed_persisted_shadow_contract():
         timeout=180,
     )
 
-    assert result == {"evaluation_id": "42", "duplicate": False, "gateway_cost_usd": 0.000321}
+    assert result == {
+        "evaluation_id": "42",
+        "duplicate": False,
+        "gateway_cost_usd": 0.000321,
+        "aggregate": {"CAT01_guidance_raise": {"probabilityMean": 0.7}},
+    }
     assert client.request["headers"]["Authorization"] == "Bearer not-a-real-secret"
     assert client.request["json"]["runs"] == 3
     assert client.request["json"]["persist"] is True
@@ -152,6 +167,33 @@ def test_evaluate_jev_uses_fixed_persisted_shadow_contract():
     assert client.request["json"]["evaluationKind"] == "live"
     assert client.request["json"]["validationEligible"] is False
     assert client.request["json"]["asofTimestamp"] == "2026-09-28T12:00:00Z"
+    assert client.request["json"]["responseMode"] == "json"
+
+
+def test_ranking_row_is_positive_minus_risk_probability():
+    aggregate = {
+        key: {"probabilityMean": 0.6}
+        for key in (
+            "CAT01_guidance_raise", "CAT02_demand_acceleration", "CAT03_major_contract",
+            "CAT04_new_product", "CAT05_regulatory_approval", "CAT06_company_specific",
+            "TXT01_management_tone_improved",
+        )
+    }
+    aggregate.update({
+        key: {"probabilityMean": 0.2}
+        for key in (
+            "RF01_dilution", "RF02_going_concern", "RF03_accounting",
+            "RF04_management_change", "RF05_legal_regulatory", "RF06_guidance_cut",
+            "TXT02_margin_pressure",
+        )
+    })
+    row = ranking_row(
+        ticker="AAA", mc57_rank=2, state_sha256="a" * 64,
+        evaluation_id="42", news_count=3, aggregate=aggregate,
+    )
+    assert row["expected_value_score"] == 40.0
+    assert row["catalyst_probability"] == 0.6
+    assert row["risk_probability"] == 0.2
 
 
 def test_missing_required_configuration_is_a_failed_shadow_run(

@@ -3,7 +3,8 @@
 
 The script deliberately keeps vendor text out of Git and Actions artifacts.  It
 fetches news up to the dashboard's generated_at cutoff, submits a compact state
-to the private Jev API, and writes only an audit summary (IDs, counts, hashes).
+to the private Jev API, writes an audit summary, and publishes only derived
+probabilities and scores for the dashboard ranking.
 """
 from __future__ import annotations
 
@@ -25,8 +26,24 @@ MASSIVE_NEWS_URL = "https://api.massive.com/v2/reference/news"
 DEFAULT_JEV_URL = "https://jev-investment-engine.vercel.app/api/jev"
 QUESTION_SET_VERSION = "jev-text-v1"
 TICKER_PATTERN = re.compile(r"^[A-Z][A-Z0-9.-]{0,14}$")
-EVALUATION_PATTERN = re.compile(r"^Evaluation:\s*#([^\s]+)\s*$", re.MULTILINE)
-COST_PATTERN = re.compile(r"^Cost:\s*\$([0-9.]+)\s*$", re.MULTILINE)
+POSITIVE_QUESTIONS = {
+    "CAT01_guidance_raise": "上方修正",
+    "CAT02_demand_acceleration": "需要加速",
+    "CAT03_major_contract": "大型契約",
+    "CAT04_new_product": "新製品",
+    "CAT05_regulatory_approval": "承認・許認可",
+    "CAT06_company_specific": "企業固有材料",
+    "TXT01_management_tone_improved": "経営トーン改善",
+}
+RISK_QUESTIONS = {
+    "RF01_dilution": "希薄化",
+    "RF02_going_concern": "継続企業",
+    "RF03_accounting": "会計",
+    "RF04_management_change": "経営陣交代",
+    "RF05_legal_regulatory": "法務・規制",
+    "RF06_guidance_cut": "下方修正",
+    "TXT02_margin_pressure": "利益率圧力",
+}
 
 
 class ShadowRunError(RuntimeError):
@@ -282,6 +299,109 @@ def canonical_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _question_probability(aggregate: dict[str, Any], question_id: str) -> float | None:
+    feature = aggregate.get(question_id)
+    if not isinstance(feature, dict):
+        return None
+    value = feature.get("probabilityMean")
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    return min(1.0, max(0.0, float(value)))
+
+
+def ranking_row(
+    *,
+    ticker: str,
+    mc57_rank: Any,
+    state_sha256: str,
+    evaluation_id: str,
+    news_count: int,
+    aggregate: dict[str, Any],
+) -> dict[str, Any]:
+    positive = {
+        question_id: value
+        for question_id in POSITIVE_QUESTIONS
+        if (value := _question_probability(aggregate, question_id)) is not None
+    }
+    risks = {
+        question_id: value
+        for question_id in RISK_QUESTIONS
+        if (value := _question_probability(aggregate, question_id)) is not None
+    }
+    if len(positive) != len(POSITIVE_QUESTIONS) or len(risks) != len(RISK_QUESTIONS):
+        raise ShadowRunError(f"Jev aggregate for {ticker} is incomplete")
+    catalyst_mean = sum(positive.values()) / len(positive)
+    risk_mean = sum(risks.values()) / len(risks)
+    top_positive = max(positive, key=positive.get)
+    top_risk = max(risks, key=risks.get)
+    return {
+        "ticker": ticker,
+        "mc57_rank": mc57_rank,
+        "expected_value_score": round(100 * (catalyst_mean - risk_mean), 4),
+        "catalyst_probability": round(catalyst_mean, 6),
+        "risk_probability": round(risk_mean, 6),
+        "top_catalyst": top_positive,
+        "top_catalyst_label": POSITIVE_QUESTIONS[top_positive],
+        "top_catalyst_probability": round(positive[top_positive], 6),
+        "top_risk": top_risk,
+        "top_risk_label": RISK_QUESTIONS[top_risk],
+        "top_risk_probability": round(risks[top_risk], 6),
+        "evaluation_id": evaluation_id,
+        "news_count": news_count,
+        "state_sha256": state_sha256,
+    }
+
+
+def load_prior_ranking(path: Path) -> dict[str, dict[str, Any]]:
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    rows = payload.get("rows") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        return {}
+    return {
+        str(row.get("state_sha256")): row
+        for row in rows
+        if isinstance(row, dict) and row.get("state_sha256")
+    }
+
+
+def write_public_ranking(
+    path: Path,
+    *,
+    session_date: Any,
+    available_at: str,
+    rows: list[dict[str, Any]],
+    error_count: int = 0,
+) -> None:
+    ordered = sorted(
+        rows,
+        key=lambda row: (
+            -float(row.get("expected_value_score") or 0),
+            int(row.get("mc57_rank") or 10_000),
+            str(row.get("ticker") or ""),
+        ),
+    )
+    payload = {
+        "schema_version": "jev-public-ranking-v1",
+        "status": "partial" if error_count else ("ready" if ordered else "no_evaluable_news"),
+        "session_date": session_date,
+        "available_at": available_at,
+        "question_set_version": QUESTION_SET_VERSION,
+        "runs_per_ticker": 3,
+        "formula": "100 * (mean(7 positive probabilities) - mean(7 risk probabilities))",
+        "rows": ordered,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True, allow_nan=False) + "\n",
+        encoding="utf-8",
+    )
+
+
 def validate_jev_url(value: str) -> str:
     parsed = urlparse(value)
     if parsed.scheme == "https" and parsed.netloc:
@@ -311,7 +431,7 @@ def evaluate_jev(
         "asofTimestamp": utc_iso(cutoff),
         "evaluationKind": "live",
         "validationEligible": False,
-        "responseMode": "summary",
+        "responseMode": "json",
     }
     last_status: int | None = None
     for attempt in range(attempts):
@@ -329,14 +449,23 @@ def evaluate_jev(
                     continue
             if response.status_code != 200:
                 raise ShadowRunError(f"Jev rejected {ticker} (status={response.status_code})")
-            evaluation = EVALUATION_PATTERN.search(response.text)
-            if not evaluation:
+            try:
+                payload = response.json()
+            except (ValueError, json.JSONDecodeError):
+                raise ShadowRunError(f"Jev response for {ticker} was not JSON") from None
+            evaluation_id = payload.get("evaluationId") if isinstance(payload, dict) else None
+            if not evaluation_id:
                 raise ShadowRunError(f"Jev response for {ticker} omitted the evaluation id")
-            cost = COST_PATTERN.search(response.text)
+            aggregate = (
+                payload.get("aggregate")
+                if isinstance(payload, dict) and isinstance(payload.get("aggregate"), dict)
+                else None
+            )
             return {
-                "evaluation_id": evaluation.group(1),
-                "duplicate": response.text.startswith("Jev DUPLICATE"),
-                "gateway_cost_usd": float(cost.group(1)) if cost else None,
+                "evaluation_id": str(evaluation_id),
+                "duplicate": payload.get("duplicate") is True,
+                "gateway_cost_usd": safe_number(payload.get("gatewayCostUsd")),
+                "aggregate": aggregate,
             }
         except ShadowRunError:
             raise
@@ -387,6 +516,7 @@ def main() -> int:
     parser.add_argument("--manifest", default="latest-manifest.json")
     parser.add_argument("--reference", default="work/massive-reference.json")
     parser.add_argument("--output", default=".preservation/jev/live-shadow-summary.json")
+    parser.add_argument("--ranking-output", default="data/jev-ranking.json")
     parser.add_argument("--max-candidates", type=int, default=12)
     parser.add_argument("--max-news", type=int, default=8)
     parser.add_argument("--lookback-days", type=int, default=30)
@@ -403,6 +533,7 @@ def main() -> int:
 
     root = Path(args.root).resolve()
     output_path = root / args.output
+    ranking_path = root / args.ranking_output
     manifest = json.loads((root / args.manifest).read_text(encoding="utf-8"))
     if not isinstance(manifest, dict):
         raise ShadowRunError("manifest must be a JSON object")
@@ -448,6 +579,8 @@ def main() -> int:
     summary["news_window_start"] = utc_iso(start)
     news_client = requests.Session()
     jev_client = requests.Session()
+    prior_ranking = load_prior_ranking(ranking_path)
+    ranking_rows: list[dict[str, Any]] = []
 
     for candidate in candidates:
         ticker = candidate["ticker"]
@@ -488,6 +621,20 @@ def main() -> int:
                 cutoff=cutoff,
                 timeout=args.jev_timeout,
             )
+            derived = None
+            if result["aggregate"] is not None:
+                derived = ranking_row(
+                    ticker=ticker,
+                    mc57_rank=rank,
+                    state_sha256=state_hash,
+                    evaluation_id=result["evaluation_id"],
+                    news_count=len(documents),
+                    aggregate=result["aggregate"],
+                )
+            elif result["duplicate"] and state_hash in prior_ranking:
+                derived = prior_ranking[state_hash]
+            if derived is not None:
+                ranking_rows.append(derived)
             summary["evaluated_count"] += 1
             summary["results"].append(
                 {
@@ -498,6 +645,9 @@ def main() -> int:
                     "state_sha256": state_hash,
                     "evaluation_id": result["evaluation_id"],
                     "gateway_cost_usd": result["gateway_cost_usd"],
+                    "expected_value_score": (
+                        derived.get("expected_value_score") if derived is not None else None
+                    ),
                 }
             )
             suffix = "duplicate" if result["duplicate"] else "saved"
@@ -511,6 +661,14 @@ def main() -> int:
             print(f"::warning title=Jev shadow {ticker} failed::{safe_error}")
 
     summary["status"] = "partial" if summary["error_count"] else "success"
+    if ranking_rows or not summary["error_count"]:
+        write_public_ranking(
+            ranking_path,
+            session_date=summary["session_date"],
+            available_at=summary["available_at"],
+            rows=ranking_rows,
+            error_count=summary["error_count"],
+        )
     write_summary(output_path, summary)
     append_actions_summary(summary)
     print(

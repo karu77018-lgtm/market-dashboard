@@ -134,9 +134,11 @@ def _get_json(
     attempts: int = 5,
 ) -> dict[str, Any]:
     last_error: Exception | None = None
+    last_status: int | None = None
     for attempt in range(attempts):
         try:
             response = session.get(url, params=params, timeout=timeout)
+            last_status = response.status_code
             if response.status_code == 429:
                 delay = min(float(response.headers.get("Retry-After", 60)), 90.0)
                 time.sleep(max(delay, 1.0))
@@ -153,6 +155,7 @@ def _get_json(
     raise ProviderError(
         f"provider request failed after {attempts} attempts: {_safe_url(url)}: "
         f"{type(last_error).__name__ if last_error else 'unknown'}"
+        f" (status={last_status if last_status is not None else 'none'})"
     )
 
 
