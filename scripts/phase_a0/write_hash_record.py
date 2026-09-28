@@ -45,6 +45,11 @@ def main() -> int:
     payload["source"] = args.source
     if args.artifact_created_at:
         payload["artifact_created_at"] = args.artifact_created_at
+    payload["available_at"] = (
+        args.artifact_created_at
+        if args.source == "interim_artifact_recovery"
+        else args.drive_created_at
+    )
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     relative = path.relative_to(Path(args.root)).as_posix()
     write_github_output({"hash_record_path": relative})

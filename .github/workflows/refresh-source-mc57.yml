@@ -39,21 +39,29 @@ jobs:
         run: test -n "$FRED_API_KEY"
       - name: Verify Massive secret
         run: test -n "$MASSIVE_API_KEY"
-      - name: Verify private preservation secrets
-        id: preservation_secrets
+      - name: Verify Google Drive preservation configuration
+        id: drive_config
         continue-on-error: true
         env:
           GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
           GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
           GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
-          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_FOLDER_ID || secrets.GOOGLE_DRIVE_FOLDER_ID }}
         run: |
           test -n "$GOOGLE_DRIVE_CLIENT_ID"
           test -n "$GOOGLE_DRIVE_CLIENT_SECRET"
           test -n "$GOOGLE_DRIVE_REFRESH_TOKEN"
           test -n "$GOOGLE_DRIVE_FOLDER_ID"
-          test -n "$NEON_DATABASE_URL"
+      - name: Detect optional Neon configuration
+        id: neon_config
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          if test -n "$NEON_DATABASE_URL"; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Run deterministic provider tests
         run: python -m pytest
       - name: Restore prior successful OHLCV baseline
@@ -122,7 +130,7 @@ jobs:
           GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
           GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
           GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
-          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_FOLDER_ID || secrets.GOOGLE_DRIVE_FOLDER_ID }}
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
         run: >-
           python scripts/phase_a0/scan_secrets.py --root . --include-tracked
@@ -138,28 +146,36 @@ jobs:
           --code-sha "${{ github.sha }}" --repository "${{ github.repository }}"
           --workflow-ref "${{ github.workflow_ref }}"
           --snapshot-mode "${{ steps.snapshot_policy.outputs.snapshot_mode }}"
-      - name: Prepare Neon manifest and check immutable run id
-        if: steps.preservation_secrets.outcome == 'success'
-        id: neon_lookup
-        continue-on-error: true
-        env: {NEON_DATABASE_URL: "${{ secrets.NEON_DATABASE_URL }}"}
-        run: >-
-          python scripts/phase_a0/neon_manifest.py
-          lookup --run-id "${{ github.run_id }}"
-          --snapshot-sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}"
-          --manifest-sha256 "${{ steps.snapshot.outputs.manifest_sha256 }}" --code-sha "${{ github.sha }}"
       - name: Create private Google Drive snapshot
-        if: steps.neon_lookup.outcome == 'success' && steps.neon_lookup.outputs.exists != 'true'
+        if: steps.drive_config.outcome == 'success'
         id: drive_upload
         continue-on-error: true
         env:
           GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
           GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
           GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
-          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_FOLDER_ID || secrets.GOOGLE_DRIVE_FOLDER_ID }}
         run: python scripts/phase_a0/upload_google_drive.py "${{ steps.snapshot.outputs.snapshot_path }}"
-      - name: Append successful copy to Neon manifest
-        if: steps.neon_lookup.outcome == 'success' && steps.neon_lookup.outputs.exists != 'true' && steps.drive_upload.outcome == 'success'
+      - name: Write run-id hash history
+        if: steps.drive_upload.outcome == 'success'
+        id: hash_record
+        continue-on-error: true
+        run: >-
+          python scripts/phase_a0/write_hash_record.py --root .
+          --session-date "${{ steps.run_meta.outputs.session_date }}" --run-id "${{ github.run_id }}"
+          --run-attempt "${{ github.run_attempt }}"
+          --actions-started-at "${{ steps.run_meta.outputs.actions_started_at }}"
+          --recorded-at "${{ steps.snapshot.outputs.recorded_at }}" --code-sha "${{ github.sha }}"
+          --sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}"
+          --manifest-sha256 "${{ steps.snapshot.outputs.manifest_sha256 }}"
+          --drive-file-id "${{ steps.drive_upload.outputs.drive_file_id }}"
+          --drive-file-name "${{ steps.drive_upload.outputs.drive_file_name }}"
+          --drive-created-at "${{ steps.drive_upload.outputs.drive_created_time }}"
+          --repository "${{ github.repository }}" --workflow-ref "${{ github.workflow_ref }}"
+          --source google_drive_live
+          --snapshot-mode "${{ steps.snapshot.outputs.snapshot_mode }}"
+      - name: Optionally append copy to Neon manifest
+        if: steps.drive_upload.outcome == 'success' && steps.neon_config.outputs.enabled == 'true'
         id: neon_record
         continue-on-error: true
         env: {NEON_DATABASE_URL: "${{ secrets.NEON_DATABASE_URL }}"}
@@ -178,58 +194,6 @@ jobs:
           --drive-file-name "${{ steps.drive_upload.outputs.drive_file_name }}"
           --drive-created-at "${{ steps.drive_upload.outputs.drive_created_time }}"
           --source google_drive_live
-      - name: Resolve immutable preservation reference
-        if: steps.neon_lookup.outcome == 'success' && (steps.neon_lookup.outputs.exists == 'true' || steps.neon_record.outcome == 'success')
-        id: preservation_ref
-        continue-on-error: true
-        env:
-          EXISTING_ID: ${{ steps.neon_lookup.outputs.drive_file_id }}
-          EXISTING_NAME: ${{ steps.neon_lookup.outputs.drive_file_name }}
-          EXISTING_CREATED_AT: ${{ steps.neon_lookup.outputs.drive_created_at }}
-          EXISTING_RECORDED_AT: ${{ steps.neon_lookup.outputs.recorded_at }}
-          EXISTING_RUN_ATTEMPT: ${{ steps.neon_lookup.outputs.run_attempt }}
-          EXISTING_SOURCE: ${{ steps.neon_lookup.outputs.source }}
-          EXISTING_ARTIFACT_CREATED_AT: ${{ steps.neon_lookup.outputs.artifact_created_at }}
-          CREATED_ID: ${{ steps.drive_upload.outputs.drive_file_id }}
-          CREATED_NAME: ${{ steps.drive_upload.outputs.drive_file_name }}
-          CREATED_AT: ${{ steps.drive_upload.outputs.drive_created_time }}
-          RECORDED_AT: ${{ steps.snapshot.outputs.recorded_at }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-        run: |
-          drive_file_id="${EXISTING_ID:-$CREATED_ID}"
-          drive_file_name="${EXISTING_NAME:-$CREATED_NAME}"
-          drive_created_at="${EXISTING_CREATED_AT:-$CREATED_AT}"
-          recorded_at="${EXISTING_RECORDED_AT:-$RECORDED_AT}"
-          run_attempt="${EXISTING_RUN_ATTEMPT:-$RUN_ATTEMPT}"
-          source="${EXISTING_SOURCE:-google_drive_live}"
-          test -n "$drive_file_id" && test -n "$drive_file_name" && test -n "$drive_created_at"
-          test -n "$recorded_at" && test -n "$run_attempt"
-          echo "drive_file_id=$drive_file_id" >> "$GITHUB_OUTPUT"
-          echo "drive_file_name=$drive_file_name" >> "$GITHUB_OUTPUT"
-          echo "drive_created_at=$drive_created_at" >> "$GITHUB_OUTPUT"
-          echo "recorded_at=$recorded_at" >> "$GITHUB_OUTPUT"
-          echo "run_attempt=$run_attempt" >> "$GITHUB_OUTPUT"
-          echo "source=$source" >> "$GITHUB_OUTPUT"
-          echo "artifact_created_at=$EXISTING_ARTIFACT_CREATED_AT" >> "$GITHUB_OUTPUT"
-      - name: Write run-id hash history
-        if: steps.preservation_ref.outcome == 'success'
-        id: hash_record
-        continue-on-error: true
-        run: >-
-          python scripts/phase_a0/write_hash_record.py --root .
-          --session-date "${{ steps.run_meta.outputs.session_date }}" --run-id "${{ github.run_id }}"
-          --run-attempt "${{ steps.preservation_ref.outputs.run_attempt }}"
-          --actions-started-at "${{ steps.run_meta.outputs.actions_started_at }}"
-          --recorded-at "${{ steps.preservation_ref.outputs.recorded_at }}" --code-sha "${{ github.sha }}"
-          --sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}"
-          --manifest-sha256 "${{ steps.snapshot.outputs.manifest_sha256 }}"
-          --drive-file-id "${{ steps.preservation_ref.outputs.drive_file_id }}"
-          --drive-file-name "${{ steps.preservation_ref.outputs.drive_file_name }}"
-          --drive-created-at "${{ steps.preservation_ref.outputs.drive_created_at }}"
-          --repository "${{ github.repository }}" --workflow-ref "${{ github.workflow_ref }}"
-          --source "${{ steps.preservation_ref.outputs.source }}"
-          --artifact-created-at "${{ steps.preservation_ref.outputs.artifact_created_at }}"
-          --snapshot-mode "${{ steps.snapshot.outputs.snapshot_mode }}"
       - name: Build interim encrypted private snapshot
         if: always() && steps.snapshot.outcome == 'success' && steps.hash_record.outcome != 'success'
         id: interim
@@ -305,7 +269,7 @@ jobs:
         id: full_marker
         continue-on-error: true
         env:
-          DRIVE_FILE_ID: ${{ steps.preservation_ref.outputs.drive_file_id }}
+          DRIVE_FILE_ID: ${{ steps.drive_upload.outputs.drive_file_id }}
         run: |
           if test "${{ steps.hash_record.outcome }}" = "success"; then
             source="google_drive_live"
@@ -344,26 +308,27 @@ jobs:
             ${{ steps.snapshot.outputs.manifest_path }}
             ${{ steps.hash_record.outputs.hash_record_path }}
             ${{ steps.full_marker.outputs.full_marker_path }}
-      - name: Report private preservation failure
+      - name: Report primary preservation failure
         if: >-
           always() && (
-            steps.preservation_secrets.outcome == 'failure' ||
-            steps.neon_lookup.outcome == 'failure' ||
+            steps.drive_config.outcome == 'failure' ||
             steps.drive_upload.outcome == 'failure' ||
-            steps.neon_record.outcome == 'failure' ||
-            steps.preservation_ref.outcome == 'failure' ||
             steps.hash_record.outcome == 'failure' ||
-            steps.full_marker.outcome == 'failure' ||
-            steps.public_artifact.outcome == 'failure'
+            steps.full_marker.outcome == 'failure'
           )
         run: |
           echo "::warning title=Phase A-0 primary preservation failed::Dashboard publication and the public raw-free Artifact will continue."
           echo "## Phase A-0 preservation warning" >> "$GITHUB_STEP_SUMMARY"
-          echo "Private Drive/Neon preservation failed. The public raw-free Artifact still runs; inspect the primary preservation step." >> "$GITHUB_STEP_SUMMARY"
+          echo "Drive or its GitHub hash record was unavailable. The encrypted fallback and public raw-free Artifact still run; inspect the primary preservation steps." >> "$GITHUB_STEP_SUMMARY"
+      - name: Report optional Neon failure
+        if: always() && steps.neon_record.outcome == 'failure'
+        run: |
+          echo "::warning title=Optional Neon index failed::The Drive copy and GitHub hash record remain successful."
+          echo "Neon is only a rebuildable index; Drive createdTime remains the live available_at authority." >> "$GITHUB_STEP_SUMMARY"
       - name: Report interim encrypted preservation
         if: steps.interim_artifact.outcome == 'success'
         run: |
-          echo "::warning title=Phase A-0 interim preservation::Private Drive/Neon preservation failed; an encrypted 90-day fallback Artifact was saved."
+          echo "::warning title=Phase A-0 interim preservation::Private Drive preservation failed; an encrypted 90-day fallback Artifact was saved."
           echo "## Phase A-0 interim preservation" >> "$GITHUB_STEP_SUMMARY"
           echo "Encrypted fallback saved for this run. Recover it to Drive before the 90-day retention expires." >> "$GITHUB_STEP_SUMMARY"
       - name: Publish source-only outputs
@@ -389,11 +354,8 @@ jobs:
             steps.full_marker.outcome == 'failure' ||
             (
               steps.interim_artifact.outcome != 'success' && (
-                steps.preservation_secrets.outcome == 'failure' ||
-                steps.neon_lookup.outcome == 'failure' ||
+                steps.drive_config.outcome == 'failure' ||
                 steps.drive_upload.outcome == 'failure' ||
-                steps.neon_record.outcome == 'failure' ||
-                steps.preservation_ref.outcome == 'failure' ||
                 steps.hash_record.outcome == 'failure'
               )
             )
