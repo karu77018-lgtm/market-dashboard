@@ -174,6 +174,7 @@ def main() -> int:
     parser.add_argument("--repo-root", default=".")
     parser.add_argument("--output-dir", default="work/research-snapshot")
     parser.add_argument("--run-id", required=True)
+    parser.add_argument("--run-attempt", required=True)
     parser.add_argument("--code-sha", required=True)
     parser.add_argument(
         "--result-json",
@@ -225,7 +226,7 @@ def main() -> int:
 
     archive_sha256 = sha256_file(temp_path)
     archive_name = (
-        f"snapshot-{session_date}-{args.run_id}-{archive_sha256[:12]}.tar.gz"
+        f"snapshot-{session_date}-{args.run_id}-a{args.run_attempt}-{archive_sha256[:12]}.tar.gz"
     )
     archive_path = output_dir / archive_name
     temp_path.replace(archive_path)
@@ -234,6 +235,7 @@ def main() -> int:
         "schema_version": SCHEMA_VERSION,
         "session_date": session_date,
         "github_run_id": str(args.run_id),
+        "github_run_attempt": int(args.run_attempt),
         "code_sha": args.code_sha,
         "generated_at": generated_at,
         "archive_created_at": utc_now(),
