@@ -72,19 +72,22 @@ If any match is found, archive creation fails. Values are not auto-redacted.
 
 Every run writes a new file:
 
-`research-hashes/YYYY/MM/DD/<github_run_id>.json`
+`research-hashes/YYYY/MM/DD/<github_run_id>-a<github_run_attempt>.json`
 
-No daily hash file is overwritten. The GitHub run id can be matched against
-GitHub's own Actions run metadata for third-party timing evidence.
+No daily hash file is overwritten. The GitHub run id and run attempt can be matched against
+GitHub's own Actions metadata for third-party timing evidence and safe workflow reruns.
 
 ## Neon
 
-Migration:
-`research-archive/migrations/20260928_snapshot_manifests.sql`
+Migration order:
+1. Apply `research-archive/migrations/20260928_snapshot_manifests.sql` (schema + append-only guards).
+2. Create the login role `snapshot_writer`.
+3. Apply `research-archive/migrations/20260928_snapshot_writer_grants.sql`.
 
-The table is append-only by trigger. The workflow records hashes, code SHA,
-Drive file ID, copy status, and DB-recorded timestamp. Payload data itself is
-not stored in Neon.
+`20260928_snapshot_manifests_protection.sql` is compatibility-only and is not required after step 1.
+The manifest and storage-copy tables are append-only by trigger. Drive file IDs and copy statuses
+are recorded as separate copy events so later retries never rewrite the original manifest.
+Payload data itself is not stored in Neon.
 
 ## Next items after Phase A-0 is live
 
