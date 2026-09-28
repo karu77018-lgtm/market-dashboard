@@ -23,15 +23,20 @@ def main() -> int:
     required = [
         "マーケットステータス（地合いスコア）", "地合いスコアの内訳（4本柱）",
         "Daily", "Positions", "Core 12", "Setups", "Rotation", "Movers",
-        "Weekly", "Publish", "Rules", "ブレッドス推移（50日線上の割合）",
-        "52週 新高値 − 新安値", "mc57-candle-script",
-        "金利・信用環境（FRED）",
+        "Weekly", "Publish", "Rules", "Jev期待値", "mc57-candle-script",
+        "jev-ranking-section",
     ]
     missing = [marker for marker in required if marker not in html]
     if missing:
         raise SystemExit("HTML markers missing: " + ", ".join(missing))
-    if not any(marker in html for marker in ("全市場 内部構造（Massive）", "全市場 内部構造（Yahoo代替）")):
-        raise SystemExit("market-structure provider marker is missing")
+    forbidden_layout_overrides = [
+        "全市場 内部構造（Massive）", "全市場 内部構造（Yahoo代替）",
+        "ブレッドス推移（50日線上の割合）", "52週 新高値 − 新安値",
+        'data-source-improvement="fred-macro-risk"',
+    ]
+    present = [marker for marker in forbidden_layout_overrides if marker in html]
+    if present:
+        raise SystemExit("unauthorized Daily layout overrides remain: " + ", ".join(present))
     if re.search(r"\\bvar\\s+MAJ\\s*=\\s*\\[\\s*\\]\\s*;", html):
         raise SystemExit("Sector Rotation share card major-sector data is empty (MAJ=[])")
     if session not in html:
