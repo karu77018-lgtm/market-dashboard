@@ -8,7 +8,6 @@
   "git": {
     "deploymentEnabled": {
       "*": false,
-      "main": true,
       "jev-prod": true
     }
   }
