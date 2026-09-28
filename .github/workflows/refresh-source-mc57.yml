@@ -6,16 +6,10 @@ on:
     - cron: "45 21 * * 1-5"
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/refresh-source-mc57.yml"
-      - "scripts/**"
-      - "src/**"
-      - "bootstrap/**"
-      - "sources/**"
-      - "seed/**"
-      - "tests/**"
+    paths: [".github/workflows/refresh-source-mc57.yml", "scripts/**", "src/**", "bootstrap/**", "sources/**", "seed/**", "tests/**"]
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -32,34 +26,36 @@ jobs:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
+        with: {fetch-depth: 1}
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-
+        with: {python-version: "3.11", cache: pip}
       - name: Restore audited source assets
         run: tar -xJf bootstrap/recovery-assets.tar.xz
-
       - name: Install exact acquisition dependencies
         run: >-
-          python -m pip install
-          "numpy<3" "pandas<3" "yfinance==0.2.66"
-          requests beautifulsoup4 lxml pytest
-
+          python -m pip install "numpy<3" "pandas<3" "yfinance==0.2.66"
+          "psycopg[binary]==3.2.10" requests beautifulsoup4 lxml pytest
       - name: Verify FRED secret
-        shell: bash
         run: test -n "$FRED_API_KEY"
-
       - name: Verify Massive secret
-        shell: bash
         run: test -n "$MASSIVE_API_KEY"
-
+      - name: Verify private preservation secrets
+        id: preservation_secrets
+        continue-on-error: true
+        env:
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          test -n "$GOOGLE_DRIVE_CLIENT_ID"
+          test -n "$GOOGLE_DRIVE_CLIENT_SECRET"
+          test -n "$GOOGLE_DRIVE_REFRESH_TOKEN"
+          test -n "$GOOGLE_DRIVE_FOLDER_ID"
+          test -n "$NEON_DATABASE_URL"
       - name: Run deterministic provider tests
         run: python -m pytest
-
       - name: Restore prior successful OHLCV baseline
         uses: actions/cache@v4
         with:
@@ -68,9 +64,7 @@ jobs:
             work/massive-reference.json
             work/massive-grouped.json
           key: source-mc57-ohlcv-${{ github.run_id }}
-          restore-keys: |
-            source-mc57-ohlcv-
-
+          restore-keys: source-mc57-ohlcv-
       - name: Acquire current session and calculate MC57
         shell: bash
         run: |
@@ -84,7 +78,6 @@ jobs:
             echo "::error title=source-mc57 acquisition::${code}"
             exit "$status"
           fi
-
       - name: Preserve failed acquisition cache
         if: failure()
         uses: actions/cache/save@v4
@@ -94,31 +87,215 @@ jobs:
             work/massive-reference.json
             work/massive-grouped.json
           key: source-mc57-ohlcv-${{ github.run_id }}
-
       - name: Build frozen source page with current data
         run: >-
-          python scripts/build_exact_source_mc57_clone.py
-          --repo-root . --data-dir data
-          --source-dir sources/build_dashboard_4
-          --work-dir work --output source-mc57.html
-
+          python scripts/build_exact_source_mc57_clone.py --repo-root . --data-dir data
+          --source-dir sources/build_dashboard_4 --work-dir work --output source-mc57.html
       - name: Add post-September-16 improvements
-        shell: bash
         run: |
           session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
-          python scripts/enhance_source_mc57.py \
-            --html source-mc57.html --ohlcv work/ohlcv.csv \
+          python scripts/enhance_source_mc57.py --html source-mc57.html --ohlcv work/ohlcv.csv \
             --chart-dir chart-data --session "$session"
-
       - name: Publication gates
+        id: publication_gates
         run: python scripts/validate_publication.py --root .
+      - name: Resolve immutable run metadata
+        id: run_meta
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: |
+          started_at="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" --jq .run_started_at)"
+          test -n "$started_at" && test "$started_at" != "null"
+          session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
+          echo "actions_started_at=$started_at" >> "$GITHUB_OUTPUT"
+          echo "session_date=$session" >> "$GITHUB_OUTPUT"
+      - name: Secret leak gate
+        id: secret_scan
+        env:
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: >-
+          python scripts/phase_a0/scan_secrets.py --root . --include-tracked
+          source-mc57.html chart-data latest-manifest.json data work/ohlcv.csv
+          work/massive-reference.json work/massive-grouped.json
+      - name: Build complete private snapshot and SHA-256 manifest
+        id: snapshot
+        run: >-
+          python scripts/phase_a0/build_snapshot.py --root .
+          --session-date "${{ steps.run_meta.outputs.session_date }}" --run-id "${{ github.run_id }}"
+          --run-attempt "${{ github.run_attempt }}"
+          --actions-started-at "${{ steps.run_meta.outputs.actions_started_at }}"
+          --code-sha "${{ github.sha }}" --repository "${{ github.repository }}"
+          --workflow-ref "${{ github.workflow_ref }}"
+      - name: Prepare Neon manifest and check immutable run id
+        if: steps.preservation_secrets.outcome == 'success'
+        id: neon_lookup
+        continue-on-error: true
+        env: {NEON_DATABASE_URL: "${{ secrets.NEON_DATABASE_URL }}"}
+        run: >-
+          python scripts/phase_a0/neon_manifest.py
+          lookup --run-id "${{ github.run_id }}"
+          --snapshot-sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}"
+          --manifest-sha256 "${{ steps.snapshot.outputs.manifest_sha256 }}" --code-sha "${{ github.sha }}"
+      - name: Create private Google Drive snapshot
+        if: steps.neon_lookup.outcome == 'success' && steps.neon_lookup.outputs.exists != 'true'
+        id: drive_upload
+        continue-on-error: true
+        env:
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: python scripts/phase_a0/upload_google_drive.py "${{ steps.snapshot.outputs.snapshot_path }}"
+      - name: Append successful copy to Neon manifest
+        if: steps.neon_lookup.outcome == 'success' && steps.neon_lookup.outputs.exists != 'true' && steps.drive_upload.outcome == 'success'
+        id: neon_record
+        continue-on-error: true
+        env: {NEON_DATABASE_URL: "${{ secrets.NEON_DATABASE_URL }}"}
+        run: >-
+          python scripts/phase_a0/neon_manifest.py
+          record --session-date "${{ steps.run_meta.outputs.session_date }}"
+          --run-id "${{ github.run_id }}"
+          --run-attempt "${{ github.run_attempt }}"
+          --actions-started-at "${{ steps.run_meta.outputs.actions_started_at }}"
+          --recorded-at "${{ steps.snapshot.outputs.recorded_at }}" --code-sha "${{ github.sha }}"
+          --repository "${{ github.repository }}" --workflow-ref "${{ github.workflow_ref }}"
+          --snapshot-sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}"
+          --manifest-sha256 "${{ steps.snapshot.outputs.manifest_sha256 }}"
+          --snapshot-bytes "${{ steps.snapshot.outputs.snapshot_bytes }}"
+          --drive-file-id "${{ steps.drive_upload.outputs.drive_file_id }}"
+          --drive-file-name "${{ steps.drive_upload.outputs.drive_file_name }}"
+          --drive-created-at "${{ steps.drive_upload.outputs.drive_created_time }}"
+          --source google_drive_live
+      - name: Resolve immutable preservation reference
+        if: steps.neon_lookup.outcome == 'success' && (steps.neon_lookup.outputs.exists == 'true' || steps.neon_record.outcome == 'success')
+        id: preservation_ref
+        continue-on-error: true
+        env:
+          EXISTING_ID: ${{ steps.neon_lookup.outputs.drive_file_id }}
+          EXISTING_NAME: ${{ steps.neon_lookup.outputs.drive_file_name }}
+          EXISTING_CREATED_AT: ${{ steps.neon_lookup.outputs.drive_created_at }}
+          EXISTING_RECORDED_AT: ${{ steps.neon_lookup.outputs.recorded_at }}
+          EXISTING_RUN_ATTEMPT: ${{ steps.neon_lookup.outputs.run_attempt }}
+          EXISTING_SOURCE: ${{ steps.neon_lookup.outputs.source }}
+          EXISTING_ARTIFACT_CREATED_AT: ${{ steps.neon_lookup.outputs.artifact_created_at }}
+          CREATED_ID: ${{ steps.drive_upload.outputs.drive_file_id }}
+          CREATED_NAME: ${{ steps.drive_upload.outputs.drive_file_name }}
+          CREATED_AT: ${{ steps.drive_upload.outputs.drive_created_time }}
+          RECORDED_AT: ${{ steps.snapshot.outputs.recorded_at }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          drive_file_id="${EXISTING_ID:-$CREATED_ID}"
+          drive_file_name="${EXISTING_NAME:-$CREATED_NAME}"
+          drive_created_at="${EXISTING_CREATED_AT:-$CREATED_AT}"
+          recorded_at="${EXISTING_RECORDED_AT:-$RECORDED_AT}"
+          run_attempt="${EXISTING_RUN_ATTEMPT:-$RUN_ATTEMPT}"
+          source="${EXISTING_SOURCE:-google_drive_live}"
+          test -n "$drive_file_id" && test -n "$drive_file_name" && test -n "$drive_created_at"
+          test -n "$recorded_at" && test -n "$run_attempt"
+          echo "drive_file_id=$drive_file_id" >> "$GITHUB_OUTPUT"
+          echo "drive_file_name=$drive_file_name" >> "$GITHUB_OUTPUT"
+          echo "drive_created_at=$drive_created_at" >> "$GITHUB_OUTPUT"
+          echo "recorded_at=$recorded_at" >> "$GITHUB_OUTPUT"
+          echo "run_attempt=$run_attempt" >> "$GITHUB_OUTPUT"
+          echo "source=$source" >> "$GITHUB_OUTPUT"
+          echo "artifact_created_at=$EXISTING_ARTIFACT_CREATED_AT" >> "$GITHUB_OUTPUT"
+      - name: Write run-id hash history
+        if: steps.preservation_ref.outcome == 'success'
+        id: hash_record
+        continue-on-error: true
+        run: >-
+          python scripts/phase_a0/write_hash_record.py --root .
+          --session-date "${{ steps.run_meta.outputs.session_date }}" --run-id "${{ github.run_id }}"
+          --run-attempt "${{ steps.preservation_ref.outputs.run_attempt }}"
+          --actions-started-at "${{ steps.run_meta.outputs.actions_started_at }}"
+          --recorded-at "${{ steps.preservation_ref.outputs.recorded_at }}" --code-sha "${{ github.sha }}"
+          --sha256 "${{ steps.snapshot.outputs.snapshot_sha256 }}"
+          --manifest-sha256 "${{ steps.snapshot.outputs.manifest_sha256 }}"
+          --drive-file-id "${{ steps.preservation_ref.outputs.drive_file_id }}"
+          --drive-file-name "${{ steps.preservation_ref.outputs.drive_file_name }}"
+          --drive-created-at "${{ steps.preservation_ref.outputs.drive_created_at }}"
+          --repository "${{ github.repository }}" --workflow-ref "${{ github.workflow_ref }}"
+          --source "${{ steps.preservation_ref.outputs.source }}"
+          --artifact-created-at "${{ steps.preservation_ref.outputs.artifact_created_at }}"
+      - name: Build interim encrypted private snapshot
+        if: always() && steps.snapshot.outcome == 'success' && steps.hash_record.outcome != 'success'
+        id: interim
+        continue-on-error: true
+        env:
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
+          SNAP: ${{ steps.snapshot.outputs.snapshot_path }}
+          SESSION_DATE: ${{ steps.run_meta.outputs.session_date }}
+          ACTIONS_STARTED_AT: ${{ steps.run_meta.outputs.actions_started_at }}
+          RECORDED_AT: ${{ steps.snapshot.outputs.recorded_at }}
+          SNAPSHOT_SHA256: ${{ steps.snapshot.outputs.snapshot_sha256 }}
+          MANIFEST_SHA256: ${{ steps.snapshot.outputs.manifest_sha256 }}
+        run: |
+          test -n "$ARCHIVE_PASSPHRASE"
+          test -f "$SNAP"
+          enc_path="$SNAP.enc"
+          sha_path="$SNAP.sha256"
+          metadata_path="$SNAP.interim.json"
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt \
+            -in "$SNAP" -out "$enc_path" -pass env:ARCHIVE_PASSPHRASE
+          encrypted_sha256="$(sha256sum "$enc_path" | cut -d' ' -f1)"
+          sha256sum "$SNAP" "$enc_path" > "$sha_path"
+          python - "$metadata_path" "$encrypted_sha256" <<'PY'
+          import json
+          import os
+          import sys
 
-      - name: Save reproducible preservation snapshot
+          payload = {
+              "schema_version": "phase-a0-interim-v1",
+              "source": "interim_encrypted_artifact",
+              "session_date": os.environ["SESSION_DATE"],
+              "github_run_id": os.environ["GITHUB_RUN_ID"],
+              "github_run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
+              "github_actions_started_at": os.environ["ACTIONS_STARTED_AT"],
+              "recorded_at": os.environ["RECORDED_AT"],
+              "code_sha": os.environ["GITHUB_SHA"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "workflow_ref": os.environ["GITHUB_WORKFLOW_REF"],
+              "snapshot_sha256": os.environ["SNAPSHOT_SHA256"],
+              "manifest_sha256": os.environ["MANIFEST_SHA256"],
+              "encrypted_sha256": sys.argv[2],
+          }
+          with open(sys.argv[1], "w", encoding="utf-8") as handle:
+              json.dump(payload, handle, ensure_ascii=False, indent=2, sort_keys=True)
+              handle.write("\n")
+          PY
+          echo "enc_path=$enc_path" >> "$GITHUB_OUTPUT"
+          echo "sha_path=$sha_path" >> "$GITHUB_OUTPUT"
+          echo "metadata_path=$metadata_path" >> "$GITHUB_OUTPUT"
+      - name: Save interim encrypted snapshot
+        if: steps.interim.outcome == 'success'
+        id: interim_artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: source-mc57-preservation-${{ github.run_id }}
-          retention-days: 30
+          name: private-encrypted-snapshot-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 90
+          compression-level: 0
+          include-hidden-files: true
+          if-no-files-found: error
+          path: |
+            ${{ steps.interim.outputs.enc_path }}
+            ${{ steps.interim.outputs.sha_path }}
+            ${{ steps.interim.outputs.metadata_path }}
+      - name: Save public reproducibility artifact (vendor raw excluded)
+        if: always() && steps.snapshot.outcome == 'success'
+        id: public_artifact
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-mc57-preservation-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 90
           compression-level: 6
+          include-hidden-files: true
+          if-no-files-found: error
           path: |
             source-mc57.html
             chart-data/
@@ -127,23 +304,60 @@ jobs:
             data/state.json
             data/rs.json
             data/market_inputs.json
-            data/mktcap.json
             data/theme_membership.json
             data/provider_inputs.json
-            work/ohlcv.csv
-            work/massive-reference.json
-            work/massive-grouped.json
-
+            ${{ steps.snapshot.outputs.manifest_path }}
+            ${{ steps.hash_record.outputs.hash_record_path }}
+      - name: Report private preservation failure
+        if: >-
+          always() && (
+            steps.preservation_secrets.outcome == 'failure' ||
+            steps.neon_lookup.outcome == 'failure' ||
+            steps.drive_upload.outcome == 'failure' ||
+            steps.neon_record.outcome == 'failure' ||
+            steps.preservation_ref.outcome == 'failure' ||
+            steps.hash_record.outcome == 'failure' ||
+            steps.public_artifact.outcome == 'failure'
+          )
+        run: |
+          echo "::warning title=Phase A-0 primary preservation failed::Dashboard publication and the public raw-free Artifact will continue."
+          echo "## Phase A-0 preservation warning" >> "$GITHUB_STEP_SUMMARY"
+          echo "Private Drive/Neon preservation failed. The public raw-free Artifact still runs; inspect the primary preservation step." >> "$GITHUB_STEP_SUMMARY"
+      - name: Report interim encrypted preservation
+        if: steps.interim_artifact.outcome == 'success'
+        run: |
+          echo "::warning title=Phase A-0 interim preservation::Private Drive/Neon preservation failed; an encrypted 90-day fallback Artifact was saved."
+          echo "## Phase A-0 interim preservation" >> "$GITHUB_STEP_SUMMARY"
+          echo "Encrypted fallback saved for this run. Recover it to Drive before the 90-day retention expires." >> "$GITHUB_STEP_SUMMARY"
       - name: Publish source-only outputs
-        shell: bash
+        id: publish
+        if: always() && steps.publication_gates.outcome == 'success' && steps.secret_scan.outcome == 'success' && steps.snapshot.outcome == 'success'
+        env:
+          HASH_RECORD_PATH: ${{ steps.hash_record.outputs.hash_record_path }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- source-mc57.html chart-data latest-manifest.json
-          if git diff --cached --quiet; then
-            echo "No publication change"
-            exit 0
-          fi
+          if test -n "$HASH_RECORD_PATH"; then git add -- "$HASH_RECORD_PATH"; fi
+          if git diff --cached --quiet; then echo "No publication change"; exit 0; fi
           session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
           git commit -m "Update source-mc57 through ${session} [skip refresh]"
           git push origin HEAD:main
+      - name: Fail after publication when private preservation failed
+        if: >-
+          always() && steps.publish.outcome == 'success' && (
+            steps.public_artifact.outcome == 'failure' ||
+            (
+              steps.interim_artifact.outcome != 'success' && (
+                steps.preservation_secrets.outcome == 'failure' ||
+                steps.neon_lookup.outcome == 'failure' ||
+                steps.drive_upload.outcome == 'failure' ||
+                steps.neon_record.outcome == 'failure' ||
+                steps.preservation_ref.outcome == 'failure' ||
+                steps.hash_record.outcome == 'failure'
+              )
+            )
+          )
+        run: |
+          echo "::error title=Phase A-0 preservation failed::Dashboard publication completed, but private preservation failed."
+          exit 1
