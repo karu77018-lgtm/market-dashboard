@@ -11,6 +11,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from provider_inputs import (  # noqa: E402
     _normalize_grouped_results,
     compute_massive_market_structure,
+    grouped_history_from_yahoo_ohlcv,
+    select_preserved_count_fallback_universe,
     select_expanded_universe,
 )
 
@@ -87,3 +89,41 @@ def test_market_structure_counts_and_volume():
     assert result["four_pct_net"] == 0
     assert result["up_down_volume_ratio"] == pytest.approx(.75)
     assert result["coverage"] == 1.0
+
+
+def test_yahoo_fallback_preserves_prior_universe_count():
+    history = grouped_history()
+    broad = [
+        {"ticker": "CORE", "price": 12, "market_cap": 300_000_000},
+        {"ticker": "ADD", "price": 10, "market_cap": 100_000_000},
+        {"ticker": "ILLQ", "price": 10, "market_cap": 100_000_000},
+    ]
+    reference = {
+        ticker: {"ticker": ticker, "type": "CS", "primary_exchange": "XNAS"}
+        for ticker in ("CORE", "ADD", "ILLQ")
+    }
+    selected, stats = select_preserved_count_fallback_universe(
+        broad, reference, history,
+        preserved_tickers=["CORE", "ADD"], target_count=2,
+    )
+    assert [row["ticker"] for row in selected] == ["ADD", "CORE"]
+    assert stats["active_universe"] == 2
+    assert stats["fallback_target_count"] == 2
+    assert stats["fallback_replacements"] == 0
+    assert all(row["current_session_provider"] == "Yahoo Finance" for row in selected)
+
+
+def test_yahoo_ohlcv_becomes_grouped_fallback(tmp_path):
+    path = tmp_path / "ohlcv.csv"
+    path.write_text(
+        "ticker,date,open,high,low,close,volume\n"
+        "A,2026-09-24,9,11,8,10,100\n"
+        "A,2026-09-25,10,12,9,11,200\n",
+        encoding="utf-8",
+    )
+    grouped = grouped_history_from_yahoo_ohlcv(
+        path, ["A"], target_session="2026-09-25",
+    )
+    assert grouped["2026-09-25"]["A"] == {
+        "o": 10.0, "h": 12.0, "l": 9.0, "c": 11.0, "v": 200.0,
+    }
