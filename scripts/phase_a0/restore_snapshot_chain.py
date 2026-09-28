@@ -106,18 +106,22 @@ def restore_chain(snapshots: list[Path], output: Path) -> dict:
         raise ValueError("reconstruction output directory must be empty")
     output.mkdir(parents=True, exist_ok=True)
     applied: list[dict] = []
-    previous_session = ""
+    previous_key: tuple[str, int] | None = None
     for index, snapshot in enumerate(snapshots):
         manifest, payloads = verified_archive(snapshot)
         mode = manifest.get("snapshot_mode", "full")
         session = str(manifest.get("session_date") or "")
+        run_id_text = str(manifest.get("github_run_id") or "")
+        if not run_id_text.isdigit():
+            raise ValueError("snapshot github_run_id must be an integer")
+        order_key = (session, int(run_id_text))
         if index == 0 and mode != "full":
             raise ValueError("the first snapshot in a reconstruction chain must be full")
         if index > 0 and mode != "delta":
             raise ValueError("only delta snapshots may follow the first full snapshot")
-        if not session or session <= previous_session:
-            raise ValueError("snapshot sessions must be strictly increasing")
-        previous_session = session
+        if not session or (previous_key is not None and order_key <= previous_key):
+            raise ValueError("snapshots must be strictly increasing by (session_date, github_run_id)")
+        previous_key = order_key
         for name, data in payloads.items():
             target = output / name
             if mode == "delta" and name == "work/ohlcv.csv":

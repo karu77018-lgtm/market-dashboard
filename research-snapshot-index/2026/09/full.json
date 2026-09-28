@@ -1,0 +1,14 @@
+{
+  "code_sha": "a73d4bac69317ac281f96ea6ec8f9e7690f13837",
+  "copy_status": "success",
+  "github_run_attempt": 1,
+  "github_run_id": "36405274864",
+  "manifest_sha256": "e853a582f779406b8165348b35f07ae9c4f545c289258f7bd88fe42d4461f24f",
+  "month": "2026-09",
+  "preservation_reference": "private-encrypted-snapshot-36405274864-1",
+  "preservation_source": "interim_encrypted_artifact",
+  "schema_version": "phase-a0-monthly-full-v1",
+  "session_date": "2026-09-25",
+  "snapshot_mode": "full",
+  "snapshot_sha256": "f91b5528f520362fc3831bf6505a9811771184f9a0fd9031008cb54967e89a5e"
+}
