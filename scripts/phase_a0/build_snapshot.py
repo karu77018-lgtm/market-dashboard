@@ -102,10 +102,16 @@ def write_session_ohlcv(source: Path, destination: Path, session_date: str) -> N
 def write_session_massive_grouped(source: Path, destination: Path, session_date: str) -> None:
     payload = json.loads(source.read_text(encoding="utf-8"))
     sessions = payload.get("sessions")
-    if not isinstance(sessions, dict) or not isinstance(sessions.get(session_date), dict):
+    fallbacks = payload.get("fallback_sessions") if isinstance(payload.get("fallback_sessions"), dict) else {}
+    if not isinstance(sessions, dict):
+        raise ValueError("work/massive-grouped.json does not contain a sessions object")
+    if not isinstance(sessions.get(session_date), dict) and session_date not in fallbacks:
         raise ValueError(f"work/massive-grouped.json has no session {session_date}")
     reduced = dict(payload)
-    reduced["sessions"] = {session_date: sessions[session_date]}
+    reduced["sessions"] = ({session_date: sessions[session_date]}
+                           if isinstance(sessions.get(session_date), dict) else {})
+    reduced["fallback_sessions"] = ({session_date: fallbacks[session_date]}
+                                    if session_date in fallbacks else {})
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(
         json.dumps(reduced, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n",
