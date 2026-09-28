@@ -36,12 +36,14 @@ def main() -> int:
     session = str(archive["session_date"])
     year, month, day = session.split("-")
     run_id = str(archive["github_run_id"])
-    output = Path(args.output_root) / year / month / day / f"{run_id}.json"
+    run_attempt = int(archive["github_run_attempt"])
+    output = Path(args.output_root) / year / month / day / f"{run_id}-a{run_attempt}.json"
 
     payload = {
         "schema_version": "research.snapshot.hash-record.v1",
         "session_date": session,
         "github_run_id": run_id,
+        "github_run_attempt": run_attempt,
         "archive_sha256": archive["archive_sha256"],
         "manifest_sha256": archive["manifest_sha256"],
         "archive_name": archive["archive_name"],
