@@ -120,6 +120,7 @@ jobs:
           python scripts/research_snapshot_archive.py
           --repo-root .
           --run-id "${{ github.run_id }}"
+          --run-attempt "${{ github.run_attempt }}"
           --code-sha "${{ github.sha }}"
           --result-json work/research-snapshot/archive-result.json
 
@@ -156,7 +157,7 @@ jobs:
       - name: Save public-safe preservation snapshot
         uses: actions/upload-artifact@v4
         with:
-          name: source-mc57-public-preservation-${{ github.run_id }}
+          name: source-mc57-public-preservation-${{ github.run_id }}-a${{ github.run_attempt }}
           retention-days: 90
           compression-level: 6
           path: |
@@ -169,7 +170,7 @@ jobs:
         if: steps.drive.outputs.copy_status != 'success'
         uses: actions/upload-artifact@v4
         with:
-          name: source-mc57-raw-fallback-${{ github.run_id }}
+          name: source-mc57-raw-fallback-${{ github.run_id }}-a${{ github.run_attempt }}
           retention-days: 30
           compression-level: 6
           path: |
