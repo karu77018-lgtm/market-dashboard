@@ -1,7 +1,15 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "pages/api/*.js": {
       "maxDuration": 60
+    }
+  },
+  "git": {
+    "deploymentEnabled": {
+      "*": false,
+      "main": true,
+      "jev-prod": true
     }
   }
 }
