@@ -606,6 +606,7 @@ def main() -> int:
     cutoff = parse_timestamp(manifest.get("generated_at"), field="manifest.generated_at")
     candidates, calc = load_dashboard(root / args.dashboard, args.max_candidates)
     company_names = load_company_names(root / args.reference)
+    candidate_sources = sorted({source for row in candidates for source in row.get("sources", [])})
 
     summary: dict[str, Any] = {
         "schema_version": "jev-live-shadow-summary-v1",
@@ -620,6 +621,10 @@ def main() -> int:
         "code_sha": os.environ.get("GITHUB_SHA"),
         "repository": os.environ.get("GITHUB_REPOSITORY"),
         "selected_count": len(candidates),
+        "candidate_source_counts": {
+            source: sum(source in row.get("sources", []) for row in candidates)
+            for source in candidate_sources
+        },
         "evaluated_count": 0,
         "skipped_no_news_count": 0,
         "error_count": 0,
