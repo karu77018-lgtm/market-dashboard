@@ -1,0 +1,46 @@
+{
+  "schema_version": "massive-connectivity-v1",
+  "checked_at": "2026-09-29T01:43:26.463292+00:00",
+  "price_session_date": "2026-09-28",
+  "checks": [
+    {
+      "name": "reference",
+      "endpoint": "/v3/reference/tickers",
+      "session_date": "2026-09-28",
+      "http_status": 200,
+      "provider_status": "OK",
+      "result_count": 1,
+      "request_id": "845306bcb11faa77697edde67a207a78"
+    },
+    {
+      "name": "news",
+      "endpoint": "/v2/reference/news",
+      "session_date": "2026-09-28",
+      "http_status": 200,
+      "provider_status": "OK",
+      "result_count": 1,
+      "request_id": "994f3aa6950dda0d051ee474373fb0e7"
+    },
+    {
+      "name": "grouped_current",
+      "endpoint": "/v2/aggs/grouped/locale/us/market/stocks/2026-09-28",
+      "session_date": "2026-09-28",
+      "http_status": 403,
+      "provider_status": "NOT_AUTHORIZED",
+      "result_count": 0,
+      "request_id": "15245df9c13104c43c64cd976ef85204",
+      "message": "Attempted to request today's data before end of day. Please upgrade your plan at https://polygon.io/pricing"
+    },
+    {
+      "name": "qqq_current",
+      "endpoint": "/v2/aggs/ticker/QQQ/range/1/day/2026-09-28/2026-09-28",
+      "session_date": "2026-09-28",
+      "http_status": 403,
+      "provider_status": "NOT_AUTHORIZED",
+      "result_count": 0,
+      "request_id": "a4d2523309809c6a8b68c9e96f976684",
+      "message": "Your plan doesn't include this data timeframe. Please upgrade your plan at https://polygon.io/pricing"
+    }
+  ],
+  "note": "Credential presence is not proof of price endpoint entitlement. No API key or vendor raw data is published."
+}

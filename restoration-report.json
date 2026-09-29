@@ -1,0 +1,26 @@
+{
+  "schema_version": "dashboard-restoration-v1",
+  "session_date": "2026-09-28",
+  "active_universe": 3964,
+  "price_generated_at": "2026-09-28T23:15:56Z",
+  "removed_inserted_cards": 4,
+  "original_styles_unchanged": true,
+  "trading_data_unchanged": true,
+  "before_html_sha256": "53e855ee6bd2e3bbd008455046c19748059c3b4dc57e49417ac261b852ca4811",
+  "restored_html_sha256": "ec39cf215c160b7e3497fada2a79fff3f03f0d5064d581760ca838e77e79cc9a",
+  "manifest_sha256": "accde7c9daf1836177af2d090ea9b072c6a52cb9fdd5f9b8438b7cb1f3beafd7",
+  "original_style_sha256": [
+    "6121048bbbf3cf328f8c55feff0f9831c1bcbeea9e38fbf91b1170fcbe60756c",
+    "6e637b03c2e4b900df8de9a0ea22c98dfef0578ea2a709f394ca970c3cb361ee",
+    "7d918bbd5035401b7d9281e4a88862515eac285e1620b716946f664d1be19a89"
+  ],
+  "jev_status": "ready",
+  "jev_selected": 12,
+  "jev_evaluated": 11,
+  "jev_skipped_no_news": 1,
+  "jev_errors": 0,
+  "jev_evidence_cutoff": "2026-09-28T23:15:56Z",
+  "completed_at": "2026-09-29T01:42:41.052107+00:00",
+  "published_html_sha256": "01d739408cb9313ac1184dcb88174f22eda1fd2f35147b0e1eab326c96c66f87",
+  "github_run_id": "36508924615"
+}
