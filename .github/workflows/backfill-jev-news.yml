@@ -1,0 +1,136 @@
+name: Backfill Jev historical news
+on:
+  push:
+    branches: [research/jev-news-backfill-20260929]
+    paths: ["research/news_backfill/**", ".github/workflows/backfill-jev-news.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: jev-historical-news-acquisition
+  cancel-in-progress: false
+jobs:
+  acquire:
+    if: github.repository == 'karu77018-lgtm/market-dashboard'
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned acquisition dependencies
+        run: python -m pip install requests==2.32.5 cryptography==46.0.4 pytest==9.0.2
+      - name: Run offline safety tests
+        run: python -m pytest research/news_backfill/test_archive.py -q
+      - name: Require existing secrets before network acquisition
+        env:
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
+        run: |
+          test -n "$MASSIVE_API_KEY" || { echo 'MASSIVE_API_KEY_MISSING'; exit 1; }
+          test -n "$ARCHIVE_PASSPHRASE" || { echo 'ARCHIVE_PASSPHRASE_MISSING'; exit 1; }
+          mkdir -p .private-news news-output
+      - name: Restore encrypted checkpoint when requested
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, subprocess, zipfile
+          cfg=json.loads(pathlib.Path('research/news_backfill/config.json').read_text())
+          aid=cfg.get('resume_artifact_id')
+          if aid is None:
+              print('Starting a new all-market archive');raise SystemExit(0)
+          if not isinstance(aid,int) or aid<=0:raise SystemExit('INVALID_ARTIFACT_ID')
+          dest=pathlib.Path('.private-news/checkpoint.zip')
+          with dest.open('wb') as h:
+              subprocess.run(['gh','api',f'repos/{os.environ["GITHUB_REPOSITORY"]}/actions/artifacts/{aid}/zip'],stdout=h,check=True)
+          with zipfile.ZipFile(dest) as z:
+              names=[n for n in z.namelist() if pathlib.PurePosixPath(n).name=='news.sqlite.gz.aesgcm']
+              if len(names)!=1:raise SystemExit('INVALID_CHECKPOINT_ARCHIVE')
+              pathlib.Path('.private-news/checkpoint.aesgcm').write_bytes(z.read(names[0]))
+          subprocess.run(['python','research/news_backfill/archive.py','restore','--archive','.private-news/checkpoint.aesgcm'],check=True)
+          print('Authenticated encrypted checkpoint restored')
+          PY
+      - name: Acquire all-market monthly news and encrypt checkpoint
+        id: acquisition
+        continue-on-error: true
+        env:
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
+        run: python research/news_backfill/archive.py acquire
+      - name: Save encrypted archive and raw-free audit report
+        if: always()
+        id: archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: jev-news-encrypted-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            news-output/news.sqlite.gz.aesgcm
+            news-output/report.json
+      - name: Detect pre-existing Drive configuration
+        if: always() && steps.archive.outcome == 'success'
+        id: drive_config
+        env:
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_FOLDER_ID || secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: |
+          python - <<'PY'
+          import os
+          keys=['GOOGLE_DRIVE_CLIENT_ID','GOOGLE_DRIVE_CLIENT_SECRET','GOOGLE_DRIVE_REFRESH_TOKEN','GOOGLE_DRIVE_FOLDER_ID']
+          ready=all(os.environ.get(k) for k in keys)
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('ready='+str(ready).lower()+'\n')
+          print('Drive configured' if ready else 'Drive not configured; encrypted 90-day artifact is the preservation copy')
+          PY
+      - name: Read pinned existing Drive upload helper
+        if: steps.drive_config.outputs.ready == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: d84a70dd46df011df502217f2737ed08a1e90fa2
+          path: preservation-source
+          sparse-checkout: scripts/phase_a0
+          persist-credentials: false
+      - name: Save encrypted copy to existing private Drive folder
+        if: steps.drive_config.outputs.ready == 'true'
+        id: drive
+        continue-on-error: true
+        env:
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_FOLDER_ID || secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: |
+          python preservation-source/scripts/phase_a0/upload_google_drive.py news-output/news.sqlite.gz.aesgcm > .private-news/drive-receipt.json 2> .private-news/drive-error.log || { echo 'DRIVE_UPLOAD_FAILED_ENCRYPTED_ARTIFACT_RETAINED'; exit 1; }
+          echo 'Encrypted private Drive copy saved'
+      - name: Summarize without vendor content
+        if: always()
+        env:
+          ARCHIVE_ID: ${{ steps.archive.outputs.artifact-id }}
+          ARCHIVE_STATUS: ${{ steps.archive.outcome }}
+          DRIVE_STATUS: ${{ steps.drive.outcome }}
+        run: |
+          python - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path('news-output/report.json')
+          r=json.loads(p.read_text()) if p.exists() else {'status':'failed','error_code':'NO_ARCHIVE_REPORT'}
+          r['artifact_id']=os.environ.get('ARCHIVE_ID')
+          r['artifact_upload']=os.environ.get('ARCHIVE_STATUS')
+          r['drive_upload']=os.environ.get('DRIVE_STATUS')
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as h:
+              h.write('## Historical news acquisition\n\n```json\n'+json.dumps(r,indent=2)+'\n```\n')
+          print(json.dumps(r,sort_keys=True))
+          PY
+      - name: Fail clearly for incomplete acquisition or missing preservation
+        if: always() && (steps.acquisition.outcome != 'success' || steps.archive.outcome != 'success')
+        run: |
+          echo 'Acquisition incomplete; inspect the raw-free report and resume the encrypted checkpoint. No dashboard or Jev production changes.'
+          exit 1

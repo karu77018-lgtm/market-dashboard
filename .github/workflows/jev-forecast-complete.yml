@@ -1,0 +1,98 @@
+name: Complete corrected Jev six-month forecast study
+on:
+  push:
+    branches: [research/jev-forecast-validation-20260929]
+    paths: ['research/jev_forecast_complete/**', '.github/workflows/jev-forecast-complete.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: jev-complete-half-year-study
+  cancel-in-progress: false
+jobs:
+  complete:
+    if: github.repository == 'karu77018-lgtm/market-dashboard'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Install pinned dependencies
+        run: python -m pip install numpy==2.2.6 pandas==2.2.3 scipy==1.15.3 pyarrow==19.0.1 requests==2.32.5 cryptography==46.0.4 pytest==9.0.2
+      - name: Test finite expectations and strict temporal boundaries before paid calls
+        run: python -m pytest research/jev_forecast_complete/test_complete.py -q
+      - name: Read frozen public data and candidate lists
+        uses: actions/checkout@v4
+        with:
+          ref: d84a70dd46df011df502217f2737ed08a1e90fa2
+          path: price-source
+          sparse-checkout: |
+            /chart-data/
+            /source-mc57.html
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Read frozen market history
+        uses: actions/checkout@v4
+        with:
+          ref: 79219a30227046f9651444ab8f7ab7c794a500cd
+          path: market-source
+          sparse-checkout: research/tqqq_swing/data
+          persist-credentials: false
+      - name: Restore already saved news and long-term prices
+        id: restore
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
+        run: python research/jev_forecast_validation/study.py prepare
+      - name: Execute development, calibration, fixed holdout, rankings and error review
+        id: research
+        continue-on-error: true
+        env:
+          JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
+        run: python research/jev_forecast_complete/complete.py
+      - name: Encrypt every saved model input and response
+        if: always() && steps.restore.outcome == 'success'
+        id: seal
+        env:
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
+        run: python research/jev_forecast_validation/study.py seal
+      - name: Save numeric research outputs and encrypted raw evidence
+        if: always() && steps.seal.outcome == 'success'
+        id: archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: jev-forecast-complete-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 90
+          compression-level: 6
+          if-no-files-found: error
+          path: |
+            forecast-output/*.json
+            forecast-output/*.aesgcm
+      - name: Read unchanged private archive helper
+        if: always() && steps.seal.outcome == 'success'
+        uses: actions/checkout@v4
+        with:
+          ref: d84a70dd46df011df502217f2737ed08a1e90fa2
+          path: preservation-source
+          sparse-checkout: scripts/phase_a0
+          persist-credentials: false
+      - name: Save encrypted research to existing private Drive
+        if: always() && steps.seal.outcome == 'success'
+        continue-on-error: true
+        env:
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_FOLDER_ID || secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: |
+          python preservation-source/scripts/phase_a0/upload_google_drive.py "forecast-output/jev-forecast-${GITHUB_RUN_ID}.tar.gz.aesgcm" > .private-forecast/drive-receipt.json 2> .private-forecast/drive-error.log || { echo 'DRIVE_COPY_FAILED_ENCRYPTED_ARTIFACT_RETAINED'; exit 1; }
+          echo 'Encrypted research saved to existing private Drive'
+      - name: Surface incomplete execution
+        if: always() && (steps.research.outcome != 'success' || steps.archive.outcome != 'success')
+        run: |
+          echo 'Research incomplete; inspect saved report. No automatic main merge or trading changes.'
+          exit 1
