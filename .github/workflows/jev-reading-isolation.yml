@@ -1,0 +1,41 @@
+name: Jev reading isolation diagnostic
+on:
+  push:
+    branches: [research/jev-material-reading-20260930]
+    paths: ['tools/jev_reading_isolation.py', '.github/workflows/jev-reading-isolation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: jev-material-reading-diagnostic
+  cancel-in-progress: false
+jobs:
+  isolation:
+    if: github.repository == 'karu77018-lgtm/market-dashboard'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            tools/jev_reading_isolation.py
+            research/jev_material_reading
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate unchanged reading fixtures and parser
+        run: python research/jev_material_reading/probe.py --self-test
+      - name: Compare exact repeated batch, reordered batch, and single evidence
+        env:
+          JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
+        run: python tools/jev_reading_isolation.py
+      - name: Save synthetic and public-source evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jev-reading-isolation-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 90
+          if-no-files-found: error
+          path: reading-isolation-output/*.json
