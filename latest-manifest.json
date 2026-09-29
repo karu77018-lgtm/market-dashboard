@@ -1,8 +1,8 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
-  "coverage": 1.0,
-  "generated_at": "2026-09-29T03:20:42Z",
-  "mc57": 25.05813137260937,
+  "coverage": 0.9997479203428283,
+  "generated_at": "2026-09-29T04:05:21Z",
+  "mc57": 25.058487842855854,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
   "mcap_coverage": 1.0,
@@ -11,12 +11,12 @@
   "peer_theme_status": "DATA_REQUIRED",
   "positions_status": "DATA_REQUIRED",
   "provider_status": {
-    "cross_vendor_coverage": null,
-    "current_session_provider": "Yahoo Finance",
+    "cross_vendor_coverage": 0.976556591883035,
+    "current_session_provider": "Massive",
     "fred": "READY",
     "fred_required_coverage": 1.0,
-    "massive": "FALLBACK_YAHOO",
-    "massive_current_coverage": null
+    "massive": "READY",
+    "massive_current_coverage": 0.9768086715402067
   },
   "publication_scope": "source-mc57 plus derived data/jev-ranking.json only; V38 and vendor-input data JSON are not committed",
   "schema_version": "v38.acquisition.1",
@@ -32,11 +32,11 @@
   "status": "READY",
   "structural_clinical_biotech_status": "DATA_REQUIRED",
   "universe": {
-    "active_universe": 3964,
+    "active_universe": 3967,
     "below_floor_rows": 0,
     "biotech_heuristic_applied": false,
     "broad_tradingview_universe": 4011,
-    "buy_filter_eligible": 1106,
+    "buy_filter_eligible": 1105,
     "buy_filter_rules": {
       "market_cap_min": 50000000.0,
       "median_adr20_min": 0.025,
@@ -50,24 +50,21 @@
     },
     "duplicate_class_rows": 0,
     "duplicate_symbol_rows": 0,
-    "expansion_candidates": 585,
-    "fallback_cached_massive_session": "2026-09-25",
-    "fallback_mode": "YAHOO_PRESERVED_COUNT",
-    "fallback_preserved_tickers": 3964,
-    "fallback_replacements": 0,
-    "fallback_target_count": 3964,
+    "expansion_candidates": 592,
     "legacy_universe": 3375,
     "malformed_rows": 0,
-    "massive_broad_expansion": 585,
-    "massive_current_coverage": 0.9820707070707071,
-    "massive_current_covered": 3889,
+    "massive_broad_expansion": 592,
+    "massive_current_coverage": 0.9768086715402067,
+    "massive_current_covered": 3875,
     "massive_grouped": {
-      "fetched_sessions": [],
-      "latest_session": "2026-09-25",
-      "reason": "provider request failed after 5 attempts: https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/2026-09-28: HTTPError (status=403)",
+      "fetched_sessions": [
+        "2026-09-28"
+      ],
+      "latest_eligible_rows": 5525,
+      "latest_session": "2026-09-28",
       "requested_sessions": 20,
       "sessions": 20,
-      "status": "YAHOO_FALLBACK"
+      "status": "READY"
     },
     "massive_reference": {
       "asof_date": "2026-09-25",
@@ -86,19 +83,21 @@
     "special_security_rows": 1
   },
   "universe_expansion": {
-    "active": 3964,
-    "added": 585,
-    "buy_filter_eligible": 1106,
+    "active": 3967,
+    "added": 592,
+    "buy_filter_eligible": 1105,
     "legacy": 3375
   },
   "yahoo": {
-    "failed_tickers": [],
-    "history_received": 3964,
+    "failed_tickers": [
+      "BTLN"
+    ],
+    "history_received": 3967,
     "incremental_cache_used": true,
-    "requested": 3964,
-    "target_session_coverage": 1.0,
-    "target_session_fresh": 106,
-    "target_session_received": 3964,
-    "target_session_same_day_cache": 3858
+    "requested": 3967,
+    "target_session_coverage": 0.9997479203428283,
+    "target_session_fresh": 25,
+    "target_session_received": 3966,
+    "target_session_same_day_cache": 3941
   }
 }
