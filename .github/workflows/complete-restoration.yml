@@ -1,0 +1,87 @@
+name: Complete dashboard restoration
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/complete-restoration.yml'
+      - 'maintenance/complete_restoration.py'
+permissions:
+  contents: write
+  actions: read
+  pages: write
+concurrency:
+  group: source-mc57-refresh
+  cancel-in-progress: false
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install bounded restoration dependencies
+        run: python -m pip install requests
+      - name: Preserve currently published layout and data
+        uses: actions/upload-artifact@v4
+        with:
+          name: before-restoration-${{ github.run_id }}
+          retention-days: 30
+          path: |
+            source-mc57.html
+            latest-manifest.json
+            chart-data/
+      - name: Restore original layout without reacquiring prices
+        run: python maintenance/complete_restoration.py restore
+      - name: Evaluate Jev using the unchanged published evidence cutoff
+        env:
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
+          JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
+          JEV_API_URL: ${{ vars.JEV_API_URL || 'https://jev-investment-engine.vercel.app/api/jev' }}
+          PYTHONUNBUFFERED: '1'
+        run: python scripts/run_jev_live_shadow.py --root . --max-candidates 12 --max-news 8 --lookback-days 30 --massive-min-interval 15
+      - name: Add isolated Jev ranking and check immutable market data
+        run: |
+          python scripts/render_jev_ranking.py --html source-mc57.html --ranking data/jev-ranking.json
+          python maintenance/complete_restoration.py validate
+      - name: Test actual Massive endpoints without disclosing the key
+        env:
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
+          PYTHONUNBUFFERED: '1'
+        run: python maintenance/complete_restoration.py diagnose
+      - name: Check public outputs for credential leakage
+        env:
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
+          JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
+        run: python scripts/phase_a0/scan_secrets.py --root . source-mc57.html data/jev-ranking.json restoration-report.json massive-api-status.json
+      - name: Publish only the reviewed page and derived outputs
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- source-mc57.html restoration-report.json massive-api-status.json
+          git add -f -- data/jev-ranking.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Restore original dashboard and publish real Jev ranking [skip refresh]'
+          git push origin HEAD:main
+      - name: Request GitHub Pages rebuild
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST 'repos/${{ github.repository }}/pages/builds' --jq '.status'
+      - name: Preserve completion evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restoration-result-${{ github.run_id }}
+          retention-days: 30
+          include-hidden-files: true
+          path: |
+            source-mc57.html
+            data/jev-ranking.json
+            restoration-report.json
+            massive-api-status.json
+            .preservation/jev/live-shadow-summary.json
