@@ -364,7 +364,22 @@ def main() -> int:
         massive_key = ""
     fred_key = secret_from_env(("FRED_API_KEY",))
     sessions = recent_completed_sessions(20)
-    target = sessions[-1]
+    observed_target = sessions[-1]
+    previous_session = None
+    manifest_path = root / "latest-manifest.json"
+    if manifest_path.is_file():
+        try:
+            previous_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            previous_session = previous_manifest.get("session_date")
+        except Exception:
+            previous_session = None
+    target = la.prevent_session_regression(observed_target, previous_session)
+    if target != observed_target:
+        sessions = sorted(set([*sessions, target]))[-20:]
+        print(
+            f"provider session regression blocked: observed={observed_target} retained={target}",
+            flush=True,
+        )
     print(f"target completed US session: {target}", flush=True)
 
     tv = la.fetch_tradingview_response()
