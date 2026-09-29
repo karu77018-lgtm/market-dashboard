@@ -34,3 +34,15 @@ def test_stock_ohlcv_reuses_only_exact_target_session_cache(tmp_path: Path, monk
     assert stats["target_session_fresh"] == 0
     assert stats["target_session_same_day_cache"] == 2
     assert stats["failed_tickers"] == []
+
+
+def test_resolve_refresh_sessions_blocks_provider_regression():
+    sessions = [f"2026-09-{day:02d}" for day in range(2, 26)]
+    resolved, target, observed = refresh_mc57.resolve_refresh_sessions(
+        sessions[-20:], "2026-09-28", count=20
+    )
+
+    assert observed == "2026-09-25"
+    assert target == "2026-09-28"
+    assert resolved[-1] == "2026-09-28"
+    assert len(resolved) == 20
