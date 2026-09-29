@@ -137,7 +137,7 @@ def request_json(
     *,
     params: dict[str, Any],
     timeout: int,
-    attempts: int = 3,
+    attempts: int = 5,
 ) -> dict[str, Any]:
     last_status: int | None = None
     for attempt in range(attempts):
