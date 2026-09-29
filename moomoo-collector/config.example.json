@@ -1,0 +1,8 @@
+{
+  "symbols": ["US.QQQ","US.TQQQ","US.SOXQ","US.SOXL","US.NVDA","US.PLTR"],
+  "quote": true,
+  "kline_1m": true,
+  "ticker": false,
+  "order_book": false,
+  "output_dir": "/var/lib/moomoo-collector/data"
+}
