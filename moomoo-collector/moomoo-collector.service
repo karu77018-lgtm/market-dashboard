@@ -1,0 +1,20 @@
+[Unit]
+Description=moomoo read-only intraday collector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=moomoo
+Group=moomoo
+ExecStart=/opt/moomoo-collector/venv/bin/python /opt/moomoo-collector/moomoo_collector.py
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/moomoo-collector
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
