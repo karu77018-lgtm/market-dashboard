@@ -1,0 +1,67 @@
+name: Jev fresh full-feature paired diagnostic
+on:
+  push:
+    branches: [research/jev-material-reading-20260930]
+    paths: ['research/jev_feature_probe/**', 'tools/jev_fresh_feature_probe.py', '.github/workflows/jev-fresh-feature-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: jev-material-reading-diagnostic
+  cancel-in-progress: false
+jobs:
+  paired:
+    if: github.repository == 'karu77018-lgtm/market-dashboard'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            tools/jev_fresh_feature_probe.py
+            research/jev_feature_probe
+            research/jev_material_reading
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned preservation dependencies
+        run: python -m pip install cryptography==46.0.4 requests==2.32.5
+      - name: Validate unchanged probability parser
+        run: python research/jev_material_reading/probe.py --self-test
+      - name: Restore existing public-market news and run fresh single-issuer pairs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
+          JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
+        run: python tools/jev_fresh_feature_probe.py
+      - name: Save encrypted evidence and raw-free derived probabilities
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jev-fresh-features-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            feature-probe-output/*.json
+            feature-probe-output/*.aesgcm
+      - name: Read existing private Drive helper
+        if: success()
+        uses: actions/checkout@v4
+        with:
+          ref: d84a70dd46df011df502217f2737ed08a1e90fa2
+          path: preservation-source
+          sparse-checkout: scripts/phase_a0
+          persist-credentials: false
+      - name: Preserve encrypted evidence in existing private Drive
+        if: success()
+        env:
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_FOLDER_ID || secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: |
+          python preservation-source/scripts/phase_a0/upload_google_drive.py feature-probe-output/requests-and-responses.json.gz.aesgcm > .private-feature-probe/drive-receipt.json 2> .private-feature-probe/drive-error.log || { echo 'PRIVATE_DRIVE_COPY_FAILED_ENCRYPTED_ARTIFACT_RETAINED'; exit 1; }
+          echo 'Encrypted evidence saved to existing private Drive'
