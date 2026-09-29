@@ -1,5 +1,5 @@
 {
-  "symbols": ["US.QQQ","US.TQQQ","US.SOXQ","US.SOXL","US.NVDA","US.PLTR"],
+  "symbols": ["US.QQQ","US.TQQQ","US.SOXX","US.SOXL","US.NVDA","US.PLTR"],
   "quote": true,
   "kline_1m": true,
   "ticker": false,
