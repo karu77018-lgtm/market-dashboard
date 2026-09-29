@@ -1,0 +1,199 @@
+name: Verify private Drive connection
+
+on:
+  push:
+    branches: ["research/drive-connection-check-20260929"]
+    paths: [".github/workflows/verify-drive-connection.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: private-drive-connection-check
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: github.repository == 'karu77018-lgtm/market-dashboard'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install uploader dependency
+        run: python -m pip install --disable-pip-version-check requests
+      - name: Verify OAuth, private folder, upload, and exact readback
+        env:
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_FOLDER_ID || secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import re
+          import sys
+          import urllib.parse
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          import requests
+          from scripts.phase_a0.upload_google_drive import (
+              DRIVE_API, access_token, assert_private_folder,
+              request_json, upload_create_only,
+          )
+
+          report = {
+              "schema": "private-drive-connection-check-v1",
+              "status": "failed",
+              "github_run_id": os.environ["GITHUB_RUN_ID"],
+              "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "code_sha": os.environ["GITHUB_SHA"],
+              "scope": "one harmless test file; no production update or market API calls",
+          }
+          stage = "configuration"
+          exit_code = 1
+          output_dir = Path(".preservation")
+          output_dir.mkdir(exist_ok=True)
+
+          def mask(value):
+              value = str(value).replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+              print("::add-mask::" + value, flush=True)
+
+          def require(condition, reason):
+              if not condition:
+                  raise ValueError(reason)
+
+          try:
+              names = ("GOOGLE_DRIVE_CLIENT_ID", "GOOGLE_DRIVE_CLIENT_SECRET",
+                       "GOOGLE_DRIVE_REFRESH_TOKEN", "GOOGLE_DRIVE_FOLDER_ID")
+              missing = [name for name in names if not os.environ.get(name)]
+              report["missing_configuration_names"] = missing
+              require(not missing, "missing_configuration")
+              values = {name: os.environ[name] for name in names}
+              for value in values.values():
+                  mask(value)
+              require(all(value == value.strip() for value in values.values()), "configuration_whitespace")
+              client_id = values["GOOGLE_DRIVE_CLIENT_ID"]
+              folder_id = values["GOOGLE_DRIVE_FOLDER_ID"]
+              require(client_id.endswith(".apps.googleusercontent.com") and "://" not in client_id,
+                      "client_id_format")
+              require(re.fullmatch(r"[A-Za-z0-9_-]+", folder_id), "folder_id_format")
+              report["configuration_present_and_well_formed"] = True
+
+              stage = "oauth_refresh"
+              token = access_token(client_id, values["GOOGLE_DRIVE_CLIENT_SECRET"],
+                                   values["GOOGLE_DRIVE_REFRESH_TOKEN"])
+              mask(token)
+              report["oauth_refresh_success"] = True
+              headers = {"Authorization": "Bearer " + token}
+
+              stage = "private_folder"
+              assert_private_folder(token, folder_id)
+              folder, _ = request_json(
+                  DRIVE_API + "/files/" + folder_id + "?" + urllib.parse.urlencode({
+                      "fields": "id,name,ownedByMe,permissions(type,role)",
+                      "supportsAllDrives": "true",
+                  }), headers=headers)
+              require(folder.get("ownedByMe") is True, "folder_not_owned_by_authenticated_user")
+              permissions = folder.get("permissions", [])
+              require(bool(permissions) and all(p.get("type") == "user" and p.get("role") == "owner"
+                                               for p in permissions), "folder_not_owner_only")
+              report["folder_accessible_writable_owner_only"] = True
+
+              stage = "test_upload"
+              filename = "drive-connection-test-{}-{}.json".format(
+                  os.environ["GITHUB_RUN_ID"], os.environ["GITHUB_RUN_ATTEMPT"])
+              payload = {
+                  "purpose": "Verify GitHub Actions to private Google Drive storage",
+                  "contains_market_data": False,
+                  "github_run_id": os.environ["GITHUB_RUN_ID"],
+                  "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+                  "created_at": datetime.now(timezone.utc).isoformat(),
+              }
+              contents = (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode("utf-8")
+              path = output_dir / filename
+              path.write_bytes(contents)
+              created = upload_create_only(token, folder_id, path)
+              file_id = str(created["id"])
+              mask(file_id)
+              report["upload_success"] = True
+              report["drive_file_name"] = filename
+              report["drive_created_time"] = created.get("createdTime")
+
+              stage = "metadata_verification"
+              meta, _ = request_json(
+                  DRIVE_API + "/files/" + urllib.parse.quote(file_id, safe="") + "?" + urllib.parse.urlencode({
+                      "fields": "name,size,md5Checksum,parents,trashed,ownedByMe,permissions(type,role)",
+                      "supportsAllDrives": "true",
+                  }), headers=headers)
+              require(meta.get("name") == filename, "file_name_mismatch")
+              require(meta.get("parents") == [folder_id], "parent_folder_mismatch")
+              require(meta.get("ownedByMe") is True and not meta.get("trashed"), "file_ownership_or_trash")
+              permissions = meta.get("permissions", [])
+              require(bool(permissions) and all(p.get("type") == "user" and p.get("role") == "owner"
+                                               for p in permissions), "test_file_not_owner_only")
+              require(int(meta.get("size", -1)) == len(contents), "file_size_mismatch")
+              require(meta.get("md5Checksum") == hashlib.md5(contents).hexdigest(), "google_checksum_mismatch")
+              report["metadata_and_google_checksum_match"] = True
+              report["test_file_owner_only"] = True
+
+              stage = "download_and_compare"
+              response = requests.get(
+                  DRIVE_API + "/files/" + urllib.parse.quote(file_id, safe=""),
+                  params={"alt": "media"}, headers=headers, timeout=60, allow_redirects=False)
+              response.raise_for_status()
+              require(response.content == contents, "downloaded_contents_mismatch")
+              report["exact_readback_match"] = True
+              report["sha256"] = hashlib.sha256(contents).hexdigest()
+              report["bytes"] = len(contents)
+              report["status"] = "success"
+              report["stage"] = "completed"
+              exit_code = 0
+          except Exception as exc:
+              report["stage"] = stage
+              # Never print raw exceptions, request/response bodies, or credential values.
+              if isinstance(exc, ValueError) and re.fullmatch(r"[a-z_]+", str(exc)):
+                  report["error_code"] = str(exc)
+              current = exc
+              for _ in range(5):
+                  if current is None:
+                      break
+                  response = getattr(current, "response", None)
+                  if response is not None:
+                      report["http_status"] = response.status_code
+                      try:
+                          error = response.json().get("error")
+                          code = error if isinstance(error, str) else error.get("status") if isinstance(error, dict) else None
+                          if code in {"invalid_client", "invalid_grant", "invalid_scope", "invalid_request",
+                                      "UNAUTHENTICATED", "PERMISSION_DENIED", "NOT_FOUND", "RESOURCE_EXHAUSTED"}:
+                              report["google_error_code"] = code
+                      except Exception:
+                          pass
+                  current = current.__cause__
+              print("::error::Drive connection check failed at stage: " + stage)
+          finally:
+              safe_report = json.dumps(report, sort_keys=True, indent=2) + "\n"
+              (output_dir / "drive-connection-check.json").write_text(safe_report, encoding="utf-8")
+              print(safe_report)
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+                  summary.write("## Private Drive connection check\n\n```json\n" + safe_report + "```\n")
+          sys.exit(exit_code)
+          PY
+      - name: Preserve credential-free test result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drive-connection-check-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .preservation/drive-connection-check.json
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
