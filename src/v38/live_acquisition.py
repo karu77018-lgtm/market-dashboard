@@ -44,6 +44,12 @@ SECTOR_MARKET_SYMBOLS = (
     "RSPT", "RSPF", "RSPN", "RSPD", "RSPM", "RSPC",
     "RSPU", "RSPS", "RSPH", "RSPR", "RSPG",
 )
+TRADINGVIEW_CURRENT_MARKET_TICKERS = {
+    "QQQ": "NASDAQ:QQQ",
+    "TQQQ": "NASDAQ:TQQQ",
+    "SPY": "AMEX:SPY",
+    **{symbol: f"AMEX:{symbol}" for symbol in SECTOR_MARKET_SYMBOLS},
+}
 MARKET_SYMBOLS = (
     "QQQ", "TQQQ", "SPY", "RSP", "IWD", "IWF", "IWM", "MDY", "QQQE", "SOXL",
     "^VIX", "^VIX3M", "^VXN", "NQ=F",
@@ -101,6 +107,71 @@ def fetch_tradingview_response(*, timeout: float = 30.0) -> dict[str, Any]:
     if not isinstance(obj, dict):
         raise LiveAcquisitionError("TradingView response is not a JSON object")
     return obj
+
+
+def fetch_tradingview_current_market_rows(
+    symbols: Iterable[str], *, target_session: str, timeout: float = 30.0
+) -> dict[str, dict[str, Any]]:
+    requested = [
+        symbol for symbol in symbols
+        if symbol in TRADINGVIEW_CURRENT_MARKET_TICKERS
+    ]
+    if not requested:
+        return {}
+    tv_symbols = [TRADINGVIEW_CURRENT_MARKET_TICKERS[symbol] for symbol in requested]
+    payload = {
+        "filter": [],
+        "options": {"lang": "en"},
+        "symbols": {"query": {"types": []}, "tickers": tv_symbols},
+        "columns": ["name", "open", "high", "low", "close", "volume"],
+        "range": [0, len(tv_symbols)],
+    }
+    req = urllib.request.Request(
+        TRADINGVIEW_URL,
+        data=json.dumps(payload, separators=(",", ":")).encode(),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (v38-market-dashboard)",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            obj = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        raise LiveAcquisitionError(
+            f"TradingView current market fallback failed: {exc}"
+        ) from exc
+    data = obj.get("data") if isinstance(obj, dict) else None
+    if not isinstance(data, list):
+        raise LiveAcquisitionError("TradingView current market response.data must be a list")
+
+    reverse = {value: key for key, value in TRADINGVIEW_CURRENT_MARKET_TICKERS.items()}
+    rows: dict[str, dict[str, Any]] = {}
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        tv_symbol = str(item.get("s") or "").upper()
+        symbol = reverse.get(tv_symbol)
+        values = item.get("d")
+        if symbol not in requested or not isinstance(values, list) or len(values) < 6:
+            continue
+        open_, high, low, close, volume = (
+            _finite(values[1]), _finite(values[2]), _finite(values[3]),
+            _finite(values[4]), _finite(values[5]),
+        )
+        if None in (open_, high, low, close):
+            continue
+        rows[symbol] = {
+            "date": target_session,
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+        }
+    return rows
 
 
 def parse_tradingview_universe(response: dict[str, Any], *, session_date: str):
@@ -390,6 +461,31 @@ def download_market_inputs(yf: Any, *, target_session: str, generated_at: str) -
                     rows = retried
             series[symbol] = rows
             present += int(bool(rows and rows[-1]["date"] == target_session))
+
+    current_fallback_needed = [
+        symbol for symbol in TRADINGVIEW_CURRENT_MARKET_TICKERS
+        if not series.get(symbol) or series[symbol][-1]["date"] != target_session
+    ]
+    current_fallback_symbols: list[str] = []
+    if current_fallback_needed:
+        try:
+            fallback_rows = fetch_tradingview_current_market_rows(
+                current_fallback_needed, target_session=target_session
+            )
+        except LiveAcquisitionError:
+            fallback_rows = {}
+        for symbol, row in fallback_rows.items():
+            prior = [
+                item for item in (series.get(symbol) or [])
+                if item.get("date") != target_session
+            ]
+            series[symbol] = (prior + [row])[-260:]
+            current_fallback_symbols.append(symbol)
+
+    present = sum(
+        int(bool(series.get(symbol) and series[symbol][-1]["date"] == target_session))
+        for symbol in MARKET_SYMBOLS
+    )
     primary_present = sum(
         int(bool(series.get(symbol) and series[symbol][-1]["date"] == target_session))
         for symbol in PRIMARY_MARKET_SYMBOLS
@@ -424,7 +520,11 @@ def download_market_inputs(yf: Any, *, target_session: str, generated_at: str) -
         "coverage": present / len(MARKET_SYMBOLS),
         "required_coverage": primary_present / len(PRIMARY_MARKET_SYMBOLS),
         "sector_coverage": sector_coverage,
-        "source": "Yahoo Finance via yfinance 0.2.66; OHLC adjusted by Adj Close when available",
+        "source": (
+            "Yahoo Finance via yfinance 0.2.66; OHLC adjusted by Adj Close when available; "
+            "TradingView current-session fallback for required/sector ETFs when Yahoo misses target"
+        ),
+        "current_session_fallback_symbols": sorted(current_fallback_symbols),
         "schema_version": MARKET_INPUT_SCHEMA_VERSION, "calculation_version": CALCULATION_VERSION,
         "symbols": list(MARKET_SYMBOLS),
         "required_symbols": list(PRIMARY_MARKET_SYMBOLS),
