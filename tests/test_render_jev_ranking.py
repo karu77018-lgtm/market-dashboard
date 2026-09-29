@@ -27,6 +27,8 @@ def test_render_adds_one_isolated_tab_and_is_idempotent(tmp_path: Path):
         "available_at": "2026-09-28T22:00:00Z",
         "rows": [{
             "ticker": "AAA", "mc57_rank": 1, "expected_value_score": 12.5,
+            "candidate_sources": ["ピックアップ", "RS21上位"],
+            "rs21": 99, "rs63": 95, "rs189": 91,
             "catalyst_probability": 0.4, "risk_probability": 0.275,
             "top_catalyst_label": "需要加速", "top_catalyst_probability": 0.7,
             "top_risk_label": "希薄化", "top_risk_probability": 0.3,
@@ -41,3 +43,5 @@ def test_render_adds_one_isolated_tab_and_is_idempotent(tmp_path: Path):
     assert "original" in rendered
     assert "AAA" in rendered
     assert "+12.5" in rendered
+    assert "ピックアップ / RS21上位" in rendered
+    assert "99・95・91" in rendered

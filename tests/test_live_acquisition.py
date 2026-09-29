@@ -44,3 +44,29 @@ def test_tradingview_current_market_rows_parse_required_etfs(monkeypatch):
     assert rows["QQQ"]["close"] == 602.0
     assert rows["TQQQ"]["volume"] == 90000000.0
     assert rows["SPY"]["high"] == 684.0
+
+
+def test_tradingview_current_closes_supports_mc57_etfs(monkeypatch):
+    import json
+    from v38 import live_acquisition as la
+
+    payload = {
+        "data": [
+            {"s": "NASDAQ:SMH", "d": ["SMH", "NASDAQ", 600.01]},
+            {"s": "CBOE:DRAM", "d": ["DRAM", "CBOE", 59.70]},
+            {"s": "NASDAQ:QQQE", "d": ["QQQE", "NASDAQ", 119.96]},
+        ]
+    }
+
+    class Response:
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def read(self):
+            return json.dumps(payload).encode("utf-8")
+
+    monkeypatch.setattr(la.urllib.request, "urlopen", lambda req, timeout: Response())
+    closes = la.fetch_tradingview_current_closes(["SMH", "DRAM", "QQQE"])
+
+    assert closes == {"SMH": 600.01, "DRAM": 59.70, "QQQE": 119.96}

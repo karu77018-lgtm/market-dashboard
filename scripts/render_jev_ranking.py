@@ -36,6 +36,15 @@ def score(value: Any) -> str:
     return f"{number:+.1f}"
 
 
+def rs_triplet(row: dict[str, Any]) -> str:
+    def one(value: Any) -> str:
+        try:
+            return str(int(round(float(value))))
+        except (TypeError, ValueError):
+            return "—"
+    return f"{one(row.get('rs21'))}・{one(row.get('rs63'))}・{one(row.get('rs189'))}"
+
+
 def remove_between(text: str, start: str, end: str) -> str:
     while start in text:
         left = text.index(start)
@@ -71,7 +80,8 @@ def render_section(payload: dict[str, Any]) -> str:
             "<tr>"
             f"<td class='jev-rank'>{index}</td>"
             f"<td class='jev-ticker'><b>{esc(row.get('ticker', '—'))}</b>"
-            f"<span>MC57 #{esc(row.get('mc57_rank', '—'))}</span></td>"
+            f"<span>{esc(' / '.join(row.get('candidate_sources') or ['候補']))}</span></td>"
+            f"<td class='jev-rs'>{esc(rs_triplet(row))}</td>"
             f"<td class='jev-score'>{score(row.get('expected_value_score'))}</td>"
             f"<td>{pct(row.get('catalyst_probability'))}</td>"
             f"<td>{pct(row.get('risk_probability'))}</td>"
@@ -84,7 +94,7 @@ def render_section(payload: dict[str, Any]) -> str:
         )
         table = (
             "<div class='jev-table-wrap'><table class='ptab jev-table'><thead><tr>"
-            "<th>#</th><th class='l'>銘柄</th><th>期待値</th><th>好材料</th><th>リスク</th>"
+            "<th>#</th><th class='l'>銘柄・候補元</th><th>RS 21・63・189</th><th>期待値</th><th>好材料</th><th>リスク</th>"
             "<th class='l'>最大の好材料</th><th class='l'>最大のリスク</th>"
             f"</tr></thead><tbody>{body}</tbody></table></div>"
         )
@@ -104,16 +114,17 @@ def render_section(payload: dict[str, Any]) -> str:
         "<span class='h2en'>Research Shadow</span></h2>"
         "<div class='sub'>Jevの15問を各3回評価し、好材料7項目の平均確率からリスク7項目の平均確率を引いて100倍した順位です。"
         "株価の期待収益率ではなく、公開時点までのニュース材料を比較する研究スコアです。</div>"
-        f"<div class='mut jev-asof'>評価時点 {esc(asof)} ／ 同点はMC57順位順</div></div>"
+        f"<div class='mut jev-asof'>評価時点 {esc(asof)} ／ 表示候補＋RS21・63・189各上位を重複除外</div></div>"
         f"<div class='card'>{table}</div></section>{SECTION_END}"
     )
 
 
 STYLE = """<!-- JEV_RANKING_STYLE_START --><style id="jev-ranking-style">
-.jev-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}.jev-table{min-width:760px}
+.jev-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}.jev-table{min-width:900px}
 .jev-table td,.jev-table th{white-space:nowrap}.jev-rank{color:#777268;font-weight:700}
 .jev-ticker span,.jev-driver span{display:block;color:#8b877d;font-size:9px;margin-top:2px}
 .jev-score{font-weight:800;color:#2457a6}.jev-explain .sub{line-height:1.7}.jev-asof{margin-top:8px}
+.jev-rs{font-variant-numeric:tabular-nums;color:#565243}
 .jev-empty{padding:24px 8px;text-align:center;color:#777268;line-height:1.7}
 </style><!-- JEV_RANKING_STYLE_END -->"""
 

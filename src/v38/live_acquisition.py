@@ -174,6 +174,64 @@ def fetch_tradingview_current_market_rows(
     return rows
 
 
+def fetch_tradingview_current_closes(
+    symbols: Iterable[str], *, timeout: float = 30.0
+) -> dict[str, float]:
+    """Return current regular-session closes for an explicit US symbol list.
+
+    This is intentionally a narrow last-mile fallback.  It does not provide
+    historical bars and therefore must only be used to fill the already
+    resolved latest completed session after the normal Yahoo history fetch.
+    """
+    requested = sorted({str(symbol).strip().upper() for symbol in symbols if str(symbol).strip()})
+    if not requested:
+        return {}
+    payload = {
+        "filter": [
+            {"left": "name", "operation": "in_range", "right": requested},
+            {"left": "exchange", "operation": "in_range", "right": [
+                *ALLOWED_EXCHANGES, "CBOE",
+            ]},
+        ],
+        "options": {"lang": "en"},
+        "symbols": {"query": {"types": []}, "tickers": []},
+        "columns": ["name", "exchange", "close"],
+        "range": [0, len(requested) * 4],
+    }
+    req = urllib.request.Request(
+        TRADINGVIEW_URL,
+        data=json.dumps(payload, separators=(",", ":")).encode(),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "Mozilla/5.0 (v38-market-dashboard)",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            obj = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        raise LiveAcquisitionError(
+            f"TradingView current-close fallback failed: {exc}"
+        ) from exc
+    data = obj.get("data") if isinstance(obj, dict) else None
+    if not isinstance(data, list):
+        raise LiveAcquisitionError("TradingView current-close response.data must be a list")
+
+    wanted = set(requested)
+    closes: dict[str, float] = {}
+    for item in data:
+        values = item.get("d") if isinstance(item, dict) else None
+        if not isinstance(values, list) or len(values) < 3:
+            continue
+        symbol = str(values[0] or "").strip().upper()
+        close = _finite(values[2])
+        if symbol in wanted and close is not None:
+            closes[symbol] = close
+    return closes
+
+
 def parse_tradingview_universe(response: dict[str, Any], *, session_date: str):
     try:
         session_date = pd.Timestamp(session_date).strftime("%Y-%m-%d")

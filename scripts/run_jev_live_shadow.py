@@ -88,21 +88,74 @@ def load_dashboard(path: Path, limit: int) -> tuple[list[dict[str, Any]], dict[s
         details = {}
 
     candidates: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    by_ticker: dict[str, dict[str, Any]] = {}
+    calc_by_ticker = {
+        str(row.get("t") or "").strip().upper(): row
+        for row in calc["names"] if isinstance(row, dict)
+    }
+
+    def add(ticker: str, source: str) -> None:
+        ticker = ticker.strip().upper()
+        if not TICKER_PATTERN.fullmatch(ticker):
+            return
+        if ticker in by_ticker:
+            sources = by_ticker[ticker]["sources"]
+            if source not in sources:
+                sources.append(source)
+            return
+        if len(candidates) >= limit:
+            return
+        detail = details.get(ticker) if isinstance(details.get(ticker), dict) else {}
+        row = calc_by_ticker.get(ticker) or {
+            "t": ticker,
+            "rk": None,
+            "rs": detail.get("rs189"),
+            "px": detail.get("px"),
+            "d52": detail.get("d52"),
+        }
+        candidate = {"ticker": ticker, "selection": row, "detail": detail, "sources": [source]}
+        candidates.append(candidate)
+        by_ticker[ticker] = candidate
+
     ordered = sorted(
         (row for row in calc["names"] if isinstance(row, dict)),
         key=lambda row: (int(row.get("rk") or 10_000), str(row.get("t") or "")),
     )
     for row in ordered:
         ticker = str(row.get("t") or "").strip().upper()
-        if not TICKER_PATTERN.fullmatch(ticker) or ticker in seen:
+        add(ticker, "Core 12")
+
+    # Expand beyond Core 12 to dashboard names explicitly surfaced to the user.
+    named: list[tuple[int, int, str, str]] = []
+    for ticker, detail in details.items():
+        if not isinstance(detail, dict):
             continue
-        seen.add(ticker)
-        candidates.append({"ticker": ticker, "selection": row, "detail": details.get(ticker) or {}})
-        if len(candidates) >= limit:
-            break
+        for label in detail.get("loc") or []:
+            label = str(label)
+            if label.startswith("Core 12 #"):
+                named.append((0, int(label.rsplit("#", 1)[1]), ticker, "Core 12"))
+            elif label.startswith("控え #"):
+                named.append((1, int(label.rsplit("#", 1)[1]), ticker, "控え"))
+            elif label == "ピックアップ":
+                named.append((2, 0, ticker, "ピックアップ"))
+            elif label == "新高値圏":
+                named.append((3, 0, ticker, "新高値圏"))
+    for _, __, ticker, source in sorted(named, key=lambda x: (x[0], x[1], x[2])):
+        add(ticker, source)
+
+    # Add leaders from each independent RS horizon.  Ten per period keeps the
+    # run bounded while ensuring that short-, medium-, and long-term strength
+    # can enter even when a ticker is absent from the named lists.
+    for field, label in (("rs21", "RS21上位"), ("rs", "RS63上位"), ("rs189", "RS189上位")):
+        leaders = sorted(
+            ((float(detail[field]), ticker) for ticker, detail in details.items()
+             if isinstance(detail, dict) and isinstance(detail.get(field), (int, float))),
+            key=lambda item: (-item[0], item[1]),
+        )[:10]
+        for _, ticker in leaders:
+            add(ticker, label)
     if not candidates:
-        raise ShadowRunError("dashboard contains no valid MC57 candidates")
+        raise ShadowRunError("dashboard contains no valid Jev candidates")
     return candidates, calc
 
 
@@ -264,8 +317,11 @@ def candidate_state(
         "available_at": utc_iso(cutoff),
         "selection": {
             "mc57_rank": safe_number(selection.get("rk")),
-            "rs189_percentile": safe_number(selection.get("rs")),
-            "price": safe_number(selection.get("px")),
+            "candidate_sources": candidate.get("sources") or [],
+            "rs21_percentile": safe_number(detail.get("rs21")),
+            "rs63_percentile": safe_number(detail.get("rs")),
+            "rs189_percentile": safe_number(detail.get("rs189") or selection.get("rs")),
+            "price": safe_number(detail.get("px") or selection.get("px")),
             "return_5d_pct": safe_number(selection.get("r5")),
             "distance_from_52w_high_pct": safe_number(selection.get("d52")),
         },
@@ -317,6 +373,7 @@ def ranking_row(
     evaluation_id: str,
     news_count: int,
     aggregate: dict[str, Any],
+    candidate: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     positive = {
         question_id: value
@@ -334,9 +391,15 @@ def ranking_row(
     risk_mean = sum(risks.values()) / len(risks)
     top_positive = max(positive, key=positive.get)
     top_risk = max(risks, key=risks.get)
+    candidate = candidate or {}
+    detail = candidate.get("detail") if isinstance(candidate.get("detail"), dict) else {}
     return {
         "ticker": ticker,
         "mc57_rank": mc57_rank,
+        "candidate_sources": candidate.get("sources") or [],
+        "rs21": safe_number(detail.get("rs21")),
+        "rs63": safe_number(detail.get("rs")),
+        "rs189": safe_number(detail.get("rs189")),
         "expected_value_score": round(100 * (catalyst_mean - risk_mean), 4),
         "catalyst_probability": round(catalyst_mean, 6),
         "risk_probability": round(risk_mean, 6),
@@ -517,7 +580,7 @@ def main() -> int:
     parser.add_argument("--reference", default="work/massive-reference.json")
     parser.add_argument("--output", default=".preservation/jev/live-shadow-summary.json")
     parser.add_argument("--ranking-output", default="data/jev-ranking.json")
-    parser.add_argument("--max-candidates", type=int, default=12)
+    parser.add_argument("--max-candidates", type=int, default=70)
     parser.add_argument("--max-news", type=int, default=8)
     parser.add_argument("--lookback-days", type=int, default=30)
     parser.add_argument("--provider-timeout", type=int, default=45)
@@ -525,8 +588,8 @@ def main() -> int:
     parser.add_argument("--massive-min-interval", type=float, default=13.0)
     args = parser.parse_args()
 
-    if not 1 <= args.max_candidates <= 25:
-        parser.error("--max-candidates must be between 1 and 25")
+    if not 1 <= args.max_candidates <= 100:
+        parser.error("--max-candidates must be between 1 and 100")
     if not 1 <= args.max_news <= 50:
         parser.error("--max-news must be between 1 and 50")
     if not 1 <= args.lookback_days <= 90:
@@ -640,6 +703,7 @@ def main() -> int:
                     evaluation_id=result["evaluation_id"],
                     news_count=len(documents),
                     aggregate=result["aggregate"],
+                    candidate=candidate,
                 )
             elif result["duplicate"] and state_hash in prior_ranking:
                 derived = prior_ranking[state_hash]

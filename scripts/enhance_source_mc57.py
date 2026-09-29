@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Add independent candle shards without changing the recovered dashboard layout."""
+"""Add breadth cards and independent candle shards to the recovered dashboard."""
 from __future__ import annotations
 
 import argparse
@@ -7,7 +7,74 @@ import hashlib
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
+
+
+def axis_html(dates: list[pd.Timestamp]) -> str:
+    n = len(dates)
+    positions = sorted({0, round((n - 1) * .25), round((n - 1) * .5),
+                        round((n - 1) * .75), n - 1})
+    return '<div class="dax">' + ''.join(
+        f'<span>{dates[i].strftime("%y/%-m")}</span>' for i in positions
+    ) + '</div>'
+
+
+def svg_line(values: list[float], color: str, *, zero: bool = False) -> str:
+    width, height, pad = 680, 180, 7
+    good = [float(v) for v in values if np.isfinite(v)]
+    lo, hi = min(good), max(good)
+    if zero:
+        lo, hi = min(lo, 0.0), max(hi, 0.0)
+    margin = max((hi - lo) * .08, 1.0)
+    lo, hi = lo - margin, hi + margin
+    span = hi - lo or 1.0
+    x = lambda i: pad + i * (width - 2 * pad) / max(1, len(values) - 1)
+    y = lambda v: pad + (1 - (v - lo) / span) * (height - 2 * pad)
+    pts = ' '.join(f'{x(i):.1f},{y(float(v)):.1f}' for i, v in enumerate(values))
+    zero_line = ''
+    if zero and lo <= 0 <= hi:
+        zero_line = (f'<line x1="{pad}" y1="{y(0):.1f}" x2="{width-pad}" y2="{y(0):.1f}" '
+                     'stroke="#817e73" stroke-width="1" stroke-dasharray="4 3"/>')
+    return (f'<svg viewBox="0 0 {width} {height}" preserveAspectRatio="none">{zero_line}'
+            f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="2"/>'
+            f'<circle cx="{x(len(values)-1):.1f}" cy="{y(values[-1]):.1f}" r="3.5" fill="{color}"/>'
+            '</svg>')
+
+
+def breadth_cards(frame: pd.DataFrame) -> str:
+    close = frame.pivot_table(index="date", columns="ticker", values="close", aggfunc="last").sort_index()
+    sma50 = close.rolling(50, min_periods=50).mean()
+    valid50 = sma50.notna().sum(axis=1)
+    universe = close.notna().sum(axis=1)
+    pct50 = ((close > sma50).sum(axis=1) / valid50.replace(0, np.nan) * 100)
+    pct50 = pct50[valid50 >= (universe * .6).clip(lower=30)].dropna().iloc[-504:]
+
+    high52 = close.rolling(252, min_periods=252).max()
+    low52 = close.rolling(252, min_periods=252).min()
+    nh = ((close >= high52) & high52.notna()).sum(axis=1)
+    nl = ((close <= low52) & low52.notna()).sum(axis=1)
+    valid252 = high52.notna().sum(axis=1)
+    ok = valid252 >= (universe * .6).clip(lower=30)
+    net = (nh - nl)[ok].dropna().iloc[-504:]
+    dates50, dates_net = list(pct50.index), list(net.index)
+    if len(pct50) < 5 or len(net) < 5:
+        raise RuntimeError("not enough history for the 50MA and 52-week breadth cards")
+    return (
+        '<div class="card" data-source-improvement="50ma-participation">'
+        '<div class="chd"><h2>ブレッドス推移（50日線上の割合）</h2>'
+        f'<div class="chd-now" style="color:#7ff0a8"><b>{pct50.iloc[-1]:.0f}%</b><span>50日線上</span></div></div>'
+        '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
+        '全銘柄のうち終値が50日移動平均線を上回る割合。短中期の買い参加の広がり。</div></details>'
+        f'<div class="chart">{svg_line(pct50.tolist(), "#37b56c")}{axis_html(dates50)}</div></div>'
+        '<div class="card" data-source-improvement="52week-high-low">'
+        '<div class="chd"><h2>52週 新高値 − 新安値</h2>'
+        f'<div class="chd-now" style="color:{"#37b56c" if net.iloc[-1] >= 0 else "#d95b5b"}">'
+        f'<b>{int(net.iloc[-1]):+d}</b><span>新高値 {int(nh.loc[net.index[-1]])} / 新安値 {int(nl.loc[net.index[-1]])}</span></div></div>'
+        '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
+        '当日の52週新高値銘柄数から新安値銘柄数を引いた値。0より上は内部拡大、下は内部悪化。</div></details>'
+        f'<div class="chart">{svg_line(net.astype(float).tolist(), "#c65b55", zero=True)}{axis_html(dates_net)}</div></div>'
+    )
 
 def write_candle_shards(frame: pd.DataFrame, out_dir: Path, session: str) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -78,9 +145,14 @@ def main() -> int:
     for c in ("open", "high", "low", "close", "volume"):
         frame[c] = pd.to_numeric(frame[c], errors="coerce")
     frame = frame[frame["date"].notna() & (frame["date"] <= pd.Timestamp(args.session))]
+    cards = breadth_cards(frame)
     meta = write_candle_shards(frame, chart_dir, args.session)
 
     text = html_path.read_text(encoding="utf-8")
+    anchor = '<div class="card"><div class="chd"><h2>売買代金 参加度（200日平均比）'
+    if anchor not in text:
+        raise RuntimeError("volume participation anchor not found")
+    text = text.replace(anchor, cards + anchor, 1)
     spark = '<div id="dov-spark" class="dov-spark empty"></div>'
     if spark not in text:
         raise RuntimeError("ticker detail spark anchor not found")
@@ -89,7 +161,7 @@ def main() -> int:
     text = text.replace('</body>', SCRIPT + '</body>', 1)
     html_path.write_text(text, encoding="utf-8")
     print(json.dumps({"session_date": args.session, "ticker_count": meta["ticker_count"],
-                      "layout": "recovered-original",
+                      "cards": ["50MA participation", "52-week new highs minus new lows"],
                       "candle_route": "independent sharded JSON"}, ensure_ascii=False))
     return 0
 

@@ -41,6 +41,30 @@ def test_embedded_json_and_dashboard_candidate_order(tmp_path: Path):
     assert calc["color"] == "Blue"
 
 
+def test_dashboard_candidates_include_named_and_each_rs_horizon(tmp_path: Path):
+    details = {
+        "CORE": {"loc": ["Core 12 #1"], "rs21": 50, "rs": 50, "rs189": 50},
+        "PICK": {"loc": ["ピックアップ"], "rs21": 40, "rs": 40, "rs189": 40},
+        "SHORT": {"loc": [], "rs21": 99, "rs": 20, "rs189": 20},
+        "MID": {"loc": [], "rs21": 20, "rs": 99, "rs189": 20},
+        "LONG": {"loc": [], "rs21": 20, "rs": 20, "rs189": 99},
+    }
+    html = (
+        f'<script>window.DET={json.dumps(details)};</script>'
+        '<script>window.CALC={"names":[{"t":"CORE","rk":1,"rs":50}]};</script>'
+    )
+    path = tmp_path / "dashboard.html"
+    path.write_text(html, encoding="utf-8")
+
+    candidates, _ = load_dashboard(path, 60)
+    by_ticker = {row["ticker"]: row for row in candidates}
+    assert list(by_ticker)[:2] == ["CORE", "PICK"]
+    assert "RS21上位" in by_ticker["SHORT"]["sources"]
+    assert "RS63上位" in by_ticker["MID"]["sources"]
+    assert "RS189上位" in by_ticker["LONG"]["sources"]
+    assert by_ticker["CORE"]["sources"] == ["Core 12", "RS21上位", "RS63上位", "RS189上位"]
+
+
 def test_normalize_news_enforces_point_in_time_and_deduplicates():
     cutoff = datetime(2026, 9, 28, 12, tzinfo=timezone.utc)
     start = datetime(2026, 8, 29, 12, tzinfo=timezone.utc)
@@ -105,6 +129,7 @@ def test_state_hash_is_stable_and_state_marks_evidence_boundary():
     assert state["available_at"] == "2026-09-28T12:00:00Z"
     assert state["evidence"]["documents"] == documents
     assert state["selection"]["mc57_rank"] == 1
+    assert state["selection"]["rs63_percentile"] is None
     assert canonical_hash(state) == canonical_hash(json.loads(json.dumps(state)))
 
 
@@ -194,6 +219,7 @@ def test_ranking_row_is_positive_minus_risk_probability():
     assert row["expected_value_score"] == 40.0
     assert row["catalyst_probability"] == 0.6
     assert row["risk_probability"] == 0.2
+    assert row["candidate_sources"] == []
 
 
 def test_missing_required_configuration_is_a_failed_shadow_run(

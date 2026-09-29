@@ -1,11 +1,6 @@
 name: Complete dashboard restoration
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/complete-restoration.yml'
-      - 'maintenance/complete_restoration.py'
 permissions:
   contents: write
   actions: read
@@ -16,7 +11,7 @@ concurrency:
 jobs:
   restore:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,7 +38,7 @@ jobs:
           JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
           JEV_API_URL: ${{ vars.JEV_API_URL || 'https://jev-investment-engine.vercel.app/api/jev' }}
           PYTHONUNBUFFERED: '1'
-        run: python scripts/run_jev_live_shadow.py --root . --max-candidates 12 --max-news 8 --lookback-days 30 --massive-min-interval 15
+        run: python scripts/run_jev_live_shadow.py --root . --max-candidates 70 --max-news 8 --lookback-days 30 --massive-min-interval 15
       - name: Add isolated Jev ranking and check immutable market data
         run: |
           python scripts/render_jev_ranking.py --html source-mc57.html --ranking data/jev-ranking.json

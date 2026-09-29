@@ -46,3 +46,30 @@ def test_resolve_refresh_sessions_blocks_provider_regression():
     assert target == "2026-09-28"
     assert resolved[-1] == "2026-09-28"
     assert len(resolved) == 20
+
+
+def test_mc57_prices_fills_only_missing_current_bar_from_tradingview(monkeypatch):
+    target = "2026-09-28"
+    dates = pd.to_datetime(["2026-09-25"])
+
+    monkeypatch.setattr(refresh_mc57, "MC57_ETFS", ["SMH", "QQQE"])
+    monkeypatch.setattr(
+        refresh_mc57.yf,
+        "download",
+        lambda **kwargs: pd.DataFrame({
+            ("Adj Close", "SMH"): [590.0],
+            ("Adj Close", "QQQE"): [118.0],
+        }, index=dates),
+    )
+    monkeypatch.setattr(refresh_mc57.time, "sleep", lambda seconds: None)
+    monkeypatch.setattr(
+        refresh_mc57.la,
+        "fetch_tradingview_current_closes",
+        lambda symbols: {"SMH": 600.0, "QQQE": 120.0},
+    )
+
+    close = refresh_mc57.mc57_prices(target)
+
+    assert close.at[pd.Timestamp(target), "SMH"] == 600.0
+    assert close.at[pd.Timestamp(target), "QQQE"] == 120.0
+    assert close.at[pd.Timestamp("2026-09-25"), "SMH"] == 590.0

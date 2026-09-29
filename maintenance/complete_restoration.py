@@ -32,20 +32,9 @@ def embedded(text: str, name: str):
 
 
 def restore_text(text: str) -> tuple[str, int]:
-    start = '<div class="card" data-source-improvement="massive-market-structure">'
-    end = '<div class="card"><div class="chd"><h2>売買代金 参加度（200日平均比）'
-    if start not in text:
-        if 'data-source-improvement=' in text:
-            raise ValueError('Unknown layout additions; refusing broad removal')
-        return text, 0
-    left = text.index(start)
-    right = text.index(end, left)
-    block = text[left:right]
-    markers = re.findall(r'data-source-improvement="([^"]+)"', block)
-    expected = ['massive-market-structure','fred-macro-risk','50ma-participation','52week-high-low']
-    if markers != expected:
-        raise ValueError(f'Unexpected insertion block: {markers}')
-    return text[:left]+text[right:], len(markers)
+    # Breadth cards are part of the intended Daily layout.  The restoration
+    # workflow must never strip them from an already-published page.
+    return text, 0
 
 
 def restore(root: Path):
@@ -128,7 +117,8 @@ def validate(root: Path):
     summary=load(root/'.preservation/jev/live-shadow-summary.json')
     assert digest((root/'latest-manifest.json').read_text())==report['manifest_sha256']
     assert [digest(x) for x in re.findall(r'<style>(.*?)</style>',text,re.S)]==report['original_style_sha256']
-    assert 'data-source-improvement=' not in text
+    assert 'data-source-improvement="50ma-participation"' in text
+    assert 'data-source-improvement="52week-high-low"' in text
     assert text.count('JEV_RANKING_NAV_START')==1
     assert text.count("id='t-jev'")==1
     assert ranking['session_date']==manifest['session_date']
@@ -144,7 +134,7 @@ def validate(root: Path):
     text=text.replace('<th>期待値</th>','<th>材料スコア</th>')
     text=text.replace('ニュース材料の期待値','Jev評価に基づく材料順位')
     selected=summary['selected_count']; evaluated=summary['evaluated_count']; skipped=summary['skipped_no_news_count']
-    scope=(f'<div class="mut">対象は既存ランキング上位{selected}候補。評価済み{evaluated}銘柄、'
+    scope=(f'<div class="mut">対象は表示候補とRS21・63・189各上位を重複除外した{selected}候補。評価済み{evaluated}銘柄、'
            f'対象ニュースなし{skipped}銘柄。全{report["active_universe"]:,}銘柄の一括Jev評価ではありません。'
            '株価の5日・10日期待収益率は未算出です。</div>')
     needle="<div class='mut jev-asof'>"

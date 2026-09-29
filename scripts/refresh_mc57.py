@@ -256,6 +256,29 @@ def mc57_prices(target: str) -> pd.DataFrame:
         if pending:
             time.sleep(30 if attempt == 0 else 60)
     if pending:
+        # Yahoo occasionally publishes a complete historical frame without the
+        # just-closed bar for every ETF.  Preserve that history and fill only
+        # the resolved current session from TradingView's US scanner.
+        try:
+            fallback_closes = la.fetch_tradingview_current_closes(pending)
+        except la.LiveAcquisitionError:
+            fallback_closes = {}
+        filled: list[str] = []
+        for ticker in pending:
+            close = fallback_closes.get(ticker)
+            if close is None or ticker not in series or series[ticker].empty:
+                continue
+            updated = series[ticker].copy()
+            updated.loc[pd.Timestamp(target)] = float(close)
+            series[ticker] = updated.sort_index()
+            filled.append(ticker)
+        if filled:
+            print(
+                "MC57 TradingView current-session fallback: " + ",".join(sorted(filled)),
+                flush=True,
+            )
+            pending = [ticker for ticker in pending if ticker not in set(filled)]
+    if pending:
         raise RuntimeError("MC57 fixed universe missing current closes: " + ",".join(pending))
     close = pd.DataFrame(series).sort_index()
     return close[close.index <= pd.Timestamp(target)]

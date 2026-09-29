@@ -122,7 +122,7 @@ jobs:
           JEV_API_URL: ${{ vars.JEV_API_URL || 'https://jev-investment-engine.vercel.app/api/jev' }}
         run: >-
           python scripts/run_jev_live_shadow.py --root .
-          --max-candidates 12 --max-news 8 --lookback-days 30
+          --max-candidates 70 --max-news 8 --lookback-days 30
       - name: Save Jev shadow audit summary
         if: always() && steps.jev_shadow.outcome != 'skipped'
         id: jev_shadow_artifact
