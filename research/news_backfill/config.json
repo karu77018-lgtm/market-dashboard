@@ -1,0 +1,14 @@
+{
+  "schema_version": "jev-news-backfill-config-v1",
+  "source_data_commit": "d84a70dd46df011df502217f2737ed08a1e90fa2",
+  "evaluation_start": "2026-03-28",
+  "evaluation_end": "2026-09-28",
+  "warmup_calendar_days": 30,
+  "news_start": "2026-02-26T00:00:00Z",
+  "news_cutoff": "2026-09-29T04:05:21Z",
+  "scope": "all_market_no_holdings",
+  "max_requests": 200,
+  "max_seconds": 3300,
+  "request_spacing_seconds": 13,
+  "resume_artifact_id": null
+}
