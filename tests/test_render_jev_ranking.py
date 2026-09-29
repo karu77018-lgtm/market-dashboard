@@ -45,3 +45,6 @@ def test_render_adds_one_isolated_tab_and_is_idempotent(tmp_path: Path):
     assert "+12.5" in rendered
     assert "ピックアップ / RS21上位" in rendered
     assert "99・95・91" in rendered
+    assert "onclick=\"showDet('AAA')\"" in rendered
+    assert "AAAの銘柄情報を開く" in rendered
+    assert "class='jev-click'" in rendered

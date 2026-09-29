@@ -15,7 +15,7 @@ def axis_html(dates: list[pd.Timestamp]) -> str:
     n = len(dates)
     positions = sorted({0, round((n - 1) * .25), round((n - 1) * .5),
                         round((n - 1) * .75), n - 1})
-    return '<div class="dax">' + ''.join(
+    return '<div class="dax mc57-breadth-axis" aria-label="日付軸">' + ''.join(
         f'<span>{dates[i].strftime("%y/%-m")}</span>' for i in positions
     ) + '</div>'
 
@@ -113,6 +113,7 @@ STYLE = r'''
 .mc57-candle-h{display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#565243;margin-bottom:5px}
 .mc57-candle-btns{display:flex;gap:4px}.mc57-candle-btns button{border:1px solid #c9c6bc;background:#efeee9;color:#35332e;border-radius:5px;font-size:9px;padding:2px 6px}.mc57-candle-btns button.on{background:#2457a6;color:white}
 .mc57-candle svg{width:100%;height:145px;display:block}.mc57-candle-msg{height:145px;display:flex;align-items:center;justify-content:center;color:#747167;font-size:11px}
+.mc57-breadth-axis{border-top:1px solid #cbc8bd;margin-top:4px;padding:8px 2px 1px;color:#575242;font-size:12px;font-weight:650;line-height:1;font-variant-numeric:tabular-nums}
 </style>'''
 
 SCRIPT = r'''

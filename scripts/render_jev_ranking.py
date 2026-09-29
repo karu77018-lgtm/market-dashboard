@@ -77,7 +77,9 @@ def render_section(payload: dict[str, Any]) -> str:
     asof = payload.get("available_at") or payload.get("session_date") or "—"
     if rows:
         body = "".join(
-            "<tr>"
+            f"<tr class='jev-click' role='button' tabindex='0' aria-label='{esc(row.get('ticker', '—'))}の銘柄情報を開く' "
+            f"onclick=\"showDet('{esc(row.get('ticker', ''))}')\" "
+            f"onkeydown=\"if(event.key==='Enter'||event.key===' '){{event.preventDefault();showDet('{esc(row.get('ticker', ''))}')}}\">"
             f"<td class='jev-rank'>{index}</td>"
             f"<td class='jev-ticker'><b>{esc(row.get('ticker', '—'))}</b>"
             f"<span>{esc(' / '.join(row.get('candidate_sources') or ['候補']))}</span></td>"
@@ -125,6 +127,8 @@ STYLE = """<!-- JEV_RANKING_STYLE_START --><style id="jev-ranking-style">
 .jev-ticker span,.jev-driver span{display:block;color:#8b877d;font-size:9px;margin-top:2px}
 .jev-score{font-weight:800;color:#2457a6}.jev-explain .sub{line-height:1.7}.jev-asof{margin-top:8px}
 .jev-rs{font-variant-numeric:tabular-nums;color:#565243}
+.jev-click{cursor:pointer}.jev-click:hover td{background:rgba(44,105,201,.06)}
+.jev-click:focus{outline:2px solid #2c69c9;outline-offset:-2px}.jev-click:active td{background:rgba(44,105,201,.12)}
 .jev-empty{padding:24px 8px;text-align:center;color:#777268;line-height:1.7}
 </style><!-- JEV_RANKING_STYLE_END -->"""
 
