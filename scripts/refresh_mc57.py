@@ -75,8 +75,9 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
 
     GitHub Actions restores the prior successful CSV from a rolling cache.  New
     tickers still receive the full baseline; existing tickers only fetch enough
-    recent data to cover missed sessions.  Publication always requires a fresh
-    target-session quote, so a stale cache can never pass the gate.
+    recent data to cover missed sessions. A quote already quality-gated for the
+    exact target session can be reused on a same-session rerun; an older session
+    can never pass the gate.
     """
     fields = ("ticker", "date", "open", "high", "low", "close", "volume",
               "is_complete", "split_checked", "split_anomaly")
@@ -85,25 +86,35 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
     output.parent.mkdir(parents=True, exist_ok=True)
     cached = pd.DataFrame()
     cached_tickers: set[str] = set()
+    cached_target_tickers: set[str] = set()
     if output.is_file() and output.stat().st_size > 0:
         try:
             cached = pd.read_csv(output)
             if {"ticker", "date"}.issubset(cached.columns):
+                cached["ticker"] = cached["ticker"].astype(str).str.upper()
+                cached["date"] = cached["date"].astype(str)
                 counts = cached.groupby("ticker")["date"].count()
                 cached_tickers = set(counts[counts >= 200].index.astype(str))
+                cached_target_tickers = set(
+                    cached.loc[cached["date"] == target, "ticker"].astype(str)
+                )
             else:
                 cached = pd.DataFrame()
         except Exception:
             cached = pd.DataFrame()
     fresh_path = output.with_suffix(".fresh.csv")
-    target_ok = history_ok = 0
+    target_ok = target_fresh_ok = target_cache_ok = history_ok = 0
     failed: list[str] = []
     with fresh_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         for offset in range(0, len(tickers), chunk_size):
             originals = tickers[offset:offset + chunk_size]
-            pending = list(originals)
+            # A rerun of the exact same market session must not discard a
+            # previously quality-gated close just because Yahoo temporarily
+            # throttles or returns an incomplete batch. Only retry names whose
+            # target-session row is absent; never substitute an older date.
+            pending = [ticker for ticker in originals if ticker not in cached_target_tickers]
             rows_by: dict[str, list[dict[str, Any]]] = {}
             for attempt in range(3):
                 if not pending:
@@ -134,6 +145,10 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
                     writer.writerows(rows)
                 if any(r["date"] == target and r["close"] is not None for r in rows):
                     target_ok += 1
+                    target_fresh_ok += 1
+                elif ticker in cached_target_tickers:
+                    target_ok += 1
+                    target_cache_ok += 1
                 else:
                     failed.append(ticker)
             print(f"stock OHLCV {min(offset + chunk_size, len(tickers))}/{len(tickers)}", flush=True)
@@ -162,6 +177,8 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
     return {
         "requested": len(tickers), "history_received": history_ok,
         "target_session_received": target_ok, "target_session_coverage": coverage,
+        "target_session_fresh": target_fresh_ok,
+        "target_session_same_day_cache": target_cache_ok,
         "failed_tickers": failed, "incremental_cache_used": bool(cached_tickers),
     }
 
@@ -379,6 +396,7 @@ def main() -> int:
 
     yahoo_fallback = bool(fallback_reason) or target not in grouped
     if yahoo_fallback:
+        print(f"Massive current-session fallback: {fallback_reason or 'session unavailable'}", flush=True)
         prior_tickers = prior_universe_tickers(root, work / "ohlcv.csv")
         frozen_count = prior_universe_count(root, prior_tickers)
         universe, expansion_stats = select_preserved_count_fallback_universe(
