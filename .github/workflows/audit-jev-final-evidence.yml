@@ -1,0 +1,33 @@
+name: Audit completed Jev model evidence without paid calls
+on:
+  push:
+    branches: [research/jev-forecast-validation-20260929]
+    paths: ['tools/audit_jev_final_evidence.py', '.github/workflows/audit-jev-final-evidence.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Install verification dependency
+        run: python -m pip install cryptography==46.0.4
+      - name: Authenticate saved archive and validate every raw model response
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
+        run: python tools/audit_jev_final_evidence.py
+      - name: Save aggregate verification only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jev-final-evidence-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 90
+          if-no-files-found: error
+          path: final-audit-output/raw-evidence-audit.json
