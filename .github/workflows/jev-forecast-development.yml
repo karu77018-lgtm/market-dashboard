@@ -1,0 +1,93 @@
+name: Jev forecast development pilot
+on:
+  push:
+    branches: [research/jev-forecast-validation-20260929]
+    paths: ['research/jev_forecast_validation/**', '.github/workflows/jev-forecast-development.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: jev-forecast-development-pilot
+  cancel-in-progress: false
+jobs:
+  pilot:
+    if: github.repository == 'karu77018-lgtm/market-dashboard'
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Install research dependencies
+        run: python -m pip install numpy==2.2.6 pandas==2.2.3 scipy==1.15.3 pyarrow==19.0.1 requests==2.32.5 cryptography==46.0.4 pytest==9.0.2
+      - name: Test horizon accounting and no-lookahead invariants before paid calls
+        run: python -m pytest research/jev_forecast_validation/test_study.py -q
+      - name: Read pinned public price history
+        uses: actions/checkout@v4
+        with:
+          ref: d84a70dd46df011df502217f2737ed08a1e90fa2
+          path: price-source
+          sparse-checkout: chart-data
+          persist-credentials: false
+      - name: Read pinned market history
+        uses: actions/checkout@v4
+        with:
+          ref: 79219a30227046f9651444ab8f7ab7c794a500cd
+          path: market-source
+          sparse-checkout: research/tqqq_swing/data
+          persist-credentials: false
+      - name: Restore previously verified news and existing long prices
+        id: restore
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
+        run: python research/jev_forecast_validation/study.py prepare
+      - name: Execute bounded historical Jev forecasts and score development outcomes
+        id: study
+        continue-on-error: true
+        env:
+          JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
+        run: python research/jev_forecast_validation/study.py run
+      - name: Preserve raw research inputs and responses encrypted
+        if: always() && steps.restore.outcome == 'success'
+        id: seal
+        env:
+          ARCHIVE_PASSPHRASE: ${{ secrets.ARCHIVE_PASSPHRASE }}
+        run: python research/jev_forecast_validation/study.py seal
+      - name: Save encrypted research archive and aggregate report
+        if: always() && steps.seal.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: jev-forecast-pilot-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            forecast-output/*.json
+            forecast-output/*.aesgcm
+      - name: Read pinned private preservation helper
+        if: always() && steps.seal.outcome == 'success'
+        uses: actions/checkout@v4
+        with:
+          ref: d84a70dd46df011df502217f2737ed08a1e90fa2
+          path: preservation-source
+          sparse-checkout: scripts/phase_a0
+          persist-credentials: false
+      - name: Save encrypted research to existing private Drive
+        if: always() && steps.seal.outcome == 'success'
+        continue-on-error: true
+        env:
+          GOOGLE_DRIVE_CLIENT_ID: ${{ secrets.GOOGLE_DRIVE_CLIENT_ID }}
+          GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_FOLDER_ID || secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: |
+          python preservation-source/scripts/phase_a0/upload_google_drive.py "forecast-output/jev-forecast-${GITHUB_RUN_ID}.tar.gz.aesgcm" > .private-forecast/drive-receipt.json 2> .private-forecast/drive-error.log || { echo 'PRIVATE_DRIVE_COPY_FAILED_ENCRYPTED_ARTIFACT_RETAINED'; exit 1; }
+          echo 'Encrypted development research saved to private Drive'
+      - name: Surface incomplete execution without changing the public site
+        if: always() && steps.study.outcome != 'success'
+        run: |
+          echo 'Development pilot incomplete; inspect aggregate report. No holdout, production, or trading change.'
+          exit 1
