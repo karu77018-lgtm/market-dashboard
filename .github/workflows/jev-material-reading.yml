@@ -1,0 +1,38 @@
+name: Jev material reading diagnostic
+on:
+  push:
+    branches: [research/jev-material-reading-20260930]
+    paths: ['research/jev_material_reading/**', '.github/workflows/jev-material-reading.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: jev-material-reading-diagnostic
+  cancel-in-progress: false
+jobs:
+  diagnostic:
+    if: github.repository == 'karu77018-lgtm/market-dashboard'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: research/jev_material_reading
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate fixtures and request parsing without paid calls
+        run: python research/jev_material_reading/probe.py --self-test
+      - name: Run bounded factual-reading diagnostic using existing authenticated API
+        env:
+          JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
+        run: python research/jev_material_reading/probe.py
+      - name: Save public-source and synthetic diagnostic evidence only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jev-material-reading-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 90
+          if-no-files-found: error
+          path: reading-output/*.json

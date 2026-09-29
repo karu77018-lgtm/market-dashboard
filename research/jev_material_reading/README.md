@@ -1,0 +1,13 @@
+# Factual-reading diagnostic, not a stock-forecast benchmark
+
+Problem: previous prediction-level combinations cannot isolate whether Jev misreads facts or fails to map facts to returns. Cause: limited source text and several changed components were evaluated together. Change: isolate a small, answerable factual task. Impact: research files only, no site, production API, database schema, question registry or trading changes. No holdings, paid news retrieval or archived proprietary news is read. No calibration/holdout results are used to select labels.
+
+This diagnostic has 24 synthetic cases and eight source-grounded fact-extract tasks from four primary documents. It asks about comparable company guidance, actual versus expected results, share-issuance stage, approval stage, legal status and novelty. Correct labels are authored and frozen BEFORE Jev calls and never sent as expected answers. Published texts are paraphrased fact extracts, not verbatim full articles.
+
+Two runs of the same 32 cases compare material-only evidence against the same evidence plus deliberately irrelevant strong/weak price context. Four deliberately constructed information-loss examples are separately asked with full text and a 650-character prefix, in DIFFERENT requests so the omitted fact cannot leak from a companion case. Missing decisive information is labelled unknown, not an invented yes/no. This does not estimate how often real articles lose important information at 650 characters.
+
+Ten HTTP requests maximum, three real evaluations each. New inference spending capped at US$0.02; no new funding, contracts or auto-recharge. Missing cost metadata or an API error stops further calls. Requests go only to the existing authenticated /api/jev route with persist=false. Credentials are used only in the Authorization header and are not put in request state or artifacts. Raw responses, labels and scores are saved because all test evidence is synthetic or public fact paraphrases, never user holdings or vendor archive text. Artifact output must be inspected for correct execution and independence before any conclusions.
+
+Success here means successful data collection, not stock-prediction skill. A high factual score on this deliberately small test is not an estimate of full-news reliability. Low or high scores do not establish prospective trading performance. A subsequent full-feature comparison must actually send the frozen stage3 inputs and matched pre-cutoff source material; cached prediction combinations cannot substitute for that experiment.
+
+Rollback: stop this research workflow; no production rollback or deletion is needed.
