@@ -1,0 +1,56 @@
+name: Verify published dashboard restoration
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/verify-restored-page.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Match live GitHub Pages HTML to verified restoration
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, time, urllib.request
+          from pathlib import Path
+          from datetime import datetime, timezone
+          report=json.loads(Path('restoration-report.json').read_text())
+          expected=report['published_html_sha256']
+          url='https://karu77018-lgtm.github.io/market-dashboard/source-mc57.html'
+          result={'url':url,'expected_sha256':expected,'matched':False}
+          for attempt in range(12):
+              try:
+                  request=urllib.request.Request(url+'?verify='+os.environ['GITHUB_SHA'],headers={'Cache-Control':'no-cache','User-Agent':'dashboard-restoration-verifier'})
+                  with urllib.request.urlopen(request,timeout=30) as response:
+                      body=response.read()
+                      result['http_status']=response.status
+                  result['actual_sha256']=hashlib.sha256(body).hexdigest()
+                  result['matched']=result['actual_sha256']==expected
+                  if result['matched']:
+                      text=body.decode('utf-8')
+                      assert text.count('JEV_RANKING_NAV_START')==1
+                      assert "id='t-jev'" in text
+                      assert 'data-source-improvement=' not in text
+                      assert 'Jev期待値' in text
+                      break
+              except Exception as exc:
+                  result['error_type']=type(exc).__name__
+              time.sleep(10)
+          result['checked_at']=datetime.now(timezone.utc).isoformat()
+          result['session_date']=report['session_date']
+          result['active_universe']=report['active_universe']
+          result['jev_evaluated']=report['jev_evaluated']
+          Path('restoration-http-verification.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
+          print(json.dumps(result,ensure_ascii=False))
+          assert result['matched'], 'Live page does not match the restored publication'
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: restoration-http-verification-${{ github.run_id }}
+          retention-days: 30
+          path: restoration-http-verification.json
