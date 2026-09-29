@@ -69,6 +69,18 @@ def recent_completed_sessions(count: int = 20) -> list[str]:
     return common[-count:]
 
 
+def resolve_refresh_sessions(
+    sessions: list[str], previous_session: str | None, *, count: int = 20
+) -> tuple[list[str], str, str]:
+    if not sessions:
+        raise RuntimeError("no completed sessions available")
+    observed_target = sessions[-1]
+    target = la.prevent_session_regression(observed_target, previous_session)
+    if target != observed_target:
+        sessions = sorted(set([*sessions, target]))[-count:]
+    return sessions, target, observed_target
+
+
 def stock_ohlcv(tickers: list[str], target: str, output: Path,
                 *, chunk_size: int = 100) -> dict[str, Any]:
     """Three-year baseline, then one-month incremental adjusted OHLCV.
@@ -373,9 +385,10 @@ def main() -> int:
             previous_session = previous_manifest.get("session_date")
         except Exception:
             previous_session = None
-    target = la.prevent_session_regression(observed_target, previous_session)
+    sessions, target, observed_target = resolve_refresh_sessions(
+        sessions, previous_session, count=20
+    )
     if target != observed_target:
-        sessions = sorted(set([*sessions, target]))[-20:]
         print(
             f"provider session regression blocked: observed={observed_target} retained={target}",
             flush=True,
