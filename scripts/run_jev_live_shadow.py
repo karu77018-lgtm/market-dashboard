@@ -522,6 +522,7 @@ def main() -> int:
     parser.add_argument("--lookback-days", type=int, default=30)
     parser.add_argument("--provider-timeout", type=int, default=45)
     parser.add_argument("--jev-timeout", type=int, default=180)
+    parser.add_argument("--massive-min-interval", type=float, default=13.0)
     args = parser.parse_args()
 
     if not 1 <= args.max_candidates <= 25:
@@ -530,6 +531,8 @@ def main() -> int:
         parser.error("--max-news must be between 1 and 50")
     if not 1 <= args.lookback_days <= 90:
         parser.error("--lookback-days must be between 1 and 90")
+    if not 0 <= args.massive_min_interval <= 120:
+        parser.error("--massive-min-interval must be between 0 and 120 seconds")
 
     root = Path(args.root).resolve()
     output_path = root / args.output
@@ -581,11 +584,18 @@ def main() -> int:
     jev_client = requests.Session()
     prior_ranking = load_prior_ranking(ranking_path)
     ranking_rows: list[dict[str, Any]] = []
+    last_news_request_at: float | None = None
 
     for candidate in candidates:
         ticker = candidate["ticker"]
         rank = candidate["selection"].get("rk")
         try:
+            if last_news_request_at is not None and args.massive_min_interval > 0:
+                elapsed = time.monotonic() - last_news_request_at
+                remaining = args.massive_min_interval - elapsed
+                if remaining > 0:
+                    time.sleep(remaining)
+            last_news_request_at = time.monotonic()
             documents = fetch_news(
                 news_client,
                 ticker=ticker,
