@@ -157,6 +157,8 @@ def _get_json(
             if not isinstance(payload, dict):
                 raise ProviderError(f"provider response is not an object: {_safe_url(url)}")
             return payload
+        except ProviderError:
+            raise
         except Exception as exc:
             last_error = exc
             if attempt + 1 < attempts:
