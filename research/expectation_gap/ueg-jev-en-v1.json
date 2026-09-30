@@ -1,0 +1,71 @@
+{
+  "version": "ueg-jev-en-v1",
+  "status": "research_shadow",
+  "model": "typesafe-ai/jev",
+  "language": "English",
+  "purpose": "Assess the gap between company-specific evidence and market expectations. Do not predict stock returns.",
+  "questions": {
+    "UEG01_material_positive_change": {
+      "type": "noul",
+      "instructions": "Based only on the supplied evidence, is there a positive company-specific change that is economically material relative to the company's current business scale or earnings power?"
+    },
+    "UEG02_persistent_improvement": {
+      "type": "noul",
+      "instructions": "Is the positive business improvement, if any, likely to persist for at least the next two to four quarters rather than being a one-off or purely transitory effect?"
+    },
+    "UEG03_expectations_already_high": {
+      "type": "noul",
+      "instructions": "Do the supplied price-action context and public evidence indicate that market expectations are already unusually high or that a strong positive narrative is substantially priced in?"
+    },
+    "UEG04_positive_surprise_vs_expectations": {
+      "type": "noul",
+      "instructions": "Does the newest company-specific information appear meaningfully better than what a reasonable market participant would have expected immediately before that information became public?"
+    },
+    "UEG05_negative_surprise_vs_expectations": {
+      "type": "noul",
+      "instructions": "Does the newest company-specific information appear meaningfully worse than what a reasonable market participant would have expected immediately before that information became public?"
+    },
+    "UEG06_quantitative_confirmation": {
+      "type": "noul",
+      "instructions": "Does the qualitative evidence credibly confirm or strengthen the supplied quantitative fundamental trend rather than conflict with it?"
+    },
+    "UEG07_information_novelty": {
+      "type": "noul",
+      "instructions": "Is the newest important information genuinely new and decision-relevant rather than a repetition, routine update, or continuation of an already well-known narrative?"
+    },
+    "UEG08_disappointment_vulnerability": {
+      "type": "noul",
+      "instructions": "Given the supplied expectation-load context, does the setup appear vulnerable to disappointment because expectations are high relative to the strength or novelty of the underlying evidence?"
+    },
+    "UEG09_evidence_sufficient": {
+      "type": "noul",
+      "instructions": "Is the supplied evidence sufficiently specific, timely, and internally consistent to support an expectation-gap assessment with more than low confidence?"
+    },
+    "UEG10_underappreciated_setup": {
+      "type": "noul",
+      "instructions": "Taken together, do the fundamentals and new evidence appear stronger than the level of expectations implied by the supplied market context?"
+    },
+    "UEG11_setup_class": {
+      "type": "choice",
+      "instructions": "Which description best fits the current expectation-versus-evidence setup? Choose only from the supplied criteria.",
+      "criteria": {
+        "underappreciated": "Fundamentals or new evidence appear stronger than what is currently priced or broadly expected.",
+        "balanced": "Fundamentals, new evidence, and market expectations appear broadly aligned.",
+        "expectations_heavy": "Expectations appear high relative to the incremental strength or novelty of the evidence.",
+        "deteriorating": "New evidence or fundamentals appear weaker than prevailing expectations.",
+        "unclear": "The supplied evidence is insufficient or internally inconsistent."
+      }
+    },
+    "UEG12_change_type": {
+      "type": "choice",
+      "instructions": "What best describes the main business change in the supplied evidence? Choose only from the supplied criteria.",
+      "criteria": {
+        "structural": "A durable change to demand, competitive position, unit economics, business mix, capacity, or earnings power.",
+        "cyclical": "A change mainly explained by a business or industry cycle that may reverse.",
+        "one_off": "A non-recurring event or accounting/transaction effect with limited read-through to ongoing earnings power.",
+        "mixed": "The evidence contains both durable and transitory elements.",
+        "unclear": "The evidence is insufficient to classify the change."
+      }
+    }
+  }
+}
