@@ -4,7 +4,7 @@
     "pages/api/*.js": {
       "maxDuration": 60
     },
-    "api/*.py": {
+    "pages/api/*.py": {
       "maxDuration": 60
     }
   },
@@ -15,10 +15,5 @@
       "jev-prod": true
     }
   },
-  "rewrites": [
-    {
-      "source": "/api/research/feature_probe",
-      "destination": "/api/feature_probe.py"
-    }
-  ]
+  "rewrites": []
 }
