@@ -6,12 +6,14 @@ const MODEL = "typesafe-ai/jev";
 
 function mean(xs){ return xs.reduce((a,b)=>a+b,0)/xs.length; }
 
-function decodeNoul(obj, qid){
+function decodeUp(obj, qid){
   if(!obj || !obj.answers || !obj.answers[qid]) throw new Error("ANSWER_MISSING");
   const a=obj.answers[qid];
-  const v=Number(a.noul ?? a.probability);
-  if(!Number.isFinite(v) || v<0 || v>1) throw new Error("INVALID_NOUL");
-  return v;
+  const dist=a.probabilities||a.distribution||a.choices;
+  if(!dist) throw new Error("DISTRIBUTION_MISSING");
+  const up=Number(dist.up), down=Number(dist.down);
+  if(!Number.isFinite(up)||!Number.isFinite(down)||up<0||down<0||up+down<=0) throw new Error("INVALID_DIRECTION_DISTRIBUTION");
+  return up/(up+down);
 }
 
 async function evaluateThree(state, questions){
@@ -68,15 +70,15 @@ export default async function handler(req,res){
   };
   if(mode==="news") state.company_materials=materials;
   const questions={
-    up5:{type:"noul",instructions:"Probability from 0 to 1 that the 5-session terminal simple return defined in the task is strictly greater than 0. Do not output magnitude."},
-    up10:{type:"noul",instructions:"Probability from 0 to 1 that the 10-session terminal simple return defined in the task is strictly greater than 0. Do not output magnitude."}
+    up5:{type:"choice",criteria:{up:"terminal return is strictly greater than 0",down:"terminal return is less than or equal to 0"},instructions:"Choose the more likely direction for the 5-session terminal return and return probabilities for both exhaustive choices. Do not output magnitude."},
+    up10:{type:"choice",criteria:{up:"terminal return is strictly greater than 0",down:"terminal return is less than or equal to 0"},instructions:"Choose the more likely direction for the 10-session terminal return and return probabilities for both exhaustive choices. Do not output magnitude."}
   };
   try{
     const raw=JSON.stringify({state,questions});
     if(Buffer.byteLength(raw,"utf8")>90000) return res.status(413).json({ok:false,error:"payload_too_large"});
     const out=await evaluateThree(state,questions);
-    const p5=out.runs.map(x=>decodeNoul(x,"up5"));
-    const p10=out.runs.map(x=>decodeNoul(x,"up10"));
+    const p5=out.runs.map(x=>decodeUp(x,"up5"));
+    const p10=out.runs.map(x=>decodeUp(x,"up10"));
     return res.status(200).json({ok:true,case_index:idx,ticker:c.ticker,origin:c.origin,mode,feature_count:59,news_count:materials.length,
       p_up5:mean(p5),p_up10:mean(p10),runs5:p5,runs10:p10,
       agreement5_std:Math.sqrt(mean(p5.map(x=>(x-mean(p5))**2))),
