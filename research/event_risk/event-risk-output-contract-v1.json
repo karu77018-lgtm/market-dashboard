@@ -1,0 +1,58 @@
+{
+  "version": "event-risk-output-contract-v1",
+  "status": "research",
+  "example": {
+    "ticker": "EXAMPLE",
+    "as_of": "YYYY-MM-DD",
+    "event_family": "dilution",
+    "probability": {
+      "horizon_days": 60,
+      "value": null,
+      "calibrated_model": null,
+      "ranking_model": null
+    },
+    "conditional_impact": {
+      "horizon_sessions": 5,
+      "median_pct": null,
+      "p10_pct": null,
+      "p90_pct": null,
+      "conditioned_on": "pre_event_state",
+      "sample_n": null,
+      "reliability": null
+    },
+    "event_ev": {
+      "downside_pct_points": null,
+      "upside_offset_pct_points": null,
+      "net_pct_points": null
+    },
+    "announced_terms": {
+      "status": "not_announced",
+      "basic_dilution_pct": null,
+      "fully_diluted_overhang_pct": null,
+      "financing_market_cap_pct": null,
+      "offer_discount_pct": null,
+      "float_shock_pct": null
+    },
+    "expectations": {
+      "expectation_load_core": null,
+      "expectation_load_enhanced": null,
+      "option_expected_move_pct": null,
+      "realized_expected_move_ratio": null,
+      "analyst_pt_upside_pct": null,
+      "pre_event_20d_excess_pct": null
+    },
+    "jev_semantics": {
+      "question_set": null,
+      "guidance_direction": null,
+      "result_quality": null,
+      "demand_signal": null,
+      "margin_signal": null,
+      "novelty": null,
+      "one_off_distortion": null
+    },
+    "coverage": {
+      "missing": [],
+      "warnings": []
+    }
+  }
+}
