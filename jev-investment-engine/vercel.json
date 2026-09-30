@@ -3,9 +3,6 @@
   "functions": {
     "pages/api/*.js": {
       "maxDuration": 60
-    },
-    "pages/api/*.py": {
-      "maxDuration": 60
     }
   },
   "git": {
