@@ -1,0 +1,286 @@
+{
+  "version": "jev-5d-strong-stock-v1-single-case",
+  "origin": "2026-08-07",
+  "rows": [
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 0,
+      "ticker": "ERAS",
+      "group": "leader",
+      "p_up": 0.79,
+      "run_std": 0.028284271247461926,
+      "runs": [
+        0.75,
+        0.81,
+        0.81
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 1,
+      "ticker": "SLS",
+      "group": "leader",
+      "p_up": 0.7733333333333334,
+      "run_std": 0.012472191289246483,
+      "runs": [
+        0.77,
+        0.76,
+        0.79
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 2,
+      "ticker": "QTTB",
+      "group": "leader",
+      "p_up": 0.45,
+      "run_std": 0,
+      "runs": [
+        0.45,
+        0.45,
+        0.45
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 3,
+      "ticker": "EVC",
+      "group": "leader",
+      "p_up": 0.8333333333333334,
+      "run_std": 0.016996731711975913,
+      "runs": [
+        0.81,
+        0.85,
+        0.84
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 4,
+      "ticker": "AGL",
+      "group": "leader",
+      "p_up": 0.8000000000000002,
+      "run_std": 0.008164965809277268,
+      "runs": [
+        0.79,
+        0.8,
+        0.81
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 5,
+      "ticker": "ATEX",
+      "group": "leader",
+      "p_up": 0.65,
+      "run_std": 0.03741657386773941,
+      "runs": [
+        0.66,
+        0.6,
+        0.69
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 6,
+      "ticker": "SYRE",
+      "group": "leader",
+      "p_up": 0.8566666666666666,
+      "run_std": 0.016996731711975962,
+      "runs": [
+        0.88,
+        0.84,
+        0.85
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 7,
+      "ticker": "MU",
+      "group": "leader",
+      "p_up": 0.49333333333333335,
+      "run_std": 0.016996731711975965,
+      "runs": [
+        0.51,
+        0.47,
+        0.5
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 8,
+      "ticker": "TXG",
+      "group": "leader",
+      "p_up": 0.6233333333333334,
+      "run_std": 0.13224556283251582,
+      "runs": [
+        0.52,
+        0.54,
+        0.81
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 9,
+      "ticker": "PACS",
+      "group": "leader",
+      "p_up": 0.85,
+      "run_std": 0,
+      "runs": [
+        0.85,
+        0.85,
+        0.85
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 10,
+      "ticker": "ULCC",
+      "group": "hash_control",
+      "p_up": 0.6900000000000001,
+      "run_std": 0.029439202887759468,
+      "runs": [
+        0.66,
+        0.73,
+        0.68
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 11,
+      "ticker": "AAMI",
+      "group": "hash_control",
+      "p_up": 0.6666666666666666,
+      "run_std": 0.09843215373488932,
+      "runs": [
+        0.68,
+        0.54,
+        0.78
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 12,
+      "ticker": "FEIM",
+      "group": "hash_control",
+      "p_up": 0.85,
+      "run_std": 0,
+      "runs": [
+        0.85,
+        0.85,
+        0.85
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 13,
+      "ticker": "CON",
+      "group": "hash_control",
+      "p_up": 0.8366666666666666,
+      "run_std": 0.04496912521077347,
+      "runs": [
+        0.78,
+        0.89,
+        0.84
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 14,
+      "ticker": "PTGX",
+      "group": "hash_control",
+      "p_up": 0.61,
+      "run_std": 0.04546060565661951,
+      "runs": [
+        0.66,
+        0.55,
+        0.62
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 15,
+      "ticker": "ITGR",
+      "group": "hash_control",
+      "p_up": 0.4133333333333334,
+      "run_std": 0.0873053390247253,
+      "runs": [
+        0.53,
+        0.32,
+        0.39
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 16,
+      "ticker": "MRVL",
+      "group": "hash_control",
+      "p_up": 0.7733333333333334,
+      "run_std": 0.030912061651652372,
+      "runs": [
+        0.79,
+        0.8,
+        0.73
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 17,
+      "ticker": "CXW",
+      "group": "hash_control",
+      "p_up": 0.7833333333333333,
+      "run_std": 0.11556623882239811,
+      "runs": [
+        0.62,
+        0.86,
+        0.87
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 18,
+      "ticker": "RDW",
+      "group": "hash_control",
+      "p_up": 0.8133333333333334,
+      "run_std": 0.00942809041582059,
+      "runs": [
+        0.82,
+        0.8,
+        0.82
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-07",
+      "case_index": 19,
+      "ticker": "CADL",
+      "group": "hash_control",
+      "p_up": 0.87,
+      "run_std": 0.014142135623730965,
+      "runs": [
+        0.88,
+        0.88,
+        0.85
+      ]
+    }
+  ]
+}
