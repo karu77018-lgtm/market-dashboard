@@ -1,4 +1,4 @@
-import eventsData from "../../research/event_risk/event-metadata-20260930.json";
+import eventsData from "../../../research/event_risk/event-metadata-20260930.json";
 
 let runtimePromise;
 async function getRuntime(){
