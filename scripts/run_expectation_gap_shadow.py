@@ -684,6 +684,7 @@ def main() -> int:
     ap.add_argument("--dashboard", default="source-mc57.html")
     ap.add_argument("--question-set", default="research/expectation_gap/question-set-en-v1.json")
     ap.add_argument("--output", default="research/expectation_gap/current-v1.json")
+    ap.add_argument("--history-dir", default="research/expectation_gap/history")
     ap.add_argument("--report", default="maintenance/universal-expectation-gap-v1-20260930.md")
     ap.add_argument("--max-candidates", type=int, default=60)
     ap.add_argument("--news-lookback-days", type=int, default=21)
@@ -875,10 +876,15 @@ def main() -> int:
     }
 
     out = root / args.output
+    history_dir = root / args.history_dir
     rep = root / args.report
     out.parent.mkdir(parents=True, exist_ok=True)
+    history_dir.mkdir(parents=True, exist_ok=True)
     rep.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n", encoding="utf-8")
+    serialized = json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
+    out.write_text(serialized, encoding="utf-8")
+    session_date = str(manifest.get("session_date") or cutoff.date().isoformat())
+    (history_dir / f"{session_date}.json").write_text(serialized, encoding="utf-8")
     rep.write_text(report(payload), encoding="utf-8")
     print(json.dumps({"ok": True, "coverage": payload["coverage"], "label_counts": payload["label_counts"], "cost": payload["gateway_cost_usd"]}, indent=2))
     return 0
