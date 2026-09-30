@@ -12,7 +12,10 @@ import argparse
 import bisect
 import json
 import math
+import os
 import statistics
+import urllib.parse
+import urllib.request
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -77,6 +80,28 @@ def load_series(root: Path) -> dict[str, list[tuple[str, float, float, float, fl
             if rr:
                 out[ticker] = rr
     return out
+
+
+def fetch_qqq_from_massive(start: str, end: str) -> list[tuple[str, float, float, float, float, float]]:
+    key = os.getenv("MASSIVE_API_KEY") or os.getenv("MASSIVE_KEY") or os.getenv("POLYGON_API_KEY")
+    if not key:
+        return []
+    url = (
+        f"https://api.massive.com/v2/aggs/ticker/QQQ/range/1/day/{start}/{end}?"
+        + urllib.parse.urlencode({"adjusted": "true", "sort": "asc", "limit": 50000, "apiKey": key})
+    )
+    req = urllib.request.Request(url, headers={"User-Agent": "expectation-load-backtest/1.0"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+    rows = []
+    for r in payload.get("results") or []:
+        try:
+            import datetime as _dt
+            d = _dt.datetime.fromtimestamp(float(r["t"]) / 1000, tz=_dt.timezone.utc).date().isoformat()
+            rows.append((d, float(r["o"]), float(r["h"]), float(r["l"]), float(r["c"]), float(r["v"])))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return rows
 
 
 def at_index(rows, date: str) -> int:
@@ -189,7 +214,9 @@ def main() -> int:
     series = load_series(root)
     qqq = series.get("QQQ")
     if not qqq:
-        raise SystemExit("QQQ missing from chart-data")
+        qqq = fetch_qqq_from_massive("2021-01-01", "2026-09-30")
+    if not qqq:
+        raise SystemExit("QQQ benchmark unavailable from both chart-data and Massive")
     qdates = [r[0] for r in qqq]
     start_i = max(252, bisect.bisect_left(qdates, args.start))
     end_i = len(qdates) - 21
