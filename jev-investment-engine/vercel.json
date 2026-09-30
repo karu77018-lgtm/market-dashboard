@@ -4,7 +4,7 @@
     "pages/api/*.js": {
       "maxDuration": 60
     },
-    "api/**/*.py": {
+    "api/*.py": {
       "maxDuration": 60
     }
   },
@@ -18,7 +18,7 @@
   "rewrites": [
     {
       "source": "/api/research/feature_probe",
-      "destination": "/api/research/feature_probe.py"
+      "destination": "/api/feature_probe.py"
     }
   ]
 }
