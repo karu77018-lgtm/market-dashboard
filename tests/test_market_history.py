@@ -13,6 +13,30 @@ import market_internals_ui as ui
 import refresh_mc57
 
 
+def test_legacy_spark_dates_match_plotted_observations(tmp_path):
+    import ast
+    from types import SimpleNamespace
+    # Execute the recovered original function, preserve its SVG byte for byte.
+    import base64,lzma,tarfile
+    with tarfile.open(ROOT/'bootstrap/recovery-assets.tar.xz') as tar:
+        parts=sorted(m.name for m in tar.getmembers() if '.py.lzma.b85.part' in m.name)
+        source=lzma.decompress(base64.b85decode(''.join(tar.extractfile(p).read().decode().strip() for p in parts).encode())).decode()
+    fn=next(n for n in ast.parse(source).body if isinstance(n,ast.FunctionDef) and n.name=='_spark')
+    namespace={'pd':pd,'_SPARK_SEQ':0};exec(compile(ast.Module(body=[fn],type_ignores=[]),'original-spark','exec'),namespace)
+    module=SimpleNamespace(_spark=namespace['_spark'])
+    data=tmp_path/'data';data.mkdir();(data/'mc57.json').write_text(json.dumps({'session_date':'2026-09-29'}))
+    values=[(d.date(),float(i)) for i,d in enumerate(pd.bdate_range('2026-01-01','2026-10-01'))]
+    original=module._spark(values,'2026-09-29',60)
+    namespace['_SPARK_SEQ']=0
+    ui.install(module,tmp_path,data)
+    result=module._spark(values,'2026-09-29',60)
+    assert result.startswith(original)
+    soup=BeautifulSoup(result,'html.parser'); labels=[x.get_text() for x in soup.select('.mh-spark-axis span')]
+    plotted=[d for d,v in values if d<=pd.Timestamp('2026-09-29').date()][-60:]
+    assert labels==[pd.Timestamp(plotted[round((len(plotted)-1)*p)]).strftime('%y/%m/%d') for p in (0,.5,1)]
+    assert module._spark(values[:5])==''
+
+
 def fixture_prices(n=3000):
     dates=pd.bdate_range('2014-01-01',periods=n)
     syms=list(dict.fromkeys([*mh.SYMBOLS,*refresh_mc57.MC57_ETFS]))

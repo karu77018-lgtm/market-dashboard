@@ -299,6 +299,21 @@ def install(module,root,data_dir):
     """Generator hook: narrative code never sees SAR. Trading functions untouched."""
     mc=json.loads((data_dir/'mc57.json').read_text())
     p=root/'market-history/index.json'; idx=json.loads(p.read_text()) if p.exists() else {}
+    original_spark=getattr(module,'_spark',None)
+    if original_spark:
+        def spark(vals,asof=None,days=60,color='#6f93c9'):
+            # Same observations and cutoff as the legacy renderer: display only.
+            output=original_spark(vals,asof,days,color)
+            if not output: return output
+            import pandas as pd
+            pairs=list(vals or [])
+            if asof is not None:
+                cutoff=pd.Timestamp(asof).date()
+                pairs=[(d,v) for d,v in pairs if pd.Timestamp(d).date()<=cutoff]
+            pairs=pairs[-days:]
+            labels=[pd.Timestamp(pairs[round((len(pairs)-1)*p)][0]).strftime('%y/%m/%d') for p in (0,.5,1)]
+            return output+'<div class="mh-spark-axis" aria-label="日付軸">'+''.join('<span>'+d+'</span>' for d in labels)+'</div>'
+        module._spark=spark
     original_comment=getattr(module,'_market_comment',None)
     original_categories=getattr(module,'build_categorized_commentary',None)
     def comment(aux,mkt,sar,breadth,cat_html=''):

@@ -13,6 +13,10 @@ async function verify(page,width){
   const requests=[]; page.on('request',r=>requests.push(r.url()));
   await page.goto(url,{waitUntil:'networkidle'});
   assert.equal(await page.locator('.mh-tools button:disabled').count(),0,'no unavailable period choices');
+  const sparks=page.locator('svg.spark');
+  assert(await sparks.count()>0,'legacy macro sparklines present');
+  const noAxis=await sparks.evaluateAll(items=>items.filter(e=>!e.nextElementSibling?.classList.contains('mh-spark-axis')).length);
+  assert.equal(noAxis,0,'every legacy time sparkline has observation date axis');
   const tabs=page.locator('nav a.tabx');
   assert.equal(await tabs.count(),11,'all original tabs including Jev');
   assert.equal(await page.locator('.mh-card [data-window="2y"][aria-pressed="true"]').count(),await page.locator('.mh-card[data-history-key]').count());
@@ -83,7 +87,16 @@ async function verify(page,width){
     await page.waitForFunction(win=>document.querySelector('[data-history-key="mc57"]').dataset.loadedWindow===win,win);
     const j=JSON.parse(fs.readFileSync(root+'/market-history/'+index.files.mc57[win]));
     assert.equal(j.dates.at(-1),mc.session_date);assert.equal(j.series.MC57.at(-1),mc.mc57);
+    assert.deepEqual(await current.locator('.mh-score-band').evaluateAll(es=>es.map(e=>[e.getAttribute('fill'),e.getAttribute('opacity')])),[['#df5454','0.07'],['#d97936','0.07'],['#7f7c70','0.07'],['#25c25f','0.07'],['#1e9b4c','0.07']],'legacy MC57 score background retained every period');
   }
+  const group=page.locator('.mh-card[data-history-key="mc57-group-0"]');
+  const seriesButtons=group.locator('[data-series-toggle]');
+  assert.equal(await seriesButtons.count(),4);
+  const originalPaths=await group.locator('svg path').count();
+  await seriesButtons.nth(0).click();assert.equal(await group.locator('svg path').count(),originalPaths-1);
+  await seriesButtons.nth(0).click();assert.equal(await group.locator('svg path').count(),originalPaths);
+  const spacing=await group.evaluate(c=>c.querySelector(':scope > .sub').getBoundingClientRect().top-c.querySelector('.mh-plot > .dax').getBoundingClientRect().bottom);
+  assert(spacing>=7,'date labels separated from description');
   const text=await page.locator('.mkt20-read').first().innerText();
   assert(!/Blue|Green|Yellow|Red|地合いは青/.test(text),'commentary independent of NQSAR');
   await page.screenshot({path:root+'/work/market-ui-'+width+'.png',fullPage:false});
