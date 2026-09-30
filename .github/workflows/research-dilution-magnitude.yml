@@ -26,6 +26,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: research-dilution-magnitude-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   dilution-magnitude:
     runs-on: ubuntu-latest
