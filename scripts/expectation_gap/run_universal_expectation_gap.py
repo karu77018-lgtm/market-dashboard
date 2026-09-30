@@ -189,4 +189,143 @@ def load_market_universe(root: Path) -> list[dict[str, Any]]:
             0.45 * r.get("p_ret20", 50.0) + 0.55 * r.get("p_ret63", 50.0), 4
         )
         r["expectation_acceleration"] = round(
-            r.get("p_run20_z", 50.0) - r.g
+            r.get("p_run20_z", 50.0) - r.get("p_run63_z", 50.0), 4
+        )
+    return rows
+
+
+def select_candidates(rows: list[dict[str, Any]], max_deep: int) -> list[dict[str, Any]]:
+    selected: dict[str, dict[str, Any]] = {}
+
+    def add(pool: list[dict[str, Any]], label: str, limit: int, key) -> None:
+        for r in sorted(pool, key=key)[:limit]:
+            item = selected.setdefault(r["ticker"], dict(r))
+            item.setdefault("seed_labels", [])
+            if label not in item["seed_labels"]:
+                item["seed_labels"].append(label)
+
+    add(
+        [r for r in rows if r["trend_strength"] >= 70 and r["expectation_load"] <= 60],
+        "underappreciated_strength_seed", max(8, max_deep // 2),
+        lambda r: (-(r["trend_strength"] - r["expectation_load"]), -r["trend_strength"], r["ticker"]),
+    )
+    add(
+        [r for r in rows if r["trend_strength"] >= 75 and r["expectation_load"] >= 82],
+        "expectations_heavy_control", max(4, max_deep // 4),
+        lambda r: (-r["expectation_load"], -r["trend_strength"], r["ticker"]),
+    )
+    add(
+        [r for r in rows if r.get("p_ret63", 0) >= 80 and r.get("p_ret20", 100) <= 50],
+        "cooled_leader_seed", max(4, max_deep // 4),
+        lambda r: (r.get("p_ret20", 50), -r.get("p_ret63", 50), r["ticker"]),
+    )
+    ordered = sorted(
+        selected.values(),
+        key=lambda r: (
+            0 if "underappreciated_strength_seed" in r["seed_labels"] else 1,
+            -r["trend_strength"], r["expectation_load"], r["ticker"],
+        ),
+    )
+    return ordered[:max_deep]
+
+
+class MassiveClient:
+    def __init__(self, api_key: str, min_interval: float):
+        self.api_key = api_key
+        self.min_interval = max(0.0, min_interval)
+        self.session = requests.Session()
+        self.last_call = 0.0
+        self.calls = 0
+
+    def get(self, path: str, params: dict[str, Any], *, allow_gone: bool = False) -> dict[str, Any]:
+        remaining = self.min_interval - (time.monotonic() - self.last_call)
+        if remaining > 0:
+            time.sleep(remaining)
+        q = dict(params)
+        q["apiKey"] = self.api_key
+        response = self.session.get(MASSIVE_BASE + path, params=q, timeout=45)
+        self.last_call = time.monotonic()
+        self.calls += 1
+        if response.status_code == 410 and allow_gone:
+            return {"status": "BROWNOUT_410", "results": []}
+        if response.status_code == 429:
+            retry = response.headers.get("Retry-After")
+            time.sleep(float(retry) if retry and retry.isdigit() else 15.0)
+            return self.get(path, params, allow_gone=allow_gone)
+        response.raise_for_status()
+        payload = response.json()
+        return payload if isinstance(payload, dict) else {"results": []}
+
+
+def nested_value(row: dict[str, Any] | None, *path: str) -> float | None:
+    cur: Any = row
+    for key in path:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(key)
+    if isinstance(cur, dict) and "value" in cur:
+        cur = cur["value"]
+    return safe_float(cur)
+
+
+def financial_snapshot(client: MassiveClient, ticker: str) -> dict[str, Any]:
+    try:
+        payload = client.get(
+            "/vX/reference/financials",
+            {"ticker": ticker, "timeframe": "quarterly", "limit": 12, "sort": "filing_date", "order": "desc"},
+            allow_gone=True,
+        )
+    except Exception as exc:
+        return {"status": "error", "error": type(exc).__name__}
+    if payload.get("status") == "BROWNOUT_410":
+        return {"status": "brownout_410"}
+    rows = [r for r in (payload.get("results") or []) if isinstance(r, dict)]
+    if not rows:
+        return {"status": "no_data"}
+
+    rows.sort(key=lambda r: str(r.get("filing_date") or ""), reverse=True)
+    latest = rows[0]
+    fy, fp = latest.get("fiscal_year"), latest.get("fiscal_period")
+    prior = next((r for r in rows[1:] if isinstance(fy, int) and r.get("fiscal_year") == fy - 1 and r.get("fiscal_period") == fp), None)
+    previous_q = rows[1] if len(rows) > 1 else None
+    previous_q_prior = None
+    if previous_q and isinstance(previous_q.get("fiscal_year"), int):
+        previous_q_prior = next(
+            (r for r in rows[2:] if r.get("fiscal_year") == previous_q["fiscal_year"] - 1 and r.get("fiscal_period") == previous_q.get("fiscal_period")),
+            None,
+        )
+
+    def rev(r): return nested_value(r, "financials", "income_statement", "revenues")
+    def op(r): return nested_value(r, "financials", "income_statement", "operating_income_loss")
+    def ocf(r): return nested_value(r, "financials", "cash_flow_statement", "net_cash_flow_from_operating_activities")
+    def eps(r): return nested_value(r, "financials", "income_statement", "diluted_earnings_per_share")
+
+    revenue, revenue_prior = rev(latest), rev(prior)
+    revenue_prev_q, revenue_prev_q_prior = rev(previous_q), rev(previous_q_prior)
+    revenue_growth = pct_change(revenue, revenue_prior) if revenue is not None and revenue_prior is not None else None
+    previous_growth = pct_change(revenue_prev_q, revenue_prev_q_prior) if revenue_prev_q is not None and revenue_prev_q_prior is not None else None
+    revenue_accel = revenue_growth - previous_growth if revenue_growth is not None and previous_growth is not None else None
+
+    op_now, op_prior = op(latest), op(prior)
+    op_margin = 100 * op_now / revenue if revenue and op_now is not None else None
+    op_margin_prior = 100 * op_prior / revenue_prior if revenue_prior and op_prior is not None else None
+    op_margin_delta = op_margin - op_margin_prior if op_margin is not None and op_margin_prior is not None else None
+
+    ocf_now, ocf_prior = ocf(latest), ocf(prior)
+    ocf_margin = 100 * ocf_now / revenue if revenue and ocf_now is not None else None
+    ocf_margin_prior = 100 * ocf_prior / revenue_prior if revenue_prior and ocf_prior is not None else None
+    ocf_margin_delta = ocf_margin - ocf_margin_prior if ocf_margin is not None and ocf_margin_prior is not None else None
+
+    eps_now, eps_prior = eps(latest), eps(prior)
+    eps_signal = None
+    if eps_now is not None and eps_prior is not None:
+        if eps_prior <= 0 < eps_now:
+            eps_signal = 100.0
+        elif eps_now < 0 <= eps_prior:
+            eps_signal = 0.0
+        elif abs(eps_prior) > 1e-9:
+            eps_signal = clamp(50.0 + 50.0 * math.tanh(((eps_now / eps_prior) - 1.0) / 0.5))
+
+    components: list[tuple[float, float]] = []
+    if revenue_growth is not None:
+        components.append((0.30, clamp(50
