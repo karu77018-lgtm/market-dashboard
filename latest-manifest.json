@@ -1,7 +1,7 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
   "coverage": 0.9772784650340823,
-  "generated_at": "2026-09-30T22:30:38Z",
+  "generated_at": "2026-09-30T23:23:51Z",
   "mc57": 21.425684051401575,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
@@ -53,8 +53,8 @@
     "expansion_candidates": 577,
     "fallback_cached_massive_session": "2026-09-29",
     "fallback_mode": "YAHOO_PRESERVED_COUNT",
-    "fallback_preserved_tickers": 3954,
-    "fallback_replacements": 7,
+    "fallback_preserved_tickers": 3961,
+    "fallback_replacements": 0,
     "fallback_target_count": 3961,
     "legacy_universe": 3380,
     "malformed_rows": 0,
@@ -188,8 +188,8 @@
     "incremental_cache_used": true,
     "requested": 3961,
     "target_session_coverage": 0.9772784650340823,
-    "target_session_fresh": 3871,
+    "target_session_fresh": 0,
     "target_session_received": 3871,
-    "target_session_same_day_cache": 0
+    "target_session_same_day_cache": 3871
   }
 }
