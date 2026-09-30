@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
-"""Build a point-in-time earnings Jev semantic overlay.
+"""Build a point-in-time earnings Jev semantic overlay from SEC exhibits.
 
-This script only extracts semantic features. It does NOT calculate performance,
-fit thresholds, rank outcomes, or run a backtest. Those steps are intentionally
-performed in the assistant's local Python runtime.
+This script ONLY extracts semantic features. It does not calculate performance,
+fit thresholds, rank outcomes, or run any backtest.
 
-Inputs:
-- frozen earnings Expectation Load event rows;
-- Massive 8-K text and news available by the event cutoff;
-- Jev minimal English question set v2.
+For each frozen earnings event:
+1) fetch the public SEC full-submission text from the event's filing_url;
+2) extract the earnings release exhibit (prefer EX-99.1 / EX-99);
+3) send pre-event market context + event text to Jev v2;
+4) persist derived probabilities/classes and hashes only.
 
-Outputs:
-- derived Jev probabilities/classes and audit hashes only;
-- no vendor article text or raw Jev runs are persisted.
+Backtests are intentionally local-only.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
+import html
 import json
 import os
+import re
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -32,27 +32,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-try:
-    from scripts.run_jev_live_shadow import (
-        ShadowRunError,
-        fetch_news_bulk,
-        parse_timestamp,
-        safe_number,
-        utc_iso,
-    )
-    from scripts.run_expectation_gap_shadow import MassivePacer, chunks
-except ModuleNotFoundError:
-    from run_jev_live_shadow import (
-        ShadowRunError,
-        fetch_news_bulk,
-        parse_timestamp,
-        safe_number,
-        utc_iso,
-    )
-    from run_expectation_gap_shadow import MassivePacer, chunks
-
+from scripts.run_jev_live_shadow import ShadowRunError, safe_number
 
 DEFAULT_JEV_URL = "https://jev-investment-engine.vercel.app/api/jev"
+SEC_UA = "market-dashboard-research/1.0 karu77018-lgtm@users.noreply.github.com"
 
 
 def canonical_hash(value: Any) -> str:
@@ -72,69 +55,97 @@ def _finite(value: Any) -> float | None:
     return x if x == x and x not in (float("inf"), float("-inf")) else None
 
 
-def _event_cutoff_utc(filing_date: str) -> datetime:
-    # July-September 2026 is U.S. daylight-saving time. Using 13:29 UTC on the
-    # next calendar day conservatively includes after-hours release coverage
-    # while excluding news published after the next regular-session open.
-    day = datetime.fromisoformat(filing_date + "T00:00:00+00:00")
-    return day + timedelta(days=1, hours=13, minutes=29)
+def strip_markup(text: str) -> str:
+    text = re.sub(r"(?is)<script.*?</script>|<style.*?</style>", " ", text)
+    text = re.sub(r"(?s)<[^>]+>", " ", text)
+    text = html.unescape(text)
+    return " ".join(text.split())
 
 
-def fetch_8k_text(
-    client: MassivePacer,
-    tickers: list[str],
-    start_date: str,
-    end_date: str,
-) -> dict[tuple[str, str], dict[str, Any]]:
-    out: dict[tuple[str, str], dict[str, Any]] = {}
-    for group in chunks(tickers, 25):
-        rows = client.paged(
-            "/stocks/filings/8-K/vX/text",
+def extract_document_blocks(submission: str) -> list[dict[str, str]]:
+    blocks = []
+    for m in re.finditer(r"(?is)<DOCUMENT>(.*?)</DOCUMENT>", submission):
+        block = m.group(1)
+        def tag(name: str) -> str:
+            mm = re.search(rf"(?im)^<{name}>\s*(.+)$", block)
+            return mm.group(1).strip() if mm else ""
+        text_match = re.search(r"(?is)<TEXT>(.*)</TEXT>", block)
+        body = text_match.group(1) if text_match else block
+        blocks.append(
             {
-                "ticker.any_of": ",".join(group),
-                "filing_date.gte": start_date,
-                "filing_date.lte": end_date,
-                "limit": 100,
-                "sort": "filing_date.asc",
-            },
-            max_pages=20,
+                "type": tag("TYPE"),
+                "sequence": tag("SEQUENCE"),
+                "filename": tag("FILENAME"),
+                "description": tag("DESCRIPTION"),
+                "text": strip_markup(body),
+            }
         )
-        for row in rows:
-            ticker = str(row.get("ticker") or "").upper()
-            accession = str(row.get("accession_number") or "")
-            if ticker and accession:
-                out[(ticker, accession)] = {
-                    "filing_date": row.get("filing_date"),
-                    "items_text": " ".join(str(row.get("items_text") or "").split())[:7000],
-                }
-    return out
+    return blocks
 
 
-def event_news(
-    docs: list[dict[str, Any]],
-    filing_date: str,
-) -> list[dict[str, Any]]:
-    start = datetime.fromisoformat(filing_date + "T00:00:00+00:00") - timedelta(days=2)
-    cutoff = _event_cutoff_utc(filing_date)
-    selected: list[tuple[datetime, dict[str, Any]]] = []
-    for doc in docs:
+def choose_earnings_text(submission: str) -> tuple[str, str]:
+    blocks = extract_document_blocks(submission)
+    preferred = []
+    for block in blocks:
+        typ = block["type"].upper()
+        desc = block["description"].lower()
+        fn = block["filename"].lower()
+        score = 0
+        if typ in {"EX-99.1", "EX-99", "EX-99.01"}:
+            score += 100
+        elif typ.startswith("EX-99"):
+            score += 80
+        if "earn" in desc or "result" in desc or "press release" in desc:
+            score += 30
+        if "99" in fn:
+            score += 5
+        if score:
+            preferred.append((score, block))
+    if preferred:
+        preferred.sort(key=lambda x: (-x[0], x[1]["sequence"]))
+        b = preferred[0][1]
+        return b["text"][:14000], f"{b['type']}:{b['filename'] or b['description']}"
+    for block in blocks:
+        if block["type"].upper().startswith("8-K"):
+            return block["text"][:14000], "8-K-fallback"
+    return strip_markup(submission)[:14000], "submission-fallback"
+
+
+def fetch_sec_submission(
+    session: requests.Session,
+    url: str,
+    *,
+    min_interval: float,
+    timeout: int = 30,
+) -> tuple[str, str]:
+    last_at = getattr(fetch_sec_submission, "_last_at", 0.0)
+    wait = min_interval - (time.monotonic() - last_at)
+    if wait > 0:
+        time.sleep(wait)
+    for attempt in range(4):
         try:
-            published = parse_timestamp(doc.get("published_utc"), field="published_utc")
-        except ShadowRunError:
-            continue
-        if start <= published <= cutoff:
-            selected.append(
-                (
-                    published,
-                    {
-                        "published_utc": utc_iso(published),
-                        "title": str(doc.get("title") or "")[:500],
-                        "description": str(doc.get("description") or "")[:1800],
-                    },
-                )
+            response = session.get(
+                url,
+                headers={
+                    "User-Agent": SEC_UA,
+                    "Accept-Encoding": "gzip, deflate",
+                    "Host": "www.sec.gov",
+                },
+                timeout=timeout,
             )
-    selected.sort(key=lambda x: x[0])
-    return [x[1] for x in selected[-8:]]
+        except requests.RequestException as exc:
+            if attempt < 3:
+                time.sleep(1 + attempt)
+                continue
+            raise ShadowRunError(f"SEC fetch failed: {type(exc).__name__}") from None
+        setattr(fetch_sec_submission, "_last_at", time.monotonic())
+        if response.status_code in {429, 500, 502, 503, 504} and attempt < 3:
+            time.sleep(2 ** attempt)
+            continue
+        if response.status_code != 200:
+            raise ShadowRunError(f"SEC HTTP {response.status_code}")
+        return choose_earnings_text(response.text)
+    raise ShadowRunError("SEC fetch failed after retries")
 
 
 def evaluate_jev(
@@ -223,20 +234,13 @@ def main() -> int:
         "--output",
         default="research/event_risk/earnings-jev-overlay-v1.json",
     )
-    ap.add_argument("--massive-min-interval", type=float, default=13.0)
+    ap.add_argument("--sec-min-interval", type=float, default=0.15)
     ap.add_argument("--timeout", type=int, default=120)
     args = ap.parse_args()
 
     root = Path(args.root).resolve()
-    api_key = (
-        os.getenv("MASSIVE_API_KEY")
-        or os.getenv("MASSIVE_KEY")
-        or os.getenv("POLYGON_API_KEY")
-    )
     jev_secret = os.getenv("JEV_API_SECRET")
     jev_url = os.getenv("JEV_API_URL") or DEFAULT_JEV_URL
-    if not api_key:
-        raise SystemExit("MASSIVE_API_KEY is required")
     if not jev_secret:
         raise SystemExit("JEV_API_SECRET is required")
 
@@ -247,80 +251,55 @@ def main() -> int:
         and r.get("ticker")
         and r.get("filing_date")
         and r.get("accession_number")
+        and str(r.get("filing_url") or "").startswith("https://www.sec.gov/")
     ]
     if not rows:
-        raise SystemExit("No earnings event rows")
+        raise SystemExit("No earnings event rows with SEC filing URLs")
 
     qset = json.loads((root / args.questions).read_text(encoding="utf-8"))
     questions = qset.get("questions")
     if not isinstance(questions, dict) or len(questions) != 5:
         raise SystemExit("Expected five Jev v2 questions")
 
-    tickers = sorted({str(r["ticker"]).upper() for r in rows})
-    start_date = min(str(r["filing_date"]) for r in rows)
-    end_date = max(str(r["filing_date"]) for r in rows)
-
-    start = datetime.fromisoformat(start_date + "T00:00:00+00:00") - timedelta(days=2)
-    final_cutoff = _event_cutoff_utc(end_date)
-
-    news_by, news_meta = fetch_news_bulk(
-        requests.Session(),
-        tickers=tickers,
-        api_key=api_key,
-        start=start,
-        cutoff=final_cutoff,
-        limit=100,
-        timeout=45,
-        min_interval=args.massive_min_interval,
-        page_size=1000,
-        max_pages=80,
-    )
-    if args.massive_min_interval:
-        time.sleep(args.massive_min_interval)
-
-    massive = MassivePacer(api_key, args.massive_min_interval)
-    text_by = fetch_8k_text(massive, tickers, start_date, end_date)
-
-    session = requests.Session()
+    sec = requests.Session()
+    jev = requests.Session()
     outputs: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
     cost = 0.0
 
-    for row in rows:
+    for i, row in enumerate(rows, 1):
         ticker = str(row["ticker"]).upper()
         filing_date = str(row["filing_date"])
         accession = str(row["accession_number"])
-        news = event_news(news_by.get(ticker, []), filing_date)
-        filing = text_by.get((ticker, accession), {})
-        evidence = {
-            "disclosure_supporting_text": " ".join(
-                str(row.get("supporting_text") or "").split()
-            )[:2400],
-            "eight_k_items_text": filing.get("items_text"),
-            "event_window_news": news,
-        }
-        state = {
-            "schema_version": "earnings-jev-overlay-state-v1",
-            "ticker": ticker,
-            "event_date": filing_date,
-            "pre_event_market_context": {
-                "pre20_return_pct": row.get("pre20_return_pct"),
-                "pre20_excess_qqq_pct": row.get("pre20_excess_qqq_pct"),
-                "rs63_change_20d": row.get("rs63_change_20d"),
-                "distance_to_63d_high_pct": row.get("dist_high63_pct"),
-            },
-            "company_specific_evidence": evidence,
-            "instructions": [
-                "Use only the supplied evidence.",
-                "The market metrics are prior-expectation context, not proof of business quality.",
-                "Do not predict the stock price or use any post-event return.",
-                "If the evidence does not contain actual operating information, mark evidence quality weak or insufficient.",
-            ],
-        }
-
         try:
+            event_text, source = fetch_sec_submission(
+                sec,
+                str(row["filing_url"]),
+                min_interval=args.sec_min_interval,
+            )
+            state = {
+                "schema_version": "earnings-jev-overlay-state-v1",
+                "ticker": ticker,
+                "event_date": filing_date,
+                "pre_event_market_context": {
+                    "pre20_return_pct": row.get("pre20_return_pct"),
+                    "pre20_excess_qqq_pct": row.get("pre20_excess_qqq_pct"),
+                    "rs63_change_20d": row.get("rs63_change_20d"),
+                    "distance_to_63d_high_pct": row.get("dist_high63_pct"),
+                },
+                "company_specific_evidence": {
+                    "sec_source": source,
+                    "earnings_release_text": event_text,
+                },
+                "instructions": [
+                    "Use only the supplied evidence.",
+                    "The market metrics are prior-expectation context, not proof of business quality.",
+                    "Do not predict the stock price or use any post-event return.",
+                    "If the filing does not contain actual operating information, mark evidence quality weak or insufficient.",
+                ],
+            }
             result = evaluate_jev(
-                session, jev_url, jev_secret, state, questions, args.timeout
+                jev, jev_url, jev_secret, state, questions, args.timeout
             )
             cost += result.get("gateway_cost_usd") or 0.0
             outputs.append(
@@ -329,10 +308,8 @@ def main() -> int:
                     "filing_date": filing_date,
                     "accession_number": accession,
                     "state_sha256": canonical_hash(state),
-                    "evidence_counts": {
-                        "news": len(news),
-                        "has_8k_items_text": bool(filing.get("items_text")),
-                    },
+                    "sec_evidence_source": source,
+                    "sec_evidence_chars": len(event_text),
                     "jev": derived(result["aggregate"]),
                     "duration_ms": result.get("duration_ms"),
                 }
@@ -342,9 +319,21 @@ def main() -> int:
                 {
                     "ticker": ticker,
                     "filing_date": filing_date,
+                    "accession_number": accession,
                     "error": type(exc).__name__,
                     "message": str(exc)[:300],
                 }
+            )
+        if i % 25 == 0:
+            print(
+                json.dumps(
+                    {
+                        "processed": i,
+                        "success": len(outputs),
+                        "errors": len(errors),
+                    }
+                ),
+                flush=True,
             )
 
     payload = {
@@ -356,9 +345,9 @@ def main() -> int:
         "jev_success_count": len(outputs),
         "jev_error_count": len(errors),
         "gateway_cost_usd": round(cost, 8),
-        "news_fetch": news_meta,
+        "evidence_source": "SEC full-submission text; prefer EX-99.1 / EX-99 earnings release exhibit",
         "privacy": {
-            "vendor_text_persisted": False,
+            "sec_text_persisted": False,
             "raw_jev_runs_persisted": False,
         },
         "rows": outputs,
