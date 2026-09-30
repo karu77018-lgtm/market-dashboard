@@ -1,3 +1,4 @@
+import { getVercelOidcToken } from "@vercel/oidc";
 import casesData from "../../../data/stage4-cases.json";
 
 const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/evaluate";
@@ -103,7 +104,7 @@ function gatewayCost(run) {
 }
 
 async function evaluateThree(state, questions) {
-  const token = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  const token = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN || await getVercelOidcToken();
   if(!token) throw new Error("GATEWAY_AUTH_UNAVAILABLE");
   const rawRuns=[];
   let cost=0;
