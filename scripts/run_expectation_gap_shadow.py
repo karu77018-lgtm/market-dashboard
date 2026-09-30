@@ -69,10 +69,10 @@ DISCLOSURE_CATEGORIES = (
 
 DEFAULT_COMPONENTS = (
     "rs21",
-    "rs63",
-    "ret21",
+    "rs_acceleration",
     "high_proximity",
     "extension50",
+    "pivot_extension",
     "relative_volume",
 )
 
@@ -117,9 +117,10 @@ def percentile_map(values: dict[str, float]) -> dict[str, float]:
 def build_expectation_load(details: dict[str, Any]) -> dict[str, dict[str, Any]]:
     eligible: dict[str, dict[str, Any]] = {}
     raw_fields: dict[str, dict[str, float]] = {
-        "ret21": {},
+        "rs_acceleration": {},
         "high_proximity": {},
         "extension50": {},
+        "pivot_extension": {},
         "relative_volume": {},
     }
 
@@ -136,13 +137,15 @@ def build_expectation_load(details: dict[str, Any]) -> dict[str, dict[str, Any]]
         d52 = _finite(d.get("d52"))
         v50 = _finite(d.get("v50"))
         rv = _finite(d.get("rv"))
+        pdist = _finite(d.get("pdist"))
         eligible[ticker] = d
-        if ret21 is not None:
-            raw_fields["ret21"][ticker] = ret21
+        raw_fields["rs_acceleration"][ticker] = rs21 - rs63
         if d52 is not None:
             raw_fields["high_proximity"][ticker] = d52  # closer to zero / positive = higher load
         if v50 is not None:
             raw_fields["extension50"][ticker] = v50
+        if pdist is not None:
+            raw_fields["pivot_extension"][ticker] = pdist
         if rv is not None:
             raw_fields["relative_volume"][ticker] = rv
 
@@ -152,10 +155,10 @@ def build_expectation_load(details: dict[str, Any]) -> dict[str, dict[str, Any]]
     for ticker, d in eligible.items():
         components = {
             "rs21": _finite(d.get("rs21")),
-            "rs63": _finite(d.get("rs")),
-            "ret21": pct_fields["ret21"].get(ticker),
+            "rs_acceleration": pct_fields["rs_acceleration"].get(ticker),
             "high_proximity": pct_fields["high_proximity"].get(ticker),
             "extension50": pct_fields["extension50"].get(ticker),
+            "pivot_extension": pct_fields["pivot_extension"].get(ticker),
             "relative_volume": pct_fields["relative_volume"].get(ticker),
         }
         present = [float(v) for v in components.values() if v is not None]
@@ -172,6 +175,7 @@ def build_expectation_load(details: dict[str, Any]) -> dict[str, dict[str, Any]]
             "distance_52w_high_pct": _finite(d.get("d52")),
             "extension_50ma_pct": _finite(d.get("v50")),
             "relative_volume": _finite(d.get("rv")),
+            "pivot_distance_pct": _finite(d.get("pdist")),
             "sector": d.get("sec"),
             "subtheme": d.get("sth"),
             "market_cap_band": d.get("cap"),
@@ -496,6 +500,7 @@ def jev_state(
             "distance_from_52w_high_pct": row.get("distance_52w_high_pct"),
             "extension_from_50ma_pct": row.get("extension_50ma_pct"),
             "relative_volume": row.get("relative_volume"),
+            "pivot_distance_pct": row.get("pivot_distance_pct"),
         },
         "company_context": {
             "sector": row.get("sector"),
