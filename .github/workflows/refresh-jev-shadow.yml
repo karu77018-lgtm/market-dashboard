@@ -74,14 +74,17 @@ jobs:
           --html source-mc57.html --ranking data/jev-ranking.json
       - name: Secret leak gate
         if: always()
+        id: secret_scan
         env:
           JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
         run: >-
           python scripts/phase_a0/scan_secrets.py --root . --include-tracked
           source-mc57.html data/jev-ranking.json
           .preservation/jev/live-shadow-summary.json
       - name: Refuse stale Jev publication
-        if: always()
+        if: always() && steps.secret_scan.outcome == 'success'
+        id: freshness
         run: |
           git fetch origin main --depth=1
           current="$(git rev-parse HEAD)"
@@ -92,7 +95,11 @@ jobs:
           fi
       - name: Publish Jev-only outputs
         id: publish
-        if: always() && steps.jev_shadow.outcome != 'skipped'
+        if: >-
+          always() &&
+          steps.secret_scan.outcome == 'success' &&
+          steps.freshness.outcome == 'success' &&
+          steps.jev_shadow.outcome != 'skipped'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
