@@ -1,0 +1,73 @@
+{
+  "version": "jev-5d-strong-stock-v1",
+  "created_date": "2026-09-30",
+  "purpose": "Test Jev as a 5-session direction challenger on numerically eligible strong stocks; no news.",
+  "source_price_commit": "d84a70dd46df011df502217f2737ed08a1e90fa2",
+  "origins": {
+    "development": [
+      "2026-08-07",
+      "2026-08-14",
+      "2026-08-21",
+      "2026-08-28"
+    ],
+    "holdout": [
+      "2026-09-04",
+      "2026-09-14",
+      "2026-09-21"
+    ]
+  },
+  "horizon_sessions": 5,
+  "target": "next regular-session OPEN to fifth future regular-session CLOSE simple return > 0",
+  "rank_universe": "current reconstructed stock cache with valid 189-session return, Price>=5, DDV20>=10M",
+  "eligibility": [
+    "Price>=5",
+    "DDV20>=10M",
+    "SMA50>SMA200",
+    "Close>SMA200",
+    "RS63 percentile>=85",
+    "RS189 percentile>=85"
+  ],
+  "unavailable_filter": "historical structural-clinical-biotech flag is not available and is not fabricated",
+  "selection_per_origin": {
+    "max_cases": 20,
+    "leaders": 10,
+    "leaders_rule": "highest RS189 percentile, then RS63 percentile, then ticker",
+    "controls": 10,
+    "controls_rule": "deterministic SHA256(origin|ticker) order among remaining eligible names"
+  },
+  "jev": {
+    "model": "typesafe-ai/jev",
+    "runs": 3,
+    "input": "59 numeric features only; no news, no options, no ticker-name inference requested",
+    "question": "binary 5-session terminal direction",
+    "persistence": false
+  },
+  "comparator": {
+    "type": "L2 logistic regression fit only on development cases",
+    "feature_set": "same numeric feature vector with dev-only median imputation and standardization",
+    "l2_lambda": 1,
+    "learning_rate": 0.05,
+    "iterations": 1200,
+    "constant_baseline": "development observed up frequency"
+  },
+  "calibration": {
+    "jev_shrinkage_grid": [
+      0,
+      0.25,
+      0.5,
+      0.75,
+      1
+    ],
+    "hybrid_jev_weight_grid": [
+      0,
+      0.25,
+      0.5,
+      0.75,
+      1
+    ],
+    "selection_metric": "development Brier score only"
+  },
+  "holdout_policy": "No parameters, feature definitions, selection rules, calibration, or weights may change after holdout results are observed.",
+  "production_changes": false,
+  "github_actions_for_research": false
+}
