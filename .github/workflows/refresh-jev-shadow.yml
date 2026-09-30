@@ -1,0 +1,112 @@
+name: Refresh Jev shadow
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Refresh source-mc57"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: jev-shadow-main
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
+      JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
+      JEV_API_URL: ${{ vars.JEV_API_URL || 'https://jev-investment-engine.vercel.app/api/jev' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install Jev shadow dependencies
+        run: python -m pip install requests pytest
+      - name: Verify Jev and Massive secrets
+        run: |
+          test -n "$MASSIVE_API_KEY"
+          test -n "$JEV_API_SECRET"
+      - name: Run Jev integration tests
+        run: >-
+          python -m pytest
+          tests/test_jev_live_shadow.py
+          tests/test_render_jev_ranking.py -q
+      - name: Capture source session
+        id: source_meta
+        run: |
+          echo "base_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
+          echo "session_date=$session" >> "$GITHUB_OUTPUT"
+      - name: Run Jev live shadow research
+        id: jev_shadow
+        continue-on-error: true
+        run: >-
+          python scripts/run_jev_live_shadow.py --root .
+          --max-candidates 70 --max-news 8 --lookback-days 30
+          --massive-min-interval 13 --massive-page-size 1000 --massive-max-pages 50
+      - name: Save Jev shadow audit summary
+        if: always()
+        id: jev_shadow_artifact
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: jev-live-shadow-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 90
+          compression-level: 6
+          include-hidden-files: true
+          if-no-files-found: warn
+          path: .preservation/jev/live-shadow-summary.json
+      - name: Render isolated Jev expected-value ranking tab
+        if: always()
+        run: >-
+          python scripts/render_jev_ranking.py
+          --html source-mc57.html --ranking data/jev-ranking.json
+      - name: Secret leak gate
+        if: always()
+        env:
+          JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
+        run: >-
+          python scripts/phase_a0/scan_secrets.py --root . --include-tracked
+          source-mc57.html data/jev-ranking.json
+          .preservation/jev/live-shadow-summary.json
+      - name: Refuse stale Jev publication
+        if: always()
+        run: |
+          git fetch origin main --depth=1
+          current="$(git rev-parse HEAD)"
+          remote="$(git rev-parse origin/main)"
+          if test "$current" != "$remote"; then
+            echo "::warning title=Stale Jev run::main changed while Jev was running; skip publication."
+            exit 75
+          fi
+      - name: Publish Jev-only outputs
+        id: publish
+        if: always() && steps.jev_shadow.outcome != 'skipped'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- source-mc57.html
+          git add -f -- data/jev-ranking.json
+          if git diff --cached --quiet; then
+            echo "No Jev publication change"
+            exit 0
+          fi
+          session="${{ steps.source_meta.outputs.session_date }}"
+          git commit -m "Update Jev shadow through ${session} [skip refresh]"
+          git push origin HEAD:main
+      - name: Report Jev shadow failure
+        if: always() && steps.jev_shadow.outcome == 'failure'
+        run: |
+          echo "::error title=Jev live shadow failed::Main dashboard refresh remains independent; inspect the Jev audit artifact."
+          exit 1
