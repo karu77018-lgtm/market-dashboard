@@ -328,4 +328,150 @@ def financial_snapshot(client: MassiveClient, ticker: str) -> dict[str, Any]:
 
     components: list[tuple[float, float]] = []
     if revenue_growth is not None:
-        components.append((0.30, clamp(50
+        components.append((0.30, clamp(50 + 50 * math.tanh(revenue_growth / 30.0))))
+    if revenue_accel is not None:
+        components.append((0.25, clamp(50 + 50 * math.tanh(revenue_accel / 15.0))))
+    if op_margin_delta is not None:
+        components.append((0.20, clamp(50 + 50 * math.tanh(op_margin_delta / 8.0))))
+    if ocf_margin_delta is not None:
+        components.append((0.15, clamp(50 + 50 * math.tanh(ocf_margin_delta / 15.0))))
+    if eps_signal is not None:
+        components.append((0.10, eps_signal))
+    weight = sum(w for w, _ in components)
+    score = sum(w * x for w, x in components) / weight if weight else None
+
+    return {
+        "status": "ok", "filing_date": latest.get("filing_date"),
+        "fiscal_year": fy, "fiscal_period": fp,
+        "revenue_yoy_pct": revenue_growth,
+        "revenue_yoy_acceleration_pp": revenue_accel,
+        "operating_margin_pct": op_margin,
+        "operating_margin_yoy_delta_pp": op_margin_delta,
+        "ocf_margin_pct": ocf_margin,
+        "ocf_margin_yoy_delta_pp": ocf_margin_delta,
+        "diluted_eps": eps_now, "diluted_eps_prior_year": eps_prior,
+        "fundamental_delta_score": round(score, 4) if score is not None else None,
+        "component_coverage_weight": round(weight, 4),
+    }
+
+
+def form4_snapshot(client: MassiveClient, ticker: str, start_date: str) -> dict[str, Any]:
+    try:
+        payload = client.get(
+            "/stocks/filings/vX/form-4",
+            {"tickers": ticker, "filing_date.gte": start_date, "limit": 100, "sort": "filing_date.desc"},
+        )
+    except Exception as exc:
+        return {"status": "error", "error": type(exc).__name__}
+    rows = [r for r in (payload.get("results") or []) if isinstance(r, dict)]
+    buys, discretionary_sales = [], []
+    for r in rows:
+        if str(r.get("record_type") or "").lower() != "transaction":
+            continue
+        if str(r.get("security_type") or "").lower() == "derivative":
+            continue
+        code = str(r.get("transaction_code") or "").upper()
+        value = safe_float(r.get("transaction_value")) or 0.0
+        if code == "P":
+            buys.append((str(r.get("owner_cik") or r.get("owner_name") or ""), value))
+        elif code == "S" and r.get("aff_10b5_one") is not True:
+            discretionary_sales.append((str(r.get("owner_cik") or r.get("owner_name") or ""), value))
+    buyers = {x[0] for x in buys if x[0]}
+    return {
+        "status": "ok", "open_market_buy_count": len(buys),
+        "open_market_buyer_count": len(buyers),
+        "open_market_buy_value": sum(x[1] for x in buys),
+        "discretionary_sale_count": len(discretionary_sales),
+        "discretionary_sale_value": sum(x[1] for x in discretionary_sales),
+        "informative_positive": bool(buys),
+    }
+
+
+def short_interest_snapshot(client: MassiveClient, ticker: str) -> dict[str, Any]:
+    try:
+        payload = client.get(
+            "/stocks/v1/short-interest",
+            {"ticker": ticker, "limit": 4, "sort": "settlement_date.desc"},
+        )
+    except Exception as exc:
+        return {"status": "error", "error": type(exc).__name__}
+    rows = [r for r in (payload.get("results") or []) if isinstance(r, dict)]
+    if not rows:
+        return {"status": "no_data"}
+    latest, prior = rows[0], (rows[1] if len(rows) > 1 else None)
+    now = safe_float(latest.get("short_interest"))
+    before = safe_float(prior.get("short_interest")) if prior else None
+    change = pct_change(now, before) if now is not None and before is not None else None
+    dtc = safe_float(latest.get("days_to_cover"))
+    state = "neutral"
+    if change is not None and change >= 15 and (dtc or 0) >= 2:
+        state = "building"
+    elif change is not None and change <= -15:
+        state = "covering"
+    elif (dtc or 0) >= 5:
+        state = "high_days_to_cover"
+    return {
+        "status": "ok", "settlement_date": latest.get("settlement_date"),
+        "short_interest": now, "short_interest_change_pct": change,
+        "days_to_cover": dtc, "state": state,
+    }
+
+
+def news_snapshot(client: MassiveClient, ticker: str, start_iso: str, end_iso: str, limit: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    try:
+        payload = client.get(
+            "/v2/reference/news",
+            {"ticker": ticker, "published_utc.gte": start_iso, "published_utc.lte": end_iso,
+             "limit": limit, "sort": "published_utc", "order": "desc"},
+        )
+    except Exception as exc:
+        return [], {"status": "error", "error": type(exc).__name__}
+    docs, fingerprints = [], []
+    for r in payload.get("results") or []:
+        if not isinstance(r, dict):
+            continue
+        title = " ".join(str(r.get("title") or "").split())[:500]
+        description = " ".join(str(r.get("description") or "").split())[:1800]
+        if not title:
+            continue
+        published = str(r.get("published_utc") or "")
+        docs.append({"published_utc": published, "title": title, "description": description})
+        fingerprints.append(hashlib.sha256((published + "\n" + title).encode()).hexdigest())
+    return docs, {"status": "ok", "article_count": len(docs), "article_fingerprints": fingerprints}
+
+
+def validate_jev_url(value: str) -> str:
+    parsed = urlparse(value)
+    if parsed.scheme == "https" and parsed.netloc:
+        return value
+    if parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1"}:
+        return value
+    raise ResearchError("JEV_API_URL must be HTTPS or localhost")
+
+
+def jev_eval(url: str, secret: str, questions: dict[str, Any], state: dict[str, Any], runs: int = 3) -> dict[str, Any]:
+    response = requests.post(
+        url, headers={"Authorization": f"Bearer {secret}"},
+        json={"state": state, "questions": questions, "runs": runs, "persist": False},
+        timeout=180,
+    )
+    if response.status_code != 200:
+        raise ResearchError(f"Jev HTTP {response.status_code}")
+    payload = response.json()
+    aggregate = payload.get("aggregate")
+    if not isinstance(aggregate, dict):
+        raise ResearchError("Jev aggregate missing")
+    return aggregate
+
+
+def prob(aggregate: dict[str, Any], qid: str) -> float | None:
+    row = aggregate.get(qid)
+    if not isinstance(row, dict):
+        return None
+    value = safe_float(row.get("probabilityMean"))
+    return clamp(value * 100.0) if value is not None else None
+
+
+def choice(aggregate: dict[str, Any], qid: str) -> str | None:
+    row = aggregate.get(qid)
+    return str(row.get("majorityChoice")) if isinstance(row, dict) a
