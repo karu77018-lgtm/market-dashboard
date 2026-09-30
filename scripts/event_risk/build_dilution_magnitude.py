@@ -53,16 +53,55 @@ def _money(raw: str | None, unit: str | None) -> float | None:
     return value * scale
 
 
-def parse_disclosure_terms(text: str, category: str) -> dict[str, Any]:
+def _transaction_date_candidate(text: str, filing_date: str | None) -> str | None:
+    """Extract a dated transaction/pricing candidate without assuming public availability."""
+    if not filing_date:
+        return None
+    month = (
+        r"(?:January|February|March|April|May|June|July|August|September|October|November|December)"
+    )
+    pattern = re.compile(
+        rf"\bOn\s+({month}\s+\d{{1,2}},\s+\d{{4}}),"
+        r".{0,280}?\b(?:entered into\s+(?:an?\s+)?(?:underwriting|securities purchase|stock purchase|purchase)\s+agreement"
+        r"|agreed to\s+(?:issue and sell|sell and issue)"
+        r"|(?:launched|priced)\s+(?:the\s+)?(?:registered\s+)?(?:public\s+)?offering)\b",
+        re.I,
+    )
+    filing = dt.date.fromisoformat(filing_date)
+    candidates: list[dt.date] = []
+    for raw in pattern.findall(text or ""):
+        try:
+            d = dt.datetime.strptime(raw, "%B %d, %Y").date()
+        except ValueError:
+            continue
+        if filing - dt.timedelta(days=14) <= d <= filing:
+            candidates.append(d)
+    return min(candidates).isoformat() if candidates else None
+
+
+def parse_disclosure_terms(text: str, category: str, filing_date: str | None = None) -> dict[str, Any]:
     """Conservative extraction from Massive supporting_text.
 
-    The goal is auditable coverage, not forced completeness. Ambiguous records remain
-    missing instead of being guessed.
+    Ambiguous records remain missing instead of being guessed. Transaction dates that
+    predate the 8-K are only candidates: they are not assumed to be public/tradable.
     """
     t = re.sub(r"\s+", " ", text or "").strip()
     lower = t.lower()
 
-    primary_language = bool(
+    # Critical direction guard: sometimes the filer is the BUYER of another issuer's
+    # newly issued shares. That is not dilution of the filer (e.g. "X agreed to issue
+    # and sell to the Company"). Do not let a broad "Company ... shares" regex cross
+    # that clause boundary.
+    issuer_mismatch = bool(
+        re.search(
+            r"pursuant to which\s+(?!the\s+company\b|company\b|we\b|registrant\b)"
+            r".{1,180}?\bagreed to\s+issue and sell\s+to\s+(?:the\s+)?Company\b",
+            t,
+            re.I,
+        )
+    )
+
+    primary_language = (not issuer_mismatch) and bool(
         re.search(
             r"(?:company|we)\b.{0,180}?"
             r"(?:agreed to|entered into|closed|consummated|issued and sold|sold and issued)"
@@ -86,9 +125,30 @@ def parse_disclosure_terms(text: str, category: str) -> dict[str, Any]:
     ]
     share_matches = [x for x in share_matches if x and x >= 1]
 
-    basic_new_shares = None
+    base_new_shares = None
     if category in PRIMARY_ISSUANCE_CATEGORIES and primary_language and not secondary_only and share_matches:
-        basic_new_shares = share_matches[0]
+        base_new_shares = share_matches[0]
+
+    # Include an explicitly exercised greenshoe/underwriter option in Basic Dilution.
+    # An unexercised option remains potential overhang, not issued common shares.
+    exercised_option_shares = None
+    option_match = re.search(
+        r"\boption\b.{0,180}?\bpurchase\s+up\s+to\s+"
+        r"(?:an\s+additional\s+)?([0-9][0-9,]*(?:\.\d+)?)\s+(?:additional\s+)?shares\b",
+        t,
+        re.I,
+    )
+    option_exercised = bool(
+        re.search(r"\boption\b.{0,320}?\b(?:fully exercised|exercised in full)\b", t, re.I)
+    )
+    if option_match and option_exercised and base_new_shares and not issuer_mismatch:
+        exercised_option_shares = _num(option_match.group(1))
+
+    basic_new_shares = (
+        base_new_shares + (exercised_option_shares or 0.0)
+        if base_new_shares is not None
+        else None
+    )
 
     # Explicit shares issuable from warrants / convertibles. Keep separate from issued shares.
     overhang_candidates: list[float] = []
@@ -105,6 +165,8 @@ def parse_disclosure_terms(text: str, category: str) -> dict[str, Any]:
 
     offer_price = None
     price_patterns = (
+        r"\b(?:at\s+a\s+)?price\s+to\s+the\s+public\s+of\s+\$([0-9]+(?:\.[0-9]+)?)",
+        r"\boffering\s+price\s+is\s+\$([0-9]+(?:\.[0-9]+)?)",
         r"(?:public offering|offering|purchase|sale)\s+price(?:\s+to\s+the\s+public)?"
         r"(?:\s+(?:of|equal to))?\s*\$([0-9]+(?:\.[0-9]+)?)\s*(?:per share|a share)?",
         r"\bat\s+a\s+(?:purchase|offering)\s+price\s+of\s+\$([0-9]+(?:\.[0-9]+)?)",
@@ -139,7 +201,22 @@ def parse_disclosure_terms(text: str, category: str) -> dict[str, Any]:
         else None
     )
 
-    if secondary_only:
+    # If the disclosed issuer is a counterparty, none of the issuance economics belong
+    # to the filer. Keep the record for audit but exclude all dilution terms.
+    if issuer_mismatch:
+        base_new_shares = None
+        exercised_option_shares = None
+        basic_new_shares = None
+        explicit_overhang_shares = None
+        offer_price = None
+        explicit_financing = None
+        explicit_financing_basis = None
+
+    transaction_date = _transaction_date_candidate(t, filing_date)
+
+    if issuer_mismatch:
+        confidence = "high"
+    elif secondary_only:
         confidence = "high"
     elif basic_new_shares and offer_price:
         confidence = "high"
@@ -151,13 +228,18 @@ def parse_disclosure_terms(text: str, category: str) -> dict[str, Any]:
         confidence = "low"
 
     return {
+        "base_new_shares": base_new_shares,
+        "exercised_option_shares": exercised_option_shares,
         "basic_new_shares": basic_new_shares,
         "explicit_overhang_shares": explicit_overhang_shares,
         "offer_price": offer_price,
         "explicit_financing_amount": explicit_financing,
         "explicit_financing_basis": explicit_financing_basis,
         "secondary_only": secondary_only,
+        "issuer_mismatch": issuer_mismatch,
         "primary_issuance_language": primary_language,
+        "transaction_date_candidate": transaction_date,
+        "timing_ambiguous": bool(transaction_date and filing_date and transaction_date < filing_date),
         "extraction_confidence": confidence,
         "text_has_warrant": "warrant" in lower,
         "text_has_convertible": "convertib" in lower,
@@ -418,7 +500,7 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str, max_even
         key = (str(row.get("accession_number") or ""), row["category"], row["ticker"])
         disclosure = dmap.get(key)
         text = str(disclosure.get("supporting_text") or "") if disclosure else ""
-        terms = parse_disclosure_terms(text, row["category"])
+        terms = parse_disclosure_terms(text, row["category"], row["filing_date"])
 
         overview = None
         needs_overview = bool(
@@ -490,6 +572,8 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str, max_even
             {
                 **row,
                 "disclosure_text_found": bool(text),
+                "base_new_shares": terms["base_new_shares"],
+                "exercised_option_shares": terms["exercised_option_shares"],
                 "basic_new_shares": terms["basic_new_shares"],
                 "explicit_overhang_shares": terms["explicit_overhang_shares"],
                 "pre_share_class_shares": share_class_shares,
@@ -506,6 +590,10 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str, max_even
                 "float_shock_pct": None,
                 "float_shock_status": "PIT_FLOAT_UNAVAILABLE",
                 "secondary_only": terms["secondary_only"],
+                "issuer_mismatch": terms["issuer_mismatch"],
+                "transaction_date_candidate": terms["transaction_date_candidate"],
+                "timing_ambiguous": terms["timing_ambiguous"],
+                "timing_status": "NEEDS_PUBLICATION_TIMESTAMP" if terms["timing_ambiguous"] else "FILING_DATE_ACCEPTED",
                 "extraction_confidence": terms["extraction_confidence"],
                 "supporting_text": text,
             }
@@ -513,7 +601,10 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str, max_even
 
     modeled = [
         r for r in enriched
-        if not r["secondary_only"] and r["basic_dilution_pct"] is not None
+        if not r["secondary_only"]
+        and not r["issuer_mismatch"]
+        and not r["timing_ambiguous"]
+        and r["basic_dilution_pct"] is not None
     ]
     coverage = {
         "impact_rows": len(enriched),
@@ -523,6 +614,9 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str, max_even
         "financing_market_cap_available": sum(r["financing_market_cap_pct"] is not None for r in enriched),
         "offer_discount_available": sum(r["offer_discount_pct"] is not None for r in enriched),
         "secondary_only": sum(r["secondary_only"] for r in enriched),
+        "issuer_mismatch": sum(r["issuer_mismatch"] for r in enriched),
+        "timing_ambiguous": sum(r["timing_ambiguous"] for r in enriched),
+        "basic_curve_eligible": len(modeled),
         "high_confidence": sum(r["extraction_confidence"] == "high" for r in enriched),
         "float_shock_available": 0,
     }
@@ -538,7 +632,8 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str, max_even
         "definitions": {
             "basic_dilution_pct": "newly issued common shares / point-in-time pre-event same-class shares outstanding * 100; weighted shares are fallback only",
             "basic_dilution_pct_weighted_sensitivity": "newly issued common shares / Massive weighted shares outstanding * 100; robustness field, not primary bin",
-            "fully_diluted_overhang_pct": "(new common shares + explicitly quantified warrant/convertible shares) / pre-event weighted shares * 100",
+            "fully_diluted_overhang_pct": "(new common shares + explicitly quantified warrant/convertible shares) / point-in-time pre-event same-class shares (weighted fallback) * 100",
+            "timing_guard": "if a transaction/pricing date predates the 8-K filing but public availability is not proven, the row is excluded from impact curves pending a publication timestamp",
             "financing_market_cap_pct": "reported/derived financing amount / point-in-time pre-event market cap * 100",
             "offer_discount_pct": "offer price / pre-event close - 1",
             "float_shock_pct": "reserved; not backfilled with today's float because historical PIT float is unavailable",
@@ -552,11 +647,19 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str, max_even
         "coverage": coverage,
         "basic_dilution_curve": _curve(modeled, "basic_dilution_pct"),
         "fully_diluted_overhang_curve": _curve(
-            [r for r in enriched if not r["secondary_only"] and r["fully_diluted_overhang_pct"] is not None],
+            [
+                r for r in enriched
+                if not r["secondary_only"] and not r["issuer_mismatch"] and not r["timing_ambiguous"]
+                and r["fully_diluted_overhang_pct"] is not None
+            ],
             "fully_diluted_overhang_pct",
         ),
         "financing_market_cap_curve": _curve(
-            [r for r in enriched if not r["secondary_only"] and r["financing_market_cap_pct"] is not None],
+            [
+                r for r in enriched
+                if not r["secondary_only"] and not r["issuer_mismatch"] and not r["timing_ambiguous"]
+                and r["financing_market_cap_pct"] is not None
+            ],
             "financing_market_cap_pct",
         ),
         "rows": enriched,
@@ -578,6 +681,9 @@ def write_report(payload: dict[str, Any], path: Path) -> None:
         f"- Financing / market cap available: {c['financing_market_cap_available']}",
         f"- Offer discount available: {c['offer_discount_available']}",
         f"- Secondary-only offerings identified: {c['secondary_only']}",
+        f"- Counterparty-issuer mismatches excluded: {c['issuer_mismatch']}",
+        f"- Timing-ambiguous rows excluded from curves: {c['timing_ambiguous']}",
+        f"- Basic curve eligible after quality guards: {c['basic_curve_eligible']}",
         "- Historical Float Shock: intentionally unavailable until point-in-time float exists.",
         "",
         "## Basic dilution × realized return",
@@ -599,6 +705,8 @@ def write_report(payload: dict[str, Any], path: Path) -> None:
         "- Do not treat dilution % as the price impact itself.",
         "- Offer discount and financing/market-cap are separate explanatory variables.",
         "- Selling-shareholder-only offerings are excluded from primary dilution bins.",
+        "- Counterparty issuances (the filer is the buyer, not issuer) are excluded.",
+        "- Rows whose transaction date predates filing are withheld from impact curves until public/tradable time is resolved.",
         "- Net proceeds are tagged as such; when exact gross proceeds are unavailable, the amount basis is preserved.",
         "- Missing text/terms stay missing; the parser does not fabricate a value.",
         "",
