@@ -10,7 +10,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@vercel/oidc": "3.8.9",
     "next": "^15.2.0",
     "pg": "^8.13.1",
     "react": "^19.0.0",
