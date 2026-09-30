@@ -20,12 +20,17 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 import requests
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 try:
     from scripts.run_jev_live_shadow import (
