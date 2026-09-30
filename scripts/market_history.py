@@ -193,15 +193,20 @@ def build(root,target, *, offline=False):
     for h in (21,63,126):
         full=rank_history(frame,h)
         current=full[-1] if full and full[-1]['date']==target else None
-        prev=full[-21] if len(full)>=21 and current else None
+        # Exactly 20 observed SPY sessions earlier, not 20 available rank rows.
+        # If that day lacks any sector, show unavailable rather than shift dates.
+        prev_date=frame.index[-21].strftime('%Y-%m-%d') if len(frame)>=21 and current else None
+        prev=next((row for row in reversed(full) if row['date']==prev_date),None)
         summary['gics'][str(h)]={'current':current,'previous':prev}
         gics[str(h)]={}
         for win,n in WINDOWS.items():
-            cut=full[-n:]
+            start_date=frame.index[max(0,len(frame)-n)].strftime('%Y-%m-%d') if len(frame) else target
+            cut=[row for row in full if row['date']>=start_date]
+            source_bars=len(cut)
             if win!='2y' and cut: cut=cut[::5]+([cut[-1]] if cut[-1]!=cut[::5][-1] else [])
             path=f'gics11-{h}-{win}.json'; write(outdir/path,{'schema':'market-history.gics11.1',
                 'session_date':target,'window':win,'horizon':h,'sectors':GICS,'rows':cut,
-                'source_bars':min(len(full),n),'status':'READY' if len(full)>=n and current else 'INSUFFICIENT_HISTORY',
+                'source_bars':source_bars,'status':'READY' if source_bars==n and current else 'INSUFFICIENT_HISTORY',
                 'current':current,'previous':prev,'method':'daily excess adjusted total returns vs SPY; descending rank; ticker tie-break; all 11 required'})
             gics[str(h)][win]=path
     f['gics11']=gics

@@ -103,6 +103,48 @@ def test_exports_lazy_windows_missing_not_zero(tmp_path):
     assert data['availability']['Mega']['status']!='READY'
 
 
+def test_rank_flow_missing_twenty_session_day_does_not_move_date(tmp_path):
+    f=fixture_prices(700);target=str(f.index[-1].date())
+    f.loc[f.index[-21],'RSPR']=np.nan
+    mh.write(tmp_path/'work/market-history-prices.json',{'series':{k:mh.rows(f[k]) for k in f}})
+    result=mh.build(tmp_path,target,offline=True)
+    for h in ('21','63','126'):
+        j=json.loads((tmp_path/'market-history'/result['files']['gics11'][h]['2y']).read_text())
+        assert j['previous'] is None
+        assert j['source_bars']<504
+        assert j['status']=='INSUFFICIENT_HISTORY'
+
+
+def test_vix_native_state_unchanged_and_full_daily_history_exported(tmp_path):
+    import base64,lzma,tarfile,hashlib
+    from build_exact_source_mc57_clone import SOURCE_SHA256
+    # Real immutable native model, not a mirrored implementation or network fixture.
+    with tarfile.open(ROOT/'bootstrap/recovery-assets.tar.xz') as archive:
+        parts=sorted(m.name for m in archive.getmembers() if '.py.lzma.b85.part' in m.name)
+        encoded=''.join(archive.extractfile(p).read().decode().strip() for p in parts)
+    raw=lzma.decompress(base64.b85decode(encoded.encode()))
+    assert hashlib.sha256(raw).hexdigest()==SOURCE_SHA256
+    path=tmp_path/'native.py';path.write_bytes(raw)
+    spec=importlib.util.spec_from_file_location('native_vix_test',path)
+    native=importlib.util.module_from_spec(spec);spec.loader.exec_module(native)
+    dates=pd.bdate_range('1990-01-01','2026-09-29')
+    highs=15+np.abs(np.random.default_rng(21).normal(0,4,len(dates)))
+    macro={'^VIX':pd.DataFrame({'Close':highs*.97,'High':highs},index=dates)}
+    before=native.build_vix_cycle(macro,lookback=77)
+    full=native.build_vix_cycle(macro,lookback=2520)
+    mh.write(tmp_path/'data/mc57.json',{'session_date':'2026-09-29','mc57':22})
+    mh.write(tmp_path/'market-history/index.json',{'files':{},'session_date':'2026-09-29'})
+    ui.install(native,tmp_path,tmp_path/'data')
+    after=native.build_vix_cycle(macro,lookback=77)
+    assert {k:v for k,v in after.items() if k!='windows'}=={k:v for k,v in before.items() if k!='windows'}
+    index=json.loads((tmp_path/'market-history/index.json').read_text())
+    for win,n in mh.WINDOWS.items():
+        data=json.loads((tmp_path/'market-history'/index['files']['vixcycle'][win]).read_text())
+        assert len(data['dates'])==n
+        assert data['series']['VIX']==[r['close'] for r in full['series'][-n:]]
+    assert after['windows'][0]['label']=='2Y'
+
+
 def test_persistent_ui_preserves_styles_tabs_and_breadth_policy(tmp_path):
     mc={'mc57':22.356,'session_date':'2026-09-29','metric_scores':{k:30. for k in refresh_mc57.METRIC_NAMES},'history':[]}
     src='''<!DOCTYPE html><html><head><style>.card{background:#f2f1ee;border-radius:10px}</style></head><body>

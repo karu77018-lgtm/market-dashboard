@@ -145,7 +145,7 @@ def strip_color_market_text(soup):
     Static Publish narratives previously tied to SAR are replaced independently.
     Script/style nodes excluded; historical documents/logs never edited.
     """
-    rules=[('トレンド判定','NQ運用判定'),('現在の地合い：','現在のNQレジーム：'),('4色の地合いゲート','4色のNQ運用ゲート'),
+    rules=[('トレンド判定','NQ運用判定'),('今日の運用','NQ運用判定'),('現在の地合い：','現在のNQレジーム：'),('4色の地合いゲート','4色のNQ運用ゲート'),
       ('地合いの帯','NQレジームの帯'),('地合いの色','NQレジームの色'),('NQトレンド色','NQ運用レジーム'),
       ('両ETFとも地合いで露出','両ETFともNQ運用判定で露出'),('保有は地合いルール','保有はNQ運用ルール')]
     for node in list(soup.find_all(string=True)):
@@ -219,13 +219,16 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
         frame['srcdoc']=str(doc)
     # Existing exact card structures/CSS remain; only add scoped controls/hosts.
     mappings={'マーケットステータス推移':'mc57','攻守ローテーション（一般消費財 / ディフェンシブ）':'defensive',
-              'クレジット推移（HYG / IEI）':'credit','VIX期間構造':'vixterm'}
+              'クレジット推移（HYG / IEI）':'credit','VIX期間構造':'vixterm','VIX反転シーケンス':'vixcycle'}
     for card in soup.select('.card'):
         title=card.select_one('h2'); plot=card.select_one('.chart')
         if not title or not plot: continue
         name=title.get_text(' ',strip=True)
         key=next((v for k,v in mappings.items() if name.startswith(k)),None)
         if key:
+            if key=='vixcycle':
+                for el in card.select('.vixwtabs,.vixleg'): el.decompose()
+                for el in card.select('.vixpane')[1:]: el.decompose()
             card['data-history-key']=key; card['class']=card.get('class',[])+['mh-existing']
             if key=='mc57': title.clear(); title.append('MC57推移')
             plot['class']=plot.get('class',[])+['mh-plot']
@@ -275,6 +278,28 @@ def install(module,root,data_dir):
         return original_categories(mkt,m,breadth,(None,None),aux) if original_categories else ''
     module._market_comment=comment
     module.build_categorized_commentary=categories
+    # Display-only export from the unchanged native VIX model. Its 1990 monthly
+    # calibration, EVENT rules and LWMA/state calculations remain authoritative.
+    original_cycle=getattr(module,'build_vix_cycle',None)
+    if original_cycle:
+        def cycle(*args,**kwargs):
+            requested=kwargs.get('lookback',getattr(module,'VIX_CYCLE_SPARK_DAYS',60))
+            if len(args)>2: return original_cycle(*args,**kwargs)
+            kwargs['lookback']=2520
+            ctx=original_cycle(*args,**kwargs)
+            if ctx.get('asof')==mc['session_date'] and ctx.get('series'):
+                import pandas as pd
+                from market_history import export_windows,write
+                records=ctx['series']; dates=pd.to_datetime([r['date'] for r in records])
+                labels={'close':'VIX','wma5':'LWMA5','wma10':'LWMA10','sigma1':'+1σ','sigma2':'+2σ'}
+                files=export_windows(root/'market-history','vixcycle',
+                    {name:pd.Series([r.get(k) for r in records],index=dates,dtype=float) for k,name in labels.items()},mc['session_date'])
+                index_path=root/'market-history/index.json'
+                index=json.loads(index_path.read_text()); index['files']['vixcycle']=files;write(index_path,index)
+                ctx['windows']=[{'label':'2Y','rows':records[-504:],'from':records[-min(504,len(records))]['date'][:7],'to':records[-1]['date'][:7]}]
+            ctx['series']=ctx.get('series',[])[-requested:]
+            return ctx
+        module.build_vix_cycle=cycle
 
 if __name__=='__main__':
     ap=argparse.ArgumentParser(); ap.add_argument('--root',default='.'); ap.add_argument('--html',default='source-mc57.html')

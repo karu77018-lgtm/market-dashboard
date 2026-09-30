@@ -6,7 +6,7 @@ on:
     - cron: "45 21 * * 1-5"
   push:
     branches: [main]
-    paths: [".github/workflows/refresh-source-mc57.yml", "scripts/**", "src/**", "bootstrap/**", "sources/**", "seed/**", "tests/**"]
+    paths: [".github/workflows/refresh-source-mc57.yml", "scripts/**", "assets/**", "src/**", "bootstrap/**", "sources/**", "seed/**", "tests/**"]
 
 permissions:
   actions: read
@@ -128,6 +128,13 @@ jobs:
         run: >-
           python scripts/render_jev_ranking.py
           --html source-mc57.html --ranking data/jev-ranking.json
+      - name: Install browser verification dependencies
+        run: |
+          npm install --no-save --package-lock=false playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Verify desktop and iPhone layouts and controls
+        id: browser_ui
+        run: node tests/market_history_ui.cjs
       - name: Publication gates
         if: always()
         id: publication_gates
@@ -352,14 +359,14 @@ jobs:
           echo "Encrypted fallback saved for this run. Recover it to Drive before the 90-day retention expires." >> "$GITHUB_STEP_SUMMARY"
       - name: Publish source-only outputs
         id: publish
-        if: always() && steps.publication_gates.outcome == 'success' && steps.secret_scan.outcome == 'success' && steps.snapshot.outcome == 'success'
+        if: always() && steps.publication_gates.outcome == 'success' && steps.browser_ui.outcome == 'success' && steps.secret_scan.outcome == 'success' && steps.snapshot.outcome == 'success'
         env:
           HASH_RECORD_PATH: ${{ steps.hash_record.outputs.hash_record_path }}
           FULL_MARKER_PATH: ${{ steps.full_marker.outputs.full_marker_path }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- source-mc57.html chart-data market-history assets latest-manifest.json && git add -f -- data/jev-ranking.json
+          git add -- source-mc57.html chart-data market-history assets latest-manifest.json && git add -f -- data/jev-ranking.json data/mc57.json
           if test -n "$HASH_RECORD_PATH"; then git add -- "$HASH_RECORD_PATH"; fi
           if test -n "$FULL_MARKER_PATH"; then git add -- "$FULL_MARKER_PATH"; fi
           if git diff --cached --quiet; then echo "No publication change"; exit 0; fi

@@ -25,8 +25,8 @@ async function load(){let ticket=++seq;loaded=true;let entry=cfg.files[key],file
 if(status)status.textContent='読み込み中…';try{const j=await get(file);if(ticket!==seq)return;key==='gics11'?heat(plot,j,card):drawLines(plot,j);card.dataset.loadedWindow=win;card.dataset.loadedHorizon=String(horizon);let incomplete=key==='gics11'?j.status!=='READY':Object.values(j.availability||{}).some(x=>x.status!=='READY');if(status)status.textContent=(incomplete?'履歴不足・欠測あり（取得できた期間のみ） / ':'')+(key==='gics11'?j.rows[0]?.date:j.dates[0]||'—')+' → '+cfg.session_date;}catch(e){if(ticket!==seq)return;if(status)status.textContent='DATA UNAVAILABLE（'+e.message+'）';if(!card.classList.contains('mh-existing'))plot.innerHTML='<div class="mh-empty">DATA UNAVAILABLE</div>';}}
 card.querySelectorAll('[data-window]').forEach(b=>b.onclick=()=>{win=b.dataset.window;card.querySelectorAll('[data-window]').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',String(x===b));});load();});
 card.querySelectorAll('[data-horizon]').forEach(b=>b.onclick=()=>{horizon=+b.dataset.horizon;card.querySelectorAll('[data-horizon]').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',String(x===b));});load();});
-// Initial existing 2Y SVG is retained. New cards fetch 2Y when their tab appears.
-const observer=new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting)&&!loaded){if(card.classList.contains('mh-existing')){loaded=true;return;}load();}},{rootMargin:'200px'});observer.observe(card);
+// Retain authoritative MC57 504 bars; other legacy plots load actual 2Y when visible.
+const observer=new IntersectionObserver(es=>{if(es.some(e=>e.isIntersecting)&&!loaded){if(key==='mc57'){loaded=true;card.dataset.loadedWindow='2y';return;}load();}},{rootMargin:'200px'});observer.observe(card);
 }
 document.querySelectorAll('.mh-card,.mh-existing').forEach(mount);
 window.MarketHistory={normalize,cache};
