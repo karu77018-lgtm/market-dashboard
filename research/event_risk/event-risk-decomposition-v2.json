@@ -1,0 +1,354 @@
+{
+  "version": "event-risk-decomposition-v2",
+  "created_date": "2026-09-30",
+  "horizon_days": 60,
+  "formula": {
+    "scale5": "daily_vol_pct * sqrt(5)",
+    "downside_ev5_pct": "p_event * downside_component_mean_z * scale5",
+    "upside_ev5_pct": "p_event * upside_component_mean_z * scale5",
+    "net_ev5_pct": "p_event * mean_z * scale5"
+  },
+  "families": {
+    "buyback": {
+      "categories": [
+        "share_repurchase_program"
+      ],
+      "train_event_rate": 0.04043651953619799,
+      "occurrence_holdout": {
+        "constant": {
+          "n": 2130,
+          "event_rate": 0.03943661971830986,
+          "brier": 0.03788237254314909,
+          "roc_auc": 0.5,
+          "average_precision": 0.031973593080822114,
+          "mean_p": 0.04043651953619799,
+          "top_decile_event_rate": 0.023474178403755867,
+          "top_decile_lift": 0.5952380952380951
+        },
+        "history": {
+          "n": 2130,
+          "event_rate": 0.03943661971830986,
+          "brier": 0.03771940404635754,
+          "roc_auc": 0.5391734161895452,
+          "average_precision": 0.04764913971132082,
+          "mean_p": 0.040194369502829785,
+          "top_decile_event_rate": 0.056338028169014086,
+          "top_decile_lift": 1.4285714285714286
+        },
+        "history_vol": {
+          "n": 2130,
+          "event_rate": 0.03943661971830986,
+          "brier": 0.03770616036993372,
+          "roc_auc": 0.6052954661825629,
+          "average_precision": 0.05573245543453128,
+          "mean_p": 0.04075407651243552,
+          "top_decile_event_rate": 0.051643192488262914,
+          "top_decile_lift": 1.3095238095238095
+        }
+      },
+      "history_table": {
+        "0": {
+          "n": 9532,
+          "raw_rate": 0.03724297104490139,
+          "shrunk_rate": 0.03724297104490139
+        },
+        "1": {
+          "n": 689,
+          "raw_rate": 0.0783744557329463,
+          "shrunk_rate": 0.0783744557329463
+        },
+        "2plus": {
+          "n": 42,
+          "raw_rate": 0.14285714285714285,
+          "shrunk_rate": 0.14285714285714285
+        }
+      },
+      "impact_5d": {
+        "n": 95,
+        "mean_z": 0.4819155162494606,
+        "downside_component_mean_z": -0.3070806204211502,
+        "upside_component_mean_z": 0.7889961366706105,
+        "p_negative": 0.3894736842105263
+      },
+      "status": "PILOT"
+    },
+    "severe_downside": {
+      "categories": [
+        "covenant_violation",
+        "debt_acceleration",
+        "going_concern",
+        "guidance_withdrawal",
+        "listing_deficiency_notice",
+        "payment_default",
+        "regulatory_investigation"
+      ],
+      "train_event_rate": 0.00389749585891065,
+      "occurrence_holdout": {
+        "constant": {
+          "n": 2130,
+          "event_rate": 0.005633802816901409,
+          "brier": 0.0056050778445740496,
+          "roc_auc": 0.5,
+          "average_precision": 0.008548902436161068,
+          "mean_p": 0.0038974958589106505,
+          "top_decile_event_rate": 0.009389671361502348,
+          "top_decile_lift": 1.6666666666666665
+        },
+        "history": {
+          "n": 2130,
+          "event_rate": 0.005633802816901409,
+          "brier": 0.005582081482287254,
+          "roc_auc": 0.539522348127164,
+          "average_precision": 0.037025889807648156,
+          "mean_p": 0.00337873353487624,
+          "top_decile_event_rate": 0.014084507042253521,
+          "top_decile_lift": 2.5
+        },
+        "history_vol": {
+          "n": 2130,
+          "event_rate": 0.005633802816901409,
+          "brier": 0.005578146648210346,
+          "roc_auc": 0.6268492288322317,
+          "average_precision": 0.05675243463594403,
+          "mean_p": 0.003197899664872395,
+          "top_decile_event_rate": 0.014084507042253521,
+          "top_decile_lift": 2.5
+        }
+      },
+      "history_table": {
+        "0": {
+          "n": 10189,
+          "raw_rate": 0.003140641868681912,
+          "shrunk_rate": 0.0031424943603360843
+        },
+        "1": {
+          "n": 62,
+          "raw_rate": 0.06451612903225806,
+          "shrunk_rate": 0.04709698156865248
+        },
+        "2plus": {
+          "n": 12,
+          "raw_rate": 0.3333333333333333,
+          "shrunk_rate": 0.1107415512560207
+        }
+      },
+      "impact_5d": {
+        "n": 18,
+        "mean_z": -0.20448393360421527,
+        "downside_component_mean_z": -0.5268097247221974,
+        "upside_component_mean_z": 0.3223257911179822,
+        "p_negative": 0.6666666666666666
+      },
+      "status": "PILOT"
+    },
+    "commercial_upside": {
+      "categories": [
+        "partnership_or_collaboration",
+        "share_repurchase_program",
+        "significant_contract_award"
+      ],
+      "train_event_rate": 0.05495469161064016,
+      "occurrence_holdout": {
+        "constant": {
+          "n": 2130,
+          "event_rate": 0.05211267605633803,
+          "brier": 0.04940502210299609,
+          "roc_auc": 0.5,
+          "average_precision": 0.043419859961400124,
+          "mean_p": 0.05495469161064016,
+          "top_decile_event_rate": 0.023474178403755867,
+          "top_decile_lift": 0.4504504504504504
+        },
+        "history": {
+          "n": 2130,
+          "event_rate": 0.05211267605633803,
+          "brier": 0.04869822198708154,
+          "roc_auc": 0.5573694050662847,
+          "average_precision": 0.08498187144290603,
+          "mean_p": 0.05473387881027549,
+          "top_decile_event_rate": 0.10328638497652583,
+          "top_decile_lift": 1.9819819819819822
+        },
+        "history_vol": {
+          "n": 2130,
+          "event_rate": 0.05211267605633803,
+          "brier": 0.0486970752212598,
+          "roc_auc": 0.6126929306721283,
+          "average_precision": 0.10328475372045416,
+          "mean_p": 0.054723649594209826,
+          "top_decile_event_rate": 0.10328638497652583,
+          "top_decile_lift": 1.9819819819819822
+        }
+      },
+      "history_table": {
+        "0": {
+          "n": 9326,
+          "raw_rate": 0.049646150546858246,
+          "shrunk_rate": 0.049646150546858246
+        },
+        "1": {
+          "n": 857,
+          "raw_rate": 0.09684947491248541,
+          "shrunk_rate": 0.09684947491248541
+        },
+        "2plus": {
+          "n": 80,
+          "raw_rate": 0.225,
+          "shrunk_rate": 0.225
+        }
+      },
+      "impact_5d": {
+        "n": 137,
+        "mean_z": 0.2940978857976432,
+        "downside_component_mean_z": -0.4221198942667814,
+        "upside_component_mean_z": 0.7162177800644248,
+        "p_negative": 0.45255474452554745
+      },
+      "status": "PILOT"
+    },
+    "regulatory_event": {
+      "categories": [
+        "regulatory_decision"
+      ],
+      "train_event_rate": 0.009743739647276624,
+      "occurrence_holdout": {
+        "constant": {
+          "n": 2130,
+          "event_rate": 0.013615023474178404,
+          "brier": 0.013444641448444407,
+          "roc_auc": 0.5,
+          "average_precision": 0.012722303799682009,
+          "mean_p": 0.009743739647276624,
+          "top_decile_event_rate": 0,
+          "top_decile_lift": 0
+        },
+        "history": {
+          "n": 2130,
+          "event_rate": 0.013615023474178404,
+          "brier": 0.013360195054436379,
+          "roc_auc": 0.5463900605622938,
+          "average_precision": 0.027110153733566546,
+          "mean_p": 0.009188833595668668,
+          "top_decile_event_rate": 0.014084507042253521,
+          "top_decile_lift": 1.0344827586206897
+        },
+        "history_vol": {
+          "n": 2130,
+          "event_rate": 0.013615023474178404,
+          "brier": 0.013284591080108358,
+          "roc_auc": 0.6563951484514763,
+          "average_precision": 0.037101079528347264,
+          "mean_p": 0.009102380581183745,
+          "top_decile_event_rate": 0.028169014084507043,
+          "top_decile_lift": 2.0689655172413794
+        }
+      },
+      "history_table": {
+        "0": {
+          "n": 10094,
+          "raw_rate": 0.007925500297206262,
+          "shrunk_rate": 0.007925500297206262
+        },
+        "1": {
+          "n": 136,
+          "raw_rate": 0.10294117647058823,
+          "shrunk_rate": 0.10294117647058823
+        },
+        "2plus": {
+          "n": 33,
+          "raw_rate": 0.18181818181818182,
+          "shrunk_rate": 0.18181818181818182
+        }
+      },
+      "impact_5d": {
+        "n": 35,
+        "mean_z": 0.2745137743231797,
+        "downside_component_mean_z": -0.5376042301112994,
+        "upside_component_mean_z": 0.8121180044344793,
+        "p_negative": 0.5142857142857142
+      },
+      "status": "POLARITY_REQUIRED"
+    },
+    "guidance_event": {
+      "categories": [
+        "guidance_issuance_or_update",
+        "guidance_withdrawal"
+      ],
+      "train_event_rate": 0.034103088765468186,
+      "occurrence_holdout": {
+        "constant": {
+          "n": 2130,
+          "event_rate": 0.04366197183098591,
+          "brier": 0.04184697629227635,
+          "roc_auc": 0.5,
+          "average_precision": 0.04328674003532511,
+          "mean_p": 0.034103088765468186,
+          "top_decile_event_rate": 0.03755868544600939,
+          "top_decile_lift": 0.860215053763441
+        },
+        "history": {
+          "n": 2130,
+          "event_rate": 0.04366197183098591,
+          "brier": 0.033044130051848065,
+          "roc_auc": 0.761421761920598,
+          "average_precision": 0.36165156398759896,
+          "mean_p": 0.03057802660700343,
+          "top_decile_event_rate": 0.2535211267605634,
+          "top_decile_lift": 5.806451612903226
+        },
+        "history_vol": {
+          "n": 2130,
+          "event_rate": 0.04366197183098591,
+          "brier": 0.03273744068003281,
+          "roc_auc": 0.7752572040899277,
+          "average_precision": 0.4003547602763845,
+          "mean_p": 0.03134130777846508,
+          "top_decile_event_rate": 0.24882629107981222,
+          "top_decile_lift": 5.698924731182796
+        }
+      },
+      "history_table": {
+        "0": {
+          "n": 9642,
+          "raw_rate": 0.016282928852935075,
+          "shrunk_rate": 0.016282928852935075
+        },
+        "1": {
+          "n": 564,
+          "raw_rate": 0.31382978723404253,
+          "shrunk_rate": 0.31382978723404253
+        },
+        "2plus": {
+          "n": 57,
+          "raw_rate": 0.2807017543859649,
+          "shrunk_rate": 0.2807017543859649
+        }
+      },
+      "impact_5d": {
+        "n": 111,
+        "mean_z": -0.33250667687912994,
+        "downside_component_mean_z": -0.8075133794469165,
+        "upside_component_mean_z": 0.47500670256778627,
+        "p_negative": 0.6036036036036037
+      },
+      "status": "POLARITY_REQUIRED"
+    },
+    "dilution": {
+      "categories": [
+        "public_offering",
+        "private_placement",
+        "pipe_transaction",
+        "warrant_or_conversion"
+      ],
+      "occurrence_model": "see dilution-hazard-v2-shelf.json; use history+shelf for calibration and history+shelf+vol for ranking",
+      "impact_5d": {
+        "n": 115,
+        "mean_z": -0.3133044159096667,
+        "downside_component_mean_z": -0.6277714382148425,
+        "upside_component_mean_z": 0.31446702230517565,
+        "p_negative": 0.6434782608695652
+      },
+      "status": "VALIDATED_PILOT"
+    }
+  }
+}
