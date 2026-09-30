@@ -73,6 +73,12 @@ jobs:
 
       - name: Commit research artifacts
         run: |
+          cp research/event_risk/dilution-magnitude-v1.json /tmp/dilution-magnitude-v1.json
+          cp maintenance/dilution-magnitude-v1-20260930.md /tmp/dilution-magnitude-v1-20260930.md
+          git fetch origin research/event-risk-20260930
+          git reset --hard origin/research/event-risk-20260930
+          cp /tmp/dilution-magnitude-v1.json research/event_risk/dilution-magnitude-v1.json
+          cp /tmp/dilution-magnitude-v1-20260930.md maintenance/dilution-magnitude-v1-20260930.md
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add research/event_risk/dilution-magnitude-v1.json maintenance/dilution-magnitude-v1-20260930.md
