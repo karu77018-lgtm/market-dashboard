@@ -172,7 +172,7 @@ def _q(values: list[float], p: float) -> float | None:
 
 def _reaction_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
     out = {"n": len(rows)}
-    for field in ("gap_pct", "ret1_pct", "ret5_pct", "ret20_pct"):
+    for field in ("gap_pct", "ret1_pct", "ret5_pct", "ret20_pct", "z5"):
         vals = [float(r[field]) for r in rows if r.get(field) is not None and math.isfinite(float(r[field]))]
         out[field] = {
             "n": len(vals),
@@ -234,6 +234,8 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str) -> dict[
             continue
         last_event[ticker] = day
 
+        daily20 = [100.0 * (series[j][4] / series[j - 1][4] - 1) for j in range(pi - 19, pi + 1)]
+        vol20 = statistics.stdev(daily20) if len(daily20) >= 2 else None
         pre20 = 100.0 * (close0 / series[pi - 20][4] - 1)
         prior20_date = series[pi - 20][0]
         high63 = max(series[j][2] for j in range(pi - 62, pi + 1))
@@ -260,6 +262,7 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str) -> dict[
                 "baseline_session": series[pi][0],
                 "pre_close": close0,
                 "ddv20": ddv20,
+                "vol20_pct": vol20,
                 "pre20_return_pct": pre20,
                 "qqq_pre20_return_pct": q20,
                 "pre20_excess_qqq_pct": excess20,
@@ -271,6 +274,7 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str) -> dict[
                 "ret1_pct": ret1,
                 "ret5_pct": ret5,
                 "ret20_pct": ret20,
+                "z5": ret5 / (vol20 * math.sqrt(5.0)) if vol20 and vol20 > 0 else None,
                 # Enhanced-only fields. Do not silently substitute realized vol.
                 "option_expected_move_pct": None,
                 "realized_expected_move_ratio": None,
