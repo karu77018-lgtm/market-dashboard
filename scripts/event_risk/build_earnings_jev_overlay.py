@@ -24,7 +24,7 @@ import os
 import re
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -54,8 +54,8 @@ def _finite(value: Any) -> float | None:
         return None
     return x if math.isfinite(x) else None
 
-class MassiveRawPacer:
-    """Rate-limited raw-text fetcher for Massive filing-file endpoints."""
+class MassiveEvidencePacer:
+    """One shared rate limiter for Massive JSON and raw filing-file calls."""
 
     def __init__(self, api_key: str, min_interval: float):
         self.api_key = api_key
@@ -63,39 +63,50 @@ class MassiveRawPacer:
         self.last_at: float | None = None
         self.session = requests.Session()
 
-    def get_text(self, url: str, timeout: int = 45) -> str:
+    def _get(self, url: str, params: dict[str,Any] | None = None, timeout: int = 45) -> requests.Response:
         if not url.startswith("https://api.massive.com/"):
-            raise ShadowRunError("Unexpected Massive raw-file host")
+            raise ShadowRunError("Unexpected Massive evidence host")
+        query=dict(params or {})
+        query["apiKey"]=self.api_key
         for attempt in range(5):
             if self.last_at is not None:
-                delay = self.min_interval - (time.monotonic() - self.last_at)
-                if delay > 0:
+                delay=self.min_interval-(time.monotonic()-self.last_at)
+                if delay>0:
                     time.sleep(delay)
-            self.last_at = time.monotonic()
+            self.last_at=time.monotonic()
             try:
-                response = self.session.get(
-                    url,
-                    params={"apiKey": self.api_key},
-                    timeout=timeout,
-                )
+                response=self.session.get(url,params=query,timeout=timeout)
             except requests.RequestException as exc:
-                if attempt < 4:
-                    time.sleep(min(2 ** attempt, 20))
+                if attempt<4:
+                    time.sleep(min(2 ** attempt,20))
                     continue
                 raise ShadowRunError(
-                    f"Massive raw file request failed: {type(exc).__name__}"
+                    f"Massive evidence request failed: {type(exc).__name__}"
                 ) from None
-            if response.status_code == 429 or response.status_code >= 500:
-                if attempt < 4:
-                    time.sleep(min(2 ** attempt, 30))
+            if response.status_code==429 or response.status_code>=500:
+                if attempt<4:
+                    time.sleep(min(2 ** attempt,30))
                     continue
-            if response.status_code >= 400:
+            if response.status_code>=400:
                 raise ShadowRunError(
-                    f"Massive raw file rejected: HTTP {response.status_code}"
+                    f"Massive evidence rejected: HTTP {response.status_code}"
                 )
-            return response.text
-        raise ShadowRunError("Massive raw file request failed after retries")
+            return response
+        raise ShadowRunError("Massive evidence request failed after retries")
 
+    def get_text(self, url: str, timeout: int = 45) -> str:
+        return self._get(url,timeout=timeout).text
+
+    def get_json(self, path: str, params: dict[str,Any], timeout: int = 45) -> dict[str,Any]:
+        url=path if path.startswith("https://") else "https://api.massive.com"+path
+        response=self._get(url,params=params,timeout=timeout)
+        try:
+            payload=response.json()
+        except ValueError:
+            raise ShadowRunError("Massive JSON endpoint returned non-JSON") from None
+        if not isinstance(payload,dict):
+            raise ShadowRunError("Massive JSON response was not an object")
+        return payload
 
 
 def _entities(raw: Any) -> list[dict[str,Any]]:
@@ -199,6 +210,45 @@ def select_frozen_high_load(
             item["deterministic_excess_load_pctile"]=load
             selected.append(item)
     return selected
+
+
+def fetch_event_news(
+    client: MassiveEvidencePacer,
+    ticker: str,
+    filing_date: str,
+    limit: int = 8,
+)->list[dict[str,Any]]:
+    day=datetime.fromisoformat(filing_date+"T00:00:00+00:00")
+    start=day-timedelta(days=1)
+    # During the Jul-Sep study window U.S. markets are on daylight time.
+    # Cut at 09:29 ET on the next calendar day: information available before
+    # the first post-event open used by the tradable local outcome.
+    cutoff=day+timedelta(days=1,hours=13,minutes=29)
+    payload=client.get_json(
+        "/v2/reference/news",
+        {
+            "ticker":ticker,
+            "published_utc.gte":start.isoformat().replace("+00:00","Z"),
+            "published_utc.lte":cutoff.isoformat().replace("+00:00","Z"),
+            "sort":"published_utc",
+            "order":"asc",
+            "limit":limit,
+        },
+    )
+    docs=[]
+    for row in payload.get("results") or []:
+        if not isinstance(row,dict):
+            continue
+        title=" ".join(str(row.get("title") or "").split())[:500]
+        desc=" ".join(str(row.get("description") or "").split())[:1800]
+        if not title:
+            continue
+        docs.append({
+            "published_utc":row.get("published_utc"),
+            "title":title,
+            "description":desc,
+        })
+    return docs[:limit]
 
 
 def fetch_10q_index(
@@ -336,7 +386,7 @@ def main()->int:
     # text client after the index call and keep the same plan-safe pacing.
     if args.massive_min_interval:
         time.sleep(args.massive_min_interval)
-    raw_massive=MassiveRawPacer(api_key,args.massive_min_interval)
+    evidence_client=MassiveEvidencePacer(api_key,args.massive_min_interval)
     jev=requests.Session()
 
     outputs=[]
@@ -348,18 +398,19 @@ def main()->int:
         ticker=str(row["ticker"]).upper()
         date=str(row["filing_date"])
         filing=index.get((ticker,date))
-        if not filing:
-            unmatched.append({"ticker":ticker,"filing_date":date,"reason":"NO_SAME_DAY_10Q"})
-            continue
-        main_url=str(filing.get("main_file_url") or "")
-        if not main_url.startswith("https://api.massive.com/"):
-            unmatched.append({"ticker":ticker,"filing_date":date,"reason":"NO_MASSIVE_MAIN_FILE"})
-            continue
         try:
-            raw=raw_massive.get_text(main_url)
-            evidence,section=extract_mda(raw)
+            news=fetch_event_news(evidence_client,ticker,date)
+            mda_text=None
+            mda_section=None
+            if filing:
+                main_url=str(filing.get("main_file_url") or "")
+                if main_url.startswith("https://api.massive.com/"):
+                    raw=evidence_client.get_text(main_url)
+                    mda_text,mda_section=extract_mda(raw)
+            if not filing:
+                unmatched.append({"ticker":ticker,"filing_date":date,"reason":"NO_SAME_DAY_10Q"})
             state={
-                "schema_version":"earnings-jev-overlay-state-v1",
+                "schema_version":"earnings-jev-overlay-state-v2",
                 "ticker":ticker,
                 "event_date":date,
                 "pre_event_market_context":{
@@ -370,15 +421,21 @@ def main()->int:
                     "distance_to_63d_high_pct":row.get("dist_high63_pct"),
                 },
                 "company_specific_evidence":{
-                    "source":"same-day 10-Q via Massive",
-                    "section":section,
-                    "text":evidence,
+                    "disclosure_supporting_text":" ".join(
+                        str(row.get("supporting_text") or "").split()
+                    )[:2400],
+                    "event_window_news":news,
+                    "same_day_10q_mda":{
+                        "section":mda_section,
+                        "text":mda_text,
+                    } if mda_text else None,
                 },
                 "instructions":[
-                    "Use only supplied evidence.",
+                    "Use only supplied evidence available before the post-event open.",
                     "Market metrics are prior-expectation context, not proof of business quality.",
                     "Do not predict stock price and do not use post-event returns.",
-                    "If the 10-Q text is not sufficient to compare actual business change with prior expectations, mark evidence quality weak or insufficient.",
+                    "Prefer direct operating facts, guidance, demand, margin, and cash-flow evidence.",
+                    "If the supplied news/filing evidence is administrative, repetitive, or lacks actual operating information, mark evidence quality weak or insufficient.",
                 ],
             }
             result=evaluate_jev(jev,jev_url,secret,state,questions,args.timeout)
@@ -388,7 +445,11 @@ def main()->int:
                 "filing_date":date,
                 "accession_number":str(row["accession_number"]),
                 "state_sha256":canonical_hash(state),
-                "evidence_chars":len(evidence),
+                "evidence_counts":{
+                    "news":len(news),
+                    "has_same_day_10q":bool(mda_text),
+                    "supporting_text_chars":len(str(row.get("supporting_text") or "")),
+                },
                 "jev":derived(result["aggregate"]),
                 "duration_ms":result.get("duration_ms"),
             })
@@ -416,8 +477,8 @@ def main()->int:
         "unmatched_count":len(unmatched),
         "jev_error_count":len(errors),
         "gateway_cost_usd":round(cost,8),
-        "evidence_source":"same-day Form 10-Q main document fetched through Massive",
-        "privacy":{"filing_text_persisted":False,"raw_jev_runs_persisted":False},
+        "evidence_source":"point-in-time Massive news + frozen 8-K supporting text + same-day 10-Q when available",
+        "privacy":{"vendor_text_persisted":False,"raw_jev_runs_persisted":False},
         "rows":outputs,
         "unmatched":unmatched,
         "errors":errors,
