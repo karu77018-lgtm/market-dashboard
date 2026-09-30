@@ -1,11 +1,12 @@
 import eventsData from "../../../research/event_risk/event-metadata-20260930.json";
+import shelfData from "../../../research/event_risk/shelf-readiness-v1.json";
 let runtimePromise;
 async function getRuntime(){if(!runtimePromise)runtimePromise=(async()=>{const {loadPyodide}=await import("pyodide");return loadPyodide()})();return runtimePromise}
 export const config={maxDuration:120};
 async function fetchJson(url){const r=await fetch(url,{cache:"no-store",headers:{"User-Agent":"dilution-hazard-study"}});if(!r.ok)throw new Error("HTTP_"+r.status);return r.json()}
 const PY=String.raw`
 import json,math,statistics,datetime
-E=json.loads(events_json);U=json.loads(universe_json)
+E=json.loads(events_json);U=json.loads(universe_json);S=json.loads(shelf_json)
 DIL={"public_offering","private_placement","pipe_transaction","warrant_or_conversion"}
 UW={"underwriting_agreement"}
 def mean(x):return sum(x)/len(x) if x else None
@@ -79,8 +80,14 @@ for snap in SNAPS:
     days_since=min(365,days_between(sdte,last)) if last else 365
     future=[d for d in de if sdte<d<=end60]
     y=1 if future else 0
+    sr=S.get("snapshots",{}).get(snap,{}).get(tk,{})
+    shelf_recent=1 if (sr.get("s3_365",0)+sr.get("s3asr_365",0))>0 else 0
+    b424_90=int(sr.get("b424_90",0) or 0)
+    b424_30=int(sr.get("b424_30",0) or 0)
+    days_shelf=min(999,int(sr.get("days_since_shelf",9999) or 9999))
     x=[len(past30),len(past90),len(puw90),days_since,math.log1p(ddv),math.log(price),vol20,ret21 or 0,ret63 or 0,dist_high63]
-    rows.append({"snap":snap,"ticker":tk,"x":x,"y":y,"prior90":len(past90),"future_n":len(future)})
+    rows.append({"snap":snap,"ticker":tk,"x":x,"y":y,"prior90":len(past90),"future_n":len(future),
+                 "shelf":shelf_recent,"b424_90":b424_90,"b424_30":b424_30,"days_shelf":days_shelf})
 DEV=set(SNAPS[:4]);CAL={SNAPS[4]};HOLD={SNAPS[5]}
 dev=[r for r in rows if r["snap"] in DEV];cal=[r for r in rows if r["snap"] in CAL];hold=[r for r in rows if r["snap"] in HOLD]
 train=dev+cal
@@ -119,34 +126,54 @@ def rates(rr,keyfn):
     for r in rr:
         k=keyfn(r);d.setdefault(k,[]).append(r["y"])
     return {k:{"n":len(z),"rate":mean(z)} for k,z in d.items()}
+def sb(r): return "shelf" if r["shelf"] else "noshelf"
+def cb(r): return "424" if r["b424_90"]>0 else "no424"
 hist_raw=rates(dev,lambda r:hb(r))
 hv_raw=rates(dev,lambda r:hb(r)+"|"+vb(r))
+hs_raw=rates(dev,lambda r:hb(r)+"|"+sb(r))
+hsc_raw=rates(dev,lambda r:hb(r)+"|"+sb(r)+"|"+cb(r))
+hsv_raw=rates(dev,lambda r:hb(r)+"|"+sb(r)+"|"+vb(r))
 # empirical Bayes shrinkage chosen on calibration
 strengths=[0,25,50,100,200,500]
 def build_rates(raw,strength):
     return {k:(z["rate"]*z["n"]+base*strength)/(z["n"]+strength) for k,z in raw.items()}
 def pred_from(rr,rates_,keyfn):
     return [rates_.get(keyfn(r),base) for r in rr]
-best_hist=min(strengths,key=lambda s:brier(cal,pred_from(cal,build_rates(hist_raw,s),lambda r:hb(r))))
-best_hv=min(strengths,key=lambda s:brier(cal,pred_from(cal,build_rates(hv_raw,s),lambda r:hb(r)+"|"+vb(r))))
-# refit raw rates on dev+cal, keep strengths fixed
-hist_train=rates(train,lambda r:hb(r));hv_train=rates(train,lambda r:hb(r)+"|"+vb(r))
-hist_rates=build_rates(hist_train,best_hist);hv_rates=build_rates(hv_train,best_hv)
-pconst=[base]*len(hold)
-phist=pred_from(hold,hist_rates,lambda r:hb(r))
-phv=pred_from(hold,hv_rates,lambda r:hb(r)+"|"+vb(r))
-# exposure table with train frequencies
-history_table={k:{"n":z["n"],"raw_rate":z["rate"],"shrunk_rate":hist_rates[k]} for k,z in hist_train.items()}
-hv_table={k:{"n":z["n"],"raw_rate":z["rate"],"shrunk_rate":hv_rates[k]} for k,z in hv_train.items()}
-out={"version":"dilution-hazard-v1-empirical","snapshots":SNAPS,"rows":len(rows),"development_n":len(dev),"calibration_n":len(cal),"holdout_n":len(hold),
+specs=[
+ ("history",hist_raw,lambda r:hb(r)),
+ ("history_vol",hv_raw,lambda r:hb(r)+"|"+vb(r)),
+ ("history_shelf",hs_raw,lambda r:hb(r)+"|"+sb(r)),
+ ("history_shelf_424",hsc_raw,lambda r:hb(r)+"|"+sb(r)+"|"+cb(r)),
+ ("history_shelf_vol",hsv_raw,lambda r:hb(r)+"|"+sb(r)+"|"+vb(r))
+]
+best_strength={}
+for name,raw,keyfn in specs:
+    best_strength[name]=min(strengths,key=lambda s:brier(cal,pred_from(cal,build_rates(raw,s),keyfn)))
+# refit rates on dev+cal with frozen strengths
+train_specs=[
+ ("history",rates(train,lambda r:hb(r)),lambda r:hb(r)),
+ ("history_vol",rates(train,lambda r:hb(r)+"|"+vb(r)),lambda r:hb(r)+"|"+vb(r)),
+ ("history_shelf",rates(train,lambda r:hb(r)+"|"+sb(r)),lambda r:hb(r)+"|"+sb(r)),
+ ("history_shelf_424",rates(train,lambda r:hb(r)+"|"+sb(r)+"|"+cb(r)),lambda r:hb(r)+"|"+sb(r)+"|"+cb(r)),
+ ("history_shelf_vol",rates(train,lambda r:hb(r)+"|"+sb(r)+"|"+vb(r)),lambda r:hb(r)+"|"+sb(r)+"|"+vb(r))
+]
+preds={"constant":[base]*len(hold)}
+tables={}
+for name,raw,keyfn in train_specs:
+    rrates=build_rates(raw,best_strength[name])
+    preds[name]=pred_from(hold,rrates,keyfn)
+    tables[name]={k:{"n":z["n"],"raw_rate":z["rate"],"shrunk_rate":rrates[k]} for k,z in raw.items()}
+shelf_only=rates(train,lambda r:sb(r))
+b424_only=rates(train,lambda r:cb(r))
+out={"version":"dilution-hazard-v2-shelf","snapshots":SNAPS,"rows":len(rows),"development_n":len(dev),"calibration_n":len(cal),"holdout_n":len(hold),
 "universe_filters":[">=100 prior sessions","price >= $5","DDV20 >= $10M"],
 "target":"any public offering/private placement/PIPE/warrant-conversion filing in next 60 calendar days",
 "train_event_rate":base,"vol_tertiles":{"low_max":v1,"mid_max":v2},
-"selected_shrink_strength":{"history":best_hist,"history_vol":best_hv},
-"history_table":history_table,"history_vol_table":hv_table,
-"holdout":{"constant":metrics(hold,pconst),"history":metrics(hold,phist),"history_vol":metrics(hold,phv)},
+"selected_shrink_strength":best_strength,
+"tables":tables,"shelf_only_train":shelf_only,"b424_90_only_train":b424_only,
+"holdout":{name:metrics(hold,p) for name,p in preds.items()},
 "holdout_counts":{"positives":sum(r["y"] for r in hold),"total":len(hold)},
-"note":"Empirical 60-day dilution hazard. Financial-statement cash runway and explicit shelf/ATM capacity are not included yet."}
+"note":"PIT shelf-readiness v2. S-3/S-3ASR are shelf readiness. 424B5 is generic capital-markets activity and can include debt."}
 json.dumps(out,allow_nan=False)
 `;
 export default async function handler(req,res){
@@ -156,7 +183,7 @@ export default async function handler(req,res){
     const base="https://raw.githubusercontent.com/karu77018-lgtm/market-dashboard/d84a70dd46df011df502217f2737ed08a1e90fa2/chart-data/";
     const shards=await Promise.all(Array.from({length:32},(_,i)=>fetchJson(base+`shard-${String(i).padStart(2,"0")}.json`)));
     const universe=Object.assign({},...shards);
-    const py=await getRuntime();py.globals.set("events_json",JSON.stringify(eventsData));py.globals.set("universe_json",JSON.stringify(universe));
+    const py=await getRuntime();py.globals.set("events_json",JSON.stringify(eventsData));py.globals.set("universe_json",JSON.stringify(universe));py.globals.set("shelf_json",JSON.stringify(shelfData));
     const v=await py.runPythonAsync(PY);const out=JSON.parse(String(v));if(v?.destroy)v.destroy();return res.status(200).json({ok:true,...out});
   }catch(e){return res.status(500).json({ok:false,error:String(e?.message||e),stack:String(e?.stack||"").slice(0,1400)})}
 }
