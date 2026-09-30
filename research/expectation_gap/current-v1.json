@@ -1,7 +1,7 @@
 {
   "schema_version": "universal-expectation-gap-v1",
   "status": "research_shadow",
-  "created_at": "2026-09-30T12:25:51.605311+00:00",
+  "created_at": "2026-09-30T15:12:08.668293+00:00",
   "as_of": "2026-09-30T00:35:25Z",
   "question_set_version": "jev-expectation-gap-en-v1",
   "jev_language": "en",
@@ -45,167 +45,208 @@
   "errors": [
     {
       "ticker": "VG",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected VG: HTTP 400"
     },
     {
       "ticker": "AMLX",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected AMLX: HTTP 400"
     },
     {
       "ticker": "VAL",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected VAL: HTTP 400"
     },
     {
       "ticker": "LBRX",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected LBRX: HTTP 400"
     },
     {
       "ticker": "CADL",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected CADL: HTTP 400"
     },
     {
       "ticker": "ARCT",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected ARCT: HTTP 400"
     },
     {
       "ticker": "RIG",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected RIG: HTTP 400"
     },
     {
       "ticker": "INBX",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected INBX: HTTP 400"
     },
     {
       "ticker": "OII",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected OII: HTTP 400"
     },
     {
       "ticker": "EAT",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected EAT: HTTP 400"
     },
     {
       "ticker": "SGMT",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected SGMT: HTTP 400"
     },
     {
       "ticker": "VCTR",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected VCTR: HTTP 400"
     },
     {
       "ticker": "FIVN",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected FIVN: HTTP 400"
     },
     {
       "ticker": "LFST",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected LFST: HTTP 400"
     },
     {
       "ticker": "FCX",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected FCX: HTTP 400"
     },
     {
       "ticker": "LNG",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected LNG: HTTP 400"
     },
     {
       "ticker": "AVNT",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected AVNT: HTTP 400"
     },
     {
       "ticker": "UMAC",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected UMAC: HTTP 400"
     },
     {
       "ticker": "PAA",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected PAA: HTTP 400"
     },
     {
       "ticker": "LH",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected LH: HTTP 400"
     },
     {
       "ticker": "DKL",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected DKL: HTTP 400"
     },
     {
       "ticker": "PSNL",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected PSNL: HTTP 400"
     },
     {
       "ticker": "FTK",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected FTK: HTTP 400"
     },
     {
       "ticker": "THC",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected THC: HTTP 400"
     },
     {
       "ticker": "FSLY",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected FSLY: HTTP 400"
     },
     {
       "ticker": "QLYS",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected QLYS: HTTP 400"
     },
     {
       "ticker": "TVTX",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected TVTX: HTTP 400"
     },
     {
       "ticker": "PRTH",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected PRTH: HTTP 400"
     },
     {
       "ticker": "ACVA",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected ACVA: HTTP 400"
     },
     {
       "ticker": "IOVA",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected IOVA: HTTP 400"
     },
     {
       "ticker": "TWST",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected TWST: HTTP 400"
     },
     {
       "ticker": "NTRA",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected NTRA: HTTP 400"
     },
     {
       "ticker": "AVT",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected AVT: HTTP 400"
     },
     {
       "ticker": "AMRX",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected AMRX: HTTP 400"
     },
     {
       "ticker": "ABCL",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected ABCL: HTTP 400"
     },
     {
       "ticker": "XERS",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected XERS: HTTP 400"
     },
     {
       "ticker": "XMTR",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected XMTR: HTTP 400"
     },
     {
       "ticker": "TXG",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected TXG: HTTP 400"
     },
     {
       "ticker": "BIIB",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected BIIB: HTTP 400"
     },
     {
       "ticker": "FEIM",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected FEIM: HTTP 400"
     },
     {
       "ticker": "SDGR",
-      "error": "ShadowRunError"
+      "error": "ShadowRunError",
+      "message": "Jev rejected SDGR: HTTP 400"
     }
   ],
   "rows": [
