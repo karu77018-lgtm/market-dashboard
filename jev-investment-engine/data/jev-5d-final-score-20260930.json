@@ -1,0 +1,141 @@
+{
+  "version": "jev-5d-strong-stock-v1-single-case-final",
+  "date": "2026-09-30",
+  "scope": {
+    "cases": 140,
+    "development": 80,
+    "holdout": 60,
+    "horizon_sessions": 5,
+    "eligibility": [
+      "Price>=5",
+      "DDV20>=10M",
+      "SMA50>SMA200",
+      "Close>SMA200",
+      "RS63 percentile>=85",
+      "RS189 percentile>=85"
+    ],
+    "per_origin": "10 RS189 leaders + 10 deterministic hash controls",
+    "jev_input": "59 numeric features only; no news; each case independently evaluated 3 times",
+    "production_changes": false,
+    "github_actions_for_research": false
+  },
+  "development": {
+    "constant": {
+      "accuracy": 0.5375,
+      "brier": 0.24859375
+    },
+    "numeric": {
+      "accuracy": 0.7,
+      "brier": 0.18427012023876518
+    },
+    "jev": {
+      "accuracy": 0.4,
+      "brier": 0.3494756944444445,
+      "mean_p": 0.6417916666666666,
+      "up_frequency": 0.4625
+    },
+    "jev_leader": {
+      "n": 40,
+      "accuracy": 0.4,
+      "brier": 0.34895611111111113
+    },
+    "jev_hash_control": {
+      "n": 40,
+      "accuracy": 0.4,
+      "brier": 0.34999527777777784
+    },
+    "jev_by_origin": {
+      "2026-08-07": {
+        "accuracy": 0.55,
+        "brier": 0.2852977777777777
+      },
+      "2026-08-14": {
+        "accuracy": 0.3,
+        "brier": 0.3470816666666666
+      },
+      "2026-08-21": {
+        "accuracy": 0.25,
+        "brier": 0.4691861111111112
+      },
+      "2026-08-28": {
+        "accuracy": 0.5,
+        "brier": 0.2963372222222222
+      }
+    },
+    "selected_jev_shrinkage": 0,
+    "selected_hybrid_jev_weight": 0,
+    "selected_challenger_override_rate": 0
+  },
+  "holdout": {
+    "constant": {
+      "accuracy": 0.5,
+      "brier": 0.25140625
+    },
+    "numeric": {
+      "accuracy": 0.4666666666666667,
+      "brier": 0.3734914768446676
+    },
+    "jev": {
+      "accuracy": 0.5,
+      "brier": 0.28107925925925925,
+      "mean_p": 0.5974444444444444,
+      "up_frequency": 0.5
+    },
+    "jev_vs_numeric_mcnemar": {
+      "jev_correct_numeric_wrong": 15,
+      "jev_wrong_numeric_correct": 13,
+      "discordant": 28,
+      "exact_p": 0.8505540192127228
+    },
+    "leader": {
+      "n": 30,
+      "up_frequency": 0.6666666666666666,
+      "numeric": {
+        "accuracy": 0.4666666666666667,
+        "brier": 0.3309061860652182
+      },
+      "jev": {
+        "accuracy": 0.6,
+        "brier": 0.2563344444444444
+      }
+    },
+    "hash_control": {
+      "n": 30,
+      "up_frequency": 0.3333333333333333,
+      "numeric": {
+        "accuracy": 0.4666666666666667,
+        "brier": 0.416076767624117
+      },
+      "jev": {
+        "accuracy": 0.4,
+        "brier": 0.3058240740740741
+      }
+    },
+    "stability": {
+      "median_run_std": 0.024944382578492953,
+      "low_std_jev": {
+        "n": 30,
+        "accuracy": 0.5666666666666667,
+        "brier": 0.26773888888888886
+      },
+      "high_std_jev": {
+        "n": 30,
+        "accuracy": 0.43333333333333335,
+        "brier": 0.29441962962962964
+      },
+      "run_std_gt_0_10_n": 9
+    }
+  },
+  "decision": {
+    "direct_5d_price_direction": "REJECT_CURRENT_FORM",
+    "production_ranking_or_allocation": "DO_NOT_USE",
+    "raw_jev_probability_display": "DO_NOT_TREAT_AS_CALIBRATED_PROBABILITY",
+    "material_reading_layer": "SEPARATE_RESEARCH_TRACK",
+    "rationale": [
+      "Development-only selection shrank Jev contribution to zero.",
+      "Holdout Jev accuracy was 50%, no better than constant direction baseline.",
+      "Holdout Jev vs numeric discordance was not statistically distinguishable (exact McNemar p=0.851).",
+      "Leader holdout improvement did not reproduce in development: development leader accuracy was 40%."
+    ]
+  }
+}
