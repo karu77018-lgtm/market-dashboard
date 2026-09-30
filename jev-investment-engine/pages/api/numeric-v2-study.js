@@ -32,7 +32,7 @@ U=json.loads(universe_json)
 M=json.loads(market_json)
 E=json.loads(expected_json)
 fred_text=fred_csv_text
-ORIGINS=["2026-06-25","2026-07-02","2026-07-10","2026-07-17","2026-07-24","2026-07-31","2026-08-07","2026-08-14","2026-08-21","2026-08-28","2026-09-04","2026-09-14","2026-09-21"]
+ORIGINS=["2026-07-10","2026-07-17","2026-07-24","2026-07-31","2026-08-07","2026-08-14","2026-08-21","2026-08-28","2026-09-04","2026-09-14","2026-09-21"]
 FEATURES=E["feature_columns"]
 
 def mean(x): return sum(x)/len(x)
@@ -216,7 +216,7 @@ for origin in ORIGINS:
     if origin in qdates:
         qi=qdates.index(origin)
         if qi>=20:
-            old=qdates[qi-20];ob50,_,_=breadth(old);b50chg=b50-ob50
+            old=qdates[qi-20];ob50,_,_=breadth(old);b50chg=(b50-ob50) if b50 is not None and ob50 is not None else None
     # 252-day new-high minus new-low percentage, only where full history exists
     hi=lo=den=0
     for tk,rows in SER.items():
