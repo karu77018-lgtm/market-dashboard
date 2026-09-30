@@ -11,3 +11,12 @@ This repository includes a direct Codex -> Jev MCP integration.
 - If the Jev tool reports a missing key, the Codex environment needs either `AI_GATEWAY_API_KEY` or `JEV_API_KEY`.
 - The default endpoint is Vercel AI Gateway's TypeSafe-compatible Jev System One endpoint. `JEV_ENDPOINT` may override it when intentionally configured.
 - Do not change MC57, V38, Massive, FRED, or publication logic merely to use Jev.
+
+
+### Jev language policy
+
+- Jev-facing instructions and typed questions must be written in English.
+- User-facing labels and explanations may be Japanese.
+- Do not assume English is better merely by convention: preserve A/B-testability and validate any claimed improvement with held-out labeled cases.
+- Keep deterministic calculations (returns, ranks, probabilities, EV math, thresholds) outside Jev. Jev owns semantic interpretation only.
+- Do not ask Jev for a direct stock-price forecast when a narrower semantic question can answer the research need.
