@@ -96,6 +96,14 @@ jobs:
             work/massive-reference.json
             work/massive-grouped.json
           key: source-mc57-ohlcv-${{ github.run_id }}
+      - name: Restore independent long ETF history cache
+        uses: actions/cache@v4
+        with:
+          path: work/market-history-prices.json
+          key: source-mc57-long-history-${{ github.run_id }}
+          restore-keys: source-mc57-long-history-
+      - name: Acquire and export independent long market histories
+        run: python scripts/market_history.py --root .
       - name: Build frozen source page with current data
         run: >-
           python scripts/build_exact_source_mc57_clone.py --repo-root . --data-dir data
@@ -140,7 +148,7 @@ jobs:
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
         run: >-
           python scripts/phase_a0/scan_secrets.py --root . --include-tracked
-          source-mc57.html chart-data latest-manifest.json data work/ohlcv.csv
+          source-mc57.html chart-data market-history assets latest-manifest.json data work/ohlcv.csv
           work/massive-reference.json work/massive-grouped.json
       - name: Build monthly-full or daily-delta private snapshot and SHA-256 manifest
         id: snapshot
@@ -306,6 +314,8 @@ jobs:
           path: |
             source-mc57.html
             chart-data/
+            market-history/
+            assets/
             latest-manifest.json
             data/mc57.json
             data/state.json
@@ -347,7 +357,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- source-mc57.html chart-data latest-manifest.json && git add -f -- data/jev-ranking.json
+          git add -- source-mc57.html chart-data market-history assets latest-manifest.json && git add -f -- data/jev-ranking.json
           if test -n "$HASH_RECORD_PATH"; then git add -- "$HASH_RECORD_PATH"; fi
           if test -n "$FULL_MARKER_PATH"; then git add -- "$FULL_MARKER_PATH"; fi
           if git diff --cached --quiet; then echo "No publication change"; exit 0; fi

@@ -288,7 +288,7 @@ def _participation(condition: pd.DataFrame, valid: pd.DataFrame) -> pd.Series:
     return condition.astype(float).where(valid).mean(axis=1, skipna=True) * 100.0
 
 
-def compute_mc57(close: pd.DataFrame, target: str, generated_at: str) -> dict[str, Any]:
+def compute_mc57(close: pd.DataFrame, target: str, generated_at: str, *, history_output: Path | None = None) -> dict[str, Any]:
     sma10 = close.rolling(10, min_periods=10).mean()
     sma20 = close.rolling(20, min_periods=20).mean()
     sma50 = close.rolling(50, min_periods=50).mean()
@@ -326,7 +326,7 @@ def compute_mc57(close: pd.DataFrame, target: str, generated_at: str) -> dict[st
         raise RuntimeError("MC57 current score could not be calculated")
 
     rows = []
-    for d in score.dropna().iloc[-504:].index:
+    for d in score.dropna().iloc[-2520:].index:
         vals = {name: float(mf.at[d, name]) for name in METRIC_NAMES if pd.notna(mf.at[d, name])}
         rows.append({
             "date": d.strftime("%Y-%m-%d"), "raw": float(raw.loc[d]),
@@ -336,6 +336,13 @@ def compute_mc57(close: pd.DataFrame, target: str, generated_at: str) -> dict[st
             "fixed57_breadth_sma50": vals.get("close_gt_sma50"),
             "fixed57_breadth_sma200": vals.get("close_gt_sma200"),
         })
+    # The calculation above is unchanged. Persist long output separately before
+    # restoring the original 504-row API contract for all existing consumers.
+    if history_output is not None:
+        dump(history_output, {"schema": "market-history.mc57.full.1", "session_date": target,
+             "source": "same fixed57 adjusted-price inputs and unchanged MC57 formula",
+             "calculation_version": "v38-mc57-live-1.0.0", "history": rows})
+    rows = rows[-504:]
     current_metrics = rows[-1]["metrics"]
     valid_counts = {name: int(57 - mf.loc[day, name:name].isna().sum()) for name in METRIC_NAMES}
     # The aggregate metric is finite if at least one ETF is valid; expose the
@@ -519,7 +526,8 @@ def main() -> int:
     market["fred"] = fred
     market["massive_market_structure"] = market_structure
     dump(data / "market_inputs.json", market)
-    mc57 = compute_mc57(mc57_prices(target), target, generated_at)
+    mc57 = compute_mc57(mc57_prices(target), target, generated_at,
+                         history_output=root / "market-history" / "mc57-full.json")
     dump(data / "mc57.json", mc57)
     dump(data / "state.json", la.state_object(session_date=target, generated_at=generated_at,
                                                coverage=yahoo_stats["target_session_coverage"]))

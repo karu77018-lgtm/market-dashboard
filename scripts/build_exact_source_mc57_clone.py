@@ -454,8 +454,8 @@ def validate_output(output: Path, data_dir: Path, session: str) -> None:
         raise CloneBuildError(f"clone output missing or unexpectedly small: {output}")
     text = output.read_text(encoding="utf-8")
     required = (
-        "マーケットステータス（地合いスコア）",
-        "地合いスコアの内訳（4本柱）",
+        "マーケットステータス（MC57・市場内部）",
+        "MC57内訳（12指標 / 4グループ）",
         "Daily",
         "Positions",
         "Core 12",
@@ -505,6 +505,8 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
                       output=output, mktcap=data_dir / "mktcap.json"),
     )
     _install_mc57_score_patch(module, data_dir, session)
+    from market_internals_ui import install
+    install(module, repo_root, data_dir)
 
     old_argv = list(sys.argv)
     try:
@@ -513,7 +515,11 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
     finally:
         sys.argv = old_argv
 
-    validate_output(output, data_dir, session)
+    # Full display integrity is checked after the persistent internals adapter.
+    # Base generation must still use the authoritative MC57 current value.
+    expected = f'<div class="val">{float(mc57_series(data_dir, session).iloc[-1]):.0f}<span style="font-size:15px;font-weight:600">/100</span></div>'
+    if expected not in output.read_text(encoding="utf-8"):
+        raise CloneBuildError("base generator MC57 current mismatch")
     current = float(mc57_series(data_dir, session).iloc[-1])
     return {
         "status": "READY",

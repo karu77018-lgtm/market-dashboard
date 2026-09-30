@@ -21,7 +21,8 @@ def main() -> int:
     providers = json.loads((root / "data" / "provider_inputs.json").read_text(encoding="utf-8"))
 
     required = [
-        "マーケットステータス（地合いスコア）", "地合いスコアの内訳（4本柱）",
+        "マーケットステータス（MC57・市場内部）", "MC57内訳（12指標 / 4グループ）",
+        "market-history-script", "NQ運用判定", "GICS11 Rotation Heatmap", "Market Leadership",
         "Daily", "Positions", "Core 12", "Setups", "Rotation", "Movers",
         "Weekly", "Publish", "Rules", "Jev期待値", "mc57-candle-script",
         "jev-ranking-section", "ブレッドス推移（50日線上の割合）",
@@ -40,6 +41,18 @@ def main() -> int:
         raise SystemExit("rendered MC57 does not match authoritative current value")
     if mc57.get("status") != "READY" or mc57.get("coverage") != 1.0:
         raise SystemExit("MC57 is not READY at 57/57 current coverage")
+    history = json.loads((root / "market-history" / "index.json").read_text())
+    if history["session_date"] != session:
+        raise SystemExit("long history index session mismatch")
+    if "地合いスコアの内訳（4本柱）" in html or "地合いは青" in html:
+        raise SystemExit("legacy MC57/SAR display found")
+    for key in ("mc57", "leadership", "concentration", "relative", "gics11"):
+        if key not in history["files"]:
+            raise SystemExit("history route missing: " + key)
+    for win in ("2y", "5y", "10y"):
+        obj = json.loads((root / "market-history" / history["files"]["mc57"][win]).read_text())
+        if obj["dates"][-1] != session or obj["current"] != mc57["mc57"]:
+            raise SystemExit("MC57 history/current mismatch")
     universe = len(rs.get("rows", []))
     candles = int(index.get("ticker_count", 0))
     if universe <= 0 or candles / universe < .95:

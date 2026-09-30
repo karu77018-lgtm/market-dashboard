@@ -160,6 +160,8 @@ def main() -> int:
     text = text.replace(spark, spark + '<div id="mc57-candle" class="mc57-candle"><div class="mc57-candle-msg">銘柄をタップするとローソク足を表示します。</div></div>', 1)
     text = text.replace('</head>', STYLE + '</head>', 1)
     text = text.replace('</body>', SCRIPT + '</body>', 1)
+    from market_internals_ui import apply_html
+    text = apply_html(text, html_path.resolve().parent)
     html_path.write_text(text, encoding="utf-8")
     print(json.dumps({"session_date": args.session, "ticker_count": meta["ticker_count"],
                       "cards": ["50MA participation", "52-week new highs minus new lows"],
