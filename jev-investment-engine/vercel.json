@@ -3,6 +3,9 @@
   "functions": {
     "pages/api/*.js": {
       "maxDuration": 60
+    },
+    "api/**/*.py": {
+      "maxDuration": 60
     }
   },
   "git": {
@@ -11,5 +14,11 @@
       "main": true,
       "jev-prod": true
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/api/research/feature_probe",
+      "destination": "/api/research/feature_probe.py"
+    }
+  ]
 }
