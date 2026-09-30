@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Provider adapters for the isolated source-mc57 refresh.
 
-Massive is used in bulk: one reference crawl plus one grouped daily response per
-session.  FRED is used for authoritative macro observations.  The module keeps
-the provider payloads out of the published repository; only derived values are
-rendered into source-mc57.html and summarized in latest-manifest.json.
+Massive is split by role: reference data is cached, grouped daily data is an
+optional bulk route when entitled, and current-session publication can fall
+back to Yahoo without blocking the dashboard. FRED is used for authoritative
+macro observations. The module keeps provider payloads out of the published
+repository; only derived values are rendered into source-mc57.html and
+summarized in latest-manifest.json.
 """
 from __future__ import annotations
 
@@ -143,6 +145,13 @@ def _get_json(
                 delay = min(float(response.headers.get("Retry-After", 60)), 90.0)
                 time.sleep(max(delay, 1.0))
                 continue
+            if 400 <= response.status_code < 500:
+                # Authentication/entitlement errors are deterministic for the
+                # request. Retrying them only burns free-plan rate budget.
+                raise ProviderError(
+                    f"provider request rejected: {_safe_url(url)} "
+                    f"(status={response.status_code})"
+                )
             response.raise_for_status()
             payload = response.json()
             if not isinstance(payload, dict):
