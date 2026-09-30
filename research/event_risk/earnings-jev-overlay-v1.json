@@ -1,424 +1,110 @@
 {
-  "created_at": "2026-09-30T22:29:13.370639+00:00",
-  "errors": [
-    {
-      "accession_number": "0001628280-26-059795",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-01",
-      "message": "SEC HTTP 403",
-      "ticker": "CRDO"
-    },
-    {
-      "accession_number": "0001571996-26-000039",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-01",
-      "message": "SEC HTTP 403",
-      "ticker": "DELL"
-    },
-    {
-      "accession_number": "0001628280-26-059820",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-01",
-      "message": "SEC HTTP 403",
-      "ticker": "GTLB"
-    },
+  "created_at": "2026-09-30T22:41:06.729883+00:00",
+  "deterministic_threshold": 60.0,
+  "end_date": "2026-09-30",
+  "errors": [],
+  "event_count": 12,
+  "evidence_source": "same-day Form 10-Q main document fetched through Massive",
+  "gateway_cost_usd": 0.00043928,
+  "jev_error_count": 0,
+  "jev_success_count": 2,
+  "privacy": {
+    "filing_text_persisted": false,
+    "raw_jev_runs_persisted": false
+  },
+  "question_set_version": "jev-expectation-gap-en-v2",
+  "rows": [
     {
       "accession_number": "0001628280-26-059794",
-      "error": "ShadowRunError",
+      "duration_ms": 356,
+      "evidence_chars": 14000,
       "filing_date": "2026-09-01",
-      "message": "SEC HTTP 403",
+      "jev": {
+        "broadly_expected_probability": 0.07,
+        "evidence_quality": "strong",
+        "information_novelty": 0.53,
+        "material_business_change": 0.76,
+        "negative_surprise_probability": 0.0,
+        "persistent_change": 0.53,
+        "positive_surprise_probability": 0.24,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "46ee70a7f1ee014aec42562c84beaf69cd02c79c04e06b4f46b8f3249a8d2546",
       "ticker": "MDB"
     },
     {
-      "accession_number": "0001628280-26-059697",
-      "error": "ShadowRunError",
+      "accession_number": "0001477720-26-000058",
+      "duration_ms": 318,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-03",
+      "jev": {
+        "broadly_expected_probability": 0.0,
+        "evidence_quality": "weak",
+        "information_novelty": 0.22,
+        "material_business_change": 0.49,
+        "negative_surprise_probability": 0.0,
+        "persistent_change": 0.45,
+        "positive_surprise_probability": 0.0,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "a48c23c22858aa279bc2d3a91aab739bfc8f8f7402735acd1fb71f7068c488e7",
+      "ticker": "ASAN"
+    }
+  ],
+  "selection_rule": "Core-complete September events with frozen Jul-Aug pre20_excess_qqq percentile >= threshold",
+  "start_date": "2026-09-01",
+  "unmatched": [
+    {
       "filing_date": "2026-09-01",
-      "message": "SEC HTTP 403",
-      "ticker": "MDT"
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "GTLB"
     },
     {
-      "accession_number": "0001327567-26-000019",
-      "error": "ShadowRunError",
       "filing_date": "2026-09-01",
-      "message": "SEC HTTP 403",
+      "reason": "NO_SAME_DAY_10Q",
       "ticker": "PANW"
     },
     {
-      "accession_number": "0001104659-26-104735",
-      "error": "ShadowRunError",
       "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
-      "ticker": "AGX"
-    },
-    {
-      "accession_number": "0001577526-26-000119",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
-      "ticker": "AI"
-    },
-    {
-      "accession_number": "0001730168-26-000076",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
-      "ticker": "AVGO"
-    },
-    {
-      "accession_number": "0001569345-26-000035",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
+      "reason": "NO_SAME_DAY_10Q",
       "ticker": "CXM"
     },
     {
-      "accession_number": "0001104659-26-104498",
-      "error": "ShadowRunError",
       "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
-      "ticker": "FCEL"
-    },
-    {
-      "accession_number": "0001177609-26-000023",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
+      "reason": "NO_SAME_DAY_10Q",
       "ticker": "FIVE"
     },
     {
-      "accession_number": "0000950142-26-002481",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
-      "ticker": "GIII"
-    },
-    {
-      "accession_number": "0000065270-26-000044",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
-      "ticker": "MEI"
-    },
-    {
-      "accession_number": "0001002047-26-000003",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
-      "ticker": "NTAP"
-    },
-    {
-      "accession_number": "0001193125-26-380188",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
-      "ticker": "NTSK"
-    },
-    {
-      "accession_number": "0001140361-26-035406",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
-      "ticker": "OLLI"
-    },
-    {
-      "accession_number": "0000078239-26-000055",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
-      "ticker": "PVH"
-    },
-    {
-      "accession_number": "0001640147-26-000033",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-02",
-      "message": "SEC HTTP 403",
-      "ticker": "SNOW"
-    },
-    {
-      "accession_number": "0001193125-26-381923",
-      "error": "ShadowRunError",
       "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
-      "ticker": "AMBA"
-    },
-    {
-      "accession_number": "0001477720-26-000058",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
-      "ticker": "ASAN"
-    },
-    {
-      "accession_number": "0000746598-26-000043",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
-      "ticker": "BRC"
-    },
-    {
-      "accession_number": "0001628280-26-060245",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
-      "ticker": "CIEN"
-    },
-    {
-      "accession_number": "0000016732-26-000020",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
-      "ticker": "CPB"
-    },
-    {
-      "accession_number": "0001261333-26-000088",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
+      "reason": "NO_SAME_DAY_10Q",
       "ticker": "DOCU"
     },
     {
-      "accession_number": "0001528396-26-000039",
-      "error": "ShadowRunError",
       "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
+      "reason": "NO_SAME_DAY_10Q",
       "ticker": "GWRE"
     },
     {
-      "accession_number": "0001628280-26-060438",
-      "error": "ShadowRunError",
       "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
-      "ticker": "IOT"
-    },
-    {
-      "accession_number": "0001397187-26-000126",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
-      "ticker": "LULU"
-    },
-    {
-      "accession_number": "0001734722-26-000047",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
+      "reason": "NO_SAME_DAY_10Q",
       "ticker": "PATH"
     },
     {
-      "accession_number": "0001193125-26-381874",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
-      "ticker": "PL"
-    },
-    {
-      "accession_number": "0000737758-26-000041",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
-      "ticker": "TTC"
-    },
-    {
-      "accession_number": "0001856437-26-000019",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
-      "ticker": "VSXY"
-    },
-    {
-      "accession_number": "0001628280-26-060252",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-03",
-      "message": "SEC HTTP 403",
-      "ticker": "WLY"
-    },
-    {
-      "accession_number": "0001193125-26-384364",
-      "error": "ShadowRunError",
       "filing_date": "2026-09-08",
-      "message": "SEC HTTP 403",
-      "ticker": "ABM"
-    },
-    {
-      "accession_number": "0001676238-26-000039",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-08",
-      "message": "SEC HTTP 403",
+      "reason": "NO_SAME_DAY_10Q",
       "ticker": "BRZE"
     },
     {
-      "accession_number": "0000726958-26-000084",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-08",
-      "message": "SEC HTTP 403",
-      "ticker": "CASY"
-    },
-    {
-      "accession_number": "0001326380-26-000050",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-08",
-      "message": "SEC HTTP 403",
-      "ticker": "GME"
-    },
-    {
-      "accession_number": "0001638826-26-000093",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-08",
-      "message": "SEC HTTP 403",
-      "ticker": "TTAN"
-    },
-    {
-      "accession_number": "0001193125-26-386510",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-09",
-      "message": "SEC HTTP 403",
-      "ticker": "AEO"
-    },
-    {
-      "accession_number": "0001817358-26-000146",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-09",
-      "message": "SEC HTTP 403",
-      "ticker": "ASO"
-    },
-    {
-      "accession_number": "0001104659-26-106304",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-09",
-      "message": "SEC HTTP 403",
-      "ticker": "AVAV"
-    },
-    {
-      "accession_number": "0001628280-26-061011",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-09",
-      "message": "SEC HTTP 403",
-      "ticker": "CHWY"
-    },
-    {
-      "accession_number": "0001856525-26-000091",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-09",
-      "message": "SEC HTTP 403",
-      "ticker": "CNM"
-    },
-    {
-      "accession_number": "0001628280-26-061155",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-09",
-      "message": "SEC HTTP 403",
-      "ticker": "COO"
-    },
-    {
-      "accession_number": "0000056679-26-000029",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-09",
-      "message": "SEC HTTP 403",
-      "ticker": "KFY"
-    },
-    {
-      "accession_number": "0001628280-26-061136",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-09",
-      "message": "SEC HTTP 403",
-      "ticker": "NAVN"
-    },
-    {
-      "accession_number": "0001628280-26-061015",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-09",
-      "message": "SEC HTTP 403",
-      "ticker": "SAIL"
-    },
-    {
-      "accession_number": "0000832988-26-000227",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-09",
-      "message": "SEC HTTP 403",
-      "ticker": "SIG"
-    },
-    {
-      "accession_number": "0000796343-26-000147",
-      "error": "ShadowRunError",
       "filing_date": "2026-09-10",
-      "message": "SEC HTTP 403",
-      "ticker": "ADBE"
-    },
-    {
-      "accession_number": "0001193125-26-387902",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-10",
-      "message": "SEC HTTP 403",
+      "reason": "NO_SAME_DAY_10Q",
       "ticker": "CPRT"
     },
     {
-      "accession_number": "0001185185-26-003916",
-      "error": "ShadowRunError",
       "filing_date": "2026-09-10",
-      "message": "SEC HTTP 403",
-      "ticker": "FEIM"
-    },
-    {
-      "accession_number": "0001628280-26-061217",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-10",
-      "message": "SEC HTTP 403",
-      "ticker": "M"
-    },
-    {
-      "accession_number": "0001193125-26-387905",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-10",
-      "message": "SEC HTTP 403",
+      "reason": "NO_SAME_DAY_10Q",
       "ticker": "ORCL"
-    },
-    {
-      "accession_number": "0001104659-26-106743",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-10",
-      "message": "SEC HTTP 403",
-      "ticker": "RH"
-    },
-    {
-      "accession_number": "0001193125-26-387134",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-10",
-      "message": "SEC HTTP 403",
-      "ticker": "SHOE"
-    },
-    {
-      "accession_number": "0001104659-26-106890",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-11",
-      "message": "SEC HTTP 403",
-      "ticker": "KR"
-    },
-    {
-      "accession_number": "0001525769-26-000039",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-14",
-      "message": "SEC HTTP 403",
-      "ticker": "PLAY"
-    },
-    {
-      "accession_number": "0001628280-26-062287",
-      "error": "ShadowRunError",
-      "filing_date": "2026-09-16",
-      "message": "SEC HTTP 403",
-      "ticker": "LEN"
     }
   ],
-  "event_count": 58,
-  "evidence_source": "SEC full-submission text; prefer EX-99.1 / EX-99 earnings release exhibit",
-  "gateway_cost_usd": 0.0,
-  "jev_error_count": 58,
-  "jev_success_count": 0,
-  "privacy": {
-    "raw_jev_runs_persisted": false,
-    "sec_text_persisted": false
-  },
-  "question_set_version": "jev-expectation-gap-en-v2",
-  "rows": [],
-  "runs_per_event": 1,
+  "unmatched_count": 10,
   "version": "earnings-jev-overlay-v1"
 }
