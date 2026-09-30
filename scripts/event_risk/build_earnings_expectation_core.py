@@ -103,6 +103,22 @@ class UniversePrices:
         return out
 
 
+def fetch_qqq_daily(client: MassiveClient, start: str, end: str) -> list[tuple[str, float]]:
+    start_day = dt.date.fromisoformat(start) - dt.timedelta(days=120)
+    payload = client.get(
+        f"/v2/aggs/ticker/QQQ/range/1/day/{start_day.isoformat()}/{end}",
+        {"adjusted": "true", "sort": "asc", "limit": 5000},
+    )
+    out: list[tuple[str, float]] = []
+    for row in payload.get("results") or []:
+        try:
+            day = dt.datetime.fromtimestamp(float(row["t"]) / 1000.0, tz=dt.timezone.utc).date().isoformat()
+            out.append((day, float(row["c"])))
+        except (KeyError, TypeError, ValueError, OverflowError):
+            continue
+    return out
+
+
 def fetch_earnings_disclosures(client: MassiveClient, start: str, end: str) -> list[dict[str, Any]]:
     params = {
         "tertiary_category": "quarterly_earnings",
@@ -171,7 +187,7 @@ def _reaction_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def build(repo_root: Path, client: MassiveClient, start: str, end: str) -> dict[str, Any]:
     prices = UniversePrices(repo_root)
-    qqq = prices.series.get("QQQ") or []
+    qqq = fetch_qqq_daily(client, start, end)
     qqq_dates = [r[0] for r in qqq]
     disclosures = fetch_earnings_disclosures(client, start, end)
 
@@ -226,7 +242,7 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str) -> dict[
         qi = bisect.bisect_right(qqq_dates, series[pi][0]) - 1
         q20 = None
         if qi >= 20:
-            q20 = 100.0 * (qqq[qi][4] / qqq[qi - 20][4] - 1)
+            q20 = 100.0 * (qqq[qi][1] / qqq[qi - 20][1] - 1)
         excess20 = pre20 - q20 if q20 is not None else None
 
         rank_now = prices.rs63_percentiles(series[pi][0]).get(ticker)
@@ -286,7 +302,7 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str) -> dict[
         "version": "earnings-expectation-load-core-v1",
         "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
         "date_range": [start, end],
-        "event_source": "Massive 8-K disclosure taxonomy: quarterly_earnings",
+        "event_source": "Massive 8-K disclosure taxonomy: quarterly_earnings; QQQ benchmark from Massive adjusted daily aggregates",
         "timing_rule": "baseline is the last regular-session close strictly before filing_date; conservative and leak-free when exact release time is unavailable",
         "core_definition": {
             "pre20_return_pct": "20-session stock run-up percentile across eligible earnings events",
@@ -305,6 +321,7 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str) -> dict[
         },
         "coverage": {
             "raw_disclosures": len(disclosures),
+            "qqq_daily_bars": len(qqq),
             "eligible_events": len(rows),
             "core_complete": sum(r.get("expectation_load_core") is not None for r in rows),
             "option_expected_move": 0,
