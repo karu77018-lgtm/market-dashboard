@@ -433,20 +433,35 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str, max_even
                 overview_cache[okey] = client.ticker_overview(*okey)
             overview = overview_cache[okey]
 
-        pre_shares = None
+        share_class_shares = None
+        weighted_shares = None
         market_cap = None
         if overview:
-            pre_shares = overview.get("weighted_shares_outstanding") or overview.get("share_class_shares_outstanding")
+            share_class_shares = overview.get("share_class_shares_outstanding")
+            weighted_shares = overview.get("weighted_shares_outstanding")
             market_cap = overview.get("market_cap")
-        pre_shares = float(pre_shares) if pre_shares not in (None, "") else None
+        share_class_shares = float(share_class_shares) if share_class_shares not in (None, "") else None
+        weighted_shares = float(weighted_shares) if weighted_shares not in (None, "") else None
+        # Canonical Basic Dilution denominator: the same listed share class where available.
+        # Weighted shares are preserved as a sensitivity because Massive defines them as
+        # assuming other share classes are converted into this class.
+        pre_shares = share_class_shares or weighted_shares
         market_cap = float(market_cap) if market_cap not in (None, "") else None
-        if not market_cap and pre_shares:
+        if not market_cap and weighted_shares:
+            market_cap = weighted_shares * row["pre_close"]
+        elif not market_cap and pre_shares:
             market_cap = pre_shares * row["pre_close"]
 
         basic_pct = (
             100.0 * terms["basic_new_shares"] / pre_shares
             if terms["basic_new_shares"] and pre_shares and pre_shares > 0
             else 0.0 if terms["secondary_only"] and pre_shares
+            else None
+        )
+        basic_pct_weighted = (
+            100.0 * terms["basic_new_shares"] / weighted_shares
+            if terms["basic_new_shares"] and weighted_shares and weighted_shares > 0
+            else 0.0 if terms["secondary_only"] and weighted_shares
             else None
         )
         overhang_shares = None
@@ -477,9 +492,11 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str, max_even
                 "disclosure_text_found": bool(text),
                 "basic_new_shares": terms["basic_new_shares"],
                 "explicit_overhang_shares": terms["explicit_overhang_shares"],
-                "pre_weighted_shares": pre_shares,
+                "pre_share_class_shares": share_class_shares,
+                "pre_weighted_shares": weighted_shares,
                 "pit_market_cap": market_cap,
                 "basic_dilution_pct": basic_pct,
+                "basic_dilution_pct_weighted_sensitivity": basic_pct_weighted,
                 "fully_diluted_overhang_pct": fully_diluted_pct,
                 "financing_amount": financing,
                 "financing_amount_basis": financing_basis,
@@ -519,7 +536,8 @@ def build(repo_root: Path, client: MassiveClient, start: str, end: str, max_even
             "prices": "repository chart-data; same event-study filters/cooldown as event-risk-study",
         },
         "definitions": {
-            "basic_dilution_pct": "newly issued common shares / point-in-time pre-event weighted shares outstanding * 100",
+            "basic_dilution_pct": "newly issued common shares / point-in-time pre-event same-class shares outstanding * 100; weighted shares are fallback only",
+            "basic_dilution_pct_weighted_sensitivity": "newly issued common shares / Massive weighted shares outstanding * 100; robustness field, not primary bin",
             "fully_diluted_overhang_pct": "(new common shares + explicitly quantified warrant/convertible shares) / pre-event weighted shares * 100",
             "financing_market_cap_pct": "reported/derived financing amount / point-in-time pre-event market cap * 100",
             "offer_discount_pct": "offer price / pre-event close - 1",
