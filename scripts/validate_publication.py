@@ -22,7 +22,7 @@ def main() -> int:
 
     required = [
         "マーケットステータス（MC57・市場内部）", "MC57内訳（12指標 / 4グループ）",
-        "market-history-script", "NQ運用判定", "GICS11 Rotation Heatmap", "Market Leadership",
+        "market-history-script", "NQ運用判定",
         "Daily", "Positions", "Core 12", "Setups", "Rotation", "Movers",
         "Weekly", "Publish", "Rules", "Jev期待値", "mc57-candle-script",
         "jev-ranking-section", "ブレッドス推移（50日線上の割合）",

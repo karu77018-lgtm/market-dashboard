@@ -66,7 +66,7 @@ jobs:
       - name: Run deterministic provider tests
         run: python -m pytest
       - name: Restore prior successful OHLCV baseline
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: |
             work/ohlcv.csv
@@ -76,6 +76,7 @@ jobs:
           key: source-mc57-ohlcv-${{ github.run_id }}
           restore-keys: source-mc57-ohlcv-
       - name: Acquire current session and calculate MC57
+        id: acquire
         shell: bash
         run: |
           set +e
@@ -98,14 +99,31 @@ jobs:
             work/massive-reference.json
             work/massive-grouped.json
           key: source-mc57-ohlcv-${{ github.run_id }}
+      - name: Preserve successful acquisition cache before display generation
+        if: always() && steps.acquire.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            work/ohlcv.csv
+            work/mc57-authoritative.json
+            work/massive-reference.json
+            work/massive-grouped.json
+          key: source-mc57-ohlcv-${{ github.run_id }}
       - name: Restore independent long ETF history cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: work/market-history-prices.json
           key: source-mc57-long-history-${{ github.run_id }}
           restore-keys: source-mc57-long-history-
       - name: Acquire and export independent long market histories
+        id: long_history
         run: python scripts/market_history.py --root .
+      - name: Preserve real long history cache before display generation
+        if: always() && steps.long_history.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: work/market-history-prices.json
+          key: source-mc57-long-history-${{ github.run_id }}
       - name: Build frozen source page with current data
         run: >-
           python scripts/build_exact_source_mc57_clone.py --repo-root . --data-dir data

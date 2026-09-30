@@ -43,6 +43,34 @@ def fixture_prices(n=3000):
     return pd.DataFrame({k:100*np.exp(np.arange(n)*(.00015+i*.000009)+.08*np.sin(np.arange(n)/41+i)) for i,k in enumerate(syms)},index=dates)
 
 
+def test_long_yahoo_empty_response_retries_real_current_data(tmp_path,monkeypatch):
+    monkeypatch.setattr(mh,'SYMBOLS',['SPY']);monkeypatch.setattr(mh.time,'sleep',lambda n:None)
+    dates=pd.bdate_range('2025-01-01','2026-09-30')
+    frame=pd.DataFrame({'Adj Close':np.arange(len(dates))+100.},index=dates)
+    calls=[]
+    def download(*args,**kwargs):
+        calls.append(kwargs);return pd.DataFrame() if len(calls)==1 else frame
+    monkeypatch.setattr(mh.yf,'download',download)
+    actual,errors=mh.acquire('2026-09-30',tmp_path/'prices.json')
+    assert len(calls)==2 and not errors
+    assert actual.loc[pd.Timestamp('2026-09-30'),'SPY']==frame['Adj Close'].iloc[-1]
+
+
+def test_failed_adjustment_refetch_keeps_dated_cache_without_splicing(tmp_path,monkeypatch):
+    monkeypatch.setattr(mh,'SYMBOLS',['SPY']);monkeypatch.setattr(mh.time,'sleep',lambda n:None)
+    dates=pd.bdate_range('2025-01-01','2026-09-29');old=pd.Series(100.,index=dates)
+    cache=tmp_path/'prices.json';mh.write(cache,{'series':{'SPY':mh.rows(old)}})
+    revised=pd.DataFrame({'Adj Close':[50.,51.]},index=pd.to_datetime(['2026-09-29','2026-09-30']))
+    calls=[]
+    def download(*args,**kwargs):
+        calls.append(kwargs);return revised if len(calls)==1 else pd.DataFrame()
+    monkeypatch.setattr(mh.yf,'download',download)
+    actual,errors=mh.acquire('2026-09-30',cache)
+    assert len(calls)==4 and errors['SPY']=='Yahoo history unavailable'
+    pd.testing.assert_series_equal(actual['SPY'],old.rename('SPY'),check_freq=False)
+    assert pd.Timestamp('2026-09-30') not in actual.index
+
+
 def test_mc57_formula_and_current_unchanged_and_all_windows(tmp_path):
     p=fixture_prices(4100)[refresh_mc57.MC57_ETFS];target=p.index[-1].strftime('%Y-%m-%d')
     # Execute pre-change function from immutable git baseline, not a mirror of new code.

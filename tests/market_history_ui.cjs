@@ -30,7 +30,11 @@ async function verify(page,width){
   await page.locator('nav a[href="#t-rotation"]').click();
   for(const key of ['leadership','concentration','relative']){
     const card=page.locator('#t-rotation [data-history-key="'+key+'"]');
+    const initial=JSON.parse(fs.readFileSync(root+'/market-history/'+index.files[key]['2y']));
+    if(Object.values(initial.availability).some(x=>x.status!=='READY')){assert.equal(await card.count(),0,'unavailable initial chart hidden: '+key);continue;}
     for(const win of ['2y','5y','10y']){
+      const j=JSON.parse(fs.readFileSync(root+'/market-history/'+index.files[key][win]));
+      if(Object.values(j.availability).some(x=>x.status!=='READY')){assert.equal(await card.locator('[data-window="'+win+'"]').count(),0);continue;}
       await card.locator('[data-window="'+win+'"]').click();
       await page.waitForFunction(({key,win})=>document.querySelector('#t-rotation [data-history-key="'+key+'"]').dataset.loadedWindow===win,{key,win});
       assert(await card.locator('.mh-plot svg').isVisible());
@@ -38,7 +42,6 @@ async function verify(page,width){
       assert.equal(new Set(ticks).size,ticks.length,'unique readable y-axis labels: '+key);
       if(key.startsWith('mc57-group-'))assert(ticks.every(v=>Number(v)>=0&&Number(v)<=100),'participation axis stays 0..100');
       assert(!(await card.locator('.mh-status').innerText()).includes('DATA UNAVAILABLE'));
-      const j=JSON.parse(fs.readFileSync(root+'/market-history/'+index.files[key][win]));
       for(const [label,a] of Object.entries(j.series)){
         const normalized=await page.evaluate(a=>window.MarketHistory.normalize(a),a);
         assert.equal(normalized.find(Number.isFinite),100,label+' normalized period start');
@@ -46,7 +49,9 @@ async function verify(page,width){
     }
   }
   const heat=page.locator('#t-rotation [data-history-key="gics11"]');
-  for(const horizon of [21,63,126])for(const win of ['2y','5y','10y']){
+  const heatAvailable=[21,63,126].every(h=>JSON.parse(fs.readFileSync(root+'/market-history/'+index.files.gics11[h]['2y'])).status==='READY');
+  if(!heatAvailable)assert.equal(await heat.count(),0,'unavailable heatmap hidden');
+  for(const horizon of heatAvailable?[21,63,126]:[])for(const win of ['2y','5y','10y']){
     const expected=JSON.parse(fs.readFileSync(root+'/market-history/'+index.files.gics11[horizon][win]));
     if(expected.status!=='READY'){assert.equal(await heat.locator('[data-window="'+win+'"]').count(),0,'incomplete GICS period hidden');continue;}
     await heat.locator('[data-horizon="'+horizon+'"]').click();

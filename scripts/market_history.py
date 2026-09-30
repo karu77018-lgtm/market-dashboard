@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 import numpy as np
@@ -71,13 +72,22 @@ def acquire(target, cache):
         incremental=len(prior)>252
         begin=prior.index[-10] if incremental else start
         def download(begin):
-            raw=yf.download(tk,start=begin.strftime('%Y-%m-%d'),
-                end=(pd.Timestamp(target)+pd.Timedelta(days=1)).strftime('%Y-%m-%d'),
-                auto_adjust=False,actions=False,progress=False,threads=False,timeout=20)
-            f=la.select_yfinance_symbol_frame(raw,tk)
-            if f.empty or 'adj_close' not in f: return pd.Series(dtype=float)
-            s=pd.to_numeric(f['adj_close'],errors='coerce'); s.index=pd.to_datetime(s.index,utc=True).tz_localize(None).normalize()
-            return s.loc[(s.index<=pd.Timestamp(target)) & (s>0)].dropna().sort_index()
+            latest=pd.Series(dtype=float)
+            for attempt in range(3):
+                try:
+                    raw=yf.download(tk,start=begin.strftime('%Y-%m-%d'),
+                        end=(pd.Timestamp(target)+pd.Timedelta(days=1)).strftime('%Y-%m-%d'),
+                        auto_adjust=False,actions=False,progress=False,threads=False,timeout=20)
+                    f=la.select_yfinance_symbol_frame(raw,tk)
+                    if not f.empty and 'adj_close' in f:
+                        s=pd.to_numeric(f['adj_close'],errors='coerce'); s.index=pd.to_datetime(s.index,utc=True).tz_localize(None).normalize()
+                        s=s.loc[(s.index<=pd.Timestamp(target)) & (s>0)].dropna().sort_index()
+                        if not s.empty: latest=s
+                        if pd.Timestamp(target) in s.index: return s
+                except Exception:
+                    pass
+                if attempt<2: time.sleep(2**attempt)
+            return latest
         try:
             fresh=download(begin)
             if incremental and not fresh.empty:
@@ -85,7 +95,13 @@ def acquire(target, cache):
                 # Dividends/splits revise all adjusted history; refetch instead of
                 # splicing two adjustment bases or silently scaling old prices.
                 if len(common) and not np.allclose(prior.loc[common],fresh.loc[common],rtol=2e-5,atol=1e-6):
-                    fresh=download(start); prior=pd.Series(dtype=float)
+                    revised=download(start)
+                    if not revised.empty and pd.Timestamp(target) in revised.index:
+                        fresh=revised; prior=pd.Series(dtype=float)
+                    else:
+                        # Preserve dated old history, but never splice revised
+                        # prices into its old adjustment basis or pretend fresh.
+                        fresh=pd.Series(dtype=float)
             if fresh.empty: errors[tk]='Yahoo history unavailable'
             else:
                 prior=pd.concat([prior,fresh]); prior=prior[~prior.index.duplicated(keep='last')].sort_index()
