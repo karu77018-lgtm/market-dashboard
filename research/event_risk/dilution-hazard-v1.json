@@ -1,0 +1,132 @@
+{
+  "ok": true,
+  "version": "dilution-hazard-v1-empirical",
+  "snapshots": [
+    "2026-04-02",
+    "2026-04-24",
+    "2026-05-15",
+    "2026-06-05",
+    "2026-06-26",
+    "2026-07-17"
+  ],
+  "rows": 12393,
+  "development_n": 8126,
+  "calibration_n": 2137,
+  "holdout_n": 2130,
+  "universe_filters": [
+    ">=100 prior sessions",
+    "price >= $5",
+    "DDV20 >= $10M"
+  ],
+  "target": "any public offering/private placement/PIPE/warrant-conversion filing in next 60 calendar days",
+  "train_event_rate": 0.04413914060216311,
+  "vol_tertiles": {
+    "low_max": 1.9684307135830839,
+    "mid_max": 3.1932169573446885
+  },
+  "selected_shrink_strength": {
+    "history": 0,
+    "history_vol": 25
+  },
+  "history_table": {
+    "0": {
+      "n": 9556,
+      "raw_rate": 0.03484721640853914,
+      "shrunk_rate": 0.03484721640853914
+    },
+    "1": {
+      "n": 544,
+      "raw_rate": 0.14522058823529413,
+      "shrunk_rate": 0.14522058823529413
+    },
+    "2plus": {
+      "n": 163,
+      "raw_rate": 0.25153374233128833,
+      "shrunk_rate": 0.25153374233128833
+    }
+  },
+  "history_vol_table": {
+    "0|low": {
+      "n": 3165,
+      "raw_rate": 0.024328593996840443,
+      "shrunk_rate": 0.024483849064280274
+    },
+    "0|high": {
+      "n": 3098,
+      "raw_rate": 0.06003873466752744,
+      "shrunk_rate": 0.05991145645694975
+    },
+    "0|mid": {
+      "n": 3293,
+      "raw_rate": 0.021257212268448223,
+      "shrunk_rate": 0.021429619805622087
+    },
+    "1|high": {
+      "n": 282,
+      "raw_rate": 0.14184397163120568,
+      "shrunk_rate": 0.13388755216629994
+    },
+    "2plus|mid": {
+      "n": 38,
+      "raw_rate": 0.07894736842105263,
+      "shrunk_rate": 0.06513457960403297
+    },
+    "2plus|high": {
+      "n": 95,
+      "raw_rate": 0.3263157894736842,
+      "shrunk_rate": 0.26752898762545063
+    },
+    "1|mid": {
+      "n": 125,
+      "raw_rate": 0.096,
+      "shrunk_rate": 0.08735652343369385
+    },
+    "1|low": {
+      "n": 137,
+      "raw_rate": 0.19708029197080293,
+      "shrunk_rate": 0.17347826243860542
+    },
+    "2plus|low": {
+      "n": 30,
+      "raw_rate": 0.23333333333333334,
+      "shrunk_rate": 0.14733597300098325
+    }
+  },
+  "holdout": {
+    "constant": {
+      "n": 2130,
+      "event_rate": 0.04178403755868545,
+      "brier": 0.040043678274325215,
+      "roc_auc": 0.5,
+      "average_precision": 0.03961423500269363,
+      "mean_p": 0.04413914060216311,
+      "top_decile_event_rate": 0.03755868544600939,
+      "top_decile_lift": 0.898876404494382
+    },
+    "history": {
+      "n": 2130,
+      "event_rate": 0.04178403755868545,
+      "brier": 0.03908228429466068,
+      "roc_auc": 0.5841265297359193,
+      "average_precision": 0.09272628793627073,
+      "mean_p": 0.04410401400139255,
+      "top_decile_event_rate": 0.10328638497652583,
+      "top_decile_lift": 2.4719101123595504
+    },
+    "history_vol": {
+      "n": 2130,
+      "event_rate": 0.04178403755868545,
+      "brier": 0.039139782820305766,
+      "roc_auc": 0.6547077055199864,
+      "average_precision": 0.09799972491081656,
+      "mean_p": 0.041402827981272455,
+      "top_decile_event_rate": 0.107981220657277,
+      "top_decile_lift": 2.5842696629213484
+    }
+  },
+  "holdout_counts": {
+    "positives": 89,
+    "total": 2130
+  },
+  "note": "Empirical 60-day dilution hazard. Financial-statement cash runway and explicit shelf/ATM capacity are not included yet."
+}
