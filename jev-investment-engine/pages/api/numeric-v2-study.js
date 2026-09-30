@@ -89,7 +89,7 @@ for k,arr in M.items():
 
 # FRED VIXCLS,DGS10
 FRED={"VIXCLS":{},"DGS10":{}}
-reader=csv.DictReader(io.StringIO(fred_text))
+reader=csv.DictReader([line for line in fred_text.replace("\\r\\n","\\n").replace("\\r","\\n").split("\\n") if line.strip()])
 for row in reader:
     d=row.get("DATE") or row.get("observation_date")
     if not d: continue
