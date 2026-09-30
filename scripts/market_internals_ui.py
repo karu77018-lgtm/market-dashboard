@@ -9,6 +9,7 @@ import html
 import json
 import math
 import re
+import hashlib
 from pathlib import Path
 from bs4 import BeautifulSoup
 from market_history import GROUPS, LABELS, GICS
@@ -94,6 +95,9 @@ def breakdown_panel(mc):
 
 def controls(key, *, disabled=False):
     why=('過去時点の構成銘柄を再現できないため長期化しません（現ユニバースの参考値）' if key=='unavailable' else '長期の元系列を保証できないため現表示を維持') if disabled else ''
+    if disabled:
+        # No nonfunctional or disabled period choices. RRG is not a time chart.
+        return '<div class="sub mh-history-note">'+why+'</div>' if key=='unavailable' else ''
     return ('<div class="mh-tools" data-history-key="'+key+'"><div class="mh-buttons" role="group" aria-label="表示期間">'+
         ''.join(f'<button type="button" data-window="{w}" class="{"on" if w=="2y" else ""}" aria-pressed="{"true" if w=="2y" else "false"}"'+
                 (' disabled title="過去時点ユニバース未検証"' if disabled and w!='2y' else '')+f'>{w.upper()}</button>' for w in ('2y','5y','10y'))+
@@ -227,8 +231,10 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
         key=next((v for k,v in mappings.items() if name.startswith(k)),None)
         if key:
             if key=='vixcycle':
-                for el in card.select('.vixwtabs,.vixleg'): el.decompose()
+                for el in card.select('.vixwtabs,.vixleg,.zoomhint'): el.decompose()
                 for el in card.select('.vixpane')[1:]: el.decompose()
+                plot['class']=[c for c in plot.get('class',[]) if c!='zoomable']
+                plot.attrs.pop('data-zoomstep',None)
             card['data-history-key']=key; card['class']=card.get('class',[])+['mh-existing']
             if key=='mc57': title.clear(); title.append('MC57推移')
             plot['class']=plot.get('class',[])+['mh-plot']
@@ -254,11 +260,37 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
         if anchor: anchor.insert_after(BeautifulSoup(divergence_card(summary,breadth,mc).replace('id="index-internals-divergence"','id="daily-index-internals-divergence"'),'html.parser'))
         daily.append(BeautifulSoup(chart_card('indices','指数・ボラティリティ 長期推移','QQQ / SPY / TQQQ / SOXX / SOXL / VIX。選択期間開始=100。VIXは価格水準の相対比較で投資リターンではありません。'),'html.parser'))
         for i,label in enumerate(GROUPS): daily.append(BeautifulSoup(chart_card('mc57-group-'+str(i),'MC57構成指標：'+label,'固定57ETFの有効データによる参加率・スコア（0–100）。ETF設定前は分母から除外。個別株Breadthとは別系列。'),'html.parser'))
+    # Only offer complete, actually exported periods. A shorter inception series
+    # is never presented as a selectable "10Y". No fetch is needed for this gate.
+    def ready_file(file):
+        if not file: return False
+        path=root/'market-history'/file
+        if not path.exists(): return False
+        data=json.loads(path.read_text())
+        if 'rows' in data: return data.get('status')=='READY' and bool(data['rows'])
+        avail=data.get('availability',{})
+        return bool(avail) and all(v.get('status')=='READY' for v in avail.values())
+    for card in list(soup.select('.mh-card,.mh-existing')):
+        key=card.get('data-history-key'); entry=idx.get('files',{}).get(key,{})
+        allowed=[w for w in ('2y','5y','10y') if
+                 (all(ready_file(entry.get(str(h),{}).get(w)) for h in (21,63,126)) if key=='gics11' else ready_file(entry.get(w)))]
+        for button in list(card.select('[data-window]')):
+            if button.get('data-window') not in allowed: button.decompose()
+        if not allowed:
+            if 'mh-card' in card.get('class',[]): card.decompose();continue
+            for tool in card.select('.mh-tools'): tool.decompose()
+        elif '2y' not in allowed:
+            # Initial period must always be 2Y; never auto-load a longer history.
+            card.decompose();continue
+        if key=='gics11' and '10y' not in allowed:
+            card.append(BeautifulSoup('<div class="sub mh-history-note">全11セクターの10年実履歴がないため、10Yは表示しません。</div>','html.parser'))
     # Existing base styles unchanged byte-for-byte; new styles only .mh-* nodes.
-    link=soup.new_tag('link',rel='stylesheet',href='assets/market-history.css'); link['id']='market-history-style'; soup.head.append(link)
+    assets=[root/'assets/market-history.js',root/'assets/market-history.css']
+    revision=hashlib.sha256(b''.join(p.read_bytes() for p in assets if p.exists())).hexdigest()[:12]
+    link=soup.new_tag('link',rel='stylesheet',href='assets/market-history.css?v='+revision); link['id']='market-history-style'; soup.head.append(link)
     config=soup.new_tag('script',id='market-history-config',type='application/json')
     config.string=json.dumps({'session_date':mc['session_date'],'files':idx.get('files',{})},ensure_ascii=False,separators=(',',':')).replace('<','\\u003c'); soup.body.append(config)
-    script=soup.new_tag('script',src='assets/market-history.js',id='market-history-script'); script['defer']=''; soup.body.append(script)
+    script=soup.new_tag('script',src='assets/market-history.js?v='+revision,id='market-history-script'); script['defer']=''; soup.body.append(script)
     # Preserve the frozen generator's exact anchor consumed by the Jev adapter.
     return str(soup).replace('<footer class="disc">', "<footer class='disc'>")
 

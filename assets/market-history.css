@@ -1,5 +1,7 @@
 /* Additions are scoped. Original dashboard styles and design tokens stay intact. */
 .mh-tools{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin:6px 0 9px}
+.mh-existing.vixcy .vixchart.mh-plot{height:auto;overflow:visible}
+.mh-existing.vixcy .vixchart.mh-plot svg{height:180px}
 .mh-buttons{display:flex;gap:4px;flex-wrap:wrap}.mh-buttons button{border:1px solid #c9c6bc;background:#efeee9;color:#35332e;border-radius:5px;font-size:10px;padding:4px 9px;cursor:pointer}
 .mh-buttons button.on{background:#2457a6;border-color:#2457a6;color:#fff}.mh-buttons button:disabled{opacity:.4;cursor:default}
 .mh-status{font-size:10px;color:#747167;line-height:1.4;overflow-wrap:anywhere}.mh-plot{min-width:0;width:100%;margin-top:8px}.mh-plot svg{display:block;width:100%;height:180px}

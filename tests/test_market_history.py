@@ -115,6 +115,23 @@ def test_rank_flow_missing_twenty_session_day_does_not_move_date(tmp_path):
         assert j['status']=='INSUFFICIENT_HISTORY'
 
 
+def test_unavailable_windows_not_offered_but_complete_windows_work(tmp_path):
+    f=fixture_prices(2700);target=str(f.index[-1].date())
+    f.loc[f.index[:700],'RSPC']=np.nan
+    mh.write(tmp_path/'work/market-history-prices.json',{'series':{k:mh.rows(f[k]) for k in f}})
+    mh.build(tmp_path,target,offline=True)
+    mc={'session_date':target,'mc57':22,'history':[],'metric_scores':{}}
+    src='<html><head></head><body><section id="t-market"><div class="card"><h2>ブレッドス推移</h2><div class="chart"><svg></svg></div></div></section><section id="t-rotation"></section></body></html>'
+    soup=BeautifulSoup(ui.apply_html(src,tmp_path,mc=mc),'html.parser')
+    assert not soup.select('.mh-tools button:disabled')
+    assert soup.select_one('[data-history-key="leadership"] [data-window="10y"]')
+    assert soup.select_one('[data-history-key="gics11"] [data-window="2y"]')
+    assert soup.select_one('[data-history-key="gics11"] [data-window="5y"]')
+    assert not soup.select_one('[data-history-key="gics11"] [data-window="10y"]')
+    assert not soup.select_one('[data-history-key="unavailable"]')
+    assert not soup.select_one('[data-history-key="mc57-group-0"]')
+
+
 def test_vix_native_state_unchanged_and_full_daily_history_exported(tmp_path):
     import base64,lzma,tarfile,hashlib
     from build_exact_source_mc57_clone import SOURCE_SHA256
@@ -166,8 +183,8 @@ def test_persistent_ui_preserves_styles_tabs_and_breadth_policy(tmp_path):
     assert soup.select_one('#old-rotation').get_text()=='既存'
     assert soup.select_one('#sarCol').get_text()=='Blue'
     assert 'NQ運用判定' in out;assert '地合いは青' not in out;assert '旧4本柱' not in out
-    assert soup.select_one('[data-window="2y"]').get('aria-pressed')=='true'
-    assert soup.select_one('[data-history-key="unavailable"] [data-window="5y"]').has_attr('disabled')
+    assert not soup.select('[data-window]')  # No exported data => no period choices.
+    assert soup.select_one('.mh-history-note')
     assert soup.select_one('#market-history-config').string.count('history')==0
     assert 'window.CALC={"color":"Blue"};' in out
     assert ui.apply_html(out,tmp_path,mc=mc)==out
