@@ -70,15 +70,19 @@ jobs:
       - name: Commit research outputs race-safely
         run: |
           cp research/expectation_gap/current-v1.json /tmp/expectation-gap-current-v1.json
+          rm -rf /tmp/expectation-gap-history
+          cp -R research/expectation_gap/history /tmp/expectation-gap-history
           cp maintenance/universal-expectation-gap-v1-20260930.md /tmp/universal-expectation-gap-v1-20260930.md
           git fetch origin research/universal-expectation-gap-20260930
           git reset --hard origin/research/universal-expectation-gap-20260930
           mkdir -p research/expectation_gap maintenance
           cp /tmp/expectation-gap-current-v1.json research/expectation_gap/current-v1.json
+          rm -rf research/expectation_gap/history
+          cp -R /tmp/expectation-gap-history research/expectation_gap/history
           cp /tmp/universal-expectation-gap-v1-20260930.md maintenance/universal-expectation-gap-v1-20260930.md
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add research/expectation_gap/current-v1.json maintenance/universal-expectation-gap-v1-20260930.md
+          git add research/expectation_gap/current-v1.json research/expectation_gap/history maintenance/universal-expectation-gap-v1-20260930.md
           if git diff --cached --quiet; then
             echo "No research output changes."
             exit 0
