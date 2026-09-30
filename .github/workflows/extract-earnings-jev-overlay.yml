@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: extract-earnings-jev-overlay-${{ github.ref }}
+  group: extract-earnings-jev-overlay-v2-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
