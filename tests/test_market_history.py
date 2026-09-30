@@ -137,12 +137,20 @@ def test_vix_native_state_unchanged_and_full_daily_history_exported(tmp_path):
     ui.install(native,tmp_path,tmp_path/'data')
     after=native.build_vix_cycle(macro,lookback=77)
     assert {k:v for k,v in after.items() if k!='windows'}=={k:v for k,v in before.items() if k!='windows'}
+    native._vix_cycle_card(after)
     index=json.loads((tmp_path/'market-history/index.json').read_text())
     for win,n in mh.WINDOWS.items():
         data=json.loads((tmp_path/'market-history'/index['files']['vixcycle'][win]).read_text())
         assert len(data['dates'])==n
         assert data['series']['VIX']==[r['close'] for r in full['series'][-n:]]
     assert after['windows'][0]['label']=='2Y'
+    lagged={'^VIX':macro['^VIX'].iloc[:-1]}
+    lag_ctx=native.build_vix_cycle(lagged,lookback=77)
+    native._vix_cycle_card(lag_ctx)
+    lag_data=json.loads((tmp_path/'market-history'/index['files']['vixcycle']['2y']).read_text())
+    assert lag_data['dates'][-1]=='2026-09-28'
+    assert lag_data['availability']['VIX']['status']=='INSUFFICIENT_HISTORY'
+    assert lag_data['observed_asof']=='2026-09-28'
 
 
 def test_persistent_ui_preserves_styles_tabs_and_breadth_policy(tmp_path):

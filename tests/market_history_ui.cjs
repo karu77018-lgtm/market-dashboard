@@ -54,6 +54,16 @@ async function verify(page,width){
   const overflow=await page.locator('#t-rotation .mh-card').evaluateAll(cards=>cards.filter(c=>{const r=c.getBoundingClientRect();return r.left< -1||r.right>innerWidth+1;}).map(c=>c.dataset.historyKey));
   assert.deepEqual(overflow,[],'new cards fit viewport '+width);
   await page.locator('nav a[href="#t-market"]').click();
+  for(const key of ['vixcycle','credit','defensive','vixterm','indices']){
+    if(!index.files[key])continue;
+    const card=page.locator('.mh-existing[data-history-key="'+key+'"],.mh-card[data-history-key="'+key+'"]');
+    if(!await card.count())continue;
+    for(const win of ['2y','5y','10y']){
+      await card.locator('[data-window="'+win+'"]').click();
+      await page.waitForFunction(({key,win})=>document.querySelector('.mh-existing[data-history-key="'+key+'"],.mh-card[data-history-key="'+key+'"]').dataset.loadedWindow===win,{key,win});
+      assert(await card.locator('.mh-plot svg').isVisible());
+    }
+  }
   const current=page.locator('[data-history-key="mc57"]');
   for(const win of ['2y','5y','10y']){
     await current.locator('[data-window="'+win+'"]').click();

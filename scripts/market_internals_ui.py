@@ -281,25 +281,36 @@ def install(module,root,data_dir):
     # Display-only export from the unchanged native VIX model. Its 1990 monthly
     # calibration, EVENT rules and LWMA/state calculations remain authoritative.
     original_cycle=getattr(module,'build_vix_cycle',None)
-    if original_cycle:
+    original_cycle_card=getattr(module,'_vix_cycle_card',None)
+    if original_cycle and original_cycle_card:
+        records_by_context={}
         def cycle(*args,**kwargs):
             requested=kwargs.get('lookback',getattr(module,'VIX_CYCLE_SPARK_DAYS',60))
             if len(args)>2: return original_cycle(*args,**kwargs)
             kwargs['lookback']=2520
             ctx=original_cycle(*args,**kwargs)
-            if ctx.get('asof')==mc['session_date'] and ctx.get('series'):
+            records_by_context[id(ctx)]=ctx.get('series',[])
+            ctx['series']=ctx.get('series',[])[-requested:]
+            return ctx
+        def cycle_card(ctx):
+            # Export only the displayed production context, never integration-test
+            # fixtures. Native VIX may end earlier than the stock session; expose
+            # that actual date and insufficient-current status without a fake bar.
+            records=records_by_context.pop(id(ctx),[])
+            if records and ctx.get('available'):
                 import pandas as pd
                 from market_history import export_windows,write
-                records=ctx['series']; dates=pd.to_datetime([r['date'] for r in records])
+                dates=pd.to_datetime([r['date'] for r in records])
                 labels={'close':'VIX','wma5':'LWMA5','wma10':'LWMA10','sigma1':'+1σ','sigma2':'+2σ'}
                 files=export_windows(root/'market-history','vixcycle',
-                    {name:pd.Series([r.get(k) for r in records],index=dates,dtype=float) for k,name in labels.items()},mc['session_date'])
+                    {name:pd.Series([r.get(k) for r in records],index=dates,dtype=float) for k,name in labels.items()},mc['session_date'],
+                    meta={'observed_asof':ctx.get('asof'),'source':'unchanged native Yahoo VIX High/monthly model'})
                 index_path=root/'market-history/index.json'
                 index=json.loads(index_path.read_text()); index['files']['vixcycle']=files;write(index_path,index)
                 ctx['windows']=[{'label':'2Y','rows':records[-504:],'from':records[-min(504,len(records))]['date'][:7],'to':records[-1]['date'][:7]}]
-            ctx['series']=ctx.get('series',[])[-requested:]
-            return ctx
+            return original_cycle_card(ctx)
         module.build_vix_cycle=cycle
+        module._vix_cycle_card=cycle_card
 
 if __name__=='__main__':
     ap=argparse.ArgumentParser(); ap.add_argument('--root',default='.'); ap.add_argument('--html',default='source-mc57.html')
