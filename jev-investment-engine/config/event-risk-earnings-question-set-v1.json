@@ -1,0 +1,69 @@
+{
+  "version": "jev-event-earnings-v1",
+  "status": "research_shadow",
+  "model": "typesafe-ai/jev",
+  "default_runs": 3,
+  "purpose": "Semantic interpretation of earnings disclosures only. No price-direction prediction.",
+  "questions": {
+    "EARN01_guidance_direction": {
+      "type": "choice",
+      "instructions": "Based only on the supplied point-in-time company disclosure and prior context, classify the direction of forward guidance. Do not infer analyst expectations unless explicitly supplied.",
+      "options": {
+        "raise": "Raised or materially improved",
+        "reaffirm": "Reaffirmed or essentially unchanged",
+        "cut": "Lowered or materially weakened",
+        "withdrawn": "Withdrawn or suspended",
+        "none": "No meaningful guidance in supplied text",
+        "unclear": "Insufficient or conflicting evidence"
+      }
+    },
+    "EARN02_demand_signal": {
+      "type": "choice",
+      "instructions": "Classify the company-specific demand signal in the supplied disclosure versus the prior context supplied.",
+      "options": {
+        "accelerating": "Demand/bookings/orders/usage materially improving",
+        "stable": "Broadly stable",
+        "decelerating": "Materially weakening or slowing",
+        "mixed": "Important signals conflict",
+        "unclear": "Insufficient evidence"
+      }
+    },
+    "EARN03_margin_signal": {
+      "type": "choice",
+      "instructions": "Classify the margin/profitability signal in the supplied disclosure versus the prior context supplied.",
+      "options": {
+        "improving": "Margins/unit economics materially improving",
+        "stable": "Broadly stable",
+        "pressured": "Margins/unit economics materially pressured",
+        "mixed": "Important signals conflict",
+        "unclear": "Insufficient evidence"
+      }
+    },
+    "EARN04_result_quality": {
+      "type": "choice",
+      "instructions": "Classify the economic quality of the reported quarter relative to the company's own prior trajectory and any explicit prior guidance in the supplied state. This is not a stock-price prediction.",
+      "options": {
+        "strong_positive": "Broad, material improvement with supportive quality",
+        "positive": "More positive than negative",
+        "mixed": "Material positives and negatives offset",
+        "negative": "More negative than positive",
+        "strong_negative": "Broad, material deterioration",
+        "unclear": "Insufficient evidence"
+      }
+    },
+    "EARN05_novelty": {
+      "type": "choice",
+      "instructions": "How novel is the economically important information versus the prior context supplied?",
+      "options": {
+        "high": "Material new information",
+        "medium": "Some meaningful new information",
+        "low": "Mostly continuation or already disclosed",
+        "unclear": "Insufficient evidence"
+      }
+    },
+    "EARN06_one_off_distortion": {
+      "type": "boolean",
+      "instructions": "Are headline results materially distorted by one-off, non-operating, accounting, transaction, tax, litigation, impairment, or other non-recurring items?"
+    }
+  }
+}
