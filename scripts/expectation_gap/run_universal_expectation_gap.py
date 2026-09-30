@@ -592,4 +592,78 @@ def main() -> int:
     if not as_of_date:
         raise ResearchError("No market as-of date")
     end = datetime.fromisoformat(as_of_date + "T23:59:59+00:00")
-    start = end - timedelta(days=args.lo
+    start = end - timedelta(days=args.lookback_days)
+    form4_start = (end - timedelta(days=90)).date().isoformat()
+
+    deep_rows = []
+    for seed in candidates:
+        ticker = seed["ticker"]
+        fin = financial_snapshot(provider, ticker)
+        insider = form4_snapshot(provider, ticker, form4_start)
+        short = short_interest_snapshot(provider, ticker)
+        docs, news_meta = news_snapshot(
+            provider, ticker, start.isoformat().replace("+00:00", "Z"),
+            end.isoformat().replace("+00:00", "Z"), args.news_limit,
+        )
+        state = {
+            "schema_version": "universal-expectation-gap-state-v1",
+            "ticker": ticker, "as_of": as_of_date,
+            "market_expectation_context": {
+                "expectation_load": seed["expectation_load"], "trend_strength": seed["trend_strength"],
+                "expectation_acceleration": seed["expectation_acceleration"],
+                "ret20_pct": seed["ret20_pct"], "ret63_pct": seed["ret63_pct"],
+                "run20_z": seed["run20_z"], "run63_z": seed["run63_z"],
+                "volume_ratio_20_vs_prev60": seed["volume_ratio_20_vs_prev60"],
+                "high63_proximity_pct": seed["high63_proximity_pct"],
+            },
+            "fundamental_context": fin,
+            "insider_context": {k: v for k, v in insider.items() if k != "error"},
+            "short_interest_context": short,
+            "recent_public_documents": docs,
+            "instructions": (
+                "Use only the supplied evidence and quantitative context. Do not predict the stock price or return. "
+                "Assess whether company-specific fundamentals and new public evidence are stronger or weaker than the "
+                "expectations implied by the market context. Treat missing evidence as unknown, not negative."
+            ),
+        }
+        try:
+            aggregate = jev_eval(jev_url, jev_secret, questions, state, runs=3)
+            jev, jev_status = semantic_summary(aggregate), "ok"
+        except Exception as exc:
+            jev, jev_status = {"status": "error", "error": type(exc).__name__}, "error"
+        out = {**seed, "financials": fin, "insider": insider, "short_interest": short,
+               "news": news_meta, "jev_status": jev_status, "jev": jev}
+        out["research_priority_score"] = research_priority(out)
+        deep_rows.append(out)
+
+    payload = {
+        "version": "universal-expectation-gap-v1",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "as_of": as_of_date, "status": "research_shadow", "production_impact": "none",
+        "jev_question_set": qcfg["version"], "jev_language": "English",
+        "universe_eligible_n": len(market_rows), "deep_candidate_n": len(candidates),
+        "provider_calls": provider.calls,
+        "expectation_load_formula": "0.35*p(run20_z)+0.25*p(run63_z)+0.15*p(volume_ratio)+0.15*p(high63_proximity)+0.10*p(positive_gap_intensity)",
+        "research_priority_formula": "0.45*fundamental_delta + 0.35*jev_semantic_gap + 0.20*(100-expectation_load) + capped transparent context bonuses",
+        "universe_summary": [
+            {"ticker": r["ticker"], "as_of": r["as_of"], "expectation_load": r["expectation_load"],
+             "trend_strength": r["trend_strength"], "expectation_acceleration": r["expectation_acceleration"],
+             "ret20_pct": r["ret20_pct"], "ret63_pct": r["ret63_pct"]}
+            for r in sorted(market_rows, key=lambda x: (-x["expectation_load"], x["ticker"]))
+        ],
+        "deep_rows": deep_rows,
+    }
+    out_path = root / args.output
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, indent=2, allow_nan=False) + "\n")
+    build_report(payload, root / args.report)
+    print(json.dumps({"ok": True, "version": payload["version"],
+                      "universe_eligible_n": payload["universe_eligible_n"],
+                      "deep_candidate_n": payload["deep_candidate_n"],
+                      "provider_calls": payload["provider_calls"],
+                      "jev_ok": sum(r.get("jev_status") == "ok" for r in deep_rows)}, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
