@@ -1,0 +1,87 @@
+name: Research universal expectation gap
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_candidates:
+        description: "Bounded Jev candidate count"
+        required: true
+        default: "60"
+  push:
+    branches:
+      - research/universal-expectation-gap-20260930
+    paths:
+      - AGENTS.md
+      - research/expectation_gap/question-set-en-v1.json
+      - scripts/run_expectation_gap_shadow.py
+      - tests/test_expectation_gap_shadow.py
+      - .github/workflows/research-expectation-gap.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: research-expectation-gap-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  expectation-gap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
+      JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
+      JEV_API_URL: ${{ vars.JEV_API_URL || 'https://jev-investment-engine.vercel.app/api/jev' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: Research branch guard
+        run: test "${{ github.ref_name }}" = "research/universal-expectation-gap-20260930"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install requests pytest
+
+      - name: Verify secrets
+        run: |
+          test -n "$MASSIVE_API_KEY"
+          test -n "$JEV_API_SECRET"
+
+      - name: Run expectation-gap tests
+        run: python -m pytest -q tests/test_expectation_gap_shadow.py tests/test_jev_live_shadow.py
+
+      - name: Run research shadow
+        env:
+          MAX_CANDIDATES: ${{ inputs.max_candidates || '60' }}
+        run: |
+          python scripts/run_expectation_gap_shadow.py \
+            --root . \
+            --max-candidates "$MAX_CANDIDATES" \
+            --news-lookback-days 21 \
+            --disclosure-lookback-days 120 \
+            --massive-min-interval 13
+
+      - name: Commit research outputs race-safely
+        run: |
+          cp research/expectation_gap/current-v1.json /tmp/expectation-gap-current-v1.json
+          cp maintenance/universal-expectation-gap-v1-20260930.md /tmp/universal-expectation-gap-v1-20260930.md
+          git fetch origin research/universal-expectation-gap-20260930
+          git reset --hard origin/research/universal-expectation-gap-20260930
+          mkdir -p research/expectation_gap maintenance
+          cp /tmp/expectation-gap-current-v1.json research/expectation_gap/current-v1.json
+          cp /tmp/universal-expectation-gap-v1-20260930.md maintenance/universal-expectation-gap-v1-20260930.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add research/expectation_gap/current-v1.json maintenance/universal-expectation-gap-v1-20260930.md
+          if git diff --cached --quiet; then
+            echo "No research output changes."
+            exit 0
+          fi
+          git commit -m "research: update universal expectation gap"
+          git push origin HEAD:research/universal-expectation-gap-20260930
