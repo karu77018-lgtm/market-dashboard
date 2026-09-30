@@ -1,0 +1,286 @@
+{
+  "version": "jev-5d-strong-stock-v1-single-case",
+  "origin": "2026-08-21",
+  "rows": [
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 0,
+      "ticker": "SLS",
+      "group": "leader",
+      "p_up": 0.7666666666666666,
+      "run_std": 0.009428090415820642,
+      "runs": [
+        0.76,
+        0.78,
+        0.76
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 1,
+      "ticker": "CLYM",
+      "group": "leader",
+      "p_up": 0.8066666666666666,
+      "run_std": 0.012472191289246443,
+      "runs": [
+        0.81,
+        0.82,
+        0.79
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 2,
+      "ticker": "ERAS",
+      "group": "leader",
+      "p_up": 0.57,
+      "run_std": 0.0374165738677394,
+      "runs": [
+        0.58,
+        0.52,
+        0.61
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 3,
+      "ticker": "MRNA",
+      "group": "leader",
+      "p_up": 0.7933333333333333,
+      "run_std": 0.012472191289246483,
+      "runs": [
+        0.78,
+        0.79,
+        0.81
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 4,
+      "ticker": "TWST",
+      "group": "leader",
+      "p_up": 0.8033333333333333,
+      "run_std": 0.016996731711975927,
+      "runs": [
+        0.78,
+        0.81,
+        0.82
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 5,
+      "ticker": "BFLY",
+      "group": "leader",
+      "p_up": 0.8133333333333334,
+      "run_std": 0.04027681991198189,
+      "runs": [
+        0.79,
+        0.78,
+        0.87
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 6,
+      "ticker": "SYRE",
+      "group": "leader",
+      "p_up": 0.6566666666666667,
+      "run_std": 0.020548046676563275,
+      "runs": [
+        0.68,
+        0.66,
+        0.63
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 7,
+      "ticker": "ATEX",
+      "group": "leader",
+      "p_up": 0.8266666666666667,
+      "run_std": 0.004714045207910321,
+      "runs": [
+        0.82,
+        0.83,
+        0.83
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 8,
+      "ticker": "TXG",
+      "group": "leader",
+      "p_up": 0.66,
+      "run_std": 0.043204937989385725,
+      "runs": [
+        0.62,
+        0.72,
+        0.64
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 9,
+      "ticker": "DFTX",
+      "group": "leader",
+      "p_up": 0.7466666666666667,
+      "run_std": 0.018856180831641284,
+      "runs": [
+        0.76,
+        0.72,
+        0.76
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 10,
+      "ticker": "HNGE",
+      "group": "hash_control",
+      "p_up": 0.7566666666666667,
+      "run_std": 0.012472191289246483,
+      "runs": [
+        0.77,
+        0.74,
+        0.76
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 11,
+      "ticker": "GEO",
+      "group": "hash_control",
+      "p_up": 0.8933333333333334,
+      "run_std": 0.004714045207910321,
+      "runs": [
+        0.89,
+        0.89,
+        0.9
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 12,
+      "ticker": "DK",
+      "group": "hash_control",
+      "p_up": 0.8833333333333333,
+      "run_std": 0.004714045207910321,
+      "runs": [
+        0.89,
+        0.88,
+        0.88
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 13,
+      "ticker": "STGW",
+      "group": "hash_control",
+      "p_up": 0.7133333333333333,
+      "run_std": 0.012472191289246483,
+      "runs": [
+        0.73,
+        0.71,
+        0.7
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 14,
+      "ticker": "ABSI",
+      "group": "hash_control",
+      "p_up": 0.7266666666666666,
+      "run_std": 0.13199326582148882,
+      "runs": [
+        0.82,
+        0.82,
+        0.54
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 15,
+      "ticker": "BVS",
+      "group": "hash_control",
+      "p_up": 0.83,
+      "run_std": 0.021602468994692852,
+      "runs": [
+        0.81,
+        0.86,
+        0.82
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 16,
+      "ticker": "PSX",
+      "group": "hash_control",
+      "p_up": 0.6633333333333334,
+      "run_std": 0.016996731711975962,
+      "runs": [
+        0.68,
+        0.64,
+        0.67
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 17,
+      "ticker": "TVTX",
+      "group": "hash_control",
+      "p_up": 0.8133333333333334,
+      "run_std": 0.012472191289246433,
+      "runs": [
+        0.83,
+        0.8,
+        0.81
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 18,
+      "ticker": "AMLX",
+      "group": "hash_control",
+      "p_up": 0.49333333333333335,
+      "run_std": 0.004714045207910321,
+      "runs": [
+        0.49,
+        0.5,
+        0.49
+      ]
+    },
+    {
+      "ok": true,
+      "origin": "2026-08-21",
+      "case_index": 19,
+      "ticker": "TBBB",
+      "group": "hash_control",
+      "p_up": 0.8533333333333334,
+      "run_std": 0.016996731711975962,
+      "runs": [
+        0.83,
+        0.87,
+        0.86
+      ]
+    }
+  ]
+}
