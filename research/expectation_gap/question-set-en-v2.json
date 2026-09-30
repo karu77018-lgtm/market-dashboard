@@ -1,0 +1,42 @@
+{
+  "version": "jev-expectation-gap-en-v2",
+  "status": "research_shadow",
+  "language": "en",
+  "model": "typesafe-ai/jev",
+  "default_runs": 3,
+  "purpose": "Minimal semantic overlay for business-change interpretation. Deterministic market-expectation features remain outside Jev.",
+  "questions": {
+    "JEV01_material_business_change": {
+      "type": "boolean",
+      "instructions": "Based only on the supplied company-specific evidence, is there a business change that is economically material enough to matter for future revenue, margins, cash flow, competitive position, or earnings power?"
+    },
+    "JEV02_persistent_change": {
+      "type": "boolean",
+      "instructions": "If a material business change is present, is it likely to persist for at least the next two to four quarters rather than being temporary, accounting-driven, one-time, or purely financial engineering?"
+    },
+    "JEV03_information_novelty": {
+      "type": "boolean",
+      "instructions": "Is the important information genuinely new relative to the prior public context supplied, rather than a reiteration, administrative filing, already-announced transaction, or previously disclosed fact?"
+    },
+    "JEV04_surprise_vs_prior_expectations": {
+      "type": "choice",
+      "instructions": "Classify how the newest company-specific evidence compares with the prior expectations implied by the supplied pre-event context. Do not predict the stock price.",
+      "criteria": {
+        "positive_surprise": "The new evidence is materially better than prior expectations.",
+        "negative_surprise": "The new evidence is materially worse than prior expectations.",
+        "broadly_expected": "The new evidence is broadly consistent with what was already expected or known.",
+        "unclear": "The supplied evidence is insufficient or too ambiguous to compare with prior expectations."
+      }
+    },
+    "JEV05_evidence_quality": {
+      "type": "choice",
+      "instructions": "How sufficient is the supplied evidence for a reliable semantic assessment?",
+      "criteria": {
+        "strong": "Multiple direct or primary-source facts support a clear assessment.",
+        "usable": "Evidence is incomplete but sufficient for a provisional assessment.",
+        "weak": "Evidence is mostly indirect, stale, repetitive, or ambiguous.",
+        "insufficient": "There is not enough evidence to make a meaningful assessment."
+      }
+    }
+  }
+}
