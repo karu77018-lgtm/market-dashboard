@@ -59,7 +59,7 @@ for snap in SNAPS:
     dates=[r[0] for r in rr];inds=[i for i,d in enumerate(dates) if d<=snap]
     if not inds:continue
     i=inds[-1]
-    if i<199:continue
+    if i<99:continue
     price=rr[i][4]
     if price<5:continue
     ddv=statistics.median([rr[j][4]*rr[j][5] for j in range(i-19,i+1)])
@@ -141,7 +141,7 @@ out={"version":"dilution-hazard-v1","snapshots":SNAPS,"rows":len(rows),"developm
 "train_event_rate":mean([r["y"] for r in dev+cal]),"strata":strata,
 "holdout":{"constant":metrics(hold,pconst),"empirical_history":metrics(hold,pemp),"logistic":metrics(hold,ph)},
 "holdout_counts":{"positives":sum(r["y"] for r in hold),"total":len(hold)},
-"note":"Pilot 60-calendar-day dilution hazard. No financial-statement cash runway yet."}
+"note":"Pilot 60-calendar-day dilution hazard. Snapshot universe requires >=100 prior sessions. No financial-statement cash runway yet."}
 json.dumps(out,allow_nan=False)
 `;
 export default async function handler(req,res){
