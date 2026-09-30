@@ -329,7 +329,7 @@ def classify_form4_row(row: dict[str, Any]) -> str:
     security_type = str(row.get("security_type") or "").lower()
     title = str(row.get("security_title") or "").lower()
 
-    if code == "P" and acquired == "A" and price > 0 and "derivative" not in security_type:
+    if code == "P" and acquired == "A" and price > 0 and security_type != "derivative":
         return "open_market_purchase"
     if code == "S" and acquired == "D" and price > 0:
         return "scheduled_sale_10b5_1" if plan else "discretionary_sale"
