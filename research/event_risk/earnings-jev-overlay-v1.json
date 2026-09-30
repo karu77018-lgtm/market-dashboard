@@ -1,13 +1,12 @@
 {
-  "created_at": "2026-09-30T22:41:16.024309+00:00",
-  "deterministic_threshold": 60.0,
+  "created_at": "2026-09-30T22:43:37.311444+00:00",
   "end_date": "2026-09-30",
   "errors": [],
-  "event_count": 12,
+  "event_count": 58,
   "evidence_source": "same-day Form 10-Q main document fetched through Massive",
-  "gateway_cost_usd": 0.00043928,
+  "gateway_cost_usd": 0.00577202,
   "jev_error_count": 0,
-  "jev_success_count": 2,
+  "jev_success_count": 26,
   "privacy": {
     "filing_text_persisted": false,
     "raw_jev_runs_persisted": false
@@ -16,44 +15,485 @@
   "rows": [
     {
       "accession_number": "0001628280-26-059794",
-      "duration_ms": 205,
+      "duration_ms": 289,
       "evidence_chars": 14000,
       "filing_date": "2026-09-01",
       "jev": {
-        "broadly_expected_probability": 0.09,
+        "broadly_expected_probability": 0.07,
         "evidence_quality": "weak",
-        "information_novelty": 0.49,
+        "information_novelty": 0.51,
         "material_business_change": 0.75,
         "negative_surprise_probability": 0.0,
-        "persistent_change": 0.55,
-        "positive_surprise_probability": 0.22,
+        "persistent_change": 0.54,
+        "positive_surprise_probability": 0.21,
         "surprise_class": "unclear"
       },
-      "state_sha256": "46ee70a7f1ee014aec42562c84beaf69cd02c79c04e06b4f46b8f3249a8d2546",
+      "state_sha256": "fb3f4d4da992847c4832d5834733e23be526a91a12e0b327401ec78784e92a05",
       "ticker": "MDB"
     },
     {
+      "accession_number": "0001104659-26-104735",
+      "duration_ms": 604,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-02",
+      "jev": {
+        "broadly_expected_probability": 0.04,
+        "evidence_quality": "weak",
+        "information_novelty": 0.38,
+        "material_business_change": 0.29,
+        "negative_surprise_probability": 0.04,
+        "persistent_change": 0.49,
+        "positive_surprise_probability": 0.04,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "faad1258f50aaf0c628ff43342aece04c04220b1b69e2db505156b95d9b4cc19",
+      "ticker": "AGX"
+    },
+    {
+      "accession_number": "0001104659-26-104498",
+      "duration_ms": 223,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-02",
+      "jev": {
+        "broadly_expected_probability": 0.01,
+        "evidence_quality": "weak",
+        "information_novelty": 0.42,
+        "material_business_change": 0.87,
+        "negative_surprise_probability": 0.0,
+        "persistent_change": 0.71,
+        "positive_surprise_probability": 0.33,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "7800fddd27b71fb05386bc3c1112dc9df3d76ff235661409f023e15abff58d6b",
+      "ticker": "FCEL"
+    },
+    {
+      "accession_number": "0000065270-26-000044",
+      "duration_ms": 245,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-02",
+      "jev": {
+        "broadly_expected_probability": 0.0,
+        "evidence_quality": "usable",
+        "information_novelty": 0.53,
+        "material_business_change": 0.71,
+        "negative_surprise_probability": 0.3,
+        "persistent_change": 0.43,
+        "positive_surprise_probability": 0.0,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "aaec68cd753fb60c027448b8ac26c626ef0964ce2467c1a183daaa11ae6b2960",
+      "ticker": "MEI"
+    },
+    {
+      "accession_number": "0001002047-26-000003",
+      "duration_ms": 310,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-02",
+      "jev": {
+        "broadly_expected_probability": 0.02,
+        "evidence_quality": "usable",
+        "information_novelty": 0.49,
+        "material_business_change": 0.84,
+        "negative_surprise_probability": 0.0,
+        "persistent_change": 0.59,
+        "positive_surprise_probability": 0.28,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "19e09e829bd3799eb145f87a4b458806c1f0dbe494b6b21559760a9fe2bfde48",
+      "ticker": "NTAP"
+    },
+    {
+      "accession_number": "0001193125-26-380188",
+      "duration_ms": 209,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-02",
+      "jev": {
+        "broadly_expected_probability": 0.03,
+        "evidence_quality": "weak",
+        "information_novelty": 0.47,
+        "material_business_change": 0.69,
+        "negative_surprise_probability": 0.09,
+        "persistent_change": 0.51,
+        "positive_surprise_probability": 0.06,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "88ebf8196d3bdf8e35b86e43244d4af8b5db45ad5a37a25ca3f5aa1b0a7af3de",
+      "ticker": "NTSK"
+    },
+    {
+      "accession_number": "0001140361-26-035406",
+      "duration_ms": 228,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-02",
+      "jev": {
+        "broadly_expected_probability": 0.02,
+        "evidence_quality": "strong",
+        "information_novelty": 0.53,
+        "material_business_change": 0.69,
+        "negative_surprise_probability": 0.0,
+        "persistent_change": 0.51,
+        "positive_surprise_probability": 0.16,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "595aecec44c9e16d6028aab15f61a91cfa8423ea8707b9e09673ea2d817b38bf",
+      "ticker": "OLLI"
+    },
+    {
+      "accession_number": "0000078239-26-000055",
+      "duration_ms": 372,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-02",
+      "jev": {
+        "broadly_expected_probability": 0.12,
+        "evidence_quality": "usable",
+        "information_novelty": 0.55,
+        "material_business_change": 0.9,
+        "negative_surprise_probability": 0.28,
+        "persistent_change": 0.45,
+        "positive_surprise_probability": 0.01,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "66a4ecb8b00b8fdcd678d1e7ef649e33ffe43185acfacf1af37a8057c9a033df",
+      "ticker": "PVH"
+    },
+    {
       "accession_number": "0001477720-26-000058",
-      "duration_ms": 325,
+      "duration_ms": 229,
       "evidence_chars": 14000,
       "filing_date": "2026-09-03",
       "jev": {
         "broadly_expected_probability": 0.0,
         "evidence_quality": "weak",
-        "information_novelty": 0.3,
-        "material_business_change": 0.62,
-        "negative_surprise_probability": 0.01,
-        "persistent_change": 0.5,
+        "information_novelty": 0.25,
+        "material_business_change": 0.51,
+        "negative_surprise_probability": 0.0,
+        "persistent_change": 0.46,
         "positive_surprise_probability": 0.0,
         "surprise_class": "unclear"
       },
-      "state_sha256": "a48c23c22858aa279bc2d3a91aab739bfc8f8f7402735acd1fb71f7068c488e7",
+      "state_sha256": "8a1a5a515e983cbf63cd410c139e4e2299556c26e38690afbc73da162dc35b7b",
       "ticker": "ASAN"
+    },
+    {
+      "accession_number": "0001628280-26-060245",
+      "duration_ms": 275,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-03",
+      "jev": {
+        "broadly_expected_probability": 0.01,
+        "evidence_quality": "strong",
+        "information_novelty": 0.51,
+        "material_business_change": 0.81,
+        "negative_surprise_probability": 0.0,
+        "persistent_change": 0.54,
+        "positive_surprise_probability": 0.41,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "c984175d474b38f8b510f686d8104ca7cf9f2d4234ac56b72a621d79f68a9804",
+      "ticker": "CIEN"
+    },
+    {
+      "accession_number": "0001397187-26-000126",
+      "duration_ms": 320,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-03",
+      "jev": {
+        "broadly_expected_probability": 0.03,
+        "evidence_quality": "weak",
+        "information_novelty": 0.42,
+        "material_business_change": 0.75,
+        "negative_surprise_probability": 0.21,
+        "persistent_change": 0.48,
+        "positive_surprise_probability": 0.0,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "145079c22c4e53ac54e696701834e57415a4a6e491cd41e09f47603dfe899756",
+      "ticker": "LULU"
+    },
+    {
+      "accession_number": "0001193125-26-381874",
+      "duration_ms": 231,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-03",
+      "jev": {
+        "broadly_expected_probability": 0.03,
+        "evidence_quality": "usable",
+        "information_novelty": 0.49,
+        "material_business_change": 0.72,
+        "negative_surprise_probability": 0.02,
+        "persistent_change": 0.53,
+        "positive_surprise_probability": 0.18,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "a35b76984e63d7496bb361ac50d7a22de5e26fa17a61a7a642d256da6d7e251e",
+      "ticker": "PL"
+    },
+    {
+      "accession_number": "0000737758-26-000041",
+      "duration_ms": 214,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-03",
+      "jev": {
+        "broadly_expected_probability": 0.03,
+        "evidence_quality": "weak",
+        "information_novelty": 0.5,
+        "material_business_change": 0.64,
+        "negative_surprise_probability": 0.0,
+        "persistent_change": 0.51,
+        "positive_surprise_probability": 0.1,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "cac2af3618ec435475977de2eb0fc20049596e1a1710694a57f107f33e44f130",
+      "ticker": "TTC"
+    },
+    {
+      "accession_number": "0001193125-26-384364",
+      "duration_ms": 385,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-08",
+      "jev": {
+        "broadly_expected_probability": 0.09,
+        "evidence_quality": "weak",
+        "information_novelty": 0.38,
+        "material_business_change": 0.7,
+        "negative_surprise_probability": 0.0,
+        "persistent_change": 0.55,
+        "positive_surprise_probability": 0.21,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "b61346912a8fd135306345bafb84082bd3921ad52b0b7b7de170e1f2de4f3910",
+      "ticker": "ABM"
+    },
+    {
+      "accession_number": "0000726958-26-000084",
+      "duration_ms": 242,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-08",
+      "jev": {
+        "broadly_expected_probability": 0.02,
+        "evidence_quality": "usable",
+        "information_novelty": 0.47,
+        "material_business_change": 0.52,
+        "negative_surprise_probability": 0.0,
+        "persistent_change": 0.48,
+        "positive_surprise_probability": 0.13,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "74f6494d89dc74d4ab07e120f1898551d68fb7ce19e6b515c0829205f3b34c5c",
+      "ticker": "CASY"
+    },
+    {
+      "accession_number": "0001638826-26-000093",
+      "duration_ms": 406,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-08",
+      "jev": {
+        "broadly_expected_probability": 0.0,
+        "evidence_quality": "insufficient",
+        "information_novelty": 0.2,
+        "material_business_change": 0.18,
+        "negative_surprise_probability": 0.0,
+        "persistent_change": 0.36,
+        "positive_surprise_probability": 0.0,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "5df99c640798405b1a3da8cdacca0a4a7bc04ce0bab65097feb9ef39f1c4c9e9",
+      "ticker": "TTAN"
+    },
+    {
+      "accession_number": "0001817358-26-000146",
+      "duration_ms": 412,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-09",
+      "jev": {
+        "broadly_expected_probability": 0.02,
+        "evidence_quality": "weak",
+        "information_novelty": 0.39,
+        "material_business_change": 0.69,
+        "negative_surprise_probability": 0.01,
+        "persistent_change": 0.51,
+        "positive_surprise_probability": 0.29,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "816da0b40af46acdddcb8181d9090053628ac39a610838062ae50f3a21def330",
+      "ticker": "ASO"
+    },
+    {
+      "accession_number": "0001628280-26-061011",
+      "duration_ms": 203,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-09",
+      "jev": {
+        "broadly_expected_probability": 0.13,
+        "evidence_quality": "weak",
+        "information_novelty": 0.46,
+        "material_business_change": 0.74,
+        "negative_surprise_probability": 0.01,
+        "persistent_change": 0.54,
+        "positive_surprise_probability": 0.08,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "19a90087187844c13d0cf6a3ce3fcabb7f6cf160020832e8351dce80c7a6a8ef",
+      "ticker": "CHWY"
+    },
+    {
+      "accession_number": "0001856525-26-000091",
+      "duration_ms": 243,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-09",
+      "jev": {
+        "broadly_expected_probability": 0.11,
+        "evidence_quality": "weak",
+        "information_novelty": 0.45,
+        "material_business_change": 0.47,
+        "negative_surprise_probability": 0.01,
+        "persistent_change": 0.45,
+        "positive_surprise_probability": 0.08,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "470be6b56c94f3b85cd61f7e04d989b956954cac4c676a6b9200006acffaa69f",
+      "ticker": "CNM"
+    },
+    {
+      "accession_number": "0001628280-26-061155",
+      "duration_ms": 243,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-09",
+      "jev": {
+        "broadly_expected_probability": 0.01,
+        "evidence_quality": "weak",
+        "information_novelty": 0.46,
+        "material_business_change": 0.74,
+        "negative_surprise_probability": 0.05,
+        "persistent_change": 0.45,
+        "positive_surprise_probability": 0.22,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "bc7f62c1b968a6b5981cad288377103855311af707a4aa529552154aa6ac0536",
+      "ticker": "COO"
+    },
+    {
+      "accession_number": "0000056679-26-000029",
+      "duration_ms": 342,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-09",
+      "jev": {
+        "broadly_expected_probability": 0.04,
+        "evidence_quality": "weak",
+        "information_novelty": 0.39,
+        "material_business_change": 0.72,
+        "negative_surprise_probability": 0.02,
+        "persistent_change": 0.61,
+        "positive_surprise_probability": 0.05,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "b31c38c6717f1c618513b039cd5e92114ae6a51d125149adc331a4f855b17bd7",
+      "ticker": "KFY"
+    },
+    {
+      "accession_number": "0000832988-26-000227",
+      "duration_ms": 351,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-09",
+      "jev": {
+        "broadly_expected_probability": 0.01,
+        "evidence_quality": "weak",
+        "information_novelty": 0.5,
+        "material_business_change": 0.69,
+        "negative_surprise_probability": 0.01,
+        "persistent_change": 0.5,
+        "positive_surprise_probability": 0.39,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "0c999e237cb4fd63cc312f02d5ec2603c221d759cccc6126ae74eb60125a3376",
+      "ticker": "SIG"
+    },
+    {
+      "accession_number": "0001628280-26-061217",
+      "duration_ms": 236,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-10",
+      "jev": {
+        "broadly_expected_probability": 0.01,
+        "evidence_quality": "usable",
+        "information_novelty": 0.48,
+        "material_business_change": 0.52,
+        "negative_surprise_probability": 0.0,
+        "persistent_change": 0.48,
+        "positive_surprise_probability": 0.24,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "1cd99507e27e5e2af7a21440b2d83728d0d99268c9ef110d1fc9e7a48ac046e7",
+      "ticker": "M"
+    },
+    {
+      "accession_number": "0001104659-26-106743",
+      "duration_ms": 289,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-10",
+      "jev": {
+        "broadly_expected_probability": 0.04,
+        "evidence_quality": "weak",
+        "information_novelty": 0.46,
+        "material_business_change": 0.74,
+        "negative_surprise_probability": 0.08,
+        "persistent_change": 0.47,
+        "positive_surprise_probability": 0.07,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "4774994f4dbdd945581f98372af23cb904dbfa0dd106842bef457d8cb01ef221",
+      "ticker": "RH"
+    },
+    {
+      "accession_number": "0001193125-26-387134",
+      "duration_ms": 322,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-10",
+      "jev": {
+        "broadly_expected_probability": 0.02,
+        "evidence_quality": "weak",
+        "information_novelty": 0.39,
+        "material_business_change": 0.68,
+        "negative_surprise_probability": 0.36,
+        "persistent_change": 0.47,
+        "positive_surprise_probability": 0.0,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "fa48bdaedbd019ff9560e7e96771faf698af8c7a32162a9d50ee5938ed45620d",
+      "ticker": "SHOE"
+    },
+    {
+      "accession_number": "0001525769-26-000039",
+      "duration_ms": 259,
+      "evidence_chars": 14000,
+      "filing_date": "2026-09-14",
+      "jev": {
+        "broadly_expected_probability": 0.19,
+        "evidence_quality": "usable",
+        "information_novelty": 0.46,
+        "material_business_change": 0.83,
+        "negative_surprise_probability": 0.24,
+        "persistent_change": 0.52,
+        "positive_surprise_probability": 0.0,
+        "surprise_class": "unclear"
+      },
+      "state_sha256": "cf290e56b1d0a994f206b38a1d2133731d25565593d1032660627ecfec16e2dc",
+      "ticker": "PLAY"
     }
   ],
-  "selection_rule": "Core-complete September events with frozen Jul-Aug pre20_excess_qqq percentile >= threshold",
   "start_date": "2026-09-01",
   "unmatched": [
+    {
+      "filing_date": "2026-09-01",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "CRDO"
+    },
+    {
+      "filing_date": "2026-09-01",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "DELL"
+    },
     {
       "filing_date": "2026-09-01",
       "reason": "NO_SAME_DAY_10Q",
@@ -62,7 +502,22 @@
     {
       "filing_date": "2026-09-01",
       "reason": "NO_SAME_DAY_10Q",
+      "ticker": "MDT"
+    },
+    {
+      "filing_date": "2026-09-01",
+      "reason": "NO_SAME_DAY_10Q",
       "ticker": "PANW"
+    },
+    {
+      "filing_date": "2026-09-02",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "AI"
+    },
+    {
+      "filing_date": "2026-09-02",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "AVGO"
     },
     {
       "filing_date": "2026-09-02",
@@ -73,6 +528,31 @@
       "filing_date": "2026-09-02",
       "reason": "NO_SAME_DAY_10Q",
       "ticker": "FIVE"
+    },
+    {
+      "filing_date": "2026-09-02",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "GIII"
+    },
+    {
+      "filing_date": "2026-09-02",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "SNOW"
+    },
+    {
+      "filing_date": "2026-09-03",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "AMBA"
+    },
+    {
+      "filing_date": "2026-09-03",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "BRC"
+    },
+    {
+      "filing_date": "2026-09-03",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "CPB"
     },
     {
       "filing_date": "2026-09-03",
@@ -87,12 +567,57 @@
     {
       "filing_date": "2026-09-03",
       "reason": "NO_SAME_DAY_10Q",
+      "ticker": "IOT"
+    },
+    {
+      "filing_date": "2026-09-03",
+      "reason": "NO_SAME_DAY_10Q",
       "ticker": "PATH"
+    },
+    {
+      "filing_date": "2026-09-03",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "VSXY"
+    },
+    {
+      "filing_date": "2026-09-03",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "WLY"
     },
     {
       "filing_date": "2026-09-08",
       "reason": "NO_SAME_DAY_10Q",
       "ticker": "BRZE"
+    },
+    {
+      "filing_date": "2026-09-08",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "GME"
+    },
+    {
+      "filing_date": "2026-09-09",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "AEO"
+    },
+    {
+      "filing_date": "2026-09-09",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "AVAV"
+    },
+    {
+      "filing_date": "2026-09-09",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "NAVN"
+    },
+    {
+      "filing_date": "2026-09-09",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "SAIL"
+    },
+    {
+      "filing_date": "2026-09-10",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "ADBE"
     },
     {
       "filing_date": "2026-09-10",
@@ -102,9 +627,24 @@
     {
       "filing_date": "2026-09-10",
       "reason": "NO_SAME_DAY_10Q",
+      "ticker": "FEIM"
+    },
+    {
+      "filing_date": "2026-09-10",
+      "reason": "NO_SAME_DAY_10Q",
       "ticker": "ORCL"
+    },
+    {
+      "filing_date": "2026-09-11",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "KR"
+    },
+    {
+      "filing_date": "2026-09-16",
+      "reason": "NO_SAME_DAY_10Q",
+      "ticker": "LEN"
     }
   ],
-  "unmatched_count": 10,
+  "unmatched_count": 32,
   "version": "earnings-jev-overlay-v1"
 }
