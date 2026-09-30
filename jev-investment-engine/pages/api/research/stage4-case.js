@@ -1,5 +1,8 @@
 import casesData from "../../../data/stage4-cases.json";
 
+const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/evaluate";
+const MODEL = "typesafe-ai/jev";
+
 function mean(xs) { return xs.reduce((a,b)=>a+b,0)/xs.length; }
 
 function buildQuestions(c) {
@@ -90,6 +93,36 @@ function decode(obj, questions) {
   return out;
 }
 
+function gatewayCost(run) {
+  const g = run?.providerMetadata?.gateway || run?.provider_metadata?.gateway || {};
+  for (const k of ["cost","gatewayCost","inferenceCost","gateway_cost"]) {
+    const n = Number(g[k]);
+    if (Number.isFinite(n) && n >= 0) return n;
+  }
+  return 0;
+}
+
+async function evaluateThree(state, questions) {
+  const token = process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN;
+  if(!token) throw new Error("GATEWAY_AUTH_UNAVAILABLE");
+  const rawRuns=[];
+  let cost=0;
+  for(let i=0;i<3;i++) {
+    const r=await fetch(GATEWAY_URL,{
+      method:"POST",
+      headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},
+      body:JSON.stringify({model:MODEL,state,questions}),
+      signal:AbortSignal.timeout(45000)
+    });
+    const text=await r.text();
+    let obj={};
+    try { obj=text?JSON.parse(text):{}; } catch { throw new Error("JEV_NON_JSON"); }
+    if(!r.ok) throw new Error("JEV_GATEWAY_HTTP_"+r.status);
+    rawRuns.push(obj); cost += gatewayCost(obj);
+  }
+  return {ok:true,rawRuns,gatewayCostUsd:cost};
+}
+
 export default async function handler(req,res){
   res.setHeader("Cache-Control","no-store");
   if(process.env.VERCEL_ENV!=="preview") return res.status(404).json({ok:false,error:"preview_only"});
@@ -115,21 +148,13 @@ export default async function handler(req,res){
     };
     if(mode==="news") state.company_materials=materials;
     const questions=buildQuestions(c);
-    const raw=JSON.stringify({state,questions,runs:3,persist:false});
+    const raw=JSON.stringify({state,questions});
     if(Buffer.byteLength(raw,"utf8")>140000) return res.status(413).json({ok:false,error:"payload_too_large",news_count:materials.length});
-    const secret=process.env.JEV_API_SECRET;
-    if(!secret) return res.status(503).json({ok:false,error:"jev_secret_unavailable"});
-    const u=await fetch("https://jev-investment-engine.vercel.app/api/jev",{
-      method:"POST",
-      headers:{Authorization:`Bearer ${secret}`,"Content-Type":"application/json"},
-      body:raw
-    });
-    const obj=await u.json();
-    if(!u.ok) return res.status(u.status).json({ok:false,error:"jev_upstream",upstream:obj?.error||null});
+    const obj=await evaluateThree(state,questions);
     return res.status(200).json({
       ok:true,case_index:idx,ticker:c.ticker,origin:c.origin,mode,
       feature_count:casesData.feature_columns.length,news_count:materials.length,news_pages:newsPages,
-      aggregate:decode(obj,questions),gatewayCostUsd:obj.gatewayCostUsd??null
+      aggregate:decode(obj,questions),gatewayCostUsd:obj.gatewayCostUsd
     });
   } catch(e) {
     return res.status(500).json({ok:false,error:String(e?.message||"stage4_case_failed")});
