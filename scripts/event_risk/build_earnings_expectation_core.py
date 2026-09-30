@@ -22,7 +22,10 @@ import statistics
 from pathlib import Path
 from typing import Any
 
-from scripts.event_risk.build_dilution_magnitude import MassiveClient, _norm_price_rows
+try:
+    from scripts.event_risk.build_dilution_magnitude import MassiveClient, _norm_price_rows
+except ModuleNotFoundError:  # direct script execution: repo root is not sys.path[0]
+    from build_dilution_magnitude import MassiveClient, _norm_price_rows
 
 COMPONENTS = (
     "pre20_return_pct",
