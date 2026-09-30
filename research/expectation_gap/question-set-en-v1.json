@@ -1,0 +1,80 @@
+{
+  "version": "jev-expectation-gap-en-v1",
+  "status": "research_shadow",
+  "language": "en",
+  "model": "typesafe-ai/jev",
+  "default_runs": 3,
+  "purpose": "Semantic assessment of business change versus embedded market expectations. Not a price forecast.",
+  "questions": {
+    "EG01_positive_business_change": {
+      "type": "noul",
+      "instructions": "Based only on the supplied evidence, is there a material positive change in the company's underlying business, demand, economics, competitive position, or future earnings power relative to the prior state?"
+    },
+    "EG02_negative_business_change": {
+      "type": "noul",
+      "instructions": "Based only on the supplied evidence, is there a material negative change in the company's underlying business, demand, economics, competitive position, liquidity, or future earnings power relative to the prior state?"
+    },
+    "EG03_persistent_change": {
+      "type": "noul",
+      "instructions": "If a business change is present, is it likely to persist for multiple quarters rather than being temporary, accounting-driven, one-time, or purely financial engineering?"
+    },
+    "EG04_information_novelty": {
+      "type": "noul",
+      "instructions": "Is the material information genuinely new relative to the supplied prior context, rather than a reiteration, administrative filing, already-announced transaction, or previously disclosed fact?"
+    },
+    "EG05_expectations_already_embedded": {
+      "type": "noul",
+      "instructions": "Considering the supplied pre-existing price, relative-strength, extension, volume, and recent-news context, is the favorable part of the current evidence likely to be substantially embedded in market expectations already? Treat price action as expectation context, not as proof of business quality."
+    },
+    "EG06_followthrough_potential": {
+      "type": "noul",
+      "instructions": "Does the evidence plausibly create additional fundamental follow-through over the next two to four quarters, such as estimate revisions, revenue growth, margin improvement, cash-flow improvement, backlog conversion, or durable demand?"
+    },
+    "EG07_sell_the_news_risk": {
+      "type": "noul",
+      "instructions": "Is there meaningful sell-the-news risk because expectations appear elevated relative to the incremental fundamental information in the supplied evidence?"
+    },
+    "EG08_evidence_quality": {
+      "type": "choice",
+      "instructions": "How sufficient is the supplied evidence for judging business change versus embedded expectations?",
+      "criteria": {
+        "strong": "Multiple direct or primary-source facts support a clear assessment.",
+        "usable": "Evidence is incomplete but sufficient for a provisional assessment.",
+        "weak": "Evidence is mostly indirect, stale, repetitive, or ambiguous.",
+        "insufficient": "There is not enough evidence to make a meaningful assessment."
+      }
+    },
+    "EG09_business_direction": {
+      "type": "choice",
+      "instructions": "What is the direction of the underlying business change supported by the supplied evidence?",
+      "criteria": {
+        "positive": "Materially positive underlying business change.",
+        "negative": "Materially negative underlying business change.",
+        "mixed": "Material positive and negative changes coexist.",
+        "neutral": "No material underlying business change is established.",
+        "insufficient": "Evidence is insufficient to determine direction."
+      }
+    },
+    "EG10_insider_signal": {
+      "type": "choice",
+      "instructions": "Using only the structured insider-transaction context supplied, what economic signal is present? Do not treat grants, RSU vesting, option exercises, tax withholding, gifts, or Rule 10b5-1 scheduled sales as discretionary conviction.",
+      "criteria": {
+        "positive_discretionary": "Meaningful discretionary open-market insider buying is present.",
+        "negative_discretionary": "Meaningful discretionary insider selling not explained by a scheduled plan is present.",
+        "noninformative": "Transactions are primarily compensation, vesting, tax, option, gift, or scheduled-plan activity.",
+        "mixed": "Both meaningful discretionary buying and selling are present.",
+        "insufficient": "No usable insider information is supplied."
+      }
+    },
+    "EG11_positioning_asymmetry": {
+      "type": "choice",
+      "instructions": "Using only the supplied short-interest and short-volume context, what positioning asymmetry is present? Do not interpret short volume alone as bearish conviction.",
+      "criteria": {
+        "upside_squeeze_support": "Short positioning could amplify upside if positive evidence persists.",
+        "downside_pressure": "Short positioning is increasing in a way consistent with mounting downside pressure.",
+        "neutral": "No clear positioning asymmetry is established.",
+        "insufficient": "Positioning evidence is insufficient."
+      }
+    }
+  }
+}
