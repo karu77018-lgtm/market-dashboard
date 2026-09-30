@@ -98,6 +98,7 @@ async function verify(page,width){
   for(const win of ['2y','5y','10y']){
     await current.locator('[data-window="'+win+'"]').click();
     await page.waitForFunction(win=>document.querySelector('[data-history-key="mc57"]').dataset.loadedWindow===win,win);
+    assert.equal(await current.locator('svg path').getAttribute('stroke'),'#34d399','original MC57 line color every period');
     const j=JSON.parse(fs.readFileSync(root+'/market-history/'+index.files.mc57[win]));
     assert.equal(j.dates.at(-1),mc.session_date);assert.equal(j.series.MC57.at(-1),mc.mc57);
     assert.deepEqual(await current.locator('.mh-score-band').evaluateAll(es=>es.map(e=>[e.getAttribute('fill'),e.getAttribute('opacity')])),[['#df5454','0.07'],['#d97936','0.07'],['#7f7c70','0.07'],['#25c25f','0.07'],['#1e9b4c','0.07']],'legacy MC57 score background retained every period');
