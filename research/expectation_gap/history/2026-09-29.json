@@ -1,0 +1,3924 @@
+{
+  "schema_version": "universal-expectation-gap-v1",
+  "status": "research_shadow",
+  "created_at": "2026-09-30T12:25:51.605311+00:00",
+  "as_of": "2026-09-30T00:35:25Z",
+  "question_set_version": "jev-expectation-gap-en-v1",
+  "jev_language": "en",
+  "expectation_load": {
+    "status": "UNVALIDATED_BASELINE",
+    "components": [
+      "rs21",
+      "rs_acceleration",
+      "high_proximity",
+      "extension50",
+      "pivot_extension",
+      "relative_volume"
+    ],
+    "method": "equal-weight mean of cross-sectional component percentiles, then re-ranked cross-sectionally",
+    "production_use": false
+  },
+  "coverage": {
+    "dashboard_universe": 3899,
+    "expectation_load_eligible": 2129,
+    "selected_candidates": 60,
+    "jev_evaluated": 0,
+    "with_news": 31,
+    "with_8k": 20,
+    "jev_errors": 41
+  },
+  "massive_news": {
+    "mode": "bulk_window_pagination",
+    "pages": 4,
+    "api_calls": 4,
+    "page_size": 1000,
+    "articles_scanned": 3905,
+    "candidate_tickers": 60,
+    "tickers_with_news": 31,
+    "tickers_without_news": 29
+  },
+  "label_counts": {
+    "JEV_ERROR": 41,
+    "INSUFFICIENT_EVIDENCE": 19
+  },
+  "gateway_cost_usd": 0.0,
+  "errors": [
+    {
+      "ticker": "VG",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "AMLX",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "VAL",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "LBRX",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "CADL",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "ARCT",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "RIG",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "INBX",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "OII",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "EAT",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "SGMT",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "VCTR",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "FIVN",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "LFST",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "FCX",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "LNG",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "AVNT",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "UMAC",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "PAA",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "LH",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "DKL",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "PSNL",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "FTK",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "THC",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "FSLY",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "QLYS",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "TVTX",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "PRTH",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "ACVA",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "IOVA",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "TWST",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "NTRA",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "AVT",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "AMRX",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "ABCL",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "XERS",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "XMTR",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "TXG",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "BIIB",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "FEIM",
+      "error": "ShadowRunError"
+    },
+    {
+      "ticker": "SDGR",
+      "error": "ShadowRunError"
+    }
+  ],
+  "rows": [
+    {
+      "ticker": "VG",
+      "price": 12.54,
+      "rs21": 15.0,
+      "rs63": 82.0,
+      "rs189": 93.0,
+      "ret21_pct": -11.9,
+      "distance_52w_high_pct": -28.5,
+      "extension_50ma_pct": -10.0,
+      "relative_volume": 0.6,
+      "pivot_distance_pct": -22.9,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "パイプライン",
+      "market_cap_band": "大型",
+      "expectation_components_pctile": {
+        "rs21": 15.0,
+        "rs_acceleration": 2.8665413533834587,
+        "high_proximity": 34.45338381448178,
+        "extension50": 21.898496240601503,
+        "pivot_extension": 18.867481203007518,
+        "relative_volume": 11.043233082706767
+      },
+      "expectation_load_raw": 17.35485594903017,
+      "expectation_load_pctile": 2.6785714285714284,
+      "research_cohort": "low_load",
+      "state_sha256": "c2d01d240893e532eaa5a3df3f3e52b813abc665ad10c944dd414d2d72edd274",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 41,
+          "counts": {
+            "scheduled_sale_10b5_1": 9,
+            "compensation_or_exercise": 28,
+            "discretionary_sale": 4
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 55974990.07,
+            "compensation_or_exercise": 3786573.41,
+            "discretionary_sale": 10457755.92
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 3,
+            "compensation_or_exercise": 4,
+            "discretionary_sale": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 43630968.0,
+          "short_interest_change_pct": 2.8892781233336606,
+          "days_to_cover": 2.89,
+          "prior_days_to_cover": 3.33
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 36.190000000000005,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 6,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "RHI",
+      "price": 36.88,
+      "rs21": 7.0,
+      "rs63": 89.0,
+      "rs189": 82.0,
+      "ret21_pct": -5.2,
+      "distance_52w_high_pct": -20.0,
+      "extension_50ma_pct": -8.4,
+      "relative_volume": 0.6,
+      "pivot_distance_pct": -20.0,
+      "sector": "13. 産業・資本財・輸送",
+      "subtheme": "人材サービス",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 7.0,
+        "rs_acceleration": 0.30545112781954886,
+        "high_proximity": 50.591575958353054,
+        "extension50": 29.69924812030075,
+        "pivot_extension": 25.86936090225564,
+        "relative_volume": 11.043233082706767
+      },
+      "expectation_load_raw": 20.751478198572627,
+      "expectation_load_pctile": 4.887218045112782,
+      "research_cohort": "low_load",
+      "state_sha256": "16a82023ee31e22ed6f2466f35333ffc76392438bbe09a98a588989b5fb62eda",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 19610186.0,
+          "short_interest_change_pct": -9.22329344303524,
+          "days_to_cover": 10.58,
+          "prior_days_to_cover": 9.79
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 64.864,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "HP",
+      "price": 36.61,
+      "rs21": 11.0,
+      "rs63": 81.0,
+      "rs189": 78.0,
+      "ret21_pct": -13.2,
+      "distance_52w_high_pct": -24.0,
+      "extension_50ma_pct": -9.0,
+      "relative_volume": 0.8,
+      "pivot_distance_pct": -24.0,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "掘削サービス",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 11.0,
+        "rs_acceleration": 2.3966165413533833,
+        "high_proximity": 42.94841457643162,
+        "extension50": 26.62124060150376,
+        "pivot_extension": 16.752819548872182,
+        "relative_volume": 37.00657894736842
+      },
+      "expectation_load_raw": 22.787611702588226,
+      "expectation_load_pctile": 7.0018796992481205,
+      "research_cohort": "low_load",
+      "state_sha256": "397fab0916d06e7901b2c634161f645e5c64e3be6292429d9aab58f5f26bea7a",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 11,
+          "counts": {
+            "scheduled_sale_10b5_1": 1,
+            "other": 5,
+            "discretionary_sale": 5
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 450000.0,
+            "discretionary_sale": 4864590.35
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 1,
+            "other": 1,
+            "discretionary_sale": 3
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 7276172.0,
+          "short_interest_change_pct": -0.0939857754004958,
+          "days_to_cover": 5.67,
+          "prior_days_to_cover": 6.18
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 61.95399999999999,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "AMLX",
+      "price": 29.28,
+      "rs21": 17.0,
+      "rs63": 98.0,
+      "rs189": 97.0,
+      "ret21_pct": -9.7,
+      "distance_52w_high_pct": -28.8,
+      "extension_50ma_pct": 2.0,
+      "relative_volume": 0.4,
+      "pivot_distance_pct": -28.8,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "大手製薬",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 17.0,
+        "rs_acceleration": 0.42293233082706766,
+        "high_proximity": 33.506862281116895,
+        "extension50": 80.52161654135338,
+        "pivot_extension": 9.398496240601503,
+        "relative_volume": 0.9398496240601504
+      },
+      "expectation_load_raw": 23.631626169659835,
+      "expectation_load_pctile": 8.082706766917294,
+      "research_cohort": "low_load",
+      "state_sha256": "b98e57caf4d555a0bdc94c91c7b1a85ce9e40bcb4338d342ba98463500f5d3bc",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 27,
+          "counts": {
+            "discretionary_sale": 10,
+            "other": 8,
+            "compensation_or_exercise": 9
+          },
+          "values_usd": {
+            "discretionary_sale": 2944962.28,
+            "compensation_or_exercise": 170250.0
+          },
+          "distinct_people": {
+            "discretionary_sale": 5,
+            "other": 1,
+            "compensation_or_exercise": 6
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 13512753.0,
+          "short_interest_change_pct": 6.088873057746369,
+          "days_to_cover": 8.64,
+          "prior_days_to_cover": 2.37
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 47.67,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 4
+      }
+    },
+    {
+      "ticker": "VAL",
+      "price": 78.45,
+      "rs21": 30.0,
+      "rs63": 75.0,
+      "rs189": 88.0,
+      "ret21_pct": -7.0,
+      "distance_52w_high_pct": -31.3,
+      "extension_50ma_pct": -5.5,
+      "relative_volume": 0.4,
+      "pivot_distance_pct": -15.8,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "掘削サービス",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 30.0,
+        "rs_acceleration": 9.069548872180452,
+        "high_proximity": 29.48414576431614,
+        "extension50": 47.03947368421053,
+        "pivot_extension": 40.27255639097744,
+        "relative_volume": 0.9398496240601504
+      },
+      "expectation_load_raw": 26.134262389290786,
+      "expectation_load_pctile": 11.795112781954888,
+      "research_cohort": "low_load",
+      "state_sha256": "d3b9349a1d56e93bce3100c78b8d51be16596de06b60b122ca3e8b1e0b63e0a4",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 5959122.0,
+          "short_interest_change_pct": -7.8943398606093895,
+          "days_to_cover": 4.1,
+          "prior_days_to_cover": 7.81
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 60.79,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 2,
+        "8k": 1
+      }
+    },
+    {
+      "ticker": "LBRX",
+      "price": 37.28,
+      "rs21": 4.0,
+      "rs63": 83.0,
+      "rs189": 91.0,
+      "ret21_pct": -14.8,
+      "distance_52w_high_pct": -25.7,
+      "extension_50ma_pct": -14.6,
+      "relative_volume": 2.0,
+      "pivot_distance_pct": -25.7,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "大手製薬",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 4.0,
+        "rs_acceleration": 0.681390977443609,
+        "high_proximity": 39.87221959299574,
+        "extension50": 9.703947368421053,
+        "pivot_extension": 13.698308270676693,
+        "relative_volume": 97.67387218045113
+      },
+      "expectation_load_raw": 27.60495639833137,
+      "expectation_load_pctile": 13.533834586466165,
+      "research_cohort": "low_load",
+      "state_sha256": "fba869bfb70090d8ee8d94d44e4f5af75a441e0271075be74ca7d6bd941f30a6",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 5617182.0,
+          "short_interest_change_pct": 6.415669971690985,
+          "days_to_cover": 21.45,
+          "prior_days_to_cover": 19.89
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 50.164,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 1
+      }
+    },
+    {
+      "ticker": "CADL",
+      "price": 10.88,
+      "rs21": 10.0,
+      "rs63": 72.0,
+      "rs189": 93.0,
+      "ret21_pct": -6.9,
+      "distance_52w_high_pct": -22.3,
+      "extension_50ma_pct": -4.8,
+      "relative_volume": 0.8,
+      "pivot_distance_pct": -22.3,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "バイオ",
+      "market_cap_band": "極小",
+      "expectation_components_pctile": {
+        "rs21": 10.0,
+        "rs_acceleration": 4.3468045112781954,
+        "high_proximity": 45.62233790818741,
+        "extension50": 50.75187969924812,
+        "pivot_extension": 19.877819548872182,
+        "relative_volume": 37.00657894736842
+      },
+      "expectation_load_raw": 27.934236769159057,
+      "expectation_load_pctile": 13.956766917293233,
+      "research_cohort": "low_load",
+      "state_sha256": "c6af4a0c89ff8aac90a65b5dc84a2c84d73c30650043a52e8bb3ad04cac1dbd7",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 6,
+          "counts": {
+            "scheduled_sale_10b5_1": 3,
+            "compensation_or_exercise": 3
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 3244783.32,
+            "compensation_or_exercise": 193750.0
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 2,
+            "compensation_or_exercise": 2
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 12344649.0,
+          "short_interest_change_pct": 0.6471440713722298,
+          "days_to_cover": 10.28,
+          "prior_days_to_cover": 9.19
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 56.788,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 1,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "TDW",
+      "price": 81.14,
+      "rs21": 18.0,
+      "rs63": 89.0,
+      "rs189": 89.0,
+      "ret21_pct": -9.7,
+      "distance_52w_high_pct": -20.1,
+      "extension_50ma_pct": -7.0,
+      "relative_volume": 0.8,
+      "pivot_distance_pct": -20.1,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "海運",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 18.0,
+        "rs_acceleration": 2.0911654135338344,
+        "high_proximity": 50.26029342167534,
+        "extension50": 37.100563909774436,
+        "pivot_extension": 25.540413533834588,
+        "relative_volume": 37.00657894736842
+      },
+      "expectation_load_raw": 28.333169204364438,
+      "expectation_load_pctile": 14.896616541353383,
+      "research_cohort": "low_load",
+      "state_sha256": "82e71adc7c1005aa413a55658d6d5cd322197c08e757832f19b77e7448cd7197",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 9,
+          "counts": {
+            "gift": 2,
+            "discretionary_sale": 5,
+            "other": 1,
+            "scheduled_sale_10b5_1": 1
+          },
+          "values_usd": {
+            "discretionary_sale": 2840897.64,
+            "scheduled_sale_10b5_1": 1486200.0
+          },
+          "distinct_people": {
+            "gift": 2,
+            "discretionary_sale": 2,
+            "other": 1,
+            "scheduled_sale_10b5_1": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 6062043.0,
+          "short_interest_change_pct": -0.49541834058984824,
+          "days_to_cover": 8.76,
+          "prior_days_to_cover": 11.72
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 57.501999999999995,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "ARCT",
+      "price": 13.7,
+      "rs21": 38.0,
+      "rs63": 99.0,
+      "rs189": 96.0,
+      "ret21_pct": -9.1,
+      "distance_52w_high_pct": -43.3,
+      "extension_50ma_pct": 20.8,
+      "relative_volume": 0.4,
+      "pivot_distance_pct": -23.7,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "大手製薬",
+      "market_cap_band": "極小",
+      "expectation_components_pctile": {
+        "rs21": 38.0,
+        "rs_acceleration": 4.652255639097745,
+        "high_proximity": 15.238996687174634,
+        "extension50": 97.72086466165413,
+        "pivot_extension": 17.36372180451128,
+        "relative_volume": 0.9398496240601504
+      },
+      "expectation_load_raw": 28.985948069416324,
+      "expectation_load_pctile": 16.024436090225564,
+      "research_cohort": "low_load",
+      "state_sha256": "6a1fef2f575e7cc6f39b214ba81f1b0fa31f0c1eb69cfd6b5c67f7cb8476fd30",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 5467974.0,
+          "short_interest_change_pct": -10.315519310548094,
+          "days_to_cover": 6.37,
+          "prior_days_to_cover": 3.06
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 43.089999999999996,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 1
+      }
+    },
+    {
+      "ticker": "RIG",
+      "price": 5.21,
+      "rs21": 26.0,
+      "rs63": 73.0,
+      "rs189": 76.0,
+      "ret21_pct": -7.8,
+      "distance_52w_high_pct": -32.0,
+      "extension_50ma_pct": -6.4,
+      "relative_volume": 0.8,
+      "pivot_distance_pct": -16.9,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "掘削サービス",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 26.0,
+        "rs_acceleration": 8.223684210526315,
+        "high_proximity": 28.25366777094179,
+        "extension50": 40.90695488721804,
+        "pivot_extension": 35.94924812030075,
+        "relative_volume": 37.00657894736842
+      },
+      "expectation_load_raw": 29.390022322725883,
+      "expectation_load_pctile": 16.541353383458645,
+      "research_cohort": "low_load",
+      "state_sha256": "245df77e80d8c7737ecad47419a9c9241c197293fb9d99b2c9a2cb39db87e8e6",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 277763921.0,
+          "short_interest_change_pct": 4.798730890795988,
+          "days_to_cover": 6.08,
+          "prior_days_to_cover": 7.47
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 65.518,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 1,
+        "8k": 4
+      }
+    },
+    {
+      "ticker": "INVX",
+      "price": 27.41,
+      "rs21": 25.0,
+      "rs63": 79.0,
+      "rs189": 71.0,
+      "ret21_pct": -6.5,
+      "distance_52w_high_pct": -18.7,
+      "extension_50ma_pct": -5.5,
+      "relative_volume": 0.7,
+      "pivot_distance_pct": -18.7,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "油田サービス・装置",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 25.0,
+        "rs_acceleration": 5.921052631578948,
+        "high_proximity": 53.59678182678656,
+        "extension50": 47.03947368421053,
+        "pivot_extension": 29.722744360902254,
+        "relative_volume": 22.603383458646615
+      },
+      "expectation_load_raw": 30.647239327020817,
+      "expectation_load_pctile": 17.763157894736842,
+      "research_cohort": "low_load",
+      "state_sha256": "3246f2f0d9e722b7635b90909b8ab53cc84e66b1cc92600b0d54f7783a8c67b9",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 3,
+          "counts": {
+            "tax_withholding": 3
+          },
+          "values_usd": {
+            "tax_withholding": 708479.27
+          },
+          "distinct_people": {
+            "tax_withholding": 3
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 2911943.0,
+          "short_interest_change_pct": 18.50746851778522,
+          "days_to_cover": 3.36,
+          "prior_days_to_cover": 4.13
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 60.122,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "PTEN",
+      "price": 10.55,
+      "rs21": 11.0,
+      "rs63": 84.0,
+      "rs189": 93.0,
+      "ret21_pct": -12.4,
+      "distance_52w_high_pct": -21.2,
+      "extension_50ma_pct": -6.9,
+      "relative_volume": 1.0,
+      "pivot_distance_pct": -21.2,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "石油ガス生産",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 11.0,
+        "rs_acceleration": 1.5037593984962405,
+        "high_proximity": 47.5390440132513,
+        "extension50": 37.85244360902256,
+        "pivot_extension": 22.43890977443609,
+        "relative_volume": 64.02725563909775
+      },
+      "expectation_load_raw": 30.72690207238399,
+      "expectation_load_pctile": 17.857142857142858,
+      "research_cohort": "low_load",
+      "state_sha256": "1730fc18ea19d5b439cdb50c5bdf88a5cc713f5fdcc0101dd056c0fd8caa5404",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 7,
+          "counts": {
+            "scheduled_sale_10b5_1": 1,
+            "discretionary_sale": 5,
+            "other": 1
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 2977500.0,
+            "discretionary_sale": 9721280.0
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 1,
+            "discretionary_sale": 4,
+            "other": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 34265673.0,
+          "short_interest_change_pct": -10.560075302943893,
+          "days_to_cover": 4.35,
+          "prior_days_to_cover": 4.93
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 56.855999999999995,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "INBX",
+      "price": 104.83,
+      "rs21": 9.0,
+      "rs63": 79.0,
+      "rs189": 76.0,
+      "ret21_pct": -5.5,
+      "distance_52w_high_pct": -32.5,
+      "extension_50ma_pct": 3.5,
+      "relative_volume": 0.8,
+      "pivot_distance_pct": -20.0,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "バイオ",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 9.0,
+        "rs_acceleration": 2.3966165413533833,
+        "high_proximity": 27.40179839091339,
+        "extension50": 84.04605263157895,
+        "pivot_extension": 25.86936090225564,
+        "relative_volume": 37.00657894736842
+      },
+      "expectation_load_raw": 30.953401235578298,
+      "expectation_load_pctile": 18.139097744360903,
+      "research_cohort": "low_load",
+      "state_sha256": "a3a498b72839a7b31a61ef9bbd8b14b06025c06a7715702e582ad20d040a45b2",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 39,
+          "counts": {
+            "open_market_purchase": 14,
+            "other": 16,
+            "compensation_or_exercise": 4,
+            "discretionary_sale": 5
+          },
+          "values_usd": {
+            "open_market_purchase": 5498380.25,
+            "discretionary_sale": 279010.0
+          },
+          "distinct_people": {
+            "open_market_purchase": 3,
+            "other": 2,
+            "compensation_or_exercise": 4,
+            "discretionary_sale": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 3393511.0,
+          "short_interest_change_pct": 2.9040467980676388,
+          "days_to_cover": 8.31,
+          "prior_days_to_cover": 10.39
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 58.98,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 2
+      }
+    },
+    {
+      "ticker": "MBX",
+      "price": 57.75,
+      "rs21": 44.0,
+      "rs63": 71.0,
+      "rs189": 94.0,
+      "ret21_pct": -4.2,
+      "distance_52w_high_pct": -20.5,
+      "extension_50ma_pct": -8.8,
+      "relative_volume": 0.7,
+      "pivot_distance_pct": -20.5,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "バイオ",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 44.0,
+        "rs_acceleration": 19.031954887218046,
+        "high_proximity": 49.171793658305724,
+        "extension50": 27.843045112781954,
+        "pivot_extension": 24.31860902255639,
+        "relative_volume": 22.603383458646615
+      },
+      "expectation_load_raw": 31.161464356584787,
+      "expectation_load_pctile": 18.703007518796994,
+      "research_cohort": "low_load",
+      "state_sha256": "34e4c87e17d44f6dd92284f2d820af6bb596e24109fd8377c1245448f75ca934",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 4129859.0,
+          "short_interest_change_pct": -0.6187595835182247,
+          "days_to_cover": 11.44,
+          "prior_days_to_cover": 10.14
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 70.93199999999999,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "OII",
+      "price": 44.22,
+      "rs21": 14.0,
+      "rs63": 77.0,
+      "rs189": 93.0,
+      "ret21_pct": -8.4,
+      "distance_52w_high_pct": -18.5,
+      "extension_50ma_pct": -10.3,
+      "relative_volume": 1.0,
+      "pivot_distance_pct": -18.5,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "産業機械",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 14.0,
+        "rs_acceleration": 3.9473684210526314,
+        "high_proximity": 54.2830099384761,
+        "extension50": 20.982142857142858,
+        "pivot_extension": 30.521616541353385,
+        "relative_volume": 64.02725563909775
+      },
+      "expectation_load_raw": 31.293565566187123,
+      "expectation_load_pctile": 18.89097744360902,
+      "research_cohort": "low_load",
+      "state_sha256": "30cb780de6c627a79f88d06883f4823f96941f86e6896c28ff47083a278b4464",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 7536785.0,
+          "short_interest_change_pct": 16.592659078413696,
+          "days_to_cover": 9.06,
+          "prior_days_to_cover": 6.41
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 56.61800000000001,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 6,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "EAT",
+      "price": 199.11,
+      "rs21": 18.0,
+      "rs63": 86.0,
+      "rs189": 78.0,
+      "ret21_pct": -6.6,
+      "distance_52w_high_pct": -21.9,
+      "extension_50ma_pct": -9.0,
+      "relative_volume": 1.1,
+      "pivot_distance_pct": -21.9,
+      "sector": "9. 消費者・小売りテーマ",
+      "subtheme": "レストラン",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 18.0,
+        "rs_acceleration": 2.6785714285714284,
+        "high_proximity": 46.30856601987695,
+        "extension50": 26.62124060150376,
+        "pivot_extension": 20.888157894736842,
+        "relative_volume": 73.35526315789474
+      },
+      "expectation_load_raw": 31.308633183763956,
+      "expectation_load_pctile": 18.984962406015036,
+      "research_cohort": "low_load",
+      "state_sha256": "0c11d5f32210faccbda55d3ab72fe690f40ed6ed8cbcd58f6c01ce4c3fb20a0a",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 73,
+          "counts": {
+            "scheduled_sale_10b5_1": 3,
+            "discretionary_sale": 12,
+            "other": 11,
+            "tax_withholding": 21,
+            "compensation_or_exercise": 23,
+            "gift": 3
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 19525458.5,
+            "discretionary_sale": 22160481.63,
+            "tax_withholding": 28607412.02
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 2,
+            "discretionary_sale": 9,
+            "other": 3,
+            "tax_withholding": 8,
+            "compensation_or_exercise": 17,
+            "gift": 3
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 5554198.0,
+          "short_interest_change_pct": -0.3972848198965928,
+          "days_to_cover": 5.19,
+          "prior_days_to_cover": 7.03
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 64.094,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 5,
+        "8k": 1
+      }
+    },
+    {
+      "ticker": "GKOS",
+      "price": 158.55,
+      "rs21": 21.0,
+      "rs63": 82.0,
+      "rs189": 80.0,
+      "ret21_pct": -5.6,
+      "distance_52w_high_pct": -17.3,
+      "extension_50ma_pct": -7.5,
+      "relative_volume": 0.8,
+      "pivot_distance_pct": -17.3,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "医療機器・専門",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 21.0,
+        "rs_acceleration": 4.652255639097745,
+        "high_proximity": 57.87979176526266,
+        "extension50": 34.18703007518797,
+        "pivot_extension": 34.609962406015036,
+        "relative_volume": 37.00657894736842
+      },
+      "expectation_load_raw": 31.555936472155306,
+      "expectation_load_pctile": 19.26691729323308,
+      "research_cohort": "low_load",
+      "state_sha256": "6642c42f84ef165dbaa6517c35fcc8aec9e580a24b83197eb4a010b3221eb8fc",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 17,
+          "counts": {
+            "scheduled_sale_10b5_1": 11,
+            "discretionary_sale": 4,
+            "compensation_or_exercise": 2
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 492362.36,
+            "discretionary_sale": 2958104.04,
+            "compensation_or_exercise": 64425.0
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 1,
+            "discretionary_sale": 2,
+            "compensation_or_exercise": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 4166410.0,
+          "short_interest_change_pct": 9.023972970158223,
+          "days_to_cover": 5.71,
+          "prior_days_to_cover": 6.65
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 61.576,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "LYB",
+      "price": 58.18,
+      "rs21": 25.0,
+      "rs63": 80.0,
+      "rs189": 81.0,
+      "ret21_pct": -7.1,
+      "distance_52w_high_pct": -29.2,
+      "extension_50ma_pct": -6.5,
+      "relative_volume": 0.9,
+      "pivot_distance_pct": -15.0,
+      "sector": "11. 素材・鉱業・化学",
+      "subtheme": "特殊化学",
+      "market_cap_band": "大型",
+      "expectation_components_pctile": {
+        "rs21": 25.0,
+        "rs_acceleration": 5.639097744360902,
+        "high_proximity": 32.8679602460956,
+        "extension50": 40.108082706766915,
+        "pivot_extension": 43.1156015037594,
+        "relative_volume": 51.597744360902254
+      },
+      "expectation_load_raw": 33.05474776031418,
+      "expectation_load_pctile": 21.945488721804512,
+      "research_cohort": "low_load",
+      "state_sha256": "b7110ee4eefba3d6119d0035459beedf9519e3e7e73bda512d3285012f2597ff",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 13350742.0,
+          "short_interest_change_pct": -4.300853366734659,
+          "days_to_cover": 4.05,
+          "prior_days_to_cover": 3.79
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 59.984,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "URGN",
+      "price": 40.45,
+      "rs21": 45.0,
+      "rs63": 78.0,
+      "rs189": 92.0,
+      "ret21_pct": -5.6,
+      "distance_52w_high_pct": -20.4,
+      "extension_50ma_pct": -7.9,
+      "relative_volume": 0.8,
+      "pivot_distance_pct": -20.4,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "バイオ",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 45.0,
+        "rs_acceleration": 14.87312030075188,
+        "high_proximity": 49.455750118315194,
+        "extension50": 31.790413533834588,
+        "pivot_extension": 24.600563909774436,
+        "relative_volume": 37.00657894736842
+      },
+      "expectation_load_raw": 33.78773780167409,
+      "expectation_load_pctile": 22.69736842105263,
+      "research_cohort": "low_load",
+      "state_sha256": "fd2cbc46778d06e6059549d9b2de98950448f825dfc11e92213781c16f9b735c",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 9,
+          "counts": {
+            "compensation_or_exercise": 6,
+            "discretionary_sale": 3
+          },
+          "values_usd": {
+            "discretionary_sale": 2956854.43
+          },
+          "distinct_people": {
+            "compensation_or_exercise": 3,
+            "discretionary_sale": 2
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 6247498.0,
+          "short_interest_change_pct": 0.03380094780356391,
+          "days_to_cover": 9.16,
+          "prior_days_to_cover": 6.79
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 68.046,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "SGMT",
+      "price": 9.33,
+      "rs21": 30.0,
+      "rs63": 88.0,
+      "rs189": 88.0,
+      "ret21_pct": -11.4,
+      "distance_52w_high_pct": -18.5,
+      "extension_50ma_pct": -2.8,
+      "relative_volume": 0.7,
+      "pivot_distance_pct": -18.5,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "大手製薬",
+      "market_cap_band": "極小",
+      "expectation_components_pctile": {
+        "rs21": 30.0,
+        "rs_acceleration": 5.1456766917293235,
+        "high_proximity": 54.2830099384761,
+        "extension50": 61.77161654135338,
+        "pivot_extension": 30.521616541353385,
+        "relative_volume": 22.603383458646615
+      },
+      "expectation_load_raw": 34.0542171952598,
+      "expectation_load_pctile": 23.07330827067669,
+      "research_cohort": "low_load",
+      "state_sha256": "fa460e72c74781b4041602ec0de3b9bb82a7e7f917b1d731bcf9b6fb470ba24d",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 5,
+          "counts": {
+            "compensation_or_exercise": 4,
+            "scheduled_sale_10b5_1": 1
+          },
+          "values_usd": {
+            "compensation_or_exercise": 2232277.32,
+            "scheduled_sale_10b5_1": 3591579.77
+          },
+          "distinct_people": {
+            "compensation_or_exercise": 1,
+            "scheduled_sale_10b5_1": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 10262901.0,
+          "short_interest_change_pct": 1.4847090150301279,
+          "days_to_cover": 10.56,
+          "prior_days_to_cover": 9.58
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 53.826,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 1,
+        "8k": 1
+      }
+    },
+    {
+      "ticker": "VCTR",
+      "price": 110.4,
+      "rs21": 45.0,
+      "rs63": 93.0,
+      "rs189": 92.0,
+      "ret21_pct": 1.0,
+      "distance_52w_high_pct": -10.2,
+      "extension_50ma_pct": 1.5,
+      "relative_volume": 0.7,
+      "pivot_distance_pct": -10.2,
+      "sector": "12. 金融・銀行・保険",
+      "subtheme": "資産運用",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 45.0,
+        "rs_acceleration": 7.847744360902255,
+        "high_proximity": 80.73828679602461,
+        "extension50": 79.06484962406014,
+        "pivot_extension": 67.55169172932331,
+        "relative_volume": 22.603383458646615
+      },
+      "expectation_load_raw": 50.46765932815949,
+      "expectation_load_pctile": 50.18796992481203,
+      "research_cohort": "mid_load",
+      "state_sha256": "4dc9399e81a2c35915013b3244be5d119f0c6b6bcc62edc409f46fc971c85b3c",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 15,
+          "counts": {
+            "compensation_or_exercise": 10,
+            "tax_withholding": 5
+          },
+          "values_usd": {
+            "tax_withholding": 15231876.66
+          },
+          "distinct_people": {
+            "compensation_or_exercise": 5,
+            "tax_withholding": 5
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 2238056.0,
+          "short_interest_change_pct": -4.5845181809267554,
+          "days_to_cover": 2.97,
+          "prior_days_to_cover": 4.05
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 75.966,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 1,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "FIVN",
+      "price": 34.01,
+      "rs21": 67.0,
+      "rs63": 98.0,
+      "rs189": 91.0,
+      "ret21_pct": 0.3,
+      "distance_52w_high_pct": -15.0,
+      "extension_50ma_pct": 7.4,
+      "relative_volume": 0.7,
+      "pivot_distance_pct": -15.0,
+      "sector": "1. AI・テック成長テーマ",
+      "subtheme": "パッケージソフト",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 67.0,
+        "rs_acceleration": 15.836466165413533,
+        "high_proximity": 64.71840984382395,
+        "extension50": 89.70864661654136,
+        "pivot_extension": 43.1156015037594,
+        "relative_volume": 22.603383458646615
+      },
+      "expectation_load_raw": 50.4970845980308,
+      "expectation_load_pctile": 50.28195488721804,
+      "research_cohort": "mid_load",
+      "state_sha256": "71302b0a15fd1762e2ab37ecbc837b5cc13e0d03c10c8ea6453742dc0422fb21",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 19,
+          "counts": {
+            "scheduled_sale_10b5_1": 18,
+            "gift": 1
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 2821393.49
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 4,
+            "gift": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 8736863.0,
+          "short_interest_change_pct": 2.270422595223187,
+          "days_to_cover": 5.57,
+          "prior_days_to_cover": 5.4
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 46.724000000000004,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 3,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "LFST",
+      "price": 11.89,
+      "rs21": 56.0,
+      "rs63": 80.0,
+      "rs189": 90.0,
+      "ret21_pct": -5.4,
+      "distance_52w_high_pct": -12.3,
+      "extension_50ma_pct": -0.8,
+      "relative_volume": 0.7,
+      "pivot_distance_pct": -12.3,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "医療・介護サービス",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 56.0,
+        "rs_acceleration": 20.958646616541355,
+        "high_proximity": 73.94699479413157,
+        "extension50": 71.31109022556392,
+        "pivot_extension": 56.9078947368421,
+        "relative_volume": 22.603383458646615
+      },
+      "expectation_load_raw": 50.288001638620926,
+      "expectation_load_pctile": 49.71804511278196,
+      "research_cohort": "mid_load",
+      "state_sha256": "a37f52787692471b3e9720a3c6bfb0a6a4f6f985803bf332eb9354cead3d5c2c",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 11,
+          "counts": {
+            "gift": 4,
+            "discretionary_sale": 5,
+            "other": 1,
+            "tax_withholding": 1
+          },
+          "values_usd": {
+            "discretionary_sale": 679402325.64,
+            "tax_withholding": 99176.96
+          },
+          "distinct_people": {
+            "gift": 1,
+            "discretionary_sale": 5,
+            "other": 1,
+            "tax_withholding": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 16260201.0,
+          "short_interest_change_pct": 19.38083520766025,
+          "days_to_cover": 3.07,
+          "prior_days_to_cover": 4.24
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 49.315999999999995,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 1
+      }
+    },
+    {
+      "ticker": "SEIC",
+      "price": 103.35,
+      "rs21": 40.0,
+      "rs63": 86.0,
+      "rs189": 70.0,
+      "ret21_pct": -3.1,
+      "distance_52w_high_pct": -7.8,
+      "extension_50ma_pct": -2.3,
+      "relative_volume": 0.7,
+      "pivot_distance_pct": -7.8,
+      "sector": "12. 金融・銀行・保険",
+      "subtheme": "資産運用",
+      "market_cap_band": "大型",
+      "expectation_components_pctile": {
+        "rs21": 40.0,
+        "rs_acceleration": 8.646616541353383,
+        "high_proximity": 87.62423095125413,
+        "extension50": 64.3796992481203,
+        "pivot_extension": 79.86372180451127,
+        "relative_volume": 22.603383458646615
+      },
+      "expectation_load_raw": 50.51960866731429,
+      "expectation_load_pctile": 50.328947368421055,
+      "research_cohort": "mid_load",
+      "state_sha256": "1d9d2a1b3427eeed32bbd0fbd0d6580271d5f2728968c397745b434b6604f8c8",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 15,
+          "counts": {
+            "discretionary_sale": 4,
+            "other": 3,
+            "compensation_or_exercise": 8
+          },
+          "values_usd": {
+            "discretionary_sale": 9128459.5,
+            "compensation_or_exercise": 4505225.0
+          },
+          "distinct_people": {
+            "discretionary_sale": 4,
+            "other": 3,
+            "compensation_or_exercise": 3
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 2332194.0,
+          "short_interest_change_pct": 8.52820172281168,
+          "days_to_cover": 3.39,
+          "prior_days_to_cover": 3.33
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 62.35799999999999,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "FCX",
+      "price": 70.79,
+      "rs21": 42.0,
+      "rs63": 81.0,
+      "rs189": 79.0,
+      "ret21_pct": -2.1,
+      "distance_52w_high_pct": -11.8,
+      "extension_50ma_pct": 0.9,
+      "relative_volume": 0.8,
+      "pivot_distance_pct": -11.8,
+      "sector": "11. 素材・鉱業・化学",
+      "subtheme": "金属・鉱物",
+      "market_cap_band": "超大型",
+      "expectation_components_pctile": {
+        "rs21": 42.0,
+        "rs_acceleration": 12.030075187969924,
+        "high_proximity": 75.74538570752485,
+        "extension50": 77.70206766917293,
+        "pivot_extension": 59.72744360902256,
+        "relative_volume": 37.00657894736842
+      },
+      "expectation_load_raw": 50.70192518684311,
+      "expectation_load_pctile": 50.6578947368421,
+      "research_cohort": "mid_load",
+      "state_sha256": "4d7c1c604d25f042e8aa963603c080468642f4ba416b22b09420720df2df2e43",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 6,
+          "counts": {
+            "discretionary_sale": 2,
+            "compensation_or_exercise": 4
+          },
+          "values_usd": {
+            "discretionary_sale": 6584934.79,
+            "compensation_or_exercise": 1204700.0
+          },
+          "distinct_people": {
+            "discretionary_sale": 2,
+            "compensation_or_exercise": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 34304914.0,
+          "short_interest_change_pct": 11.787171290962096,
+          "days_to_cover": 2.81,
+          "prior_days_to_cover": 1.82
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 41.462,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 5,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "LNG",
+      "price": 267.29,
+      "rs21": 33.0,
+      "rs63": 81.0,
+      "rs189": 82.0,
+      "ret21_pct": -3.7,
+      "distance_52w_high_pct": -10.8,
+      "extension_50ma_pct": -1.6,
+      "relative_volume": 0.9,
+      "pivot_distance_pct": -10.7,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "パイプライン",
+      "market_cap_band": "大型",
+      "expectation_components_pctile": {
+        "rs21": 33.0,
+        "rs_acceleration": 7.847744360902255,
+        "high_proximity": 79.03454803596782,
+        "extension50": 67.81015037593986,
+        "pivot_extension": 65.41353383458646,
+        "relative_volume": 51.597744360902254
+      },
+      "expectation_load_raw": 50.783953494716435,
+      "expectation_load_pctile": 50.84586466165413,
+      "research_cohort": "mid_load",
+      "state_sha256": "3df13ab5ea607b4acc706629aa6fef8dc03bfb099666c9786c5b495d2a64c4e7",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 1,
+          "counts": {
+            "tax_withholding": 1
+          },
+          "values_usd": {
+            "tax_withholding": 13853.64
+          },
+          "distinct_people": {
+            "tax_withholding": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 3889700.0,
+          "short_interest_change_pct": -6.604551902580791,
+          "days_to_cover": 1.57,
+          "prior_days_to_cover": 2.75
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 47.81,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 4,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "AVNT",
+      "price": 40.78,
+      "rs21": 40.0,
+      "rs63": 80.0,
+      "rs189": 77.0,
+      "ret21_pct": -1.9,
+      "distance_52w_high_pct": -12.0,
+      "extension_50ma_pct": -1.5,
+      "relative_volume": 0.9,
+      "pivot_distance_pct": -12.0,
+      "sector": "11. 素材・鉱業・化学",
+      "subtheme": "総合化学",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 40.0,
+        "rs_acceleration": 11.395676691729323,
+        "high_proximity": 74.96450544249882,
+        "extension50": 68.32706766917293,
+        "pivot_extension": 58.599624060150376,
+        "relative_volume": 51.597744360902254
+      },
+      "expectation_load_raw": 50.814103037408955,
+      "expectation_load_pctile": 50.93984962406015,
+      "research_cohort": "mid_load",
+      "state_sha256": "ba06c3415126f3b2eb2bf676e4a1f388040f1d80d776d95b02823638d58ea882",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 4126545.0,
+          "short_interest_change_pct": 6.103705631187384,
+          "days_to_cover": 6.16,
+          "prior_days_to_cover": 5.32
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 68.268,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 6,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "GPRK",
+      "price": 10.51,
+      "rs21": 53.0,
+      "rs63": 84.0,
+      "rs189": 84.0,
+      "ret21_pct": -7.2,
+      "distance_52w_high_pct": -20.0,
+      "extension_50ma_pct": 1.6,
+      "relative_volume": 1.1,
+      "pivot_distance_pct": -20.0,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "石油ガス生産",
+      "market_cap_band": "極小",
+      "expectation_components_pctile": {
+        "rs21": 53.0,
+        "rs_acceleration": 15.836466165413533,
+        "high_proximity": 50.591575958353054,
+        "extension50": 79.46428571428571,
+        "pivot_extension": 25.86936090225564,
+        "relative_volume": 73.35526315789474
+      },
+      "expectation_load_raw": 49.686158649700445,
+      "expectation_load_pctile": 48.87218045112782,
+      "research_cohort": "mid_load",
+      "state_sha256": "153e481f1dd84229fc9dbeb27e0813715e895458c657b5bfac46519d51ca35af",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 10,
+          "counts": {
+            "compensation_or_exercise": 7,
+            "discretionary_sale": 1,
+            "other": 2
+          },
+          "values_usd": {
+            "compensation_or_exercise": 185566.48,
+            "discretionary_sale": 1192300.0
+          },
+          "distinct_people": {
+            "compensation_or_exercise": 7,
+            "discretionary_sale": 1,
+            "other": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 1197354.0,
+          "short_interest_change_pct": 29.225180343721526,
+          "days_to_cover": 1.0,
+          "prior_days_to_cover": 1.99
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 58.396,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "UMAC",
+      "price": 24.94,
+      "rs21": 87.0,
+      "rs63": 81.0,
+      "rs189": 95.0,
+      "ret21_pct": 5.3,
+      "distance_52w_high_pct": -28.6,
+      "extension_50ma_pct": 3.1,
+      "relative_volume": 0.7,
+      "pivot_distance_pct": -28.6,
+      "sector": "5. 宇宙・防衛・モビリティ",
+      "subtheme": "電子機器・計測",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 87.0,
+        "rs_acceleration": 61.2312030075188,
+        "high_proximity": 34.07477520113583,
+        "extension50": 83.20018796992481,
+        "pivot_extension": 9.821428571428571,
+        "relative_volume": 22.603383458646615
+      },
+      "expectation_load_raw": 49.65516303477577,
+      "expectation_load_pctile": 48.82518796992481,
+      "research_cohort": "mid_load",
+      "state_sha256": "9273ebffb3a7884f306530364c42a709fa9ea41ffc18e55973edf7924cfafe27",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 3,
+          "counts": {
+            "scheduled_sale_10b5_1": 3
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 1262111.52
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 3
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 8937526.0,
+          "short_interest_change_pct": 0.8239847914441434,
+          "days_to_cover": 3.54,
+          "prior_days_to_cover": 1.89
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 49.722,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 2,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "PAA",
+      "price": 23.93,
+      "rs21": 41.0,
+      "rs63": 77.0,
+      "rs189": 83.0,
+      "ret21_pct": -5.4,
+      "distance_52w_high_pct": -9.3,
+      "extension_50ma_pct": -2.8,
+      "relative_volume": 0.7,
+      "pivot_distance_pct": -9.3,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "パイプライン",
+      "market_cap_band": "大型",
+      "expectation_components_pctile": {
+        "rs21": 41.0,
+        "rs_acceleration": 13.416353383458647,
+        "high_proximity": 83.81448177946048,
+        "extension50": 61.77161654135338,
+        "pivot_extension": 72.03947368421052,
+        "relative_volume": 22.603383458646615
+      },
+      "expectation_load_raw": 49.10755147452161,
+      "expectation_load_pctile": 48.1203007518797,
+      "research_cohort": "mid_load",
+      "state_sha256": "dda9878e73f68f3261cf2955c9f16a9a632f768ffc6edbc6a60c3ccc8e63bc14",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 36,
+          "counts": {
+            "other": 1,
+            "tax_withholding": 6,
+            "compensation_or_exercise": 27,
+            "gift": 2
+          },
+          "values_usd": {
+            "other": 588364478.62,
+            "tax_withholding": 18306734.95
+          },
+          "distinct_people": {
+            "other": 1,
+            "tax_withholding": 6,
+            "compensation_or_exercise": 10,
+            "gift": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 18291673.0,
+          "short_interest_change_pct": 16.05390753424245,
+          "days_to_cover": 6.57,
+          "prior_days_to_cover": 6.43
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 75.352,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 1,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "LH",
+      "price": 309.57,
+      "rs21": 40.0,
+      "rs63": 80.0,
+      "rs189": 70.0,
+      "ret21_pct": -2.9,
+      "distance_52w_high_pct": -9.2,
+      "extension_50ma_pct": -2.5,
+      "relative_volume": 0.8,
+      "pivot_distance_pct": -9.2,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "医療・介護サービス",
+      "market_cap_band": "大型",
+      "expectation_components_pctile": {
+        "rs21": 40.0,
+        "rs_acceleration": 11.395676691729323,
+        "high_proximity": 84.1457643161382,
+        "extension50": 63.51033834586466,
+        "pivot_extension": 72.55639097744361,
+        "relative_volume": 37.00657894736842
+      },
+      "expectation_load_raw": 51.435791546424035,
+      "expectation_load_pctile": 52.11466165413534,
+      "research_cohort": "mid_load",
+      "state_sha256": "473246b82a41d912a0eeac4fda1510fa7eec01a569ee19a649805d40ab3d003e",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 7,
+          "counts": {
+            "compensation_or_exercise": 4,
+            "other": 2,
+            "scheduled_sale_10b5_1": 1
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 954060.0
+          },
+          "distinct_people": {
+            "compensation_or_exercise": 4,
+            "other": 1,
+            "scheduled_sale_10b5_1": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 2448617.0,
+          "short_interest_change_pct": 16.417756461031274,
+          "days_to_cover": 3.31,
+          "prior_days_to_cover": 3.18
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 51.362,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 5,
+        "8k": 2
+      }
+    },
+    {
+      "ticker": "DKL",
+      "price": 53.2,
+      "rs21": 55.0,
+      "rs63": 72.0,
+      "rs189": 74.0,
+      "ret21_pct": -4.3,
+      "distance_52w_high_pct": -11.8,
+      "extension_50ma_pct": -4.8,
+      "relative_volume": 0.7,
+      "pivot_distance_pct": -11.3,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "パイプライン",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 55.0,
+        "rs_acceleration": 27.79605263157895,
+        "high_proximity": 75.74538570752485,
+        "extension50": 50.75187969924812,
+        "pivot_extension": 62.00657894736842,
+        "relative_volume": 22.603383458646615
+      },
+      "expectation_load_raw": 48.983880074061155,
+      "expectation_load_pctile": 47.838345864661655,
+      "research_cohort": "mid_load",
+      "state_sha256": "8ccdee82bdd0b94bbf933ef46fe9b2f9aa73281ebfa0dd58c1e19350fe1838b6",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 10,
+          "counts": {
+            "tax_withholding": 4,
+            "open_market_purchase": 5,
+            "other": 1
+          },
+          "values_usd": {
+            "tax_withholding": 266133.0,
+            "open_market_purchase": 750000.0
+          },
+          "distinct_people": {
+            "tax_withholding": 4,
+            "open_market_purchase": 5,
+            "other": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 273991.0,
+          "short_interest_change_pct": 105.80865175882037,
+          "days_to_cover": 1.83,
+          "prior_days_to_cover": 1.0
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 56.40599999999999,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 1,
+        "8k": 4
+      }
+    },
+    {
+      "ticker": "PSNL",
+      "price": 16.35,
+      "rs21": 63.0,
+      "rs63": 89.0,
+      "rs189": 95.0,
+      "ret21_pct": -0.7,
+      "distance_52w_high_pct": -13.4,
+      "extension_50ma_pct": 7.7,
+      "relative_volume": 0.3,
+      "pivot_distance_pct": -13.4,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "医療・介護サービス",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 63.0,
+        "rs_acceleration": 19.736842105263158,
+        "high_proximity": 69.87695220066257,
+        "extension50": 90.10808270676692,
+        "pivot_extension": 50.93984962406015,
+        "relative_volume": 0.18796992481203006
+      },
+      "expectation_load_raw": 48.97494942692747,
+      "expectation_load_pctile": 47.744360902255636,
+      "research_cohort": "mid_load",
+      "state_sha256": "252b87c5fe82302020134fe5f0070e3dbc10073d185e994d4c13c1166eb40b64",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 4,
+          "counts": {
+            "discretionary_sale": 4
+          },
+          "values_usd": {
+            "discretionary_sale": 266916.32
+          },
+          "distinct_people": {
+            "discretionary_sale": 4
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 8266193.0,
+          "short_interest_change_pct": -1.405611137351448,
+          "days_to_cover": 3.55,
+          "prior_days_to_cover": 1.8
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 44.474000000000004,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 1,
+        "8k": 1
+      }
+    },
+    {
+      "ticker": "FTK",
+      "price": 28.5,
+      "rs21": 97.0,
+      "rs63": 88.0,
+      "rs189": 89.0,
+      "ret21_pct": 4.1,
+      "distance_52w_high_pct": -28.2,
+      "extension_50ma_pct": 2.1,
+      "relative_volume": 0.5,
+      "pivot_distance_pct": -28.2,
+      "sector": "10. エネルギー（化石燃料）",
+      "subtheme": "油田サービス・装置",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 97.0,
+        "rs_acceleration": 65.46052631578948,
+        "high_proximity": 35.42356838618078,
+        "extension50": 80.87406015037594,
+        "pivot_extension": 10.43233082706767,
+        "relative_volume": 3.7828947368421053
+      },
+      "expectation_load_raw": 48.82889673604266,
+      "expectation_load_pctile": 47.60338345864662,
+      "research_cohort": "mid_load",
+      "state_sha256": "37494e716a8b61d4e95132c6226e9d9a463adb85621c0b343b5e57cf3b5ec727",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 3,
+          "counts": {
+            "open_market_purchase": 1,
+            "other": 1,
+            "discretionary_sale": 1
+          },
+          "values_usd": {
+            "open_market_purchase": 34320012.93,
+            "discretionary_sale": 60000024.06
+          },
+          "distinct_people": {
+            "open_market_purchase": 1,
+            "other": 1,
+            "discretionary_sale": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 3758514.0,
+          "short_interest_change_pct": 8.975000935062049,
+          "days_to_cover": 9.26,
+          "prior_days_to_cover": 3.87
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 68.714,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 6,
+        "8k": 4
+      }
+    },
+    {
+      "ticker": "THC",
+      "price": 257.6,
+      "rs21": 60.0,
+      "rs63": 94.0,
+      "rs189": 75.0,
+      "ret21_pct": -1.5,
+      "distance_52w_high_pct": -9.0,
+      "extension_50ma_pct": -0.2,
+      "relative_volume": 0.5,
+      "pivot_distance_pct": -9.0,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "病院運営",
+      "market_cap_band": "大型",
+      "expectation_components_pctile": {
+        "rs21": 60.0,
+        "rs_acceleration": 14.356203007518797,
+        "high_proximity": 84.80832938949361,
+        "extension50": 73.51973684210526,
+        "pivot_extension": 73.63721804511279,
+        "relative_volume": 3.7828947368421053
+      },
+      "expectation_load_raw": 51.684063670178766,
+      "expectation_load_pctile": 52.58458646616541,
+      "research_cohort": "mid_load",
+      "state_sha256": "1a7a7d7ee3ab47ed75bb653cc9a597783eb81d2f8120e18519520d56ae12b345",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 13,
+          "counts": {
+            "discretionary_sale": 12,
+            "gift": 1
+          },
+          "values_usd": {
+            "discretionary_sale": 40489121.18
+          },
+          "distinct_people": {
+            "discretionary_sale": 6,
+            "gift": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 2015270.0,
+          "short_interest_change_pct": 6.775663920542008,
+          "days_to_cover": 2.81,
+          "prior_days_to_cover": 2.53
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 41.318,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 5,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "FSLY",
+      "price": 25.48,
+      "rs21": 94.0,
+      "rs63": 94.0,
+      "rs189": 97.0,
+      "ret21_pct": 6.6,
+      "distance_52w_high_pct": -26.8,
+      "extension_50ma_pct": 6.4,
+      "relative_volume": 0.6,
+      "pivot_distance_pct": -18.7,
+      "sector": "1. AI・テック成長テーマ",
+      "subtheme": "ITサービス",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 94.0,
+        "rs_acceleration": 49.9765037593985,
+        "high_proximity": 37.83719829626124,
+        "extension50": 88.7687969924812,
+        "pivot_extension": 29.722744360902254,
+        "relative_volume": 11.043233082706767
+      },
+      "expectation_load_raw": 51.891412748624994,
+      "expectation_load_pctile": 52.81954887218045,
+      "research_cohort": "mid_load",
+      "state_sha256": "7deebcebef656a7e6926a742d6780a671b241f89fe799a9b6bf89cb29a7e58c3",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 111,
+          "counts": {
+            "scheduled_sale_10b5_1": 44,
+            "other": 60,
+            "discretionary_sale": 7
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 24798427.97,
+            "discretionary_sale": 6991604.27
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 6,
+            "other": 2,
+            "discretionary_sale": 4
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 21565154.0,
+          "short_interest_change_pct": 6.685404378329807,
+          "days_to_cover": 3.95,
+          "prior_days_to_cover": 4.36
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 58.124,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 2,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "XNCR",
+      "price": 25.0,
+      "rs21": 34.0,
+      "rs63": 97.0,
+      "rs189": 90.0,
+      "ret21_pct": -0.6,
+      "distance_52w_high_pct": -18.3,
+      "extension_50ma_pct": 4.7,
+      "relative_volume": 1.2,
+      "pivot_distance_pct": -18.3,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "バイオ",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 34.0,
+        "rs_acceleration": 3.9473684210526314,
+        "high_proximity": 54.898248935163274,
+        "extension50": 86.44266917293233,
+        "pivot_extension": 31.156015037593985,
+        "relative_volume": 80.40413533834587
+      },
+      "expectation_load_raw": 48.47473948418135,
+      "expectation_load_pctile": 46.99248120300752,
+      "research_cohort": "mid_load",
+      "state_sha256": "a7b212b80d9839ef410ff24ad6deb8f198669cbe4550f4d6a0a7c2c087802c8d",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 15751444.0,
+          "short_interest_change_pct": 5.621697361429656,
+          "days_to_cover": 13.24,
+          "prior_days_to_cover": 9.53
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 59.016,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "QLYS",
+      "price": 178.35,
+      "rs21": 55.0,
+      "rs63": 92.0,
+      "rs189": 75.0,
+      "ret21_pct": 1.7,
+      "distance_52w_high_pct": -11.5,
+      "extension_50ma_pct": 4.1,
+      "relative_volume": 0.7,
+      "pivot_distance_pct": -11.5,
+      "sector": "8. デジタルインフラ・先進テック",
+      "subtheme": "パッケージソフト",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 55.0,
+        "rs_acceleration": 12.87593984962406,
+        "high_proximity": 76.52626597255087,
+        "extension50": 85.29135338345864,
+        "pivot_extension": 61.20770676691729,
+        "relative_volume": 22.603383458646615
+      },
+      "expectation_load_raw": 52.250774905199584,
+      "expectation_load_pctile": 53.47744360902256,
+      "research_cohort": "mid_load",
+      "state_sha256": "4cc160922af0bfb0d9f6d26f309667daefc0915e259738ef04a2f3999f75cd1a",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 31,
+          "counts": {
+            "scheduled_sale_10b5_1": 31
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 1820621.92
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 5
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 3465960.0,
+          "short_interest_change_pct": -5.032877197270302,
+          "days_to_cover": 4.26,
+          "prior_days_to_cover": 6.8
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 76.81800000000001,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 2,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "CLBK",
+      "price": 10.88,
+      "rs21": 43.0,
+      "rs63": 82.0,
+      "rs189": 85.0,
+      "ret21_pct": -5.0,
+      "distance_52w_high_pct": -9.3,
+      "extension_50ma_pct": -3.9,
+      "relative_volume": 0.7,
+      "pivot_distance_pct": -9.3,
+      "sector": "12. 金融・銀行・保険",
+      "subtheme": "貯蓄銀行",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 43.0,
+        "rs_acceleration": 12.030075187969924,
+        "high_proximity": 83.81448177946048,
+        "extension50": 55.45112781954887,
+        "pivot_extension": 72.03947368421052,
+        "relative_volume": 22.603383458646615
+      },
+      "expectation_load_raw": 48.156423654972734,
+      "expectation_load_pctile": 46.287593984962406,
+      "research_cohort": "mid_load",
+      "state_sha256": "167b7cecb3fbc66aa67b608604ead345c0e3bafb8597228ba615222224cc61ea",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 201,
+          "counts": {
+            "other": 179,
+            "compensation_or_exercise": 20,
+            "gift": 1,
+            "open_market_purchase": 1
+          },
+          "values_usd": {
+            "compensation_or_exercise": 29237.98,
+            "open_market_purchase": 233.6
+          },
+          "distinct_people": {
+            "other": 9,
+            "compensation_or_exercise": 9,
+            "gift": 1,
+            "open_market_purchase": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 19255474.0,
+          "short_interest_change_pct": 0.7668453369831463,
+          "days_to_cover": 6.01,
+          "prior_days_to_cover": 6.07
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 49.28,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "TVTX",
+      "price": 59.99,
+      "rs21": 29.0,
+      "rs63": 72.0,
+      "rs189": 86.0,
+      "ret21_pct": -6.0,
+      "distance_52w_high_pct": -12.7,
+      "extension_50ma_pct": -3.5,
+      "relative_volume": 1.0,
+      "pivot_distance_pct": -12.7,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "大手製薬",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 29.0,
+        "rs_acceleration": 10.056390977443609,
+        "high_proximity": 72.50354945575012,
+        "extension50": 57.56578947368421,
+        "pivot_extension": 54.86372180451128,
+        "relative_volume": 64.02725563909775
+      },
+      "expectation_load_raw": 48.0027845584145,
+      "expectation_load_pctile": 46.099624060150376,
+      "research_cohort": "mid_load",
+      "state_sha256": "a41bc2b6abe824eac658cce6414d743b584c1f4d2b5c6419afbabbd1c0c463de",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 96,
+          "counts": {
+            "compensation_or_exercise": 50,
+            "scheduled_sale_10b5_1": 45,
+            "discretionary_sale": 1
+          },
+          "values_usd": {
+            "compensation_or_exercise": 19446973.23,
+            "scheduled_sale_10b5_1": 66969173.24,
+            "discretionary_sale": 42609.54
+          },
+          "distinct_people": {
+            "compensation_or_exercise": 9,
+            "scheduled_sale_10b5_1": 9,
+            "discretionary_sale": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 12955933.0,
+          "short_interest_change_pct": 7.922759358324405,
+          "days_to_cover": 10.38,
+          "prior_days_to_cover": 9.56
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 60.455999999999996,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 1
+      }
+    },
+    {
+      "ticker": "PRTH",
+      "price": 7.79,
+      "rs21": 99.0,
+      "rs63": 85.0,
+      "rs189": 82.0,
+      "ret21_pct": 22.3,
+      "distance_52w_high_pct": -1.5,
+      "extension_50ma_pct": 27.5,
+      "relative_volume": 1.5,
+      "pivot_distance_pct": -0.6,
+      "sector": "12. 金融・銀行・保険",
+      "subtheme": "パッケージソフト",
+      "market_cap_band": "極小",
+      "expectation_components_pctile": {
+        "rs21": 99.0,
+        "rs_acceleration": 72.32142857142857,
+        "high_proximity": 98.48556554661619,
+        "extension50": 98.7781954887218,
+        "pivot_extension": 98.23778195488721,
+        "relative_volume": 92.05827067669173
+      },
+      "expectation_load_raw": 93.14687370639092,
+      "expectation_load_pctile": 100.0,
+      "research_cohort": "high_load",
+      "state_sha256": "a8269219ae61844ceb9203779f9e757a45b419d9b1f4a1660ee6c8abe47271be",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 10,
+          "counts": {
+            "compensation_or_exercise": 6,
+            "other": 4
+          },
+          "values_usd": {
+            "other": 306324.16
+          },
+          "distinct_people": {
+            "compensation_or_exercise": 2,
+            "other": 3
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 1905204.0,
+          "short_interest_change_pct": 4.370948868641444,
+          "days_to_cover": 4.87,
+          "prior_days_to_cover": 4.76
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 52.236000000000004,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 1,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "ACVA",
+      "price": 10.44,
+      "rs21": 99.0,
+      "rs63": 96.0,
+      "rs189": 74.0,
+      "ret21_pct": 14.4,
+      "distance_52w_high_pct": -0.6,
+      "extension_50ma_pct": 26.2,
+      "relative_volume": 2.8,
+      "pivot_distance_pct": -0.6,
+      "sector": "9. 消費者・小売りテーマ",
+      "subtheme": "ネットサービス",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 99.0,
+        "rs_acceleration": 56.17951127819549,
+        "high_proximity": 99.31377188831046,
+        "extension50": 98.63721804511279,
+        "pivot_extension": 98.23778195488721,
+        "relative_volume": 98.94266917293233
+      },
+      "expectation_load_raw": 91.71849205657304,
+      "expectation_load_pctile": 99.90601503759399,
+      "research_cohort": "high_load",
+      "state_sha256": "f5c0356d617aadb478a3880957ce69f5c6ddcc8d770c4fbe835b98b6e0918e5f",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 15309980.0,
+          "short_interest_change_pct": -2.101057290779107,
+          "days_to_cover": 1.0,
+          "prior_days_to_cover": 4.91
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 35.85,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 2,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "SVRN",
+      "price": 67.33,
+      "rs21": 100.0,
+      "rs63": 100.0,
+      "rs189": 99.0,
+      "ret21_pct": 202.3,
+      "distance_52w_high_pct": -4.8,
+      "extension_50ma_pct": 400.7,
+      "relative_volume": 3.6,
+      "pivot_distance_pct": 9.6,
+      "sector": "その他",
+      "subtheme": "金融コングロマリット",
+      "market_cap_band": "極小",
+      "expectation_components_pctile": {
+        "rs21": 100.0,
+        "rs_acceleration": 49.9765037593985,
+        "high_proximity": 94.34453383814481,
+        "extension50": 100.0,
+        "pivot_extension": 99.90601503759399,
+        "relative_volume": 99.31860902255639
+      },
+      "expectation_load_raw": 90.59094360961562,
+      "expectation_load_pctile": 99.85902255639098,
+      "research_cohort": "high_load",
+      "state_sha256": "4ad5c42997a90b96e8a786454a2ab60b20e64aedf269312f59b1a055a1d9b3cd",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 15251.0,
+          "short_interest_change_pct": 278.6246276067527,
+          "days_to_cover": 1.0,
+          "prior_days_to_cover": 1.0
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 52.379999999999995,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "IOVA",
+      "price": 14.45,
+      "rs21": 100.0,
+      "rs63": 100.0,
+      "rs189": 100.0,
+      "ret21_pct": 49.2,
+      "distance_52w_high_pct": -5.6,
+      "extension_50ma_pct": 87.1,
+      "relative_volume": 4.8,
+      "pivot_distance_pct": 29.4,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "バイオ",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 100.0,
+        "rs_acceleration": 49.9765037593985,
+        "high_proximity": 92.19119734973971,
+        "extension50": 99.953007518797,
+        "pivot_extension": 100.0,
+        "relative_volume": 99.62406015037594
+      },
+      "expectation_load_raw": 90.29079479638519,
+      "expectation_load_pctile": 99.81203007518798,
+      "research_cohort": "high_load",
+      "state_sha256": "6e0e6cde3f7816bcef0e9f986ec78e0742727bdf1e1eb217ffa277be49489fc6",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 18,
+          "counts": {
+            "compensation_or_exercise": 12,
+            "tax_withholding": 6
+          },
+          "values_usd": {
+            "tax_withholding": 335667.36
+          },
+          "distinct_people": {
+            "compensation_or_exercise": 3,
+            "tax_withholding": 3
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 87127871.0,
+          "short_interest_change_pct": -1.147188081606243,
+          "days_to_cover": 7.43,
+          "prior_days_to_cover": 5.28
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 41.214,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 3,
+        "8k": 2
+      }
+    },
+    {
+      "ticker": "TWST",
+      "price": 186.13,
+      "rs21": 99.0,
+      "rs63": 99.0,
+      "rs189": 100.0,
+      "ret21_pct": 25.2,
+      "distance_52w_high_pct": -2.4,
+      "extension_50ma_pct": 43.2,
+      "relative_volume": 1.8,
+      "pivot_distance_pct": -0.9,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "バイオ",
+      "market_cap_band": "大型",
+      "expectation_components_pctile": {
+        "rs21": 99.0,
+        "rs_acceleration": 49.9765037593985,
+        "high_proximity": 97.39706578324657,
+        "extension50": 99.48308270676692,
+        "pivot_extension": 97.67387218045113,
+        "relative_volume": 96.2640977443609
+      },
+      "expectation_load_raw": 89.96577036237068,
+      "expectation_load_pctile": 99.76503759398496,
+      "research_cohort": "high_load",
+      "state_sha256": "c86e44ba218ec6c28886cbfdfe2cf28c72f90b0590c1d9f428fa90351e5ca975",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 81,
+          "counts": {
+            "scheduled_sale_10b5_1": 36,
+            "other": 25,
+            "discretionary_sale": 14,
+            "compensation_or_exercise": 6
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 74632095.58,
+            "discretionary_sale": 3242431.98,
+            "compensation_or_exercise": 5802960.27
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 3,
+            "other": 1,
+            "discretionary_sale": 6,
+            "compensation_or_exercise": 2
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 12505220.0,
+          "short_interest_change_pct": 3.6456691666893803,
+          "days_to_cover": 8.92,
+          "prior_days_to_cover": 6.91
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 41.71,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 1,
+        "8k": 1
+      }
+    },
+    {
+      "ticker": "NTRA",
+      "price": 414.52,
+      "rs21": 98.0,
+      "rs63": 97.0,
+      "rs189": 92.0,
+      "ret21_pct": 16.0,
+      "distance_52w_high_pct": -1.7,
+      "extension_50ma_pct": 28.6,
+      "relative_volume": 1.5,
+      "pivot_distance_pct": -0.7,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "バイオ",
+      "market_cap_band": "大型",
+      "expectation_components_pctile": {
+        "rs21": 98.0,
+        "rs_acceleration": 52.349624060150376,
+        "high_proximity": 98.31992427827733,
+        "extension50": 98.91917293233082,
+        "pivot_extension": 97.97932330827068,
+        "relative_volume": 92.05827067669173
+      },
+      "expectation_load_raw": 89.60438587595348,
+      "expectation_load_pctile": 99.71804511278195,
+      "research_cohort": "high_load",
+      "state_sha256": "aac9327067ba6453d6ac9aec1e0e8097cff479d829cf118717d7f8f09c1e16fd",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 66,
+          "counts": {
+            "scheduled_sale_10b5_1": 60,
+            "other": 4,
+            "gift": 1,
+            "compensation_or_exercise": 1
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 69979013.72
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 5,
+            "other": 2,
+            "gift": 1,
+            "compensation_or_exercise": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 4797175.0,
+          "short_interest_change_pct": -13.00289907217359,
+          "days_to_cover": 4.7,
+          "prior_days_to_cover": 4.37
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 46.260000000000005,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 2,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "AVT",
+      "price": 102.5,
+      "rs21": 95.0,
+      "rs63": 84.0,
+      "rs189": 96.0,
+      "ret21_pct": 7.8,
+      "distance_52w_high_pct": -2.0,
+      "extension_50ma_pct": 10.6,
+      "relative_volume": 1.3,
+      "pivot_distance_pct": -2.0,
+      "sector": "8. デジタルインフラ・先進テック",
+      "subtheme": "電子部品商社",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 95.0,
+        "rs_acceleration": 67.95112781954887,
+        "high_proximity": 97.91765262659726,
+        "extension50": 93.44454887218045,
+        "pivot_extension": 95.88815789473684,
+        "relative_volume": 85.99624060150376
+      },
+      "expectation_load_raw": 89.36628796909453,
+      "expectation_load_pctile": 99.57706766917293,
+      "research_cohort": "high_load",
+      "state_sha256": "9d60e4cb5487f9a6b5705db7d280c4daa75833fc6155697ad3ca4945e28af395",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 61,
+          "counts": {
+            "compensation_or_exercise": 24,
+            "other": 30,
+            "gift": 1,
+            "tax_withholding": 5,
+            "discretionary_sale": 1
+          },
+          "values_usd": {
+            "compensation_or_exercise": 1321083.9,
+            "other": 1853011.0,
+            "tax_withholding": 1839092.64,
+            "discretionary_sale": 2919937.2
+          },
+          "distinct_people": {
+            "compensation_or_exercise": 12,
+            "other": 9,
+            "gift": 1,
+            "tax_withholding": 5,
+            "discretionary_sale": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 8476230.0,
+          "short_interest_change_pct": 6.603998899779984,
+          "days_to_cover": 7.44,
+          "prior_days_to_cover": 6.77
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 59.50599999999999,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 2,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "AMRX",
+      "price": 20.2,
+      "rs21": 96.0,
+      "rs63": 84.0,
+      "rs189": 87.0,
+      "ret21_pct": 10.2,
+      "distance_52w_high_pct": -4.6,
+      "extension_50ma_pct": 11.1,
+      "relative_volume": 1.4,
+      "pivot_distance_pct": -4.6,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "大手製薬",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 96.0,
+        "rs_acceleration": 69.24342105263158,
+        "high_proximity": 94.65215333648841,
+        "extension50": 93.796992481203,
+        "pivot_extension": 90.93045112781955,
+        "relative_volume": 89.45018796992481
+      },
+      "expectation_load_raw": 89.01220099467788,
+      "expectation_load_pctile": 99.53007518796993,
+      "research_cohort": "high_load",
+      "state_sha256": "192e8520d1bf497a0500cfe641e62c26591ef8a5c78d806dad0085d19a1ab926",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 7,
+          "counts": {
+            "other": 2,
+            "gift": 3,
+            "compensation_or_exercise": 2
+          },
+          "values_usd": {
+            "compensation_or_exercise": 295430.25
+          },
+          "distinct_people": {
+            "other": 1,
+            "gift": 2,
+            "compensation_or_exercise": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 11289778.0,
+          "short_interest_change_pct": 6.791101714234249,
+          "days_to_cover": 6.64,
+          "prior_days_to_cover": 7.41
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 44.55,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 1,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "IDT",
+      "price": 75.56,
+      "rs21": 92.0,
+      "rs63": 92.0,
+      "rs189": 83.0,
+      "ret21_pct": 9.0,
+      "distance_52w_high_pct": -2.2,
+      "extension_50ma_pct": 11.7,
+      "relative_volume": 3.7,
+      "pivot_distance_pct": 4.8,
+      "sector": "15. ディフェンシブ（公益・通信・大手医薬）",
+      "subtheme": "大手通信",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 92.0,
+        "rs_acceleration": 49.9765037593985,
+        "high_proximity": 97.65735920492192,
+        "extension50": 94.12593984962406,
+        "pivot_extension": 99.85902255639098,
+        "relative_volume": 99.45958646616542
+      },
+      "expectation_load_raw": 88.84640197275014,
+      "expectation_load_pctile": 99.48308270676692,
+      "research_cohort": "high_load",
+      "state_sha256": "1f6bbcd24b8b9f265a2fa1d29f6ad2a38fc39c98962bd2635f9ef0c3c57cb406",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 7,
+          "counts": {
+            "other": 6,
+            "gift": 1
+          },
+          "values_usd": {},
+          "distinct_people": {
+            "other": 1,
+            "gift": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 556078.0,
+          "short_interest_change_pct": 3.780166211603464,
+          "days_to_cover": 3.08,
+          "prior_days_to_cover": 3.6
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 61.803999999999995,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "ABCL",
+      "price": 14.82,
+      "rs21": 98.0,
+      "rs63": 99.0,
+      "rs189": 100.0,
+      "ret21_pct": 23.4,
+      "distance_52w_high_pct": -1.2,
+      "extension_50ma_pct": 47.7,
+      "relative_volume": 1.3,
+      "pivot_distance_pct": 4.1,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "バイオ",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 98.0,
+        "rs_acceleration": 47.90883458646616,
+        "high_proximity": 98.76952200662565,
+        "extension50": 99.67105263157895,
+        "pivot_extension": 99.81203007518798,
+        "relative_volume": 85.99624060150376
+      },
+      "expectation_load_raw": 88.35961331689374,
+      "expectation_load_pctile": 99.3890977443609,
+      "research_cohort": "high_load",
+      "state_sha256": "07ac7db10eec8ff296769416ceef42b1a610030dc40963d173e1e3cd2898425a",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 4,
+          "counts": {
+            "open_market_purchase": 2,
+            "other": 2
+          },
+          "values_usd": {
+            "open_market_purchase": 680742.32
+          },
+          "distinct_people": {
+            "open_market_purchase": 2,
+            "other": 2
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 33930287.0,
+          "short_interest_change_pct": -2.3664947203538733,
+          "days_to_cover": 9.63,
+          "prior_days_to_cover": 5.18
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 45.314,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 3
+      }
+    },
+    {
+      "ticker": "XERS",
+      "price": 9.98,
+      "rs21": 97.0,
+      "rs63": 91.0,
+      "rs189": 79.0,
+      "ret21_pct": 18.3,
+      "distance_52w_high_pct": -11.9,
+      "extension_50ma_pct": 18.7,
+      "relative_volume": 10.7,
+      "pivot_distance_pct": -0.3,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "バイオ",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 97.0,
+        "rs_acceleration": 61.2312030075188,
+        "high_proximity": 75.39044013251302,
+        "extension50": 97.32142857142857,
+        "pivot_extension": 98.98966165413533,
+        "relative_volume": 99.90601503759399
+      },
+      "expectation_load_raw": 88.30645806719828,
+      "expectation_load_pctile": 99.34210526315789,
+      "research_cohort": "high_load",
+      "state_sha256": "f80e761532e353ee8656f2acaf2bbf5d7f147e0d1ac1a90b0c761a5f3e6832ff",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 9,
+          "counts": {
+            "scheduled_sale_10b5_1": 4,
+            "other": 3,
+            "tax_withholding": 2
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 561242.34,
+            "tax_withholding": 473189.04
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 3,
+            "other": 1,
+            "tax_withholding": 2
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 8058977.0,
+          "short_interest_change_pct": 0.22035109431881583,
+          "days_to_cover": 4.83,
+          "prior_days_to_cover": 5.47
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 39.513999999999996,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 3
+      }
+    },
+    {
+      "ticker": "XMTR",
+      "price": 104.23,
+      "rs21": 94.0,
+      "rs63": 75.0,
+      "rs189": 90.0,
+      "ret21_pct": 10.3,
+      "distance_52w_high_pct": -3.4,
+      "extension_50ma_pct": 13.9,
+      "relative_volume": 1.1,
+      "pivot_distance_pct": -3.4,
+      "sector": "8. デジタルインフラ・先進テック",
+      "subtheme": "ITサービス",
+      "market_cap_band": "中型",
+      "expectation_components_pctile": {
+        "rs21": 94.0,
+        "rs_acceleration": 76.66823308270676,
+        "high_proximity": 96.28490298154283,
+        "extension50": 95.46522556390977,
+        "pivot_extension": 93.75,
+        "relative_volume": 73.35526315789474
+      },
+      "expectation_load_raw": 88.25393746434236,
+      "expectation_load_pctile": 99.29511278195488,
+      "research_cohort": "high_load",
+      "state_sha256": "5e6fe91857c99f14fe92b45a2205343b0fafee9dfc1df7952739e27657790cee",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 38,
+          "counts": {
+            "scheduled_sale_10b5_1": 15,
+            "other": 13,
+            "compensation_or_exercise": 6,
+            "discretionary_sale": 3,
+            "gift": 1
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 1592861.61,
+            "compensation_or_exercise": 106200.0,
+            "discretionary_sale": 1431493.5
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 3,
+            "other": 1,
+            "compensation_or_exercise": 2,
+            "discretionary_sale": 2,
+            "gift": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 4028630.0,
+          "short_interest_change_pct": 4.906721052694629,
+          "days_to_cover": 7.08,
+          "prior_days_to_cover": 7.28
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 60.004,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 1
+      }
+    },
+    {
+      "ticker": "VTRS",
+      "price": 18.12,
+      "rs21": 92.0,
+      "rs63": 83.0,
+      "rs189": 85.0,
+      "ret21_pct": 6.4,
+      "distance_52w_high_pct": -1.7,
+      "extension_50ma_pct": 7.4,
+      "relative_volume": 1.3,
+      "pivot_distance_pct": -1.4,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "大手製薬",
+      "market_cap_band": "大型",
+      "expectation_components_pctile": {
+        "rs21": 92.0,
+        "rs_acceleration": 65.46052631578948,
+        "high_proximity": 98.31992427827733,
+        "extension50": 89.70864661654136,
+        "pivot_extension": 96.921992481203,
+        "relative_volume": 85.99624060150376
+      },
+      "expectation_load_raw": 88.06788838221915,
+      "expectation_load_pctile": 99.24812030075188,
+      "research_cohort": "high_load",
+      "state_sha256": "ec78ade0af7e5209789b515ec10dd24a19c5e0aaa470b2e932367d4da9857333",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 6,
+          "counts": {
+            "compensation_or_exercise": 4,
+            "tax_withholding": 2
+          },
+          "values_usd": {
+            "tax_withholding": 184470.18
+          },
+          "distinct_people": {
+            "compensation_or_exercise": 1,
+            "tax_withholding": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 40790228.0,
+          "short_interest_change_pct": 5.644908184754005,
+          "days_to_cover": 5.57,
+          "prior_days_to_cover": 5.34
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 33.528000000000006,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "PRLB",
+      "price": 95.46,
+      "rs21": 97.0,
+      "rs63": 85.0,
+      "rs189": 93.0,
+      "ret21_pct": 12.3,
+      "distance_52w_high_pct": -3.1,
+      "extension_50ma_pct": 14.3,
+      "relative_volume": 1.1,
+      "pivot_distance_pct": -2.4,
+      "sector": "8. デジタルインフラ・先進テック",
+      "subtheme": "特殊化学",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 97.0,
+        "rs_acceleration": 69.24342105263158,
+        "high_proximity": 96.52153336488405,
+        "extension50": 95.70018796992481,
+        "pivot_extension": 95.18327067669173,
+        "relative_volume": 73.35526315789474
+      },
+      "expectation_load_raw": 87.83394603700448,
+      "expectation_load_pctile": 99.20112781954887,
+      "research_cohort": "high_load",
+      "state_sha256": "20664e4d37f3b26f75fdf35a5c46dd1a18d5e357b8acd2ff67d5fbd95ba43460",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 3,
+          "counts": {
+            "scheduled_sale_10b5_1": 3
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 902639.87
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 753948.0,
+          "short_interest_change_pct": 22.524437510664754,
+          "days_to_cover": 4.82,
+          "prior_days_to_cover": 3.52
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 58.754,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "TXG",
+      "price": 90.04,
+      "rs21": 99.0,
+      "rs63": 100.0,
+      "rs189": 100.0,
+      "ret21_pct": 23.4,
+      "distance_52w_high_pct": -2.1,
+      "extension_50ma_pct": 44.8,
+      "relative_volume": 1.2,
+      "pivot_distance_pct": 0.1,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "バイオ",
+      "market_cap_band": "大型",
+      "expectation_components_pctile": {
+        "rs21": 99.0,
+        "rs_acceleration": 47.90883458646616,
+        "high_proximity": 97.77567439659252,
+        "extension50": 99.57706766917293,
+        "pivot_extension": 99.45958646616542,
+        "relative_volume": 80.40413533834587
+      },
+      "expectation_load_raw": 87.35421640945715,
+      "expectation_load_pctile": 99.06015037593986,
+      "research_cohort": "high_load",
+      "state_sha256": "46623768977d018a026ad8f6df82f85ad77354dc3b198b2b43b379d077d631a7",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 43,
+          "counts": {
+            "scheduled_sale_10b5_1": 20,
+            "other": 15,
+            "discretionary_sale": 6,
+            "gift": 2
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 6731357.14,
+            "discretionary_sale": 4356559.06
+          },
+          "distinct_people": {
+            "scheduled_sale_10b5_1": 4,
+            "other": 1,
+            "discretionary_sale": 4,
+            "gift": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 16692300.0,
+          "short_interest_change_pct": 3.2820799345124607,
+          "days_to_cover": 7.09,
+          "prior_days_to_cover": 5.51
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 51.364,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 1,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "MTW",
+      "price": 22.12,
+      "rs21": 95.0,
+      "rs63": 97.0,
+      "rs189": 92.0,
+      "ret21_pct": 4.3,
+      "distance_52w_high_pct": -4.5,
+      "extension_50ma_pct": 17.4,
+      "relative_volume": 3.4,
+      "pivot_distance_pct": -4.5,
+      "sector": "13. 産業・資本財・輸送",
+      "subtheme": "建機・農機",
+      "market_cap_band": "極小",
+      "expectation_components_pctile": {
+        "rs21": 95.0,
+        "rs_acceleration": 46.170112781954884,
+        "high_proximity": 94.98343587316612,
+        "extension50": 96.921992481203,
+        "pivot_extension": 91.32988721804512,
+        "relative_volume": 99.20112781954887
+      },
+      "expectation_load_raw": 87.26775936231967,
+      "expectation_load_pctile": 99.01315789473684,
+      "research_cohort": "high_load",
+      "state_sha256": "c28029d67097cfa67f663dae9e9a76dab1e80e2c9681b391f233a02b8add238d",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 1264306.0,
+          "short_interest_change_pct": 8.168788024232843,
+          "days_to_cover": 3.25,
+          "prior_days_to_cover": 3.16
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 62.678,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "DJCO",
+      "price": 657.34,
+      "rs21": 87.0,
+      "rs63": 77.0,
+      "rs189": 74.0,
+      "ret21_pct": 1.1,
+      "distance_52w_high_pct": -5.1,
+      "extension_50ma_pct": 6.5,
+      "relative_volume": 1.8,
+      "pivot_distance_pct": -5.1,
+      "sector": "9. 消費者・小売りテーマ",
+      "subtheme": "新聞",
+      "market_cap_band": "極小",
+      "expectation_components_pctile": {
+        "rs21": 87.0,
+        "rs_acceleration": 66.70582706766918,
+        "high_proximity": 93.84761003312825,
+        "extension50": 89.00375939849624,
+        "pivot_extension": 89.80263157894737,
+        "relative_volume": 96.2640977443609
+      },
+      "expectation_load_raw": 87.10398763710032,
+      "expectation_load_pctile": 98.96616541353383,
+      "research_cohort": "high_load",
+      "state_sha256": "7f76609fd0e5822de0ce48df0f83060f575714a1610f475d73aa8e0ddc7b673c",
+      "semantic_evidence": false,
+      "research_label": "INSUFFICIENT_EVIDENCE",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 0,
+          "counts": {},
+          "values_usd": {},
+          "distinct_people": {}
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 173672.0,
+          "short_interest_change_pct": 7.369306098224437,
+          "days_to_cover": 2.74,
+          "prior_days_to_cover": 2.49
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 64.126,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "BIIB",
+      "price": 227.07,
+      "rs21": 86.0,
+      "rs63": 72.0,
+      "rs189": 75.0,
+      "ret21_pct": 3.2,
+      "distance_52w_high_pct": -1.5,
+      "extension_50ma_pct": 6.1,
+      "relative_volume": 1.2,
+      "pivot_distance_pct": -1.5,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "大手製薬",
+      "market_cap_band": "大型",
+      "expectation_components_pctile": {
+        "rs21": 86.0,
+        "rs_acceleration": 72.32142857142857,
+        "high_proximity": 98.48556554661619,
+        "extension50": 88.32236842105263,
+        "pivot_extension": 96.73402255639098,
+        "relative_volume": 80.40413533834587
+      },
+      "expectation_load_raw": 87.04458673897237,
+      "expectation_load_pctile": 98.91917293233082,
+      "research_cohort": "high_load",
+      "state_sha256": "da7a284ba9b133716715c4c5d45691766f5e877b4cc2c8dbbdc6bcc64a443f0a",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 1,
+          "counts": {
+            "compensation_or_exercise": 1
+          },
+          "values_usd": {},
+          "distinct_people": {
+            "compensation_or_exercise": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 5817797.0,
+          "short_interest_change_pct": 1.591965677551066,
+          "days_to_cover": 7.59,
+          "prior_days_to_cover": 8.66
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 65.73,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 4,
+        "8k": 0
+      }
+    },
+    {
+      "ticker": "FEIM",
+      "price": 84.15,
+      "rs21": 99.0,
+      "rs63": 91.0,
+      "rs189": 85.0,
+      "ret21_pct": 10.4,
+      "distance_52w_high_pct": -6.3,
+      "extension_50ma_pct": 17.0,
+      "relative_volume": 1.3,
+      "pivot_distance_pct": -6.3,
+      "sector": "8. デジタルインフラ・先進テック",
+      "subtheme": "通信機器",
+      "market_cap_band": "極小",
+      "expectation_components_pctile": {
+        "rs21": 99.0,
+        "rs_acceleration": 64.14473684210526,
+        "high_proximity": 90.7950780880265,
+        "extension50": 96.68703007518798,
+        "pivot_extension": 84.91541353383458,
+        "relative_volume": 85.99624060150376
+      },
+      "expectation_load_raw": 86.9230831901097,
+      "expectation_load_pctile": 98.82518796992481,
+      "research_cohort": "high_load",
+      "state_sha256": "8ff7555849e247a54f8b578a9ba7af1a6bb60da4eca0e5b411331c42e0792508",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 18,
+          "counts": {
+            "compensation_or_exercise": 7,
+            "tax_withholding": 9,
+            "other": 2
+          },
+          "values_usd": {
+            "tax_withholding": 2147817.3
+          },
+          "distinct_people": {
+            "compensation_or_exercise": 2,
+            "tax_withholding": 2,
+            "other": 2
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 979890.0,
+          "short_interest_change_pct": -0.06985697167478655,
+          "days_to_cover": 2.54,
+          "prior_days_to_cover": 4.02
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 57.482000000000006,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 0,
+        "8k": 3
+      }
+    },
+    {
+      "ticker": "SDGR",
+      "price": 30.33,
+      "rs21": 100.0,
+      "rs63": 99.0,
+      "rs189": 90.0,
+      "ret21_pct": 23.8,
+      "distance_52w_high_pct": -4.0,
+      "extension_50ma_pct": 48.8,
+      "relative_volume": 1.2,
+      "pivot_distance_pct": -4.0,
+      "sector": "6. バイオ・ヘルスケア",
+      "subtheme": "パッケージソフト",
+      "market_cap_band": "小型",
+      "expectation_components_pctile": {
+        "rs21": 100.0,
+        "rs_acceleration": 52.349624060150376,
+        "high_proximity": 95.66966398485566,
+        "extension50": 99.71804511278195,
+        "pivot_extension": 92.62218045112782,
+        "relative_volume": 80.40413533834587
+      },
+      "expectation_load_raw": 86.79394149121028,
+      "expectation_load_pctile": 98.7781954887218,
+      "research_cohort": "high_load",
+      "state_sha256": "5950071f789e4bce9d083df266ad03869f49ad0226ab9f28bcafc3f25c1e7be8",
+      "semantic_evidence": true,
+      "research_label": "JEV_ERROR",
+      "jev": null,
+      "positioning": {
+        "form4_summary": {
+          "filings": 4,
+          "counts": {
+            "compensation_or_exercise": 2,
+            "scheduled_sale_10b5_1": 2
+          },
+          "values_usd": {
+            "scheduled_sale_10b5_1": 927970.0,
+            "compensation_or_exercise": 137139.66
+          },
+          "distinct_people": {
+            "compensation_or_exercise": 1,
+            "scheduled_sale_10b5_1": 1
+          }
+        },
+        "short_interest": {
+          "latest_settlement_date": "2026-09-15",
+          "short_interest": 11169335.0,
+          "short_interest_change_pct": 0.722058740778464,
+          "days_to_cover": 8.74,
+          "prior_days_to_cover": 11.76
+        },
+        "short_volume": {
+          "latest_date": "2026-09-29",
+          "short_volume_ratio_5d_mean": 45.314,
+          "observations": 5
+        }
+      },
+      "evidence_counts": {
+        "news": 1,
+        "8k": 0
+      }
+    }
+  ],
+  "privacy": {
+    "vendor_text_persisted": false,
+    "raw_jev_runs_persisted": false,
+    "stored": "derived features, structured positioning summaries, evidence counts, and state hashes only"
+  }
+}
