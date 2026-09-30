@@ -1,0 +1,373 @@
+{
+  "ok": true,
+  "version": "dilution-hazard-v2-shelf",
+  "snapshots": [
+    "2026-04-02",
+    "2026-04-24",
+    "2026-05-15",
+    "2026-06-05",
+    "2026-06-26",
+    "2026-07-17"
+  ],
+  "rows": 12393,
+  "development_n": 8126,
+  "calibration_n": 2137,
+  "holdout_n": 2130,
+  "universe_filters": [
+    ">=100 prior sessions",
+    "price >= $5",
+    "DDV20 >= $10M"
+  ],
+  "target": "any public offering/private placement/PIPE/warrant-conversion filing in next 60 calendar days",
+  "train_event_rate": 0.04413914060216311,
+  "vol_tertiles": {
+    "low_max": 1.9684307135830839,
+    "mid_max": 3.1932169573446885
+  },
+  "selected_shrink_strength": {
+    "history": 0,
+    "history_vol": 25,
+    "history_shelf": 25,
+    "history_shelf_424": 25,
+    "history_shelf_vol": 25
+  },
+  "tables": {
+    "history": {
+      "0": {
+        "n": 9556,
+        "raw_rate": 0.03484721640853914,
+        "shrunk_rate": 0.03484721640853914
+      },
+      "1": {
+        "n": 544,
+        "raw_rate": 0.14522058823529413,
+        "shrunk_rate": 0.14522058823529413
+      },
+      "2plus": {
+        "n": 163,
+        "raw_rate": 0.25153374233128833,
+        "shrunk_rate": 0.25153374233128833
+      }
+    },
+    "history_vol": {
+      "0|low": {
+        "n": 3165,
+        "raw_rate": 0.024328593996840443,
+        "shrunk_rate": 0.024483849064280274
+      },
+      "0|high": {
+        "n": 3098,
+        "raw_rate": 0.06003873466752744,
+        "shrunk_rate": 0.05991145645694975
+      },
+      "0|mid": {
+        "n": 3293,
+        "raw_rate": 0.021257212268448223,
+        "shrunk_rate": 0.021429619805622087
+      },
+      "1|high": {
+        "n": 282,
+        "raw_rate": 0.14184397163120568,
+        "shrunk_rate": 0.13388755216629994
+      },
+      "2plus|mid": {
+        "n": 38,
+        "raw_rate": 0.07894736842105263,
+        "shrunk_rate": 0.06513457960403297
+      },
+      "2plus|high": {
+        "n": 95,
+        "raw_rate": 0.3263157894736842,
+        "shrunk_rate": 0.26752898762545063
+      },
+      "1|mid": {
+        "n": 125,
+        "raw_rate": 0.096,
+        "shrunk_rate": 0.08735652343369385
+      },
+      "1|low": {
+        "n": 137,
+        "raw_rate": 0.19708029197080293,
+        "shrunk_rate": 0.17347826243860542
+      },
+      "2plus|low": {
+        "n": 30,
+        "raw_rate": 0.23333333333333334,
+        "shrunk_rate": 0.14733597300098325
+      }
+    },
+    "history_shelf": {
+      "0|noshelf": {
+        "n": 7591,
+        "raw_rate": 0.028323014095639573,
+        "shrunk_rate": 0.028374931527711932
+      },
+      "0|shelf": {
+        "n": 1965,
+        "raw_rate": 0.06005089058524173,
+        "shrunk_rate": 0.05985099422867039
+      },
+      "1|noshelf": {
+        "n": 272,
+        "raw_rate": 0.19852941176470587,
+        "shrunk_rate": 0.18553359769378477
+      },
+      "2plus|noshelf": {
+        "n": 72,
+        "raw_rate": 0.3472222222222222,
+        "shrunk_rate": 0.26910802592839256
+      },
+      "1|shelf": {
+        "n": 272,
+        "raw_rate": 0.09191176470588236,
+        "shrunk_rate": 0.08789050005068713
+      },
+      "2plus|shelf": {
+        "n": 91,
+        "raw_rate": 0.17582417582417584,
+        "shrunk_rate": 0.14744378030219032
+      }
+    },
+    "history_shelf_424": {
+      "0|noshelf|no424": {
+        "n": 7291,
+        "raw_rate": 0.026882457824715402,
+        "shrunk_rate": 0.026941426806322315
+      },
+      "0|noshelf|424": {
+        "n": 300,
+        "raw_rate": 0.06333333333333334,
+        "shrunk_rate": 0.06185685696939716
+      },
+      "0|shelf|no424": {
+        "n": 1751,
+        "raw_rate": 0.05653912050256996,
+        "shrunk_rate": 0.05636457123595387
+      },
+      "1|noshelf|no424": {
+        "n": 157,
+        "raw_rate": 0.21019108280254778,
+        "shrunk_rate": 0.1873817500827147
+      },
+      "2plus|noshelf|no424": {
+        "n": 40,
+        "raw_rate": 0.325,
+        "shrunk_rate": 0.21697659253929352
+      },
+      "0|shelf|424": {
+        "n": 214,
+        "raw_rate": 0.08878504672897196,
+        "shrunk_rate": 0.08411497286633506
+      },
+      "2plus|noshelf|424": {
+        "n": 32,
+        "raw_rate": 0.375,
+        "shrunk_rate": 0.2298855879834049
+      },
+      "1|shelf|no424": {
+        "n": 109,
+        "raw_rate": 0.12844036697247707,
+        "shrunk_rate": 0.11271252623174685
+      },
+      "1|noshelf|424": {
+        "n": 115,
+        "raw_rate": 0.1826086956521739,
+        "shrunk_rate": 0.1578819893932434
+      },
+      "1|shelf|424": {
+        "n": 163,
+        "raw_rate": 0.06748466257668712,
+        "shrunk_rate": 0.06438020486730893
+      },
+      "2plus|shelf|no424": {
+        "n": 25,
+        "raw_rate": 0.28,
+        "shrunk_rate": 0.16206957030108157
+      },
+      "2plus|shelf|424": {
+        "n": 66,
+        "raw_rate": 0.13636363636363635,
+        "shrunk_rate": 0.11102723642916569
+      }
+    },
+    "history_shelf_vol": {
+      "0|noshelf|low": {
+        "n": 2418,
+        "raw_rate": 0.022746071133167907,
+        "shrunk_rate": 0.022964993252171134
+      },
+      "0|noshelf|high": {
+        "n": 2424,
+        "raw_rate": 0.04826732673267327,
+        "shrunk_rate": 0.04822518518377055
+      },
+      "0|noshelf|mid": {
+        "n": 2749,
+        "raw_rate": 0.015642051655147326,
+        "shrunk_rate": 0.01589887473505915
+      },
+      "0|shelf|low": {
+        "n": 747,
+        "raw_rate": 0.029451137884872823,
+        "shrunk_rate": 0.02992678564126176
+      },
+      "1|noshelf|high": {
+        "n": 125,
+        "raw_rate": 0.184,
+        "shrunk_rate": 0.16068985676702718
+      },
+      "0|shelf|high": {
+        "n": 674,
+        "raw_rate": 0.10237388724035608,
+        "shrunk_rate": 0.10029109944929053
+      },
+      "0|shelf|mid": {
+        "n": 544,
+        "raw_rate": 0.04963235294117647,
+        "shrunk_rate": 0.04939099914772246
+      },
+      "2plus|noshelf|mid": {
+        "n": 12,
+        "raw_rate": 0.16666666666666666,
+        "shrunk_rate": 0.08387779770416426
+      },
+      "2plus|noshelf|high": {
+        "n": 46,
+        "raw_rate": 0.3695652173913043,
+        "shrunk_rate": 0.25497857063456447
+      },
+      "1|shelf|high": {
+        "n": 157,
+        "raw_rate": 0.10828025477707007,
+        "shrunk_rate": 0.0994696621706268
+      },
+      "1|noshelf|mid": {
+        "n": 75,
+        "raw_rate": 0.12,
+        "shrunk_rate": 0.10103478515054079
+      },
+      "1|shelf|low": {
+        "n": 65,
+        "raw_rate": 0.07692307692307693,
+        "shrunk_rate": 0.0678164279450453
+      },
+      "2plus|shelf|high": {
+        "n": 49,
+        "raw_rate": 0.2857142857142857,
+        "shrunk_rate": 0.2041010610142443
+      },
+      "2plus|shelf|low": {
+        "n": 16,
+        "raw_rate": 0.0625,
+        "shrunk_rate": 0.05130435402570921
+      },
+      "1|noshelf|low": {
+        "n": 72,
+        "raw_rate": 0.3055555555555556,
+        "shrunk_rate": 0.23818019087684617
+      },
+      "1|shelf|mid": {
+        "n": 50,
+        "raw_rate": 0.06,
+        "shrunk_rate": 0.0547130468673877
+      },
+      "2plus|noshelf|low": {
+        "n": 14,
+        "raw_rate": 0.42857142857142855,
+        "shrunk_rate": 0.18214047474497636
+      },
+      "2plus|shelf|mid": {
+        "n": 26,
+        "raw_rate": 0.038461538461538464,
+        "shrunk_rate": 0.04124467676576623
+      }
+    }
+  },
+  "shelf_only_train": {
+    "noshelf": {
+      "n": 7935,
+      "rate": 0.03705103969754253
+    },
+    "shelf": {
+      "n": 2328,
+      "rate": 0.06829896907216494
+    }
+  },
+  "b424_90_only_train": {
+    "424": {
+      "n": 890,
+      "rate": 0.10224719101123596
+    },
+    "no424": {
+      "n": 9373,
+      "rate": 0.038621572602155124
+    }
+  },
+  "holdout": {
+    "constant": {
+      "n": 2130,
+      "event_rate": 0.04178403755868545,
+      "brier": 0.040043678274325215,
+      "roc_auc": 0.5,
+      "average_precision": 0.03961423500269363,
+      "mean_p": 0.04413914060216311,
+      "top_decile_event_rate": 0.03755868544600939,
+      "top_decile_lift": 0.898876404494382
+    },
+    "history": {
+      "n": 2130,
+      "event_rate": 0.04178403755868545,
+      "brier": 0.03908228429466068,
+      "roc_auc": 0.5841265297359193,
+      "average_precision": 0.09272628793627073,
+      "mean_p": 0.04410401400139255,
+      "top_decile_event_rate": 0.10328638497652583,
+      "top_decile_lift": 2.4719101123595504
+    },
+    "history_vol": {
+      "n": 2130,
+      "event_rate": 0.04178403755868545,
+      "brier": 0.039139782820305766,
+      "roc_auc": 0.6547077055199864,
+      "average_precision": 0.09799972491081656,
+      "mean_p": 0.041402827981272455,
+      "top_decile_event_rate": 0.107981220657277,
+      "top_decile_lift": 2.5842696629213484
+    },
+    "history_shelf": {
+      "n": 2130,
+      "event_rate": 0.04178403755868545,
+      "brier": 0.03857489036806395,
+      "roc_auc": 0.654429696832903,
+      "average_precision": 0.12429240186699088,
+      "mean_p": 0.043238686320163776,
+      "top_decile_event_rate": 0.10328638497652583,
+      "top_decile_lift": 2.4719101123595504
+    },
+    "history_shelf_424": {
+      "n": 2130,
+      "event_rate": 0.04178403755868545,
+      "brier": 0.03859512714353629,
+      "roc_auc": 0.6628002356192437,
+      "average_precision": 0.1366248582008856,
+      "mean_p": 0.04179650810538981,
+      "top_decile_event_rate": 0.11737089201877934,
+      "top_decile_lift": 2.8089887640449436
+    },
+    "history_shelf_vol": {
+      "n": 2130,
+      "event_rate": 0.04178403755868545,
+      "brier": 0.03867496662823844,
+      "roc_auc": 0.6823874615329564,
+      "average_precision": 0.11941924501080659,
+      "mean_p": 0.04108318803663363,
+      "top_decile_event_rate": 0.13145539906103287,
+      "top_decile_lift": 3.146067415730337
+    }
+  },
+  "holdout_counts": {
+    "positives": 89,
+    "total": 2130
+  },
+  "note": "PIT shelf-readiness v2. S-3/S-3ASR are shelf readiness. 424B5 is generic capital-markets activity and can include debt."
+}
