@@ -1,13 +1,6 @@
 name: Smoke Jev question schema
 
 on:
-  push:
-    branches:
-      - research/universal-expectation-gap-20260930
-    paths:
-      - scripts/smoke_jev_question_set.py
-      - research/expectation_gap/question-set-en-v2.json
-      - .github/workflows/smoke-jev-question-schema.yml
   workflow_dispatch:
 
 permissions:
