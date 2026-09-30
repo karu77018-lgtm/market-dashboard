@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: extract-earnings-jev-overlay-v2-${{ github.ref }}
+  group: extract-earnings-jev-overlay-v3-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
       - run: test -n "$JEV_API_SECRET"
       - name: Extract Jev features only
         run: |
-          python scripts/event_risk/build_earnings_jev_overlay.py --root .
+          python scripts/event_risk/build_earnings_jev_overlay.py --root . --start-date 2026-09-01 --end-date 2026-09-30
       - name: Upload feature artifact for local backtest
         uses: actions/upload-artifact@v4
         with:
