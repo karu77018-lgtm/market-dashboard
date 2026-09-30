@@ -1,0 +1,319 @@
+{
+  "version": "expectation-load-backtest-v1",
+  "method": {
+    "snapshot_spacing_sessions": 21,
+    "start": "2022-01-01",
+    "filters": [
+      "price >= $5",
+      "DDV20 >= $10M",
+      ">=252 prior sessions",
+      "RS63 >=70",
+      "RS189 >=70"
+    ],
+    "components": [
+      "RS21 percentile",
+      "RS21-RS63 acceleration percentile",
+      "52w-high proximity percentile",
+      "50MA extension percentile",
+      "relative-volume percentile"
+    ],
+    "load": "equal-weight component mean, cross-sectionally re-ranked",
+    "benchmark": "QQQ",
+    "warning": "research baseline; current cached universe can introduce survivorship/coverage bias"
+  },
+  "snapshots": 11,
+  "observations": 0,
+  "median_leaders_per_snapshot": 0,
+  "by_tertile": {
+    "low": {
+      "n": 0,
+      "ret5": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess5": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret10": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess10": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret20": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess20": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      }
+    },
+    "mid": {
+      "n": 0,
+      "ret5": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess5": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret10": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess10": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret20": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess20": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      }
+    },
+    "high": {
+      "n": 0,
+      "ret5": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess5": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret10": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess10": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret20": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess20": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      }
+    }
+  },
+  "by_quintile": {
+    "Q1_low": {
+      "n": 0,
+      "ret5": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess5": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret10": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess10": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret20": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess20": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      }
+    },
+    "Q2": {
+      "n": 0,
+      "ret5": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess5": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret10": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess10": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret20": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess20": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      }
+    },
+    "Q3": {
+      "n": 0,
+      "ret5": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess5": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret10": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess10": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret20": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess20": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      }
+    },
+    "Q4": {
+      "n": 0,
+      "ret5": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess5": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret10": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess10": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret20": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess20": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      }
+    },
+    "Q5_high": {
+      "n": 0,
+      "ret5": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess5": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret10": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess10": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      },
+      "ret20": {
+        "mean": null,
+        "median": null,
+        "p10": null,
+        "win_rate": null
+      },
+      "excess20": {
+        "mean": null,
+        "median": null,
+        "win_rate": null
+      }
+    }
+  }
+}
