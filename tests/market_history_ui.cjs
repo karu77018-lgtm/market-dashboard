@@ -71,6 +71,9 @@ async function verify(page,width){
   const overflow=await page.locator('#t-rotation .mh-card').evaluateAll(cards=>cards.filter(c=>{const r=c.getBoundingClientRect();return r.left< -1||r.right>innerWidth+1;}).map(c=>c.dataset.historyKey));
   assert.deepEqual(overflow,[],'new cards fit viewport '+width);
   await page.locator('nav a[href="#t-market"]').click();
+  assert.equal(await page.locator('#mc57-component-fold').getAttribute('open'),null,'component charts collapsed initially');
+  assert.equal(await page.locator('#t-market .mh-card[data-history-key="leadership"]').count(),1,'Daily shows size leadership');
+  await page.locator('#mc57-component-fold > summary').click();
   for(const key of ['vixcycle','credit','defensive','vixterm','indices','mc57-group-0','mc57-group-1','mc57-group-2','mc57-group-3']){
     if(!index.files[key])continue;
     const card=page.locator('.mh-existing[data-history-key="'+key+'"],.mh-card[data-history-key="'+key+'"]');
@@ -89,6 +92,9 @@ async function verify(page,width){
   const vix=page.locator('.vixcy .mh-plot');
   if(await vix.count()){const box=await vix.evaluate(el=>{const r=el.getBoundingClientRect(),v=el.querySelector('svg').getBoundingClientRect();return {host:r.bottom,svg:v.bottom};});assert(box.svg<=box.host+1,'VIX chart not cropped');}
   const current=page.locator('[data-history-key="mc57"]');
+  const ratio=await current.locator('.mh-plot svg').evaluate(s=>{const b=s.getBoundingClientRect(),v=s.viewBox.baseVal;return {actual:b.height/b.width,expected:v.height/v.width};});
+  assert(Math.abs(ratio.actual-ratio.expected)<.003,'MC57 keeps original aspect ratio, no fixed tall stretch');
+  assert.equal(await page.locator('.mh-history-note:not(details .mh-history-note)').count(),0,'history explanations are tucked into reading details');
   for(const win of ['2y','5y','10y']){
     await current.locator('[data-window="'+win+'"]').click();
     await page.waitForFunction(win=>document.querySelector('[data-history-key="mc57"]').dataset.loadedWindow===win,win);

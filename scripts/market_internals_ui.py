@@ -97,7 +97,7 @@ def controls(key, *, disabled=False):
     why=('過去時点の構成銘柄を再現できないため長期化しません（現ユニバースの参考値）' if key=='unavailable' else '長期の元系列を保証できないため現表示を維持') if disabled else ''
     if disabled:
         # No nonfunctional or disabled period choices. RRG is not a time chart.
-        return '<div class="sub mh-history-note">'+why+'</div>' if key=='unavailable' else ''
+        return ''
     return ('<div class="mh-tools" data-history-key="'+key+'"><div class="mh-buttons" role="group" aria-label="表示期間">'+
         ''.join(f'<button type="button" data-window="{w}" class="{"on" if w=="2y" else ""}" aria-pressed="{"true" if w=="2y" else "false"}"'+
                 (' disabled title="過去時点ユニバース未検証"' if disabled and w!='2y' else '')+f'>{w.upper()}</button>' for w in ('2y','5y','10y'))+
@@ -242,7 +242,13 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
         elif not card.select_one('.mh-tools'):
             # Charts with no audited historical constituent/source contract stay 2Y.
             is_universe=any(k in name for k in ('ブレッドス','52週','騰落ライン','売買代金','リーダー','集積'))
-            plot.insert_before(BeautifulSoup(controls('unavailable' if is_universe else 'unavailable-source',disabled=True),'html.parser'))
+            if is_universe:
+                reading=card.select_one('details.cxpl')
+                if reading is None:
+                    reading=BeautifulSoup('<details class="cxpl"><summary>読み方</summary></details>','html.parser').details
+                    plot.insert_before(reading)
+                if reading:
+                    reading.append(BeautifulSoup('<div class="sub mh-history-note">現ユニバースの参考値。過去時点の構成を再現できないため長期履歴は表示しません。</div>','html.parser'))
     rotation=soup.select_one('#t-rotation')
     if rotation is None: raise RuntimeError('Rotation tab missing')
     added=(summary_card(summary,breadth)+chart_card('leadership','サイズ別相対推移 / Market Leadership',
@@ -259,7 +265,11 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
         anchor=daily.select_one('.card.cmt.mkt20')
         if anchor: anchor.insert_after(BeautifulSoup(divergence_card(summary,breadth,mc).replace('id="index-internals-divergence"','id="daily-index-internals-divergence"'),'html.parser'))
         daily.append(BeautifulSoup(chart_card('indices','指数・ボラティリティ 長期推移','QQQ / SPY / TQQQ / SOXX / SOXL / VIX。選択期間開始=100。VIXは価格水準の相対比較で投資リターンではありません。'),'html.parser'))
-        for i,label in enumerate(GROUPS): daily.append(BeautifulSoup(chart_card('mc57-group-'+str(i),'MC57構成指標：'+label,'固定57ETFの有効データによる参加率・スコア（0–100）。ETF設定前は分母から除外。個別株Breadthとは別系列。'),'html.parser'))
+        daily.append(BeautifulSoup(chart_card('leadership','時価総額別の強さ推移 / Market Leadership','Small=IWM / Mid=MDY / Large=SPY / Mega=XLG / MAG7=固定7社の調整後日次リターン等ウェイト合成。期間開始=100。'),'html.parser'))
+        component_cards=''.join(chart_card('mc57-group-'+str(i),'MC57構成指標：'+label,'固定57ETFの有効データによる参加率・スコア（0–100）。ETF設定前は分母から除外。個別株Breadthとは別系列。') for i,label in enumerate(GROUPS))
+        fold='<div class="card"><details class="cxpl" id="mc57-component-fold"><summary>MC57 12指標の推移</summary>'+component_cards+'</details></div>'
+        main_mc57=daily.select_one('.mh-existing[data-history-key="mc57"]')
+        if main_mc57: main_mc57.insert_after(BeautifulSoup(fold,'html.parser'))
     # Only offer complete, actually exported periods. A shorter inception series
     # is never presented as a selectable "10Y". No fetch is needed for this gate.
     def ready_file(file):
@@ -283,7 +293,7 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
             # Initial period must always be 2Y; never auto-load a longer history.
             card.decompose();continue
         if key=='gics11' and '10y' not in allowed:
-            card.append(BeautifulSoup('<div class="sub mh-history-note">全11セクターの10年実履歴がないため、10Yは表示しません。</div>','html.parser'))
+            card.append(BeautifulSoup('<details class="cxpl"><summary>読み方</summary><div class="sub mh-history-note">全11セクターの10年実履歴がないため、10Yは表示しません。</div></details>','html.parser'))
     # Existing base styles unchanged byte-for-byte; new styles only .mh-* nodes.
     assets=[root/'assets/market-history.js',root/'assets/market-history.css']
     revision=hashlib.sha256(b''.join(p.read_bytes() for p in assets if p.exists())).hexdigest()[:12]

@@ -236,7 +236,8 @@ def test_persistent_ui_preserves_styles_tabs_and_breadth_policy(tmp_path):
     assert soup.select_one('#sarCol').get_text()=='Blue'
     assert 'NQ運用判定' in out;assert '地合いは青' not in out;assert '旧4本柱' not in out
     assert not soup.select('[data-window]')  # No exported data => no period choices.
-    assert soup.select_one('.mh-history-note')
+    assert soup.select_one('details.cxpl .mh-history-note')
+    assert not soup.select_one('.mh-history-note').parent.has_attr('open')
     assert soup.select_one('#market-history-config').string.count('history')==0
     assert 'window.CALC={"color":"Blue"};' in out
     assert ui.apply_html(out,tmp_path,mc=mc)==out
