@@ -52,24 +52,34 @@ def test_form4_open_market_purchase_is_positive_category():
     assert classify_form4_row(row) == "open_market_purchase"
 
 
-def _agg(pos=.8, neg=.1, persist=.8, novelty=.8, embedded=.2, sell=.2, quality="strong"):
+def _agg(material=.8, persist=.8, novelty=.8, surprise="positive_surprise", quality="strong"):
     return {
-        "EG01_positive_business_change": {"probabilityMean": pos},
-        "EG02_negative_business_change": {"probabilityMean": neg},
-        "EG03_persistent_change": {"probabilityMean": persist},
-        "EG04_information_novelty": {"probabilityMean": novelty},
-        "EG05_expectations_already_embedded": {"probabilityMean": embedded},
-        "EG07_sell_the_news_risk": {"probabilityMean": sell},
-        "EG08_evidence_quality": {"majorityChoice": quality},
+        "JEV01_material_business_change": {"probabilityMean": material},
+        "JEV02_persistent_change": {"probabilityMean": persist},
+        "JEV03_information_novelty": {"probabilityMean": novelty},
+        "JEV04_surprise_vs_prior_expectations": {
+            "majorityChoice": surprise,
+            "choiceDistribution": {
+                "positive_surprise": 0.75 if surprise == "positive_surprise" else 0.10,
+                "negative_surprise": 0.75 if surprise == "negative_surprise" else 0.10,
+                "broadly_expected": 0.75 if surprise == "broadly_expected" else 0.10,
+                "unclear": 0.75 if surprise == "unclear" else 0.05,
+            },
+        },
+        "JEV05_evidence_quality": {"majorityChoice": quality},
     }
 
 
-def test_underappreciated_positive_label_requires_low_expectation_and_unpriced_evidence():
-    assert derive_label(35, _agg()) == "UNDERAPPRECIATED_POSITIVE"
+def test_positive_semantic_change_requires_material_persistent_novel_surprise():
+    assert derive_label(35, _agg()) == "POSITIVE_SEMANTIC_CHANGE"
 
 
-def test_positive_but_priced_when_expectations_high():
-    assert derive_label(85, _agg(embedded=.75)) == "POSITIVE_BUT_PRICED"
+def test_negative_semantic_change_is_separate_from_market_expectation_load():
+    assert derive_label(85, _agg(surprise="negative_surprise")) == "NEGATIVE_SEMANTIC_CHANGE"
+
+
+def test_broadly_expected_is_not_promoted():
+    assert derive_label(20, _agg(surprise="broadly_expected")) in {"BROADLY_EXPECTED", "EXPECTED_OR_MINOR"}
 
 
 def test_weak_evidence_never_promoted():
