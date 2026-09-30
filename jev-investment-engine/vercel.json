@@ -11,6 +11,5 @@
       "main": true,
       "jev-prod": true
     }
-  },
-  "rewrites": []
+  }
 }
