@@ -234,6 +234,8 @@ def main() -> int:
         "--output",
         default="research/event_risk/earnings-jev-overlay-v1.json",
     )
+    ap.add_argument("--start-date", default="2026-09-01")
+    ap.add_argument("--end-date", default="2026-09-30")
     ap.add_argument("--sec-min-interval", type=float, default=0.15)
     ap.add_argument("--timeout", type=int, default=120)
     args = ap.parse_args()
@@ -251,6 +253,7 @@ def main() -> int:
         and r.get("ticker")
         and r.get("filing_date")
         and r.get("accession_number")
+        and args.start_date <= str(r.get("filing_date")) <= args.end_date
         and str(r.get("filing_url") or "").startswith("https://www.sec.gov/")
     ]
     if not rows:
