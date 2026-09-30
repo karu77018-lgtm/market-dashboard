@@ -121,3 +121,32 @@ def test_persistent_ui_preserves_styles_tabs_and_breadth_policy(tmp_path):
     assert soup.select_one('#market-history-config').string.count('history')==0
     assert 'window.CALC={"color":"Blue"};' in out
     assert ui.apply_html(out,tmp_path,mc=mc)==out
+
+
+def test_same_session_mc57_is_exact_but_previous_session_never_reused(tmp_path):
+    p=fixture_prices(1100)[refresh_mc57.MC57_ETFS];target=str(p.index[-1].date())
+    path=tmp_path/'market-history/mc57-full.json'
+    prior=refresh_mc57.compute_mc57(p,target,'original',history_output=path)
+    refresh_mc57.dump(tmp_path/'work/mc57-authoritative.json',prior)
+    revised=p.copy();revised.iloc[-1]*=1.00001
+    fresh=refresh_mc57.compute_mc57(revised,target,'new',history_output=path)
+    actual=refresh_mc57.preserve_same_session_mc57(tmp_path,fresh)
+    assert actual['mc57']==prior['mc57'];assert actual['metric_scores']==prior['metric_scores']
+    assert json.loads(path.read_text())['history'][-1]['mc57']==prior['mc57']
+    tomorrow=dict(fresh,session_date='2099-01-01')
+    assert refresh_mc57.preserve_same_session_mc57(tmp_path,tomorrow)==tomorrow
+
+
+def test_preserved_jev_anchor_and_existing_categories(tmp_path):
+    import render_jev_ranking
+    mc={'mc57':22,'session_date':'2026-09-29','history':[],'metric_scores':{}}
+    src='''<html><head><style>original</style></head><body><nav></nav>
+    <section id="t-market"><div class="card cmt mkt20"><div class="mkt20-verdict">old</div><div class="mkt20-read">地合いは青</div>
+    <div class="ccblock"><div class="cctxt">地合いは青</div></div><div class="ccblock"><div class="cctxt">マクロ情報を維持</div></div></div></section>
+    <section id="t-rotation"></section><footer class='disc'>note</footer></body></html>'''
+    out=ui.apply_html(src,tmp_path,mc=mc,summary={},breadth={'p50':29})
+    assert "<footer class='disc'>" in out
+    assert 'マクロ情報を維持' in out;assert '地合いは青' not in out
+    path=tmp_path/'out.html';path.write_text(out);ranking=tmp_path/'jev.json';ranking.write_text(json.dumps({'status':'ready','rows':[]}))
+    render_jev_ranking.render(path,ranking)
+    assert 'jev-ranking-section' in path.read_text()

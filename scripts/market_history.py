@@ -173,7 +173,11 @@ def export_windows(outdir,name,series,target, *, mode='lines',normalized=False,m
 def build(root,target, *, offline=False):
     outdir=root/'market-history'; cache=root/'work/market-history-prices.json'
     frame,errors=(read_prices(cache),{}) if offline else acquire(target,cache)
-    if not frame.empty: frame=frame.reindex(frame.index.union([pd.Timestamp(target)])).sort_index()
+    if not frame.empty:
+        # VIX can have quotes on stock-exchange holidays. Use observed SPY
+        # sessions so such rows never become synthetic missing stock returns.
+        calendar=frame['SPY'].dropna().index if 'SPY' in frame else frame.index
+        frame=frame.reindex(calendar.union([pd.Timestamp(target)])).sort_index()
     sizes,pairs,ratios,summary=package_series(frame,target)
     manifest={'schema':'market-history.index.1','session_date':target,'files':{},'errors':errors,
               'source':'Yahoo Finance explicit Adj Close; observed sessions only',

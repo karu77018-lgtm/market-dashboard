@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import math
 import sys
@@ -392,6 +393,45 @@ def compute_mc57(close: pd.DataFrame, target: str, generated_at: str, *, history
     }
 
 
+
+def preserve_same_session_mc57(root: Path, fresh: dict[str, Any]) -> dict[str, Any]:
+    """Explicit same-session authoritative cache, never previous-session reuse.
+
+    Yahoo may retroactively revise adjusted prices on reruns. This UI change
+    must not revise the already-published current MC57 for the identical session.
+    Use its verified original snapshot and matching metric rows. Next session
+    computes normally. This does not alter the MC57 formula or live trading code.
+    """
+    cache = root / "work" / "mc57-authoritative.json"
+    seed = root / "seed" / "mc57_display_2026-09-29.json.gz"
+    prior = None
+    for path in (cache, seed):
+        if not path.is_file():
+            continue
+        obj = json.loads(gzip.decompress(path.read_bytes()) if path.suffix == ".gz" else path.read_text(encoding="utf-8"))
+        if (obj.get("session_date") == fresh["session_date"]
+                and obj.get("calculation_version") == fresh["calculation_version"]
+                and obj.get("status") == "READY" and obj.get("coverage") == 1.0):
+            prior = obj
+            break
+    if prior is not None:
+        long_path = root / "market-history" / "mc57-full.json"
+        full = json.loads(long_path.read_text(encoding="utf-8"))
+        old_rows = {r["date"]: r for r in prior["history"]}
+        full["history"] = [old_rows.get(r["date"], r) for r in full["history"]]
+        full["same_session_snapshot"] = {
+            "session_date": prior["session_date"], "generated_at": prior["generated_at"],
+            "reason": "preserve already verified published values on same-session rerun",
+            "new_calculation_mc57": fresh["mc57"], "published_mc57": prior["mc57"]}
+        dump(long_path, full)
+        print(f"MC57 explicit same-session snapshot reuse: {prior['mc57']:.15f}; "
+              f"new Yahoo revision {fresh['mc57']:.15f}", flush=True)
+        fresh = dict(prior)
+        fresh["same_session_snapshot_reused"] = True
+    dump(cache, fresh)
+    return fresh
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo-root", default=str(ROOT))
@@ -528,6 +568,7 @@ def main() -> int:
     dump(data / "market_inputs.json", market)
     mc57 = compute_mc57(mc57_prices(target), target, generated_at,
                          history_output=root / "market-history" / "mc57-full.json")
+    mc57 = preserve_same_session_mc57(root, mc57)
     dump(data / "mc57.json", mc57)
     dump(data / "state.json", la.state_object(session_date=target, generated_at=generated_at,
                                                coverage=yahoo_stats["target_session_coverage"]))

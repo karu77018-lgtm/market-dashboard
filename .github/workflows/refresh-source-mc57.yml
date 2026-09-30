@@ -70,6 +70,7 @@ jobs:
         with:
           path: |
             work/ohlcv.csv
+            work/mc57-authoritative.json
             work/massive-reference.json
             work/massive-grouped.json
           key: source-mc57-ohlcv-${{ github.run_id }}
@@ -93,6 +94,7 @@ jobs:
         with:
           path: |
             work/ohlcv.csv
+            work/mc57-authoritative.json
             work/massive-reference.json
             work/massive-grouped.json
           key: source-mc57-ohlcv-${{ github.run_id }}

@@ -42,8 +42,8 @@ def narrative(mc57,breadth,summary):
                for a,b in [('SPY','RSP'),('QQQ','QQQE')]) and (
                    (finite(p50) and p50<50) or (finite(net) and net<0))
     note='細い相場：指数は上昇、時価総額加重優位、内部の広がりは弱い' if narrow else '指数と等ウェイト、内部の広がりを併せて確認'
-    parts=[verdict]
-    if narrow: parts.append('広がりは乏しく、一部大型株主導の可能性。')
+    parts=[verdict.rstrip('。')]
+    if narrow: parts.append('広がりは乏しく、一部大型株主導の可能性')
     parts.append(f'MC57 {score:.1f} / 100' if finite(score) else 'MC57 DATA UNAVAILABLE')
     parts.append('5営業日変化 '+fmt(slope,'pt'))
     parts.append(f'50MA上 {p50:.1f}%' if finite(p50) else '50MA Breadth DATA UNAVAILABLE')
@@ -93,7 +93,7 @@ def breakdown_panel(mc):
 
 
 def controls(key, *, disabled=False):
-    why='過去時点の構成銘柄を再現できないため長期化しません（現ユニバースの参考値）' if disabled else ''
+    why=('過去時点の構成銘柄を再現できないため長期化しません（現ユニバースの参考値）' if key=='unavailable' else '長期の元系列を保証できないため現表示を維持') if disabled else ''
     return ('<div class="mh-tools" data-history-key="'+key+'"><div class="mh-buttons" role="group" aria-label="表示期間">'+
         ''.join(f'<button type="button" data-window="{w}" class="{"on" if w=="2y" else ""}" aria-pressed="{"true" if w=="2y" else "false"}"'+
                 (' disabled title="過去時点ユニバース未検証"' if disabled and w!='2y' else '')+f'>{w.upper()}</button>' for w in ('2y','5y','10y'))+
@@ -175,7 +175,22 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
     for el in soup.select('.banner .aux .a'):
         if '警戒' in el.get_text(): el.insert(0,'補助リスク（MC57外） ')
     for card in list(soup.select('.card.cmt.mkt20')):
-        card.replace_with(BeautifulSoup(comment_card(mc,breadth,summary),'html.parser'))
+        # Preserve the existing five-category layout, macro/index commentary and
+        # copy controls. Only conflicting conclusions and SAR-dependent prose change.
+        if not card.select_one('.mkt20-read'):
+            card.replace_with(BeautifulSoup(comment_card(mc,breadth,summary),'html.parser'))
+            continue
+        n=narrative(mc,breadth,summary)
+        for el in card.select('.mkt20-verdict'): el.string=n['verdict']
+        for el in card.select('.mkt20-read'): el.string=n['body']
+        for el in card.select('.cmt-note'):
+            el.string=n['note']
+            el['class']=['cmt-note','cmt-neg' if n['narrow'] else 'cmt-pos']
+        for el in card.select('.cctxt'):
+            if '地合いは' in el.get_text():
+                el.string=n['verdict']+' MC57 '+str(round(mc['mc57']))+'。50MA上 '+(str(breadth.get('p50'))+'%' if finite(breadth.get('p50')) else 'DATA UNAVAILABLE')+'。'
+        for el in card.select('#mktPostText'):
+            el.clear(); el.append(n['body'])
     strip_color_market_text(soup)
     for frame in soup.select('iframe[srcdoc]'):
         doc=BeautifulSoup(frame['srcdoc'],'html.parser'); strip_color_market_text(doc)
@@ -185,9 +200,6 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
         # Publish headline/MC57 label derives solely from MC57, never SAR.
         for el in doc.select('.state'):
             el.string=narrative(mc,breadth,summary)['verdict'].rstrip('。')
-        for el in doc.select('.rn2'):
-            parent=el.find_parent(class_='card')
-            # Color stays in the separately labelled NQ panel only.
         for el in doc.select('.acc'):
             if el.get_text(strip=True) in ('強気','堅調','やや注意','警戒','中立','弱含み'):
                 el.string='内部弱い' if mc['mc57']<40 else ('内部良好' if mc['mc57']>=55 else '内部混在')
@@ -220,7 +232,8 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
             plot.insert_before(BeautifulSoup(controls(key),'html.parser'))
         elif not card.select_one('.mh-tools'):
             # Charts with no audited historical constituent/source contract stay 2Y.
-            plot.insert_before(BeautifulSoup(controls('unavailable',disabled=True),'html.parser'))
+            is_universe=any(k in name for k in ('ブレッドス','52週','騰落ライン','売買代金','リーダー','集積'))
+            plot.insert_before(BeautifulSoup(controls('unavailable' if is_universe else 'unavailable-source',disabled=True),'html.parser'))
     rotation=soup.select_one('#t-rotation')
     if rotation is None: raise RuntimeError('Rotation tab missing')
     added=(summary_card(summary,breadth)+chart_card('leadership','サイズ別相対推移 / Market Leadership',
@@ -243,18 +256,25 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
     config=soup.new_tag('script',id='market-history-config',type='application/json')
     config.string=json.dumps({'session_date':mc['session_date'],'files':idx.get('files',{})},ensure_ascii=False,separators=(',',':')).replace('<','\\u003c'); soup.body.append(config)
     script=soup.new_tag('script',src='assets/market-history.js',id='market-history-script'); script['defer']=''; soup.body.append(script)
-    return str(soup)
+    # Preserve the frozen generator's exact anchor consumed by the Jev adapter.
+    return str(soup).replace('<footer class="disc">', "<footer class='disc'>")
 
 
 def install(module,root,data_dir):
     """Generator hook: narrative code never sees SAR. Trading functions untouched."""
     mc=json.loads((data_dir/'mc57.json').read_text())
     p=root/'market-history/index.json'; idx=json.loads(p.read_text()) if p.exists() else {}
+    original_comment=getattr(module,'_market_comment',None)
+    original_categories=getattr(module,'build_categorized_commentary',None)
     def comment(aux,mkt,sar,breadth,cat_html=''):
-        b={'p50':breadth.get('pa50')}
-        return comment_card(mc,b,idx.get('summary',{}))
+        if original_comment is not None:
+            # Neutral input prevents NQSAR from entering commentary generation.
+            return original_comment(aux,mkt,(None,None),breadth,cat_html)
+        return comment_card(mc,{'p50':breadth.get('pa50')},idx.get('summary',{}))
+    def categories(mkt,m,breadth,sar,aux):
+        return original_categories(mkt,m,breadth,(None,None),aux) if original_categories else ''
     module._market_comment=comment
-    module.build_categorized_commentary=lambda *args,**kwargs: ''
+    module.build_categorized_commentary=categories
 
 if __name__=='__main__':
     ap=argparse.ArgumentParser(); ap.add_argument('--root',default='.'); ap.add_argument('--html',default='source-mc57.html')
