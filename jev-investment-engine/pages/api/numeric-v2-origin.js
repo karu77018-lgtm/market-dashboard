@@ -262,7 +262,11 @@ export default async function handler(req,res){
     const universe=Object.assign({},...shards);
     const fred=await fetchText("https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS,DGS10");
     const py=await getRuntime();
-    const requested=String(req.query.origin||"");\n    const allowed=new Set(["2026-07-10","2026-07-17","2026-07-24","2026-07-31","2026-08-07","2026-08-14","2026-08-21","2026-08-28","2026-09-04","2026-09-14","2026-09-21"]);\n    if(!allowed.has(requested)) return res.status(400).json({ok:false,error:"invalid_origin"});\n    py.globals.set("requested_origin",requested);\n    py.globals.set("universe_json",JSON.stringify(universe));
+    const requested=String(req.query.origin||"");
+    const allowed=new Set(["2026-07-10","2026-07-17","2026-07-24","2026-07-31","2026-08-07","2026-08-14","2026-08-21","2026-08-28","2026-09-04","2026-09-14","2026-09-21"]);
+    if(!allowed.has(requested)) return res.status(400).json({ok:false,error:"invalid_origin"});
+    py.globals.set("requested_origin",requested);
+    py.globals.set("universe_json",JSON.stringify(universe));
     py.globals.set("market_json",JSON.stringify(marketData));
     py.globals.set("expected_json",JSON.stringify(expectedData));
     py.globals.set("fred_csv_text",fred);
