@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Run bounded, point-in-time Jev shadow evaluations for current MC57 names.
 
-The script deliberately keeps vendor text out of Git and Actions artifacts.  It
-fetches news up to the dashboard's generated_at cutoff, submits a compact state
-to the private Jev API, writes an audit summary, and publishes only derived
-probabilities and scores for the dashboard ranking.
+The script deliberately keeps vendor text out of Git and Actions artifacts. It
+fetches Massive news in paginated time-window batches, fans matching articles
+out to the selected tickers in memory, submits compact states to the private
+Jev API, writes an audit summary, and publishes only derived probabilities and
+scores for the dashboard ranking.
 """
 from __future__ import annotations
 
@@ -297,6 +298,143 @@ def fetch_news(
     )
 
 
+def fetch_news_bulk(
+    client: requests.Session,
+    *,
+    tickers: list[str],
+    api_key: str,
+    start: datetime,
+    cutoff: datetime,
+    limit: int,
+    timeout: int,
+    min_interval: float,
+    page_size: int = 1000,
+    max_pages: int = 50,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
+    """Fetch one market-wide news window and fan articles out to candidates.
+
+    Massive's free-plan request budget is spent per page instead of per ticker.
+    Vendor text stays in process memory and is never written to Git or an
+    Actions artifact.
+    """
+    allowed = {ticker for ticker in tickers if TICKER_PATTERN.fullmatch(ticker)}
+    by_ticker: dict[str, list[tuple[datetime, dict[str, Any]]]] = {
+        ticker: [] for ticker in sorted(allowed)
+    }
+    seen: dict[str, set[tuple[str, str]]] = {ticker: set() for ticker in allowed}
+    if not allowed:
+        return {}, {
+            "mode": "bulk_window_pagination",
+            "pages": 0,
+            "articles_scanned": 0,
+            "tickers_with_news": 0,
+            "tickers_without_news": 0,
+        }
+
+    url = MASSIVE_NEWS_URL
+    params: dict[str, Any] | None = {
+        "published_utc.gte": utc_iso(start),
+        "published_utc.lte": utc_iso(cutoff),
+        "sort": "published_utc",
+        "order": "desc",
+        "limit": page_size,
+        "apiKey": api_key,
+    }
+    pages = 0
+    scanned = 0
+    last_request_at: float | None = None
+
+    while url:
+        if last_request_at is not None and min_interval > 0:
+            remaining = min_interval - (time.monotonic() - last_request_at)
+            if remaining > 0:
+                time.sleep(remaining)
+        last_request_at = time.monotonic()
+        payload = request_json(
+            client,
+            url,
+            params=params or {"apiKey": api_key},
+            timeout=timeout,
+        )
+        pages += 1
+        rows = payload.get("results")
+        if not isinstance(rows, list):
+            rows = []
+        scanned += len(rows)
+
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            try:
+                published = parse_timestamp(row.get("published_utc"), field="published_utc")
+            except ShadowRunError:
+                continue
+            if published < start or published > cutoff:
+                continue
+            mentioned = {
+                str(item).upper()
+                for item in (row.get("tickers") or [])
+                if isinstance(item, str)
+            }
+            matches = allowed.intersection(mentioned)
+            if not matches:
+                continue
+            title = " ".join(str(row.get("title") or "").split())[:500]
+            if not title:
+                continue
+            description = " ".join(str(row.get("description") or "").split())[:2000]
+            article_url = str(row.get("article_url") or "").strip()[:1000]
+            publisher = row.get("publisher") if isinstance(row.get("publisher"), dict) else {}
+            document = {
+                "source": "massive_news",
+                "published_utc": utc_iso(published),
+                "title": title,
+                "description": description,
+                "publisher": str(publisher.get("name") or "")[:200],
+                "article_url": article_url,
+            }
+            key = (title, article_url)
+            for ticker in matches:
+                if len(by_ticker[ticker]) >= limit or key in seen[ticker]:
+                    continue
+                seen[ticker].add(key)
+                by_ticker[ticker].append((published, document))
+
+        if all(len(items) >= limit for items in by_ticker.values()):
+            break
+        next_url = payload.get("next_url")
+        if not next_url:
+            break
+        parsed = urlparse(str(next_url))
+        if parsed.scheme != "https" or parsed.netloc != "api.massive.com":
+            raise ShadowRunError("Massive news pagination returned an unexpected host")
+        if pages >= max_pages:
+            raise ShadowRunError(
+                f"Massive news pagination exceeded {max_pages} pages"
+            )
+        url = str(next_url)
+        params = {"apiKey": api_key}
+
+    documents = {
+        ticker: [
+            document
+            for _, document in sorted(items, key=lambda item: item[0], reverse=True)[:limit]
+        ]
+        for ticker, items in by_ticker.items()
+    }
+    with_news = sum(bool(items) for items in documents.values())
+    return documents, {
+        "mode": "bulk_window_pagination",
+        "pages": pages,
+        "api_calls": pages,
+        "page_size": page_size,
+        "articles_scanned": scanned,
+        "candidate_tickers": len(allowed),
+        "tickers_with_news": with_news,
+        "tickers_without_news": len(allowed) - with_news,
+    }
+
+
 def candidate_state(
     candidate: dict[str, Any],
     *,
@@ -586,6 +724,8 @@ def main() -> int:
     parser.add_argument("--provider-timeout", type=int, default=45)
     parser.add_argument("--jev-timeout", type=int, default=180)
     parser.add_argument("--massive-min-interval", type=float, default=13.0)
+    parser.add_argument("--massive-page-size", type=int, default=1000)
+    parser.add_argument("--massive-max-pages", type=int, default=50)
     args = parser.parse_args()
 
     if not 1 <= args.max_candidates <= 100:
@@ -596,6 +736,10 @@ def main() -> int:
         parser.error("--lookback-days must be between 1 and 90")
     if not 0 <= args.massive_min_interval <= 120:
         parser.error("--massive-min-interval must be between 0 and 120 seconds")
+    if not 100 <= args.massive_page_size <= 1000:
+        parser.error("--massive-page-size must be between 100 and 1000")
+    if not 1 <= args.massive_max_pages <= 100:
+        parser.error("--massive-max-pages must be between 1 and 100")
 
     root = Path(args.root).resolve()
     output_path = root / args.output
@@ -652,27 +796,36 @@ def main() -> int:
     jev_client = requests.Session()
     prior_ranking = load_prior_ranking(ranking_path)
     ranking_rows: list[dict[str, Any]] = []
-    last_news_request_at: float | None = None
+
+    try:
+        news_by_ticker, news_stats = fetch_news_bulk(
+            news_client,
+            tickers=[candidate["ticker"] for candidate in candidates],
+            api_key=massive_key,
+            start=start,
+            cutoff=cutoff,
+            limit=args.max_news,
+            timeout=args.provider_timeout,
+            min_interval=args.massive_min_interval,
+            page_size=args.massive_page_size,
+            max_pages=args.massive_max_pages,
+        )
+    except Exception as exc:
+        safe_error = exc if isinstance(exc, ShadowRunError) else ShadowRunError(type(exc).__name__)
+        summary["status"] = "news_fetch_failed"
+        summary["error_count"] = 1
+        summary["news_error"] = str(safe_error)
+        write_summary(output_path, summary)
+        append_actions_summary(summary)
+        print(f"::warning title=Jev Massive news batch failed::{safe_error}")
+        return 1
+    summary["massive_news"] = news_stats
 
     for candidate in candidates:
         ticker = candidate["ticker"]
         rank = candidate["selection"].get("rk")
         try:
-            if last_news_request_at is not None and args.massive_min_interval > 0:
-                elapsed = time.monotonic() - last_news_request_at
-                remaining = args.massive_min_interval - elapsed
-                if remaining > 0:
-                    time.sleep(remaining)
-            last_news_request_at = time.monotonic()
-            documents = fetch_news(
-                news_client,
-                ticker=ticker,
-                api_key=massive_key,
-                start=start,
-                cutoff=cutoff,
-                limit=args.max_news,
-                timeout=args.provider_timeout,
-            )
+            documents = news_by_ticker.get(ticker, [])
             if not documents:
                 summary["skipped_no_news_count"] += 1
                 summary["results"].append(
