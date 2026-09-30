@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: extract-earnings-jev-overlay-v3-${{ github.ref }}
+  group: extract-earnings-jev-overlay-v4-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
       JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
       JEV_API_URL: ${{ vars.JEV_API_URL || 'https://jev-investment-engine.vercel.app/api/jev' }}
     steps:
@@ -33,7 +34,9 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install requests
-      - run: test -n "$JEV_API_SECRET"
+      - run: |
+          test -n "$MASSIVE_API_KEY"
+          test -n "$JEV_API_SECRET"
       - name: Extract Jev features only
         run: |
           python scripts/event_risk/build_earnings_jev_overlay.py --root . --start-date 2026-09-01 --end-date 2026-09-30
@@ -42,7 +45,10 @@ jobs:
         with:
           name: earnings-jev-overlay-${{ github.run_id }}
           retention-days: 30
-          path: research/event_risk/earnings-jev-overlay-v1.json
+          path: |
+            research/event_risk/earnings-jev-overlay-v1.json
+            research/event_risk/earnings-expectation-load-core-v1.json
+            scripts/event_risk/local_backtest_earnings_jev_ablation.py
       - name: Commit frozen Jev features
         run: |
           cp research/event_risk/earnings-jev-overlay-v1.json /tmp/earnings-jev-overlay-v1.json
