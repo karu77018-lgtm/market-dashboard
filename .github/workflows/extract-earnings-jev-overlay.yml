@@ -22,7 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
       JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
       JEV_API_URL: ${{ vars.JEV_API_URL || 'https://jev-investment-engine.vercel.app/api/jev' }}
     steps:
@@ -34,14 +33,10 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install requests
-      - run: |
-          test -n "$MASSIVE_API_KEY"
-          test -n "$JEV_API_SECRET"
+      - run: test -n "$JEV_API_SECRET"
       - name: Extract Jev features only
         run: |
-          python scripts/event_risk/build_earnings_jev_overlay.py \
-            --root . \
-            --massive-min-interval 13
+          python scripts/event_risk/build_earnings_jev_overlay.py --root .
       - name: Upload feature artifact for local backtest
         uses: actions/upload-artifact@v4
         with:
