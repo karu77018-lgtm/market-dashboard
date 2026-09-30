@@ -17,6 +17,8 @@ async function verify(page,width){
   assert(await sparks.count()>0,'legacy macro sparklines present');
   const noAxis=await sparks.evaluateAll(items=>items.filter(e=>!e.nextElementSibling?.classList.contains('mh-spark-axis')).length);
   assert.equal(noAxis,0,'every legacy time sparkline has observation date axis');
+  const narrowAxes=await sparks.evaluateAll(items=>items.filter(e=>{const r=e.getBoundingClientRect(),a=e.nextElementSibling?.getBoundingClientRect();return r.width>0&&(!a||a.width<r.width*.8);}).length);
+  assert.equal(narrowAxes,0,'date axes span their graph including grid rate cards');
   const tabs=page.locator('nav a.tabx');
   assert.equal(await tabs.count(),11,'all original tabs including Jev');
   assert.equal(await page.locator('.mh-card [data-window="2y"][aria-pressed="true"]').count(),await page.locator('.mh-card[data-history-key]').count());

@@ -8,7 +8,8 @@
 .mh-legend{display:flex;gap:8px;flex-wrap:wrap;font-size:10px;margin:6px 0}.mh-legend i{display:inline-block;width:12px;height:2px;vertical-align:middle;margin-right:3px}
 .mh-legend button{font:inherit;color:inherit;background:transparent;border:0;padding:3px 0;cursor:pointer}.mh-legend button[aria-pressed="false"]{opacity:.4;text-decoration:line-through}
 .mh-plot>.dax{padding-top:7px;margin-bottom:10px}.mh-card>.sub{margin-top:8px}
-.mh-spark-axis{display:flex;justify-content:space-between;font-size:10px;color:#747167;line-height:1.5;margin:3px 6px 9px;gap:4px;font-variant-numeric:tabular-nums}
+.mh-spark-axis{grid-column:1 / -1;display:flex;justify-content:space-between;font-size:10px;color:#747167;line-height:1.5;margin:3px 6px 9px;gap:4px;font-variant-numeric:tabular-nums}
+.dov-spark:has(.mh-spark-axis){height:auto}.dov-spark:has(.mh-spark-axis) svg.spark{height:42px}
 .mh-table{width:100%;table-layout:fixed}.mh-table td,.mh-table th{overflow-wrap:anywhere;font-variant-numeric:tabular-nums}.mh-table td{font-size:11px}
 .mh-heat{width:100%;min-width:0;overflow-x:auto}.mh-heat canvas{display:block;width:100%;height:290px}.mh-hover{min-height:30px;font-size:11px;color:#565243;margin:5px 0;overflow-wrap:anywhere}
 .mh-horizons{margin-bottom:6px}.mh-rank-flow{max-width:100%;overflow-x:auto}.mh-rank-flow table{width:100%;font-size:11px;border-collapse:collapse}.mh-rank-flow td,.mh-rank-flow th{padding:5px 4px;border-bottom:1px solid #d8d6cd;text-align:right}.mh-rank-flow td:nth-child(2){text-align:left}
