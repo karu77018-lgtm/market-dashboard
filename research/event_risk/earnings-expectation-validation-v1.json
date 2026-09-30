@@ -1,0 +1,58 @@
+{
+  "version": "earnings-expectation-validation-v1",
+  "status": "PROMISING_NOT_ADOPTED",
+  "source_artifact": "research/event_risk/earnings-expectation-load-core-v1.json",
+  "source_version": "earnings-expectation-load-core-v1",
+  "coverage": {
+    "raw_disclosures": 744,
+    "eligible_events": 196,
+    "core_complete": 194,
+    "event_date_min": "2026-07-07",
+    "event_date_max": "2026-09-16"
+  },
+  "in_sample_component_correlation_with_ret5": {
+    "expectation_load_core": -0.1413628527678612,
+    "pre20_return_pct": -0.24029844306390566,
+    "pre20_excess_qqq_pct": -0.1993741198632537,
+    "rs63_change_20d": -0.03701075396397258,
+    "dist_high63_pct": -0.03401296710877014
+  },
+  "pseudo_oos": {
+    "calibration_period": "2026-07-07..2026-08-31",
+    "calibration_n": 138,
+    "holdout_period": "2026-09-01..2026-09-16",
+    "holdout_n": 56,
+    "method": "Empirical percentiles for all four core components are fitted on Jul-Aug only and frozen for Sep. Threshold is OOS core >=60.",
+    "below_60": {
+      "n": 44,
+      "ret5_mean_pct": -3.224024283911912,
+      "ret5_median_pct": -2.604164732870129,
+      "p_negative": 0.6136363636363636,
+      "z5_mean": -0.5936560889774949,
+      "z5_median": -0.5761473229078802
+    },
+    "at_or_above_60": {
+      "n": 12,
+      "ret5_mean_pct": -12.511213584024915,
+      "ret5_median_pct": -11.100350148469829,
+      "p_negative": 0.8333333333333334,
+      "z5_mean": -1.6825718787454658,
+      "z5_median": -1.6471714317771164
+    }
+  },
+  "decision": {
+    "adopted": false,
+    "reason": [
+      "Holdout is only one partial month and high-load sample is n=12.",
+      "Equal-weight composite is not monotonic across all in-sample quintiles.",
+      "20D run-up and QQQ excess carry most of the directional relationship; RS-rank change and 63D-high proximity add little directional signal in this pilot.",
+      "Option Expected Move, analyst revisions and estimate revisions are still missing."
+    ],
+    "next_tests": [
+      "Extend point-in-time history beyond Jul-Sep 2026.",
+      "Validate run-up/excess as separate expectations factors before reweighting the composite.",
+      "Add option Expected Move only after historical option-price entitlement is verified.",
+      "Add analyst/estimate revisions only when entitled; never silently renormalize missing enhanced inputs."
+    ]
+  }
+}
