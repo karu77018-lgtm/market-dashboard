@@ -163,6 +163,44 @@ def extract_mda(raw: str) -> tuple[str,str]:
     return segment[:14000],label
 
 
+def pct_rank_against(value: float, calibration: list[float]) -> float:
+    less=sum(x < value for x in calibration)
+    equal=sum(x == value for x in calibration)
+    return 100.0*(less+0.5*equal)/len(calibration)
+
+
+def select_frozen_high_load(
+    event_rows: list[dict[str,Any]],
+    start_date: str,
+    end_date: str,
+    threshold: float,
+)->list[dict[str,Any]]:
+    calibration=[
+        float(r["pre20_excess_qqq_pct"])
+        for r in event_rows
+        if isinstance(r,dict)
+        and r.get("expectation_load_core_coverage")==4
+        and str(r.get("filing_date") or "") <= "2026-08-31"
+        and _finite(r.get("pre20_excess_qqq_pct")) is not None
+    ]
+    if not calibration:
+        raise SystemExit("No frozen Jul-Aug calibration rows")
+    selected=[]
+    for r in event_rows:
+        if not isinstance(r,dict) or r.get("expectation_load_core_coverage")!=4:
+            continue
+        date=str(r.get("filing_date") or "")
+        excess=_finite(r.get("pre20_excess_qqq_pct"))
+        if not (start_date <= date <= end_date) or excess is None:
+            continue
+        load=pct_rank_against(excess,calibration)
+        if load >= threshold:
+            item=dict(r)
+            item["deterministic_excess_load_pctile"]=load
+            selected.append(item)
+    return selected
+
+
 def fetch_10q_index(
     client: MassivePacer,start_date:str,end_date:str
 )->dict[tuple[str,str],dict[str,Any]]:
@@ -261,6 +299,7 @@ def main()->int:
     ap.add_argument("--output",default="research/event_risk/earnings-jev-overlay-v1.json")
     ap.add_argument("--start-date",default="2026-09-01")
     ap.add_argument("--end-date",default="2026-09-30")
+    ap.add_argument("--deterministic-threshold",type=float,default=60.0)
     ap.add_argument("--massive-min-interval",type=float,default=13.0)
     ap.add_argument("--timeout",type=int,default=120)
     args=ap.parse_args()
@@ -275,11 +314,16 @@ def main()->int:
         raise SystemExit("JEV_API_SECRET is required")
 
     event_payload=json.loads((root/args.events).read_text())
+    all_event_rows=[r for r in event_payload.get("rows",[]) if isinstance(r,dict)]
+    rows=select_frozen_high_load(
+        all_event_rows,
+        args.start_date,
+        args.end_date,
+        args.deterministic_threshold,
+    )
     rows=[
-        r for r in event_payload.get("rows",[])
-        if isinstance(r,dict)
-        and r.get("ticker") and r.get("filing_date") and r.get("accession_number")
-        and args.start_date<=str(r.get("filing_date"))<=args.end_date
+        r for r in rows
+        if r.get("ticker") and r.get("filing_date") and r.get("accession_number")
     ]
     qset=json.loads((root/args.questions).read_text())
     questions=qset.get("questions")
@@ -319,6 +363,7 @@ def main()->int:
                 "ticker":ticker,
                 "event_date":date,
                 "pre_event_market_context":{
+                    "deterministic_excess_load_pctile":row.get("deterministic_excess_load_pctile"),
                     "pre20_return_pct":row.get("pre20_return_pct"),
                     "pre20_excess_qqq_pct":row.get("pre20_excess_qqq_pct"),
                     "rs63_change_20d":row.get("rs63_change_20d"),
@@ -365,6 +410,8 @@ def main()->int:
         "start_date":args.start_date,
         "end_date":args.end_date,
         "event_count":len(rows),
+        "selection_rule":"Core-complete September events with frozen Jul-Aug pre20_excess_qqq percentile >= threshold",
+        "deterministic_threshold":args.deterministic_threshold,
         "jev_success_count":len(outputs),
         "unmatched_count":len(unmatched),
         "jev_error_count":len(errors),
