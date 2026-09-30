@@ -5,7 +5,7 @@ import json, math, statistics, os
 
 COMMIT="d84a70dd46df011df502217f2737ed08a1e90fa2"
 BASE=f"https://raw.githubusercontent.com/karu77018-lgtm/market-dashboard/{COMMIT}/chart-data/"
-DATA=os.path.join(os.path.dirname(__file__),"..","..","data","stage4-direction-expand.json")
+DATA=os.path.join(os.path.dirname(__file__),"..","..","data","stage4-direction-expand.json")\nMARKET=os.path.join(os.path.dirname(__file__),"..","..","data","stage4-market-bars.json")
 
 def get_json(url):
     req=Request(url,headers={"User-Agent":"jev-research"})
@@ -54,7 +54,13 @@ def load_ticker(tk,index):
 def calc(ticker,origin):
     idx=get_json(BASE+"index.json")
     rows=load_ticker(ticker,idx)
-    qrows=load_ticker("QQQ",idx)
+    with open(MARKET,"r",encoding="utf-8") as mf:
+        market=json.load(mf)
+    from datetime import datetime, timezone
+    qrows=[]
+    for z in market["QQQ"]:
+        d=datetime.fromtimestamp(z["t"]/1000,timezone.utc).date().isoformat()
+        qrows.append([d,z["o"],z["h"],z["l"],z["c"],z["v"]])
     def norm(rows):
         out=[]
         for r in rows:
