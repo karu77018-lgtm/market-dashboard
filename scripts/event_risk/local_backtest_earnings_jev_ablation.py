@@ -112,7 +112,7 @@ def main()->int:
 
     events=json.loads(Path(args.events).read_text())
     overlay=json.loads(Path(args.jev).read_text())
-    base=[r for r in events.get("rows",[]) if isinstance(r,dict)]
+    base=[r for r in events.get("rows",[]) if isinstance(r,dict) and r.get("expectation_load_core_coverage")==4]
     jev_rows={
         (str(r.get("ticker")),str(r.get("accession_number"))):r
         for r in overlay.get("rows",[]) if isinstance(r,dict)
