@@ -9,12 +9,47 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from provider_inputs import (  # noqa: E402
+    ProviderError,
+    _get_json,
     _normalize_grouped_results,
     compute_massive_market_structure,
     grouped_history_from_yahoo_ohlcv,
     select_preserved_count_fallback_universe,
     select_expanded_universe,
 )
+
+
+def test_massive_entitlement_403_is_not_retried(monkeypatch):
+    class Response:
+        status_code = 403
+        headers = {}
+
+        def raise_for_status(self):
+            raise AssertionError("4xx should be handled before raise_for_status")
+
+        def json(self):
+            return {"status": "NOT_AUTHORIZED"}
+
+    class Session:
+        def __init__(self):
+            self.calls = 0
+
+        def get(self, url, params=None, timeout=45):
+            self.calls += 1
+            return Response()
+
+    session = Session()
+    monkeypatch.setattr("provider_inputs.time.sleep", lambda _: None)
+
+    with pytest.raises(ProviderError, match="status=403"):
+        _get_json(
+            session,
+            "https://api.massive.com/v2/example",
+            params={"apiKey": "test"},
+            attempts=5,
+        )
+
+    assert session.calls == 1
 
 
 def grouped_history() -> dict:

@@ -114,34 +114,7 @@ jobs:
           session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
           echo "actions_started_at=$started_at" >> "$GITHUB_OUTPUT"
           echo "session_date=$session" >> "$GITHUB_OUTPUT"
-      - name: Run Jev live shadow research
-        id: jev_shadow
-        continue-on-error: true
-        env:
-          JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
-          JEV_API_URL: ${{ vars.JEV_API_URL || 'https://jev-investment-engine.vercel.app/api/jev' }}
-        run: >-
-          python scripts/run_jev_live_shadow.py --root .
-          --max-candidates 70 --max-news 8 --lookback-days 30
-      - name: Save Jev shadow audit summary
-        if: always() && steps.jev_shadow.outcome != 'skipped'
-        id: jev_shadow_artifact
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: jev-live-shadow-${{ github.run_id }}-${{ github.run_attempt }}
-          retention-days: 90
-          compression-level: 6
-          include-hidden-files: true
-          if-no-files-found: warn
-          path: .preservation/jev/live-shadow-summary.json
-      - name: Report Jev shadow failure
-        if: always() && steps.jev_shadow.outcome == 'failure'
-        run: |
-          echo "::warning title=Jev live shadow failed::Dashboard publication and Phase A-0 preservation will continue."
-          echo "Jev is an isolated research layer; inspect its step and audit summary without treating the dashboard run as failed." >> "$GITHUB_STEP_SUMMARY"
-      - name: Render isolated Jev expected-value ranking tab
-        if: always()
+      - name: Render last successful Jev expected-value ranking tab
         run: >-
           python scripts/render_jev_ranking.py
           --html source-mc57.html --ranking data/jev-ranking.json
@@ -164,7 +137,6 @@ jobs:
           GOOGLE_DRIVE_CLIENT_SECRET: ${{ secrets.GOOGLE_DRIVE_CLIENT_SECRET }}
           GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_FOLDER_ID || secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
           NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
         run: >-
           python scripts/phase_a0/scan_secrets.py --root . --include-tracked
@@ -397,11 +369,4 @@ jobs:
           )
         run: |
           echo "::error title=Phase A-0 preservation failed::Dashboard publication completed, but private preservation failed."
-          exit 1
-      - name: Fail after publication when Jev shadow failed
-        if: >-
-          always() && steps.publish.outcome == 'success' &&
-          steps.jev_shadow.outcome == 'failure'
-        run: |
-          echo "::error title=Jev live shadow failed::Dashboard publication and preservation completed, but Jev research failed."
           exit 1

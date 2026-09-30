@@ -16,6 +16,7 @@ from run_jev_live_shadow import (  # noqa: E402
     canonical_hash,
     embedded_json,
     evaluate_jev,
+    fetch_news_bulk,
     load_dashboard,
     main,
     normalize_news,
@@ -63,6 +64,83 @@ def test_dashboard_candidates_include_named_and_each_rs_horizon(tmp_path: Path):
     assert "RS63上位" in by_ticker["MID"]["sources"]
     assert "RS189上位" in by_ticker["LONG"]["sources"]
     assert by_ticker["CORE"]["sources"] == ["Core 12", "RS21上位", "RS63上位", "RS189上位"]
+
+
+def test_fetch_news_bulk_uses_page_calls_not_ticker_calls():
+    class Response:
+        def __init__(self, payload):
+            self.status_code = 200
+            self.headers = {}
+            self._payload = payload
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self._payload
+
+    class Session:
+        def __init__(self):
+            self.calls = []
+            self.pages = [
+                {
+                    "results": [
+                        {
+                            "published_utc": "2026-09-28T11:00:00Z",
+                            "tickers": ["AAA", "BBB"],
+                            "title": "Shared catalyst",
+                            "description": "Evidence",
+                            "article_url": "https://example.com/shared",
+                            "publisher": {"name": "Wire"},
+                        },
+                        {
+                            "published_utc": "2026-09-28T10:00:00Z",
+                            "tickers": ["AAA"],
+                            "title": "AAA only",
+                            "article_url": "https://example.com/aaa",
+                        },
+                    ],
+                    "next_url": "https://api.massive.com/v2/reference/news?cursor=next",
+                },
+                {
+                    "results": [
+                        {
+                            "published_utc": "2026-09-27T10:00:00Z",
+                            "tickers": ["BBB"],
+                            "title": "BBB only",
+                            "article_url": "https://example.com/bbb",
+                        }
+                    ]
+                },
+            ]
+
+        def get(self, url, *, params, timeout):
+            self.calls.append((url, params, timeout))
+            return Response(self.pages.pop(0))
+
+    client = Session()
+    cutoff = datetime(2026, 9, 28, 12, tzinfo=timezone.utc)
+    start = datetime(2026, 8, 29, 12, tzinfo=timezone.utc)
+    documents, stats = fetch_news_bulk(
+        client,
+        tickers=["AAA", "BBB"],
+        api_key="test-key",
+        start=start,
+        cutoff=cutoff,
+        limit=8,
+        timeout=45,
+        min_interval=0,
+        page_size=1000,
+        max_pages=5,
+    )
+
+    assert len(client.calls) == 2
+    assert [item["title"] for item in documents["AAA"]] == ["Shared catalyst", "AAA only"]
+    assert [item["title"] for item in documents["BBB"]] == ["Shared catalyst", "BBB only"]
+    assert stats["mode"] == "bulk_window_pagination"
+    assert stats["api_calls"] == 2
+    assert stats["articles_scanned"] == 3
+    assert stats["tickers_with_news"] == 2
 
 
 def test_normalize_news_enforces_point_in_time_and_deduplicates():
@@ -246,9 +324,18 @@ def test_missing_required_configuration_is_a_failed_shadow_run(
     assert summary["missing"] == ["MASSIVE_API_KEY", "JEV_API_SECRET"]
 
 
-def test_jev_audit_artifact_includes_hidden_summary():
-    workflow = (ROOT / ".github/workflows/refresh-source-mc57.yml").read_text(encoding="utf-8")
-    block = workflow.split("- name: Save Jev shadow audit summary", 1)[1].split(
-        "- name: Report Jev shadow failure", 1
+def test_jev_is_decoupled_and_audit_artifact_is_private():
+    main_workflow = (ROOT / ".github/workflows/refresh-source-mc57.yml").read_text(
+        encoding="utf-8"
+    )
+    jev_workflow = (ROOT / ".github/workflows/refresh-jev-shadow.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "- name: Run Jev live shadow research" not in main_workflow
+    assert 'workflows: ["Refresh source-mc57"]' in jev_workflow
+    block = jev_workflow.split("- name: Save Jev shadow audit summary", 1)[1].split(
+        "- name: Render isolated Jev expected-value ranking tab", 1
     )[0]
     assert "include-hidden-files: true" in block
+    assert "cancel-in-progress: true" in jev_workflow
