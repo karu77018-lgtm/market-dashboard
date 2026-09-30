@@ -54,6 +54,49 @@ def _finite(value: Any) -> float | None:
         return None
     return x if math.isfinite(x) else None
 
+class MassiveRawPacer:
+    """Rate-limited raw-text fetcher for Massive filing-file endpoints."""
+
+    def __init__(self, api_key: str, min_interval: float):
+        self.api_key = api_key
+        self.min_interval = max(0.0, min_interval)
+        self.last_at: float | None = None
+        self.session = requests.Session()
+
+    def get_text(self, url: str, timeout: int = 45) -> str:
+        if not url.startswith("https://api.massive.com/"):
+            raise ShadowRunError("Unexpected Massive raw-file host")
+        for attempt in range(5):
+            if self.last_at is not None:
+                delay = self.min_interval - (time.monotonic() - self.last_at)
+                if delay > 0:
+                    time.sleep(delay)
+            self.last_at = time.monotonic()
+            try:
+                response = self.session.get(
+                    url,
+                    params={"apiKey": self.api_key},
+                    timeout=timeout,
+                )
+            except requests.RequestException as exc:
+                if attempt < 4:
+                    time.sleep(min(2 ** attempt, 20))
+                    continue
+                raise ShadowRunError(
+                    f"Massive raw file request failed: {type(exc).__name__}"
+                ) from None
+            if response.status_code == 429 or response.status_code >= 500:
+                if attempt < 4:
+                    time.sleep(min(2 ** attempt, 30))
+                    continue
+            if response.status_code >= 400:
+                raise ShadowRunError(
+                    f"Massive raw file rejected: HTTP {response.status_code}"
+                )
+            return response.text
+        raise ShadowRunError("Massive raw file request failed after retries")
+
+
 
 def _entities(raw: Any) -> list[dict[str,Any]]:
     if isinstance(raw,list):
@@ -245,6 +288,11 @@ def main()->int:
 
     massive=MassivePacer(api_key,args.massive_min_interval)
     index=fetch_10q_index(massive,args.start_date,args.end_date)
+    # Massive's filing-file endpoint returns raw HTML, not JSON. Use a raw
+    # text client after the index call and keep the same plan-safe pacing.
+    if args.massive_min_interval:
+        time.sleep(args.massive_min_interval)
+    raw_massive=MassiveRawPacer(api_key,args.massive_min_interval)
     jev=requests.Session()
 
     outputs=[]
@@ -264,15 +312,8 @@ def main()->int:
             unmatched.append({"ticker":ticker,"filing_date":date,"reason":"NO_MASSIVE_MAIN_FILE"})
             continue
         try:
-            payload=massive.get(main_url)
-            # Filing-file endpoints may return raw text/HTML through the client wrapper.
-            if isinstance(payload,dict):
-                raw=payload.get("content") or payload.get("text") or payload.get("html")
-                if raw is None:
-                    raw=json.dumps(payload,ensure_ascii=False)
-            else:
-                raw=str(payload)
-            evidence,section=extract_mda(str(raw))
+            raw=raw_massive.get_text(main_url)
+            evidence,section=extract_mda(raw)
             state={
                 "schema_version":"earnings-jev-overlay-state-v1",
                 "ticker":ticker,
