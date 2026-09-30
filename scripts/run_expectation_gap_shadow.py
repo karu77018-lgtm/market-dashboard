@@ -33,14 +33,24 @@ from urllib.parse import urlparse
 
 import requests
 
-from run_jev_live_shadow import (
-    ShadowRunError,
-    embedded_json,
-    fetch_news_bulk,
-    parse_timestamp,
-    safe_number,
-    utc_iso,
-)
+try:
+    from run_jev_live_shadow import (
+        ShadowRunError,
+        embedded_json,
+        fetch_news_bulk,
+        parse_timestamp,
+        safe_number,
+        utc_iso,
+    )
+except ModuleNotFoundError:
+    from scripts.run_jev_live_shadow import (
+        ShadowRunError,
+        embedded_json,
+        fetch_news_bulk,
+        parse_timestamp,
+        safe_number,
+        utc_iso,
+    )
 
 MASSIVE_BASE = "https://api.massive.com"
 DEFAULT_JEV_URL = "https://jev-investment-engine.vercel.app/api/jev"
