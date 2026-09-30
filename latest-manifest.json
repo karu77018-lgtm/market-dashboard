@@ -1,7 +1,7 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
-  "coverage": 1.0,
-  "generated_at": "2026-09-30T13:43:31Z",
+  "coverage": 0.9997474109623642,
+  "generated_at": "2026-09-30T14:05:06Z",
   "mc57": 22.356654002142744,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
@@ -11,12 +11,12 @@
   "peer_theme_status": "DATA_REQUIRED",
   "positions_status": "DATA_REQUIRED",
   "provider_status": {
-    "cross_vendor_coverage": 0.9810318664643399,
+    "cross_vendor_coverage": 0.9808032331396818,
     "current_session_provider": "Massive",
     "fred": "READY",
     "fred_required_coverage": 1.0,
     "massive": "READY",
-    "massive_current_coverage": 0.9810318664643399
+    "massive_current_coverage": 0.9808032331396818
   },
   "publication_scope": "source-mc57 plus derived data/jev-ranking.json only; V38 and vendor-input data JSON are not committed",
   "schema_version": "v38.acquisition.1",
@@ -32,10 +32,10 @@
   "status": "READY",
   "structural_clinical_biotech_status": "DATA_REQUIRED",
   "universe": {
-    "active_universe": 3954,
+    "active_universe": 3959,
     "below_floor_rows": 0,
     "biotech_heuristic_applied": false,
-    "broad_tradingview_universe": 3999,
+    "broad_tradingview_universe": 4004,
     "buy_filter_eligible": 1118,
     "buy_filter_rules": {
       "market_cap_min": 50000000.0,
@@ -51,34 +51,13 @@
     "duplicate_class_rows": 0,
     "duplicate_symbol_rows": 0,
     "expansion_candidates": 575,
-    "legacy_universe": 3379,
+    "legacy_universe": 3384,
     "malformed_rows": 0,
     "massive_broad_expansion": 575,
-    "massive_current_coverage": 0.9810318664643399,
-    "massive_current_covered": 3879,
+    "massive_current_coverage": 0.9808032331396818,
+    "massive_current_covered": 3883,
     "massive_grouped": {
-      "fetched_sessions": [
-        "2026-09-01",
-        "2026-09-02",
-        "2026-09-03",
-        "2026-09-04",
-        "2026-09-08",
-        "2026-09-09",
-        "2026-09-10",
-        "2026-09-11",
-        "2026-09-14",
-        "2026-09-15",
-        "2026-09-16",
-        "2026-09-17",
-        "2026-09-18",
-        "2026-09-21",
-        "2026-09-22",
-        "2026-09-23",
-        "2026-09-24",
-        "2026-09-25",
-        "2026-09-28",
-        "2026-09-29"
-      ],
+      "fetched_sessions": [],
       "latest_eligible_rows": 5541,
       "latest_session": "2026-09-29",
       "requested_sessions": 20,
@@ -89,7 +68,7 @@
       "asof_date": "2026-09-29",
       "eligible_reference_tickers": 5702,
       "pages": 14,
-      "source": "api",
+      "source": "cache",
       "status": "READY"
     },
     "research_universe_rules": {
@@ -97,24 +76,26 @@
       "legacy_route": "market_cap >= 200M and price >= 1",
       "selection_filters_applied": false
     },
-    "response_rows": 4000,
-    "response_total_count": 4000,
+    "response_rows": 4005,
+    "response_total_count": 4005,
     "special_security_rows": 1
   },
   "universe_expansion": {
-    "active": 3954,
+    "active": 3959,
     "added": 575,
     "buy_filter_eligible": 1118,
-    "legacy": 3379
+    "legacy": 3384
   },
   "yahoo": {
-    "failed_tickers": [],
-    "history_received": 3954,
-    "incremental_cache_used": false,
-    "requested": 3954,
-    "target_session_coverage": 1.0,
-    "target_session_fresh": 3954,
-    "target_session_received": 3954,
-    "target_session_same_day_cache": 0
+    "failed_tickers": [
+      "RZAI"
+    ],
+    "history_received": 3958,
+    "incremental_cache_used": true,
+    "requested": 3959,
+    "target_session_coverage": 0.9997474109623642,
+    "target_session_fresh": 6,
+    "target_session_received": 3958,
+    "target_session_same_day_cache": 3952
   }
 }
