@@ -474,4 +474,122 @@ def prob(aggregate: dict[str, Any], qid: str) -> float | None:
 
 def choice(aggregate: dict[str, Any], qid: str) -> str | None:
     row = aggregate.get(qid)
-    return str(row.get("majorityChoice")) if isinstance(row, dict) a
+    return str(row.get("majorityChoice")) if isinstance(row, dict) and row.get("majorityChoice") else None
+
+
+def semantic_summary(aggregate: dict[str, Any]) -> dict[str, Any]:
+    material = prob(aggregate, "UEG01_material_positive_change")
+    persistent = prob(aggregate, "UEG02_persistent_improvement")
+    expectations = prob(aggregate, "UEG03_expectations_already_high")
+    pos_surprise = prob(aggregate, "UEG04_positive_surprise_vs_expectations")
+    neg_surprise = prob(aggregate, "UEG05_negative_surprise_vs_expectations")
+    confirmation = prob(aggregate, "UEG06_quantitative_confirmation")
+    novelty = prob(aggregate, "UEG07_information_novelty")
+    disappointment = prob(aggregate, "UEG08_disappointment_vulnerability")
+    sufficient = prob(aggregate, "UEG09_evidence_sufficient")
+    under = prob(aggregate, "UEG10_underappreciated_setup")
+    positives = [x for x in (material, persistent, pos_surprise, confirmation, novelty, under) if x is not None]
+    negatives = [x for x in (expectations, neg_surprise, disappointment) if x is not None]
+    positive_mean = statistics.fmean(positives) if positives else None
+    negative_mean = statistics.fmean(negatives) if negatives else None
+    semantic_gap = clamp(50.0 + 0.5 * (positive_mean - negative_mean)) if positive_mean is not None and negative_mean is not None else None
+    return {
+        "material_positive_change_pct": material,
+        "persistent_improvement_pct": persistent,
+        "expectations_already_high_pct": expectations,
+        "positive_surprise_pct": pos_surprise,
+        "negative_surprise_pct": neg_surprise,
+        "quantitative_confirmation_pct": confirmation,
+        "information_novelty_pct": novelty,
+        "disappointment_vulnerability_pct": disappointment,
+        "evidence_sufficient_pct": sufficient,
+        "underappreciated_setup_pct": under,
+        "setup_class": choice(aggregate, "UEG11_setup_class"),
+        "change_type": choice(aggregate, "UEG12_change_type"),
+        "semantic_gap_score": round(semantic_gap, 4) if semantic_gap is not None else None,
+    }
+
+
+def research_priority(row: dict[str, Any]) -> float | None:
+    f = safe_float(row.get("financials", {}).get("fundamental_delta_score"))
+    e = safe_float(row.get("expectation_load"))
+    s = safe_float(row.get("jev", {}).get("semantic_gap_score"))
+    if f is None or e is None or s is None:
+        return None
+    score = 0.45 * f + 0.35 * s + 0.20 * (100.0 - e)
+    if row.get("insider", {}).get("informative_positive"):
+        score += 5.0
+    if row.get("short_interest", {}).get("state") == "building" and row.get("trend_strength", 0) >= 70:
+        score += 3.0
+    return round(clamp(score), 4)
+
+
+def build_report(payload: dict[str, Any], path: Path) -> None:
+    rows = payload.get("deep_rows", [])
+    lines = [
+        "# Universal Expectation Gap v1 — 2026-09-30", "",
+        "Research-only. MC57/V38 production logic is unchanged.", "",
+        "## Design",
+        "- Full universe: deterministic market expectation-load scan.",
+        "- Deep candidates only: Massive fundamentals, Form 4, short interest, and news.",
+        "- Jev instructions/questions: English only.",
+        "- Jev interprets evidence versus expectations; it does not calculate returns or numeric features.",
+        "- Python owns scoring, ranking, provider QA, and future backtests.", "",
+        "## Run coverage",
+        f"- Eligible full-universe names: {payload.get('universe_eligible_n', 0)}",
+        f"- Deep-enriched names: {len(rows)}",
+        f"- Massive API calls: {payload.get('provider_calls', 0)}", "",
+        "## Research queue", "",
+        "|Ticker|Seed|Expectation Load|Trend|Fundamental Δ|Jev Gap|Setup|Insider Buy|Short state|Research priority|",
+        "|---|---|---:|---:|---:|---:|---|---:|---|---:|",
+    ]
+    fmt = lambda x: "—" if x is None else f"{float(x):.1f}"
+    for r in sorted(rows, key=lambda x: (-(x.get("research_priority_score") or -1), x["ticker"])):
+        fin, j, ins, si = r.get("financials", {}), r.get("jev", {}), r.get("insider", {}), r.get("short_interest", {})
+        lines.append(
+            f"|{r['ticker']}|{','.join(r.get('seed_labels') or [])}|{fmt(r.get('expectation_load'))}|"
+            f"{fmt(r.get('trend_strength'))}|{fmt(fin.get('fundamental_delta_score'))}|"
+            f"{fmt(j.get('semantic_gap_score'))}|{j.get('setup_class') or '—'}|"
+            f"${ins.get('open_market_buy_value', 0):,.0f}|{si.get('state') or '—'}|"
+            f"{fmt(r.get('research_priority_score'))}|"
+        )
+    lines += ["", "## Interpretation",
+              "Research priority is not an expected-return estimate. It is a triage score for where the evidence-versus-expectations wedge deserves deeper testing.",
+              "No layer is promoted into the production ranking until point-in-time backtests beat simpler baselines out of sample."]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n")
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--root", default=".")
+    ap.add_argument("--max-deep", type=int, default=12)
+    ap.add_argument("--news-limit", type=int, default=8)
+    ap.add_argument("--lookback-days", type=int, default=30)
+    ap.add_argument("--massive-min-interval", type=float, default=13.0)
+    ap.add_argument("--output", default="research/expectation_gap/universal-expectation-gap-v1.json")
+    ap.add_argument("--report", default="maintenance/universal-expectation-gap-v1-20260930.md")
+    args = ap.parse_args()
+    if not 3 <= args.max_deep <= 50:
+        ap.error("--max-deep must be between 3 and 50")
+
+    root = Path(args.root).resolve()
+    api_key = os.getenv("MASSIVE_API_KEY") or os.getenv("MASSIVE_KEY") or os.getenv("POLYGON_API_KEY")
+    jev_secret = os.getenv("JEV_API_SECRET")
+    if not api_key:
+        raise SystemExit("MASSIVE_API_KEY is required")
+    if not jev_secret:
+        raise SystemExit("JEV_API_SECRET is required")
+    jev_url = validate_jev_url(os.getenv("JEV_API_URL") or DEFAULT_JEV_URL)
+
+    qcfg = json.loads((root / QUESTION_PATH).read_text())
+    questions = qcfg["questions"]
+    market_rows = load_market_universe(root)
+    candidates = select_candidates(market_rows, args.max_deep)
+    provider = MassiveClient(api_key, args.massive_min_interval)
+
+    as_of_date = max((r["as_of"] for r in market_rows), default=None)
+    if not as_of_date:
+        raise ResearchError("No market as-of date")
+    end = datetime.fromisoformat(as_of_date + "T23:59:59+00:00")
+    start = end - timedelta(days=args.lo
