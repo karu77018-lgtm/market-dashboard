@@ -83,65 +83,70 @@ for snap in SNAPS:
     rows.append({"snap":snap,"ticker":tk,"x":x,"y":y,"prior90":len(past90),"future_n":len(future)})
 DEV=set(SNAPS[:4]);CAL={SNAPS[4]};HOLD={SNAPS[5]}
 dev=[r for r in rows if r["snap"] in DEV];cal=[r for r in rows if r["snap"] in CAL];hold=[r for r in rows if r["snap"] in HOLD]
-def prep(train):
-    d=len(train[0]["x"]);med=[];mu=[];sig=[]
-    for j in range(d):
-      v=sorted(r["x"][j] for r in train);m=statistics.median(v);med.append(m);av=mean(v);mu.append(av);s=(sum((z-av)**2 for z in v)/len(v))**0.5;sig.append(s if s>1e-9 else 1)
-    return med,mu,sig
-def vec(r,state):
-    med,mu,sig=state;return [(r["x"][j]-mu[j])/sig[j] for j in range(len(mu))]
-def fit(train,lam,iters=500):
-    st=prep(train);X=[vec(r,st) for r in train];Y=[r["y"] for r in train];base=mean(Y);b=math.log(max(base,1e-6)/max(1-base,1e-6));w=[0.0]*len(X[0]);lr=.05
-    for _ in range(iters):
-      gb=0;gw=[0.0]*len(w)
-      for x,y in zip(X,Y):
-        p=sigmoid(b+sum(a*z for a,z in zip(w,x)));e=p-y;gb+=e
-        for j in range(len(w)):gw[j]+=e*x[j]
-      n=len(Y);b-=lr*gb/n
-      for j in range(len(w)):w[j]-=lr*(gw[j]/n+lam*w[j]/n)
-    return st,b,w,base
-def pred(m,rr):
-    st,b,w,base=m;return [sigmoid(b+sum(a*z for a,z in zip(w,vec(r,st)))) for r in rr]
-def metrics(rr,p):
-    y=[r["y"] for r in rr];base=mean(y);br=mean([(a-b)**2 for a,b in zip(p,y)])
-    k=max(1,len(rr)//10);order=sorted(range(len(rr)),key=lambda i:p[i],reverse=True);top=order[:k]
-    return {"n":len(rr),"event_rate":base,"brier":br,"roc_auc":auc(y,p),"average_precision":ap(y,p),
-            "mean_p":mean(p),"top_decile_event_rate":mean([y[i] for i in top]),"top_decile_lift":mean([y[i] for i in top])/base if base else None}
-lams=[1,5,10,20,50]
-cv=[]
-for lam in lams:
-    fold=[]
-    for j in range(2,4):
-      tr=[r for r in rows if r["snap"] in set(SNAPS[:j])]
-      va=[r for r in rows if r["snap"]==SNAPS[j]]
-      m=fit(tr,lam);p=pred(m,va);fold.append(metrics(va,p)["brier"])
-    cv.append((mean(fold),lam,fold))
-best=min(cv)[1]
-mdev=fit(dev,best);pcal=pred(mdev,cal);base=mdev[3]
-alphas=[0,.25,.5,.75,1]
-alpha=min(alphas,key=lambda a:mean([(base+a*(p-base)-r["y"])**2 for p,r in zip(pcal,cal)]))
-mfinal=fit(dev+cal,best);basef=mfinal[3]
-ph=[basef+alpha*(p-basef) for p in pred(mfinal,hold)]
-# simple empirical prior-event strata using only dev+cal
 train=dev+cal
-strata={}
-for label,fn in [("prior90_0",lambda r:r["prior90"]==0),("prior90_1",lambda r:r["prior90"]==1),("prior90_2plus",lambda r:r["prior90"]>=2)]:
-    z=[r["y"] for r in train if fn(r)]
-    strata[label]={"n":len(z),"rate":mean(z) if z else None}
-# empirical predictor on holdout
-pemp=[]
-for r in hold:
-    k="prior90_0" if r["prior90"]==0 else "prior90_1" if r["prior90"]==1 else "prior90_2plus"
-    pemp.append(strata[k]["rate"] if strata[k]["rate"] is not None else basef)
-# constant
-pconst=[basef]*len(hold)
-out={"version":"dilution-hazard-v1","snapshots":SNAPS,"rows":len(rows),"development_n":len(dev),"calibration_n":len(cal),"holdout_n":len(hold),
-"features":["prior_dilution30","prior_dilution90","prior_underwriting90","days_since_last_dilution","log_ddv20","log_price","vol20","ret21","ret63","dist_high63"],
-"cv":[{"lambda":l,"brier":b,"folds":f} for b,l,f in cv],"selected_lambda":best,"shrink_alpha":alpha,
-"train_event_rate":mean([r["y"] for r in dev+cal]),"strata":strata,
-"holdout":{"constant":metrics(hold,pconst),"empirical_history":metrics(hold,pemp),"logistic":metrics(hold,ph)},
+base=mean([r["y"] for r in train])
+# volatility tertiles learned on development only
+v=sorted(r["x"][6] for r in dev)
+v1=v[len(v)//3];v2=v[(2*len(v))//3]
+def hb(r):
+    return "0" if r["prior90"]==0 else "1" if r["prior90"]==1 else "2plus"
+def vb(r):
+    z=r["x"][6]
+    return "low" if z<=v1 else "mid" if z<=v2 else "high"
+def brier(rr,p):
+    return mean([(a-r["y"])**2 for a,r in zip(p,rr)])
+def ap(y,p):
+    order=sorted(range(len(y)),key=lambda i:p[i],reverse=True);tot=sum(y)
+    if tot==0:return None
+    tp=0;s=0
+    for rank,i in enumerate(order,1):
+        if y[i]:tp+=1;s+=tp/rank
+    return s/tot
+def auc(y,p):
+    pos=[p[i] for i,z in enumerate(y) if z];neg=[p[i] for i,z in enumerate(y) if not z]
+    if not pos or not neg:return None
+    s=0
+    for a in pos:
+      for b in neg:s+=1 if a>b else .5 if a==b else 0
+    return s/(len(pos)*len(neg))
+def metrics(rr,p):
+    y=[r["y"] for r in rr];k=max(1,len(rr)//10);order=sorted(range(len(rr)),key=lambda i:p[i],reverse=True)
+    top=order[:k];rate=mean(y)
+    return {"n":len(rr),"event_rate":rate,"brier":brier(rr,p),"roc_auc":auc(y,p),"average_precision":ap(y,p),
+            "mean_p":mean(p),"top_decile_event_rate":mean([y[i] for i in top]),"top_decile_lift":mean([y[i] for i in top])/rate if rate else None}
+def rates(rr,keyfn):
+    d={}
+    for r in rr:
+        k=keyfn(r);d.setdefault(k,[]).append(r["y"])
+    return {k:{"n":len(z),"rate":mean(z)} for k,z in d.items()}
+hist_raw=rates(dev,lambda r:hb(r))
+hv_raw=rates(dev,lambda r:hb(r)+"|"+vb(r))
+# empirical Bayes shrinkage chosen on calibration
+strengths=[0,25,50,100,200,500]
+def build_rates(raw,strength):
+    return {k:(z["rate"]*z["n"]+base*strength)/(z["n"]+strength) for k,z in raw.items()}
+def pred_from(rr,rates_,keyfn):
+    return [rates_.get(keyfn(r),base) for r in rr]
+best_hist=min(strengths,key=lambda s:brier(cal,pred_from(cal,build_rates(hist_raw,s),lambda r:hb(r))))
+best_hv=min(strengths,key=lambda s:brier(cal,pred_from(cal,build_rates(hv_raw,s),lambda r:hb(r)+"|"+vb(r))))
+# refit raw rates on dev+cal, keep strengths fixed
+hist_train=rates(train,lambda r:hb(r));hv_train=rates(train,lambda r:hb(r)+"|"+vb(r))
+hist_rates=build_rates(hist_train,best_hist);hv_rates=build_rates(hv_train,best_hv)
+pconst=[base]*len(hold)
+phist=pred_from(hold,hist_rates,lambda r:hb(r))
+phv=pred_from(hold,hv_rates,lambda r:hb(r)+"|"+vb(r))
+# exposure table with train frequencies
+history_table={k:{"n":z["n"],"raw_rate":z["rate"],"shrunk_rate":hist_rates[k]} for k,z in hist_train.items()}
+hv_table={k:{"n":z["n"],"raw_rate":z["rate"],"shrunk_rate":hv_rates[k]} for k,z in hv_train.items()}
+out={"version":"dilution-hazard-v1-empirical","snapshots":SNAPS,"rows":len(rows),"development_n":len(dev),"calibration_n":len(cal),"holdout_n":len(hold),
+"universe_filters":[">=100 prior sessions","price >= $5","DDV20 >= $10M"],
+"target":"any public offering/private placement/PIPE/warrant-conversion filing in next 60 calendar days",
+"train_event_rate":base,"vol_tertiles":{"low_max":v1,"mid_max":v2},
+"selected_shrink_strength":{"history":best_hist,"history_vol":best_hv},
+"history_table":history_table,"history_vol_table":hv_table,
+"holdout":{"constant":metrics(hold,pconst),"history":metrics(hold,phist),"history_vol":metrics(hold,phv)},
 "holdout_counts":{"positives":sum(r["y"] for r in hold),"total":len(hold)},
-"note":"Pilot 60-calendar-day dilution hazard. Snapshot universe requires >=100 prior sessions. No financial-statement cash runway yet."}
+"note":"Empirical 60-day dilution hazard. Financial-statement cash runway and explicit shelf/ATM capacity are not included yet."}
 json.dumps(out,allow_nan=False)
 `;
 export default async function handler(req,res){
