@@ -596,59 +596,59 @@ def choice(agg: dict[str, Any], qid: str) -> str | None:
     return str(value) if value is not None else None
 
 
+def choice_probability(agg: dict[str, Any], qid: str, option: str) -> float | None:
+    row = agg.get(qid)
+    if not isinstance(row, dict):
+        return None
+    distribution = row.get("choiceDistribution")
+    if not isinstance(distribution, dict):
+        return None
+    return _finite(distribution.get(option))
+
+
 def derive_label(expectation_load: float | None, agg: dict[str, Any]) -> str:
-    quality = choice(agg, "EG08_evidence_quality")
-    pos = prob(agg, "EG01_positive_business_change")
-    neg = prob(agg, "EG02_negative_business_change")
-    persist = prob(agg, "EG03_persistent_change")
-    novelty = prob(agg, "EG04_information_novelty")
-    embedded = prob(agg, "EG05_expectations_already_embedded")
-    sell_news = prob(agg, "EG07_sell_the_news_risk")
+    del expectation_load  # deterministic expectation load is evaluated outside Jev.
+    quality = choice(agg, "JEV05_evidence_quality")
+    material = prob(agg, "JEV01_material_business_change")
+    persist = prob(agg, "JEV02_persistent_change")
+    novelty = prob(agg, "JEV03_information_novelty")
+    surprise = choice(agg, "JEV04_surprise_vs_prior_expectations")
 
     if quality in {"weak", "insufficient", None}:
         return "INSUFFICIENT_EVIDENCE"
-    if neg is not None and neg >= 0.65 and (pos is None or neg > pos):
-        return "NEGATIVE_CHANGE"
+    if material is not None and material < 0.50 and surprise == "broadly_expected":
+        return "EXPECTED_OR_MINOR"
     if (
-        pos is not None and pos >= 0.65
-        and persist is not None and persist >= 0.55
-        and novelty is not None and novelty >= 0.55
+        surprise == "positive_surprise"
+        and material is not None and material >= 0.60
+        and persist is not None and persist >= 0.50
+        and novelty is not None and novelty >= 0.50
     ):
-        if (
-            (embedded is not None and embedded >= 0.65)
-            or (sell_news is not None and sell_news >= 0.65)
-            or (expectation_load is not None and expectation_load >= 70)
-        ):
-            return "POSITIVE_BUT_PRICED"
-        if (
-            embedded is not None and embedded <= 0.50
-            and expectation_load is not None and expectation_load <= 50
-        ):
-            return "UNDERAPPRECIATED_POSITIVE"
-        return "POSITIVE_WATCH"
-    return "MIXED_OR_NEUTRAL"
+        return "POSITIVE_SEMANTIC_CHANGE"
+    if surprise == "negative_surprise" and material is not None and material >= 0.60:
+        return "NEGATIVE_SEMANTIC_CHANGE"
+    if surprise == "broadly_expected":
+        return "BROADLY_EXPECTED"
+    return "MIXED_OR_UNCLEAR"
 
 
 def derived_features(agg: dict[str, Any]) -> dict[str, Any]:
-    ids = (
-        "EG01_positive_business_change",
-        "EG02_negative_business_change",
-        "EG03_persistent_change",
-        "EG04_information_novelty",
-        "EG05_expectations_already_embedded",
-        "EG06_followthrough_potential",
-        "EG07_sell_the_news_risk",
-    )
-    out = {qid: prob(agg, qid) for qid in ids}
-    out.update(
-        {
-            "evidence_quality": choice(agg, "EG08_evidence_quality"),
-            "business_direction": choice(agg, "EG09_business_direction"),
-            "insider_signal": choice(agg, "EG10_insider_signal"),
-            "positioning_asymmetry": choice(agg, "EG11_positioning_asymmetry"),
-        }
-    )
-    return out
+    return {
+        "material_business_change": prob(agg, "JEV01_material_business_change"),
+        "persistent_change": prob(agg, "JEV02_persistent_change"),
+        "information_novelty": prob(agg, "JEV03_information_novelty"),
+        "surprise_class": choice(agg, "JEV04_surprise_vs_prior_expectations"),
+        "positive_surprise_probability": choice_probability(
+            agg, "JEV04_surprise_vs_prior_expectations", "positive_surprise"
+        ),
+        "negative_surprise_probability": choice_probability(
+            agg, "JEV04_surprise_vs_prior_expectations", "negative_surprise"
+        ),
+        "broadly_expected_probability": choice_probability(
+            agg, "JEV04_surprise_vs_prior_expectations", "broadly_expected"
+        ),
+        "evidence_quality": choice(agg, "JEV05_evidence_quality"),
+    }
 
 
 def report(payload: dict[str, Any]) -> str:
@@ -660,7 +660,7 @@ def report(payload: dict[str, Any]) -> str:
         "",
         "## Design",
         "- Python: deterministic cross-sectional Expectation Load, batching, labels, and future backtests.",
-        "- Jev: English-only semantic interpretation of business change, novelty, persistence, and embedded expectations.",
+        "- Jev: optional English-only semantic overlay for materiality, persistence, novelty, and surprise versus prior expectations.",
         "- Massive: news, 8-K disclosure text, Form 4, short interest, and short volume.",
         "- No direct Jev stock-price forecast.",
         "",
@@ -677,11 +677,11 @@ def report(payload: dict[str, Any]) -> str:
     ]
     counts = payload.get("label_counts", {})
     for key in (
-        "UNDERAPPRECIATED_POSITIVE",
-        "POSITIVE_WATCH",
-        "POSITIVE_BUT_PRICED",
-        "NEGATIVE_CHANGE",
-        "MIXED_OR_NEUTRAL",
+        "POSITIVE_SEMANTIC_CHANGE",
+        "NEGATIVE_SEMANTIC_CHANGE",
+        "BROADLY_EXPECTED",
+        "EXPECTED_OR_MINOR",
+        "MIXED_OR_UNCLEAR",
         "INSUFFICIENT_EVIDENCE",
     ):
         lines.append(f"- {key}: {counts.get(key, 0)}")
@@ -692,10 +692,10 @@ def report(payload: dict[str, Any]) -> str:
         "- The deprecated Massive financials endpoint is not a core dependency because it can enter HTTP 410 brownout.",
         "- Short volume is contextual only and is never treated as short-interest direction by itself.",
         "- Form 4 grants, RSUs, exercises, tax withholding, gifts, and 10b5-1 sales are separated from discretionary insider activity.",
-        "- Combined labels must be backtested out-of-sample before any production use.",
+        "- Jev labels are isolated overlay features; they are adopted only if local out-of-sample ablation beats the deterministic baseline.",
         "",
         "## Next validation",
-        "Freeze historical point-in-time snapshots, compute forward 5D/10D/20D returns by label and Expectation Load bucket, then compare English Jev semantics against held-out labeled event cases.",
+        "Freeze Jev overlay features, then compare deterministic-only versus deterministic-plus-Jev locally on held-out 5D/10D/20D outcomes.",
     ]
     return "\n".join(lines) + "\n"
 
@@ -704,7 +704,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
     ap.add_argument("--dashboard", default="source-mc57.html")
-    ap.add_argument("--question-set", default="research/expectation_gap/question-set-en-v1.json")
+    ap.add_argument("--question-set", default="research/expectation_gap/question-set-en-v2.json")
     ap.add_argument("--output", default="research/expectation_gap/current-v1.json")
     ap.add_argument("--history-dir", default="research/expectation_gap/history")
     ap.add_argument("--report", default="maintenance/universal-expectation-gap-v1-20260930.md")
