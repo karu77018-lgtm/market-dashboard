@@ -1,0 +1,41 @@
+{
+  "version": "event-risk-decomposition-v1",
+  "created_date": "2026-09-30",
+  "architecture": {
+    "semantic_layer": "Jev extracts event type, polarity, stage, novelty, size/economics, and whether already realized.",
+    "probability_layer": "Python empirical/PIT hazard models.",
+    "impact_layer": "Python conditional impact library scaled by current pre-event-like volatility.",
+    "aggregation": "Keep downside and upside components separate; do not use one opaque score."
+  },
+  "dilution": {
+    "probability_horizon_days": 60,
+    "probability_candidate": "history+shelf for calibration; history+shelf+vol for ranking. Not yet promoted without another matured validation window.",
+    "impact_5d": {
+      "n": 115,
+      "mean_z": -0.3133044159096667,
+      "mean_negative_part_z": -0.6277714382148425,
+      "mean_positive_part_z": 0.31446702230517565,
+      "median_z": -0.39873132309214754,
+      "p10_z": -1.5669507773534126,
+      "p90_z": 0.9844334143715489
+    },
+    "impact_20d": {
+      "n": 81,
+      "mean_z": -0.2139895064573052,
+      "mean_negative_part_z": -0.42525025233592206,
+      "mean_positive_part_z": 0.21126074587861693,
+      "median_z": -0.24054485453199853,
+      "p10_z": -1.1851549571610176,
+      "p90_z": 0.6912799954665646
+    },
+    "formulas": {
+      "scale5": "daily_vol_pct * sqrt(5)",
+      "scale20": "daily_vol_pct * sqrt(20)",
+      "downside_ev5_pct": "p_event * mean_negative_part_z5 * scale5",
+      "upside_offset_ev5_pct": "p_event * mean_positive_part_z5 * scale5",
+      "net_ev5_pct": "p_event * mean_z5 * scale5",
+      "conditional_median5_pct": "median_z5 * scale5",
+      "conditional_p10_5_pct": "p10_z5 * scale5"
+    }
+  }
+}
