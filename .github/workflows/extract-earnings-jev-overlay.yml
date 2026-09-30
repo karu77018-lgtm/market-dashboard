@@ -1,0 +1,62 @@
+name: Extract earnings Jev overlay
+
+on:
+  push:
+    branches:
+      - research/universal-expectation-gap-20260930
+    paths:
+      - scripts/event_risk/build_earnings_jev_overlay.py
+      - research/expectation_gap/question-set-en-v2.json
+      - .github/workflows/extract-earnings-jev-overlay.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: extract-earnings-jev-overlay-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
+      JEV_API_SECRET: ${{ secrets.JEV_API_SECRET }}
+      JEV_API_URL: ${{ vars.JEV_API_URL || 'https://jev-investment-engine.vercel.app/api/jev' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install requests
+      - run: |
+          test -n "$MASSIVE_API_KEY"
+          test -n "$JEV_API_SECRET"
+      - name: Extract Jev features only
+        run: |
+          python scripts/event_risk/build_earnings_jev_overlay.py \
+            --root . \
+            --massive-min-interval 13
+      - name: Upload feature artifact for local backtest
+        uses: actions/upload-artifact@v4
+        with:
+          name: earnings-jev-overlay-${{ github.run_id }}
+          retention-days: 30
+          path: research/event_risk/earnings-jev-overlay-v1.json
+      - name: Commit frozen Jev features
+        run: |
+          cp research/event_risk/earnings-jev-overlay-v1.json /tmp/earnings-jev-overlay-v1.json
+          git fetch origin research/universal-expectation-gap-20260930
+          git reset --hard origin/research/universal-expectation-gap-20260930
+          cp /tmp/earnings-jev-overlay-v1.json research/event_risk/earnings-jev-overlay-v1.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add research/event_risk/earnings-jev-overlay-v1.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "research: freeze earnings Jev overlay features"
+          git push origin HEAD:research/universal-expectation-gap-20260930
