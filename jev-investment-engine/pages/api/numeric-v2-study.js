@@ -198,8 +198,9 @@ def breadth(origin):
     for tk,rows in SER.items():
         b=basic_at(rows,origin)
         if b: vals.append(b)
-    b50=100*sum(1 for b in vals if b["above50"] is True)/sum(1 for b in vals if b["above50"] is not None)
-    b200=100*sum(1 for b in vals if b["above200"] is True)/sum(1 for b in vals if b["above200"] is not None)
+    d50=sum(1 for b in vals if b["above50"] is not None);d200=sum(1 for b in vals if b["above200"] is not None)
+    b50=100*sum(1 for b in vals if b["above50"] is True)/d50 if d50 else None
+    b200=100*sum(1 for b in vals if b["above200"] is True)/d200 if d200 else None
     return b50,b200,len(vals)
 
 # previous breadth date 20 QQQ sessions ago
