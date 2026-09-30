@@ -538,29 +538,51 @@ def evaluate_jev(
     runs: int,
     timeout: int,
 ) -> dict[str, Any]:
-    response = session.post(
-        url,
-        headers={"Authorization": f"Bearer {secret}"},
-        json={
-            "state": state,
-            "questions": questions,
-            "runs": runs,
-            "persist": False,
-            "responseMode": "json",
-        },
-        timeout=timeout,
-    )
-    if response.status_code != 200:
-        raise ShadowRunError(f"Jev rejected {state['ticker']}: HTTP {response.status_code}")
-    payload = response.json()
-    aggregate = payload.get("aggregate")
-    if not isinstance(aggregate, dict):
-        raise ShadowRunError(f"Jev aggregate missing for {state['ticker']}")
-    return {
-        "aggregate": aggregate,
-        "gateway_cost_usd": _finite(payload.get("gatewayCostUsd")),
-        "duration_ms": safe_number(payload.get("durationMs")),
-    }
+    last_status = None
+    for attempt in range(3):
+        try:
+            response = session.post(
+                url,
+                headers={"Authorization": f"Bearer {secret}"},
+                json={
+                    "state": state,
+                    "questions": questions,
+                    "runs": runs,
+                    "persist": False,
+                    "responseMode": "json",
+                },
+                timeout=timeout,
+            )
+        except requests.RequestException as exc:
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+                continue
+            raise ShadowRunError(
+                f"Jev request failed for {state['ticker']}: {type(exc).__name__}"
+            ) from None
+
+        last_status = response.status_code
+        if response.status_code == 429 or response.status_code >= 500:
+            if attempt < 2:
+                time.sleep(min(2 ** attempt, 10))
+                continue
+        if response.status_code != 200:
+            raise ShadowRunError(f"Jev rejected {state['ticker']}: HTTP {response.status_code}")
+
+        try:
+            payload = response.json()
+        except ValueError:
+            raise ShadowRunError(f"Jev returned non-JSON for {state['ticker']}") from None
+        aggregate = payload.get("aggregate")
+        if not isinstance(aggregate, dict):
+            raise ShadowRunError(f"Jev aggregate missing for {state['ticker']}")
+        return {
+            "aggregate": aggregate,
+            "gateway_cost_usd": _finite(payload.get("gatewayCostUsd")),
+            "duration_ms": safe_number(payload.get("durationMs")),
+        }
+
+    raise ShadowRunError(f"Jev request failed for {state['ticker']}: HTTP {last_status}")
 
 
 def prob(agg: dict[str, Any], qid: str) -> float | None:
@@ -821,7 +843,11 @@ def main() -> int:
                 }
             )
         except Exception as exc:
-            errors.append({"ticker": ticker, "error": type(exc).__name__})
+            errors.append({
+                "ticker": ticker,
+                "error": type(exc).__name__,
+                "message": str(exc)[:220],
+            })
             results.append(
                 {
                     **row,
