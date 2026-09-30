@@ -20,7 +20,7 @@ async function verify(page,width){
   const tabs=page.locator('nav a.tabx');
   assert.equal(await tabs.count(),11,'all original tabs including Jev');
   assert.equal(await page.locator('.mh-card [data-window="2y"][aria-pressed="true"]').count(),await page.locator('.mh-card[data-history-key]').count());
-  assert(!requests.some(u=>/-[510]y\.json/.test(u)),'initial page must not request 5/10Y');
+  assert(!requests.some(u=>/-(?:5|10)y\.json/.test(u)),'initial page must not request 5/10Y');
   for(let i=0;i<await tabs.count();i++){
     const href=await tabs.nth(i).getAttribute('href');await tabs.nth(i).click();
     assert(await page.locator(href).isVisible(),'tab remains visible: '+href);
@@ -95,6 +95,8 @@ async function verify(page,width){
   const originalPaths=await group.locator('svg path').count();
   await seriesButtons.nth(0).click();assert.equal(await group.locator('svg path').count(),originalPaths-1);
   await seriesButtons.nth(0).click();assert.equal(await group.locator('svg path').count(),originalPaths);
+  for(let i=0;i<4;i++)await seriesButtons.nth(i).click();
+  assert.equal(await group.locator('svg path').count(),1,'last visible series cannot be hidden');
   const spacing=await group.evaluate(c=>c.querySelector(':scope > .sub').getBoundingClientRect().top-c.querySelector('.mh-plot > .dax').getBoundingClientRect().bottom);
   assert(spacing>=7,'date labels separated from description');
   const text=await page.locator('.mkt20-read').first().innerText();
