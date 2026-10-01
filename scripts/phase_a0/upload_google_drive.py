@@ -5,6 +5,7 @@ import argparse
 import json
 import mimetypes
 import os
+import tarfile
 import urllib.parse
 from pathlib import Path
 from typing import Any
@@ -62,9 +63,9 @@ def assert_private_folder(token: str, folder_id: str) -> None:
         raise RuntimeError("Google Drive destination folder has an 'anyone' permission; refusing private upload")
 
 
-def upload_create_only(token: str, folder_id: str, path: Path) -> dict[str, Any]:
+def upload_create_only(token: str, folder_id: str, path: Path, *, properties: dict | None = None) -> dict[str, Any]:
     content_type = mimetypes.guess_type(path.name)[0] or "application/gzip"
-    metadata = json.dumps({"name": path.name, "parents": [folder_id]}, separators=(",", ":")).encode("utf-8")
+    metadata = json.dumps({"name": path.name, "parents": [folder_id], "appProperties": properties or {}}, separators=(",", ":")).encode("utf-8")
     query = urllib.parse.urlencode({"uploadType": "resumable", "supportsAllDrives": "true",
                                     "fields": "id,name,createdTime,md5Checksum,size"})
     _, response = request_json(f"{DRIVE_UPLOAD_API}/files?{query}", method="POST",
@@ -81,6 +82,20 @@ def upload_create_only(token: str, folder_id: str, path: Path) -> dict[str, Any]
     if not created.get("id"):
         raise RuntimeError("Google Drive create response did not contain a file id")
     return created
+
+
+def find_existing_content(token: str, folder_id: str, properties: dict) -> dict | None:
+    def quote(value):
+        return str(value).replace("\\", "\\\\").replace("'", "\\'")
+    query = f"'{quote(folder_id)}' in parents and trashed = false"
+    for key, value in properties.items():
+        query += f" and appProperties has {{ key='{quote(key)}' and value='{quote(value)}' }}"
+    url = f"{DRIVE_API}/files?" + urllib.parse.urlencode({"q": query,
+        "fields": "files(id,name,createdTime,md5Checksum,size)", "pageSize": 1,
+        "supportsAllDrives": "true", "includeItemsFromAllDrives": "true"})
+    result, _ = request_json(url, headers={"Authorization": f"Bearer {token}"})
+    rows = result.get("files", [])
+    return rows[0] if rows else None
 
 
 def main() -> int:
@@ -101,8 +116,15 @@ def main() -> int:
         raise SystemExit(f"snapshot not found: {snapshot}")
     token = access_token(args.client_id, args.client_secret, args.refresh_token)
     assert_private_folder(token, args.folder_id)
-    created = upload_create_only(token, args.folder_id, snapshot)
-    result = {"drive_file_id": created["id"], "drive_file_name": created.get("name", snapshot.name),
+    with tarfile.open(snapshot, "r:gz") as archive:
+        manifest = json.load(archive.extractfile("snapshot-manifest.json"))
+    properties = {"session": manifest["session_date"], "mode": manifest["snapshot_mode"],
+                  "content_sha256": manifest.get("content_sha256", "")}
+    created = find_existing_content(token, args.folder_id, properties) if properties["content_sha256"] else None
+    reused = created is not None
+    if created is None:
+        created = upload_create_only(token, args.folder_id, snapshot, properties=properties)
+    result = {"duplicate_content": str(reused).lower(), "drive_file_id": created["id"], "drive_file_name": created.get("name", snapshot.name),
               "drive_created_time": created.get("createdTime", ""),
               "drive_md5_checksum": created.get("md5Checksum", ""),
               "drive_size": created.get("size", str(snapshot.stat().st_size))}

@@ -1,0 +1,36 @@
+name: Verify dashboard code and mobile display
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['scripts/**', 'src/**', 'tests/**', 'assets/**', '.github/workflows/**', 'source-mc57.html']
+  push:
+    branches: [main]
+    paths: ['scripts/**', 'src/**', 'tests/**', 'assets/**', '.github/workflows/**']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.11'}
+      - name: Restore frozen assets for deterministic fixtures
+        run: tar -xJf bootstrap/recovery-assets.tar.xz
+      - name: Install test dependencies
+        run: python -m pip install 'numpy<3' 'pandas<3' yfinance==0.2.66 requests beautifulsoup4 lxml pytest
+      - name: Test session, provider, archive and presentation contracts
+        run: python -m pytest
+      - name: Install browser dependencies
+        run: |
+          npm install --no-save --package-lock=false playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Verify display adapters using published inputs
+        run: |
+          python scripts/dashboard_fixes.py
+          python scripts/render_jev_ranking.py
+      - name: Verify all tabs, mobile overflow and Jev freshness
+        run: node tests/market_history_ui.cjs
+      - name: Verify public outputs contain no credentials
+        run: python scripts/phase_a0/scan_secrets.py --root . source-mc57.html assets data/jev-ranking.json data/mc57.json

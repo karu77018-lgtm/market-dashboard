@@ -7,6 +7,7 @@ on:
     types: [completed]
 
 permissions:
+  actions: read
   contents: write
 
 concurrency:
@@ -14,8 +15,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  source_published:
+    runs-on: ubuntu-latest
+    outputs:
+      evaluate: ${{ steps.gate.outputs.evaluate }}
+    steps:
+      - name: Ignore probe-only completions
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ github.event.workflow_run.id }}
+          REPOSITORY: ${{ github.repository }}
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          if test "$MANUAL" = "true"; then
+            echo "evaluate=true" >> "$GITHUB_OUTPUT"
+          else
+            result="$(gh api "repos/$REPOSITORY/actions/runs/$SOURCE_RUN/jobs" --jq '[.jobs[] | select(.name == "refresh" and .conclusion == "success")] | length > 0')"
+            echo "evaluate=$result" >> "$GITHUB_OUTPUT"
+          fi
   evaluate:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    needs: source_published
+    if: needs.source_published.outputs.evaluate == 'true' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -67,11 +88,6 @@ jobs:
           include-hidden-files: true
           if-no-files-found: warn
           path: .preservation/jev/live-shadow-summary.json
-      - name: Render isolated Jev expected-value ranking tab
-        if: always()
-        run: >-
-          python scripts/render_jev_ranking.py
-          --html source-mc57.html --ranking data/jev-ranking.json
       - name: Secret leak gate
         if: always()
         id: secret_scan
@@ -103,7 +119,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- source-mc57.html
           git add -f -- data/jev-ranking.json
           if git diff --cached --quiet; then
             echo "No Jev publication change"

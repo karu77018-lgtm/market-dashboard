@@ -212,7 +212,7 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
                 el.string=narrative(mc,breadth,summary)['verdict']+' MC57 '+str(round(mc['mc57']))+'。63D上位 '+(' / '.join(summary.get('leading',[])) or 'DATA UNAVAILABLE')+'。'
         for node in list(doc.find_all(string=True)):
             if node.parent.name in ('script','style'): continue
-            if 'レジーム判定' in str(node): node.replace_with(str(node).replace('レジーム判定','NQ運用判定（専用）'))
+            if 'レジーム判定' in str(node): node.replace_with(str(node).replace('レジーム判定','NQ露出上限'))
             elif '警戒灯' == str(node).strip(): node.replace_with('補助リスク（MC57外）')
         # Relabel SAR panels explicitly and remove embedded SAR prose conclusions.
         for node in list(doc.find_all(string=True)):

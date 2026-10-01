@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from render_jev_ranking import render  # noqa: E402
+from render_jev_ranking import render, render_section, source_hash, bind_ranking  # noqa: E402
 
 
 def test_render_adds_one_isolated_tab_and_is_idempotent(tmp_path: Path):
@@ -41,6 +41,12 @@ def test_render_adds_one_isolated_tab_and_is_idempotent(tmp_path: Path):
     assert rendered.count("Jev期待値</a>") == 1
     assert rendered.count("jev-ranking-section") == 1
     assert "original" in rendered
+    assert 'src="assets/jev-ranking.js"' in rendered
+    assert "AAA" not in rendered  # independent JSON no longer copied into HTML
+    before = source_hash(rendered)
+    bind_ranking(html_path, ranking_path)
+    assert json.loads(ranking_path.read_text())["source_html_sha256"] == before
+    rendered = render_section(json.loads(ranking_path.read_text()))
     assert "AAA" in rendered
     assert "+12.5" in rendered
     assert "ピックアップ / RS21上位" in rendered
