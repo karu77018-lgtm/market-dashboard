@@ -901,6 +901,8 @@ def main() -> int:
             rows=ranking_rows,
             error_count=summary["error_count"],
         )
+        from render_jev_ranking import bind_ranking
+        bind_ranking(root / args.dashboard, ranking_path)
     write_summary(output_path, summary)
     append_actions_summary(summary)
     print(

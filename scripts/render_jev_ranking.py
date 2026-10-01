@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import html
+import hashlib
+import re
 import json
 from pathlib import Path
 from typing import Any
@@ -80,11 +82,11 @@ def render_section(payload: dict[str, Any]) -> str:
             f"<tr class='jev-click' role='button' tabindex='0' aria-label='{esc(row.get('ticker', '—'))}の銘柄情報を開く' "
             f"onclick=\"showDet('{esc(row.get('ticker', ''))}')\" "
             f"onkeydown=\"if(event.key==='Enter'||event.key===' '){{event.preventDefault();showDet('{esc(row.get('ticker', ''))}')}}\">"
-            f"<td class='jev-rank'>{index}</td>"
             f"<td class='jev-ticker'><b>{esc(row.get('ticker', '—'))}</b>"
             f"<span>{esc(' / '.join(row.get('candidate_sources') or ['候補']))}</span></td>"
-            f"<td class='jev-rs'>{esc(rs_triplet(row))}</td>"
             f"<td class='jev-score'>{score(row.get('expected_value_score'))}</td>"
+            f"<td class='jev-rank'>{index}</td>"
+            f"<td class='jev-rs'>{esc(rs_triplet(row))}</td>"
             f"<td>{pct(row.get('catalyst_probability'))}</td>"
             f"<td>{pct(row.get('risk_probability'))}</td>"
             f"<td class='jev-driver'>{esc(row.get('top_catalyst_label', '—'))}<span>"
@@ -96,7 +98,7 @@ def render_section(payload: dict[str, Any]) -> str:
         )
         table = (
             "<div class='jev-table-wrap'><table class='ptab jev-table'><thead><tr>"
-            "<th>#</th><th class='l'>銘柄・候補元</th><th>RS 21・63・189</th><th>期待値</th><th>好材料</th><th>リスク</th>"
+            "<th class='l'>銘柄・候補元</th><th>期待値</th><th>#</th><th>RS 21・63・189</th><th>好材料</th><th>リスク</th>"
             "<th class='l'>最大の好材料</th><th class='l'>最大のリスク</th>"
             f"</tr></thead><tbody>{body}</tbody></table></div>"
         )
@@ -122,7 +124,7 @@ def render_section(payload: dict[str, Any]) -> str:
 
 
 STYLE = """<!-- JEV_RANKING_STYLE_START --><style id="jev-ranking-style">
-.jev-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}.jev-table{min-width:900px}
+.jev-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}.jev-table{min-width:900px;table-layout:fixed}.jev-table th:nth-child(1){width:130px}.jev-table th:nth-child(2){width:65px}.jev-table th:nth-child(3){width:28px}.jev-ticker span{white-space:normal;overflow-wrap:anywhere}.jev-ticker{max-width:130px}
 .jev-table td,.jev-table th{white-space:nowrap}.jev-rank{color:#777268;font-weight:700}
 .jev-ticker span,.jev-driver span{display:block;color:#8b877d;font-size:9px;margin-top:2px}
 .jev-score{font-weight:800;color:#2457a6}.jev-explain .sub{line-height:1.7}.jev-asof{margin-top:8px}
@@ -133,9 +135,25 @@ STYLE = """<!-- JEV_RANKING_STYLE_START --><style id="jev-ranking-style">
 </style><!-- JEV_RANKING_STYLE_END -->"""
 
 
+def source_hash(text: str) -> str:
+    text = re.sub(r'<meta\b(?=[^>]*\bname="dashboard-source-sha256")[^>]*>', '', text)
+    text = re.sub(r'<script id="jev-ranking-loader"[^>]*></script>', '', text)
+    # Jev's section is independent of source evidence.
+    text = remove_between(text, SECTION_START, SECTION_END)
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
+def bind_ranking(html_path: Path, ranking_path: Path) -> None:
+    payload = load_ranking(ranking_path)
+    payload["source_html_sha256"] = source_hash(html_path.read_text())
+    ranking_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def render(html_path: Path, ranking_path: Path) -> None:
     payload = load_ranking(ranking_path)
     text = html_path.read_text(encoding="utf-8")
+    text = re.sub(r'<meta\b(?=[^>]*\bname="dashboard-source-sha256")[^>]*>', '', text)
+    text = re.sub(r'<script id="jev-ranking-loader"[^>]*></script>', '', text)
     text = remove_between(text, STYLE_START, STYLE_END)
     text = remove_between(text, SECTION_START, SECTION_END)
     text = remove_between(text, NAV_START, NAV_END)
@@ -154,7 +172,11 @@ def render(html_path: Path, ranking_path: Path) -> None:
     footer = "<footer class='disc'>"
     if footer not in text:
         raise RuntimeError("dashboard footer anchor not found")
-    text = text.replace(footer, render_section(payload) + footer, 1)
+    shell = render_section({"rows": []}).replace('Jev評価データはまだありません。次の自動更新で評価後に表示されます。', 'Jev評価を読み込み中…')
+    text = text.replace(footer, shell + footer, 1)
+    digest = source_hash(text)
+    text = text.replace('</head>', f'<meta name="dashboard-source-sha256" content="{digest}"/>' + '</head>', 1)
+    text = text.replace('</body>', '<script id="jev-ranking-loader" src="assets/jev-ranking.js"></script></body>', 1)
     html_path.write_text(text, encoding="utf-8")
 
 
@@ -162,7 +184,11 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--html", default="source-mc57.html")
     parser.add_argument("--ranking", default="data/jev-ranking.json")
+    parser.add_argument("--bind-only", action="store_true")
     args = parser.parse_args()
+    if args.bind_only:
+        bind_ranking(Path(args.html), Path(args.ranking))
+        return 0
     render(Path(args.html), Path(args.ranking))
     print(json.dumps({"status": "rendered", "tab": "Jev期待値"}, ensure_ascii=False))
     return 0

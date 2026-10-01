@@ -2,11 +2,14 @@ name: Refresh source-mc57
 
 on:
   workflow_dispatch:
+    inputs:
+      mc57_correction_reason:
+        description: "Explicit same-session MC57 correction reason (blank preserves published value)"
+        required: false
+        type: string
   schedule:
     - cron: "45 21 * * 1-5"
-  push:
-    branches: [main]
-    paths: [".github/workflows/refresh-source-mc57.yml", "scripts/**", "assets/**", "src/**", "bootstrap/**", "sources/**", "seed/**", "tests/**"]
+    - cron: "30 5-19/2 * * 2-6"
 
 permissions:
   actions: read
@@ -17,8 +20,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  retry_probe:
+    runs-on: ubuntu-latest
+    outputs:
+      run_refresh: ${{ steps.probe.outputs.run_refresh }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - name: Probe delayed confirmation only when needed
+        id: probe
+        env:
+          IS_RETRY: ${{ github.event_name == 'schedule' && github.event.schedule != '45 21 * * 1-5' }}
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
+        run: |
+          if test "$IS_RETRY" != "true"; then
+            echo "run_refresh=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python -m pip install requests
+          python scripts/probe_massive_confirmation.py
   refresh:
-    if: github.actor != 'github-actions[bot]' || github.event_name == 'schedule'
+    needs: retry_probe
+    if: needs.retry_probe.outputs.run_refresh == 'true' && ( github.actor != 'github-actions[bot]' || github.event_name == 'schedule')
     runs-on: ubuntu-latest
     timeout-minutes: 330
     env:
@@ -73,14 +97,23 @@ jobs:
             work/mc57-authoritative.json
             work/massive-reference.json
             work/massive-grouped.json
+            work/universes/
+            work/mc57-corrections/
           key: source-mc57-ohlcv-${{ github.run_id }}
           restore-keys: source-mc57-ohlcv-
       - name: Acquire current session and calculate MC57
         id: acquire
         shell: bash
+        env:
+          MC57_CORRECTION_REASON: ${{ inputs.mc57_correction_reason }}
         run: |
           set +e
-          python scripts/refresh_mc57.py --repo-root . 2>&1 | tee work/refresh.log
+          mkdir -p work
+          correction_args=()
+          if test -n "$MC57_CORRECTION_REASON"; then
+            correction_args=(--mc57-correction-reason "$MC57_CORRECTION_REASON")
+          fi
+          python scripts/refresh_mc57.py --repo-root . "${correction_args[@]}" 2>&1 | tee work/refresh.log
           status="${PIPESTATUS[0]}"
           if test "$status" -ne 0; then
             code="$(grep '^SOURCE_MC57_FAILURE=' work/refresh.log | tail -n 1)"
@@ -98,6 +131,8 @@ jobs:
             work/mc57-authoritative.json
             work/massive-reference.json
             work/massive-grouped.json
+            work/universes/
+            work/mc57-corrections/
           key: source-mc57-ohlcv-${{ github.run_id }}
       - name: Preserve successful acquisition cache before display generation
         if: always() && steps.acquire.outcome == 'success'
@@ -108,6 +143,8 @@ jobs:
             work/mc57-authoritative.json
             work/massive-reference.json
             work/massive-grouped.json
+            work/universes/
+            work/mc57-corrections/
           key: source-mc57-ohlcv-${{ github.run_id }}
       - name: Restore independent long ETF history cache
         uses: actions/cache/restore@v4
@@ -198,7 +235,7 @@ jobs:
           GOOGLE_DRIVE_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_FOLDER_ID || secrets.GOOGLE_DRIVE_FOLDER_ID }}
         run: python scripts/phase_a0/upload_google_drive.py "${{ steps.snapshot.outputs.snapshot_path }}"
       - name: Write run-id hash history
-        if: steps.drive_upload.outcome == 'success'
+        if: steps.drive_upload.outcome == 'success' && steps.drive_upload.outputs.duplicate_content != 'true'
         id: hash_record
         continue-on-error: true
         run: >-
@@ -216,7 +253,7 @@ jobs:
           --source google_drive_live
           --snapshot-mode "${{ steps.snapshot.outputs.snapshot_mode }}"
       - name: Optionally append copy to Neon manifest
-        if: steps.drive_upload.outcome == 'success' && steps.neon_config.outputs.enabled == 'true'
+        if: steps.drive_upload.outcome == 'success' && steps.drive_upload.outputs.duplicate_content != 'true' && steps.neon_config.outputs.enabled == 'true'
         id: neon_record
         continue-on-error: true
         env: {NEON_DATABASE_URL: "${{ secrets.NEON_DATABASE_URL }}"}
@@ -236,7 +273,7 @@ jobs:
           --drive-created-at "${{ steps.drive_upload.outputs.drive_created_time }}"
           --source google_drive_live
       - name: Build interim encrypted private snapshot
-        if: always() && steps.snapshot.outcome == 'success' && steps.hash_record.outcome != 'success'
+        if: always() && steps.snapshot.outcome == 'success' && steps.hash_record.outcome != 'success' && steps.drive_upload.outputs.duplicate_content != 'true'
         id: interim
         continue-on-error: true
         env:
@@ -303,7 +340,7 @@ jobs:
             ${{ steps.interim.outputs.metadata_path }}
       - name: Record successful monthly full snapshot
         if: >-
-          always() && steps.snapshot.outputs.snapshot_mode == 'full' && (
+          always() && steps.drive_upload.outputs.duplicate_content != 'true' && steps.snapshot.outputs.snapshot_mode == 'full' && (
             steps.hash_record.outcome == 'success' ||
             steps.interim_artifact.outcome == 'success'
           )
@@ -344,6 +381,7 @@ jobs:
             market-history/
             assets/
             latest-manifest.json
+            universe-snapshots/
             data/mc57.json
             data/state.json
             data/rs.json
@@ -384,7 +422,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- source-mc57.html chart-data market-history assets latest-manifest.json && git add -f -- data/jev-ranking.json data/mc57.json
+          git add -- source-mc57.html chart-data market-history assets latest-manifest.json universe-snapshots && git add -f -- data/jev-ranking.json data/mc57.json
           if test -n "$HASH_RECORD_PATH"; then git add -- "$HASH_RECORD_PATH"; fi
           if test -n "$FULL_MARKER_PATH"; then git add -- "$FULL_MARKER_PATH"; fi
           if git diff --cached --quiet; then echo "No publication change"; exit 0; fi
@@ -397,7 +435,7 @@ jobs:
             steps.public_artifact.outcome == 'failure' ||
             steps.full_marker.outcome == 'failure' ||
             (
-              steps.interim_artifact.outcome != 'success' && (
+              steps.interim_artifact.outcome != 'success' && steps.drive_upload.outputs.duplicate_content != 'true' && (
                 steps.drive_config.outcome == 'failure' ||
                 steps.drive_upload.outcome == 'failure' ||
                 steps.hash_record.outcome == 'failure'

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
 import json
 import math
 import sys
@@ -394,7 +395,7 @@ def compute_mc57(close: pd.DataFrame, target: str, generated_at: str, *, history
 
 
 
-def preserve_same_session_mc57(root: Path, fresh: dict[str, Any]) -> dict[str, Any]:
+def preserve_same_session_mc57(root: Path, fresh: dict[str, Any], *, correction_reason: str | None = None) -> dict[str, Any]:
     """Explicit same-session authoritative cache, never previous-session reuse.
 
     Yahoo may retroactively revise adjusted prices on reruns. This UI change
@@ -405,7 +406,7 @@ def preserve_same_session_mc57(root: Path, fresh: dict[str, Any]) -> dict[str, A
     cache = root / "work" / "mc57-authoritative.json"
     seed = root / "seed" / "mc57_display_2026-09-29.json.gz"
     prior = None
-    for path in (cache, seed):
+    for path in (cache, root / "data" / "mc57.json", seed):
         if not path.is_file():
             continue
         obj = json.loads(gzip.decompress(path.read_bytes()) if path.suffix == ".gz" else path.read_text(encoding="utf-8"))
@@ -414,6 +415,29 @@ def preserve_same_session_mc57(root: Path, fresh: dict[str, Any]) -> dict[str, A
                 and obj.get("status") == "READY" and obj.get("coverage") == 1.0):
             prior = obj
             break
+    if correction_reason:
+        previous = prior
+        if previous is None and (root / "data" / "mc57.json").is_file():
+            candidate = json.loads((root / "data" / "mc57.json").read_text())
+            if candidate.get("session_date") == fresh["session_date"]:
+                previous = candidate
+        if previous is None:
+            raise RuntimeError("MC57 correction requires an existing publication for this session")
+        correction = {"reason": correction_reason, "published_at": fresh["generated_at"],
+                      "previous_mc57": previous["mc57"], "corrected_mc57": fresh["mc57"],
+                      "previous_calculation_version": previous["calculation_version"],
+                      "calculation_version": fresh["calculation_version"]}
+        fresh["corrections"] = [*previous.get("corrections", []), correction]
+        archive = root / "work" / "mc57-corrections" / fresh["session_date"]
+        archive.mkdir(parents=True, exist_ok=True)
+        digest = hashlib.sha256(json.dumps(previous, sort_keys=True).encode()).hexdigest()
+        dump(archive / f"{digest}.json", previous)
+        long_path = root / "market-history" / "mc57-full.json"
+        full = json.loads(long_path.read_text())
+        full["corrections"] = fresh["corrections"]
+        dump(long_path, full)
+        dump(cache, fresh)
+        return fresh
     if prior is not None:
         long_path = root / "market-history" / "mc57-full.json"
         full = json.loads(long_path.read_text(encoding="utf-8"))
@@ -435,6 +459,7 @@ def preserve_same_session_mc57(root: Path, fresh: dict[str, Any]) -> dict[str, A
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo-root", default=str(ROOT))
+    ap.add_argument("--mc57-correction-reason", default=None)
     args = ap.parse_args()
     root = Path(args.repo_root).resolve()
     data, work = root / "data", root / "work"
@@ -465,8 +490,13 @@ def main() -> int:
         )
     print(f"target completed US session: {target}", flush=True)
 
-    tv = la.fetch_tradingview_response()
-    broad_universe, tradingview_stats = la.parse_tradingview_universe(tv, session_date=target)
+    from session_universe import load_frozen, save_frozen, coverage_stats
+    frozen = load_frozen(work, target)
+    if frozen:
+        broad_universe, tradingview_stats = [], frozen["tradingview_stats"]
+    else:
+        tv = la.fetch_tradingview_response()
+        broad_universe, tradingview_stats = la.parse_tradingview_universe(tv, session_date=target)
     fallback_reason = ""
     try:
         if not massive_key:
@@ -493,7 +523,9 @@ def main() -> int:
                          "requested_sessions": len(sessions), "fetched_sessions": []}
 
     yahoo_fallback = bool(fallback_reason) or target not in grouped
-    if yahoo_fallback:
+    if frozen:
+        universe, expansion_stats = frozen["rows"], frozen["expansion_stats"]
+    elif yahoo_fallback:
         print(f"Massive current-session fallback: {fallback_reason or 'session unavailable'}", flush=True)
         prior_tickers = prior_universe_tickers(root, work / "ohlcv.csv")
         frozen_count = prior_universe_count(root, prior_tickers)
@@ -501,14 +533,21 @@ def main() -> int:
             broad_universe, reference, grouped, preserved_tickers=prior_tickers,
             target_count=frozen_count,
         )
-        record_grouped_fallback(work / "massive-grouped.json", target, fallback_reason or "current session unavailable")
     else:
         universe, expansion_stats = select_expanded_universe(
             broad_universe, reference, grouped, target_session=target,
         )
+    if not frozen:
+        frozen = save_frozen(work, target, universe, expansion_stats, tradingview_stats, generated_at)
+    if yahoo_fallback:
+        record_grouped_fallback(work / "massive-grouped.json", target, fallback_reason or "current session unavailable")
+    expansion_stats = {**expansion_stats, **coverage_stats(universe, grouped.get(target, {}))}
+    if not yahoo_fallback and expansion_stats["massive_current_coverage"] < .95:
+        raise RuntimeError("frozen universe Massive coverage below 95%")
     universe_stats = {
         **tradingview_stats, **expansion_stats,
-        "broad_tradingview_universe": len(broad_universe),
+        "broad_tradingview_universe": frozen["broad_count"],
+        "session_snapshot": {k: v for k, v in frozen.items() if k not in {"rows", "expansion_stats", "tradingview_stats"}},
         "massive_reference": reference_stats,
         "massive_grouped": grouped_stats,
     }
@@ -568,7 +607,7 @@ def main() -> int:
     dump(data / "market_inputs.json", market)
     mc57 = compute_mc57(mc57_prices(target), target, generated_at,
                          history_output=root / "market-history" / "mc57-full.json")
-    mc57 = preserve_same_session_mc57(root, mc57)
+    mc57 = preserve_same_session_mc57(root, mc57, correction_reason=args.mc57_correction_reason)
     dump(data / "mc57.json", mc57)
     dump(data / "state.json", la.state_object(session_date=target, generated_at=generated_at,
                                                coverage=yahoo_stats["target_session_coverage"]))
@@ -582,6 +621,9 @@ def main() -> int:
                          "massive": "FALLBACK_YAHOO" if yahoo_fallback else "READY",
                          "massive_current_coverage": (None if yahoo_fallback else expansion_stats["massive_current_coverage"]),
                          "cross_vendor_coverage": cross_vendor["coverage"],
+                         "publication_state": "provisional" if yahoo_fallback else "confirmed",
+                         "missing_current_rows": (len(tickers) - yahoo_stats["target_session_received"] if yahoo_fallback else expansion_stats["massive_current_missing"]),
+                         "adopted_universe_count": len(tickers),
                          "current_session_provider": "Yahoo Finance" if yahoo_fallback else "Massive",
                      },
                      "universe_expansion": {

@@ -160,6 +160,12 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     requested_paths = args.paths or list(DEFAULT_PATHS)
     files = collect_files(root, requested_paths)
+    if args.paths is None:
+        # Preserve private universe snapshots and prior correction evidence too.
+        for optional in ("work/universes", "universe-snapshots", "work/mc57-corrections", "assets", "market-history", "data/jev-ranking.json"):
+            if (root / optional).exists():
+                files.extend(collect_files(root, [optional]))
+        files = sorted(set(files))
     snapshot_mode = resolve_snapshot_mode(args.snapshot_mode)
     recorded_at = iso_utc(args.recorded_at)
 
@@ -186,7 +192,16 @@ def main() -> int:
                 row["source_before_delta"] = file_evidence(original, relative)
             file_rows.append(row)
 
+        try:
+            from scripts.phase_a0.content_hash import content_hash
+        except ModuleNotFoundError:
+            from content_hash import content_hash
+        content_sha256 = content_hash(
+            [(staged, relative) for staged, relative, _ in archived] +
+            [(path, path.relative_to(root).as_posix()) for path in external],
+            args.session_date, snapshot_mode)
         manifest = {
+            "content_sha256": content_sha256,
             "schema_version": "phase-a0-v2", "session_date": args.session_date,
             "github_run_id": str(args.run_id),
             "github_actions_started_at": iso_utc(args.actions_started_at),
@@ -227,6 +242,7 @@ def main() -> int:
 
     result = {
         "snapshot_path": final_path.relative_to(root).as_posix(), "snapshot_name": final_path.name,
+        "content_sha256": content_sha256,
         "snapshot_sha256": snapshot_sha256, "manifest_path": manifest_path.relative_to(root).as_posix(),
         "manifest_sha256": manifest_sha256, "snapshot_bytes": final_path.stat().st_size,
         "recorded_at": recorded_at, "snapshot_mode": snapshot_mode,

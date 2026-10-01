@@ -289,6 +289,8 @@ def fetch_massive_grouped_history(
             raise ProviderError(f"Massive grouped response for {day} contained no eligible rows")
         history[day] = rows
         fetched.append(day)
+        # Keep successful earlier dates even if the newest date is not entitled yet.
+        _write_json(path, {"schema": "source-mc57.massive-grouped.1", "sessions": history})
     _write_json(path, {"schema": "source-mc57.massive-grouped.1", "sessions": history})
     current_count = len(history.get(wanted[-1], {}))
     return history, {

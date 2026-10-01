@@ -10,7 +10,7 @@ const server=spawn('python',['-m','http.server','8798','--bind','127.0.0.1'],{cw
 const url=process.env.MARKET_UI_URL||'http://127.0.0.1:8798/source-mc57.html';
 async function verify(page,width){
   await page.setViewportSize({width,height:900});
-  const requests=[]; page.on('request',r=>requests.push(r.url()));
+  const requests=[],errors=[]; page.on('request',r=>requests.push(r.url())); page.on('pageerror',e=>errors.push(e.message));
   await page.goto(url,{waitUntil:'networkidle'});
   assert.equal(await page.locator('.mh-tools button:disabled').count(),0,'no unavailable period choices');
   const sparks=page.locator('svg.spark');
@@ -26,7 +26,24 @@ async function verify(page,width){
   for(let i=0;i<await tabs.count();i++){
     const href=await tabs.nth(i).getAttribute('href');await tabs.nth(i).click();
     assert(await page.locator(href).isVisible(),'tab remains visible: '+href);
+    const pageOverflow=await page.evaluate(()=>document.documentElement.scrollWidth-innerWidth);
+    assert(pageOverflow<=1,'all tabs fit viewport '+width+' '+href+' overflow='+pageOverflow);
   }
+  await page.locator('nav a[href="#t-jev"]').click();
+  await page.waitForFunction(()=>document.querySelector('#t-jev').dataset.rankingState);
+  const ranking=JSON.parse(fs.readFileSync(root+'/data/jev-ranking.json'));
+  const metaHash=await page.locator('meta[name="dashboard-source-sha256"]').getAttribute('content');
+  const expectedState=ranking.session_date===mc.session_date&&ranking.source_html_sha256===metaHash?'current':'previous';
+  assert.equal(await page.locator('#t-jev').getAttribute('data-ranking-state'),expectedState,'session/hash freshness');
+  const scoreBox=await page.locator('.jev-table tbody tr:first-child .jev-score').boundingBox();
+  assert(scoreBox&&scoreBox.x+scoreBox.width<=width,'Jev expected value initially visible '+width);
+  assert.equal(await page.locator('.core-table-wrap').count(),2,'both Core 12 tables contained');
+  assert((await page.locator('#taExpo').innerText()).includes('目標露出（上限）'));
+  assert(!(await page.locator('#taExpo').innerText()).includes('フル投資'));
+  assert(await page.locator('#taEst').isVisible(),'estimated NQ explicitly visible');
+  await page.evaluate(()=>setNQ('Blue'));
+  assert(!(await page.locator('#taExpo').innerText()).includes('フル投資'),'manual NQ also uses upper-limit labels');
+  assert(!(await page.locator('#taEst').isVisible()),'manual confirmation removes estimated badge');
   await page.locator('nav a[href="#t-rotation"]').click();
   for(const key of ['leadership','concentration','relative']){
     const card=page.locator('#t-rotation [data-history-key="'+key+'"]');
@@ -115,6 +132,13 @@ async function verify(page,width){
   assert(spacing>=7,'date labels separated from description');
   const text=await page.locator('.mkt20-read').first().innerText();
   assert(!/Blue|Green|Yellow|Red|地合いは青/.test(text),'commentary independent of NQSAR');
+  await page.route('**/data/jev-ranking.json',route=>route.fulfill({json:{...ranking,source_html_sha256:'wrong-source-hash'}}));
+  await page.reload({waitUntil:'networkidle'});
+  await page.locator('nav a[href="#t-jev"]').click();
+  await page.waitForFunction(()=>document.querySelector('#t-jev').dataset.rankingState==='previous');
+  assert((await page.locator('.jev-asof').innerText()).includes('前回分'),'stale results clearly labelled');
+  await page.unroute('**/data/jev-ranking.json');
+  assert.deepEqual(errors,[],'no JS errors across all tabs and manual NQ controls');
   await page.screenshot({path:root+'/work/market-ui-'+width+'.png',fullPage:false});
   console.log('PASS desktop/mobile, 11 tabs, MC57 3 windows, leadership/cap/relative 3 windows, GICS available combinations (unavailable hidden), normalized=100, viewport='+width);
 }
@@ -122,7 +146,7 @@ async function verify(page,width){
   let browser;
   try{
     for(let i=0;i<50;i++){try{if((await fetch('http://127.0.0.1:8798')).ok)break;}catch{}await new Promise(r=>setTimeout(r,100));}
-    browser=await chromium.launch({headless:true});
-    for(const width of [1348,390,375]){const page=await browser.newPage();await verify(page,width);await page.close();}
+    browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_EXECUTABLE_PATH||undefined,args:['--no-sandbox','--disable-dev-shm-usage']});
+    for(const width of [1348,390,375,430]){const page=await browser.newPage();await verify(page,width);await page.close();}
   }finally{if(browser)await browser.close();server.kill();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
