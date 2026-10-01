@@ -138,6 +138,7 @@ def main() -> int:
     ap.add_argument("--ohlcv", default="work/ohlcv.csv")
     ap.add_argument("--chart-dir", default="chart-data")
     ap.add_argument("--session", required=True)
+    ap.add_argument("--themes", default="data/theme_membership.json")
     args = ap.parse_args()
     html_path, csv_path, chart_dir = Path(args.html), Path(args.ohlcv), Path(args.chart_dir)
     frame = pd.read_csv(csv_path, usecols=["ticker", "date", "open", "high", "low", "close", "volume"])
@@ -164,6 +165,8 @@ def main() -> int:
     text = apply_html(text, html_path.resolve().parent)
     from dashboard_fixes import apply
     text = apply(text, html_path.resolve().parent)
+    from theme_gate import apply as apply_theme_gate
+    text = apply_theme_gate(text, frame, Path(args.themes))
     html_path.write_text(text, encoding="utf-8")
     print(json.dumps({"session_date": args.session, "ticker_count": meta["ticker_count"],
                       "cards": ["50MA participation", "52-week new highs minus new lows"],
