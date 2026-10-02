@@ -131,6 +131,34 @@ STALE_DAYS = 60
 PIVOT_LENGTHS = range(2, 11)
 
 
+GOOD_POS = (0.50, 0.75)  # backtest sweet spot inside the HL structure
+
+
+def structure_detail(high: np.ndarray, low: np.ndarray) -> dict | None:
+    """Like ``structure_pivot`` but with bar indices for drawing (ll_i, hl_i, line_i)."""
+    n_bars = len(low)
+    best = None
+    for n in PIVOT_LENGTHS:
+        roll = pd.Series(low).rolling(2 * n + 1, center=True).min().to_numpy()
+        pivots = np.where((low == roll) & ~np.isnan(low))[0]
+        confirm = {p + n: p for p in pivots if p + n < n_bars}
+        prev, setup = None, None
+        for t in range(n_bars):
+            if setup is not None and low[t] < setup["hl"]:
+                setup = None
+            if t in confirm:
+                p = confirm[t]
+                if prev is not None and low[p] > low[prev]:
+                    seg = high[prev:p + 1]
+                    k = int(np.nanargmax(seg))
+                    setup = {"line": float(seg[k]), "hl": float(low[p]), "ll": float(low[prev]),
+                             "ll_i": int(prev), "hl_i": int(p), "line_i": int(prev + k)}
+                prev = p
+        if setup is not None and (best is None or setup["line"] < best["line"]):
+            best = setup
+    return best
+
+
 def structure_pivot(high: np.ndarray, low: np.ndarray) -> tuple[float, float]:
     """LL->HL structure on the last bar: (pivot line, HL) of the tightest valid setup.
 
@@ -140,24 +168,27 @@ def structure_pivot(high: np.ndarray, low: np.ndarray) -> tuple[float, float]:
     breaks the HL. Among the valid setups on the last bar the lowest pivot line is chosen.
     Returns (nan, nan) when no valid setup exists.
     """
-    n_bars = len(low)
-    best_line, best_hl = np.inf, np.nan
-    for n in PIVOT_LENGTHS:
-        roll = pd.Series(low).rolling(2 * n + 1, center=True).min().to_numpy()
-        pivots = np.where((low == roll) & ~np.isnan(low))[0]
-        confirm = {p + n: p for p in pivots if p + n < n_bars}
-        prev, setup = None, None
-        for t in range(n_bars):
-            if setup is not None and low[t] < setup[1]:
-                setup = None
-            if t in confirm:
-                p = confirm[t]
-                if prev is not None and low[p] > low[prev]:
-                    setup = (p, low[p], float(np.nanmax(high[prev:p + 1])))
-                prev = p
-        if setup is not None and setup[2] < best_line:
-            best_line, best_hl = setup[2], float(setup[1])
-    return (float("nan"), float("nan")) if np.isinf(best_line) else (float(best_line), best_hl)
+    d = structure_detail(high, low)
+    return (float("nan"), float("nan")) if d is None else (d["line"], d["hl"])
+
+
+def write_structure(frame: pd.DataFrame, out_path) -> int:
+    """chart-data/structure.json: LL/HL/pivot line per ticker for the candle overlay."""
+    import json
+    from pathlib import Path
+    out = {}
+    for ticker, g in frame.sort_values("date").groupby("ticker", sort=True):
+        g = g.dropna(subset=["open", "high", "low", "close"]).tail(260)
+        if len(g) < 30:
+            continue
+        d = structure_detail(g["high"].to_numpy(dtype=float), g["low"].to_numpy(dtype=float))
+        if d is None:
+            continue
+        dates = g["date"].dt.strftime("%Y-%m-%d").to_numpy()
+        out[str(ticker)] = {"line": round(d["line"], 4), "hl": round(d["hl"], 4), "ll": round(d["ll"], 4),
+                            "lld": dates[d["ll_i"]], "hld": dates[d["hl_i"]], "lined": dates[d["line_i"]]}
+    Path(out_path).write_text(json.dumps(out, separators=(",", ":")), encoding="utf-8")
+    return len(out)
 
 
 def evaluate(frame: pd.DataFrame) -> dict:
@@ -199,9 +230,10 @@ def evaluate(frame: pd.DataFrame) -> dict:
         px = float(st["last"][t])
         line, hl = struct(t)
         inside = bool(not math.isnan(line) and px <= line)
+        pos = (px - hl) / (line - hl) if inside and line > hl else None
         return {"ticker": t, "close": px, "rs189": int(round(st["rs189_pct"][t])),
                 "rs21": pct_int(st["rs21_pct"].get(t)), "rs63": pct_int(st["rs63_pct"].get(t)),
-                "pivot_line": line, "hl": hl, "inside": inside, "streak": streak.get(t),
+                "pivot_line": line, "hl": hl, "inside": inside, "pos": pos, "streak": streak.get(t),
                 "dv": int(round(st["dv_pct"][t])), "vc": float(st["vc"][t]), "vdry": float(st["vdry"][t]),
                 "chg": float(st["chg"][t]), "prev_chg": float(st["prev_chg"][t]),
                 "ext10": float(st["ext10"][t]), "el21": float(st["el21"][t]),
@@ -322,6 +354,9 @@ STYLE = """
 #mc57-swing-screener .sw-lv .stop b{color:#b42222}
 #mc57-swing-screener .sw-bar{position:relative;height:6px;border-radius:3px;background:#e6e4dd;margin:12px 4px 3px}
 #mc57-swing-screener .sw-bar .in{position:absolute;top:0;bottom:0;background:#bfdcc8;border-radius:3px}
+#mc57-swing-screener .sw-bar .zone{position:absolute;top:0;bottom:0;background:#4c9a68;border-radius:2px}
+#mc57-swing-screener .sw-bl .g{color:#1f6b3f;font-weight:800}
+#mc57-swing-screener .sw-c.good{background:#23824d;color:#fff}
 #mc57-swing-screener .sw-bar .mk{position:absolute;top:-4px;width:3px;height:14px;margin-left:-1px;background:#1c1b19;border-radius:2px}
 #mc57-swing-screener .sw-bl{display:flex;justify-content:space-between;font-size:10px;color:#55524a;font-variant-numeric:tabular-nums}
 #mc57-swing-screener .sw-opt{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-top:4px}
@@ -379,6 +414,8 @@ def _ch(v: float) -> str:
 
 def _chips(r: dict, extra: str = "") -> str:
     out = []
+    if _good(r):
+        out.append('<span class="sw-c good">好位置</span>')
     if r.get("inside"):
         out.append('<span class="sw-c hl">HL構造・ライン下</span>')
     st = r.get("streak")
@@ -391,6 +428,11 @@ def _chips(r: dict, extra: str = "") -> str:
     return f'<div class="sw-chips">{"".join(out)}{extra}</div>'
 
 
+
+
+def _good(r: dict) -> bool:
+    pos = r.get("pos")
+    return pos is not None and GOOD_POS[0] <= pos <= GOOD_POS[1]
 
 
 def _top(r: dict, right: str) -> str:
@@ -417,9 +459,13 @@ def _struct_line(r: dict) -> str:
     px = r["close"]
     lo, hi = min(hl, px), max(line, px)
     pos = lambda x: (x - lo) / (hi - lo) * 100 if hi > lo else 50
+    z0, z1 = (hl + (line - hl) * f for f in GOOD_POS)
+    mid = (f'<span class="{"g" if _good(r) else ""}">位置 {r["pos"] * 100:.0f}%</span>'
+           if r.get("pos") is not None else "")
     return (f'<div class="sw-bar"><div class="in" style="left:{pos(hl):.1f}%;width:{pos(line) - pos(hl):.1f}%"></div>'
+            f'<div class="zone" style="left:{pos(z0):.1f}%;width:{pos(z1) - pos(z0):.1f}%"></div>'
             f'<div class="mk" style="left:{pos(px):.1f}%"></div></div>'
-            f'<div class="sw-bl"><span>HL {_d(hl)} {_p(hl / px - 1)}</span>'
+            f'<div class="sw-bl"><span>HL {_d(hl)} {_p(hl / px - 1)}</span>{mid}'
             f'<span>ライン {_d(line)} {_p(line / px - 1)}</span></div>')
 
 
@@ -467,6 +513,7 @@ def card_html(result: dict) -> str:
         f'<div class="sw-w" data-tkone="{e(r["ticker"])}"><span class="sw-tk">{e(r["ticker"])}</span>'
         f'<span class="sw-px">{_d(r["close"])}</span>{_ch(r["chg"])}'
         f'<span class="sw-c">RS189 {r["rs189"]}</span>'
+        + ('<span class="sw-c good">好位置</span>' if _good(r) else "")
         + ('<span class="sw-c hl">HL構造・ライン下</span>' if r.get("inside") else "")
         + '<div class="sw-chips">'
         + "".join(f'<span class="sw-c miss">{e(_miss_label(m, r))}</span>' for m in r["missing"])
@@ -515,7 +562,10 @@ def card_html(result: dict) -> str:
         '終値+10%で持ち株の半分を1回だけ買い増し、高値+25%で損切りを建値へ、安値21EMAを割って引けたら手仕舞い。'
         '余剰資金の50%はQQQ。<br/>'
         '<b>バー</b>：緑の始まりがHL（切り上げた安値・割れたら構造崩れ）、緑の終わりがピボットライン'
-        '（直近のLL→HL間の最高値・期間2〜10本で一番狭い構造）、黒い線が今の株価。<br/>'
+        '（直近のLL→HL間の最高値・期間2〜10本で一番狭い構造）、黒い線が今の株価。濃い緑がHL→ラインの50〜75%の位置。<br/>'
+        '<b>好位置</b>：今の株価がHL→ラインの50〜75%にある。2015〜2026年の検証で、今のルールを満たした日を位置で分けると'
+        'このゾーンだけ3期間ともPFが高かった（4.29・3.68・1.73、全体平均+6.4%）。ライン直下（75〜100%）とライン抜け直後（+0〜3%）、'
+        'HL付近（0〜25%）は弱い。参考表示で、並び順は変えていない。<br/>'
         '<b>並び順</b>：HL構造・ライン下（安値が切り上がり、ラインの下で静かにしている）を優先し、その中はRS189順。'
         'バックテストでは、HL構造・ライン下のPFは2015〜20年2.22・2021〜24年1.89・2025〜26年2.34（今のルール全体は2.58・0.97・1.99）。'
         '<b>選定◯日目</b>は選定条件を連続で満たしている日数で、60日超の古いリーダーは成績が悪い（PF 1.40・0.17・0.87）。'

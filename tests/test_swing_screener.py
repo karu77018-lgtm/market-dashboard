@@ -116,3 +116,22 @@ def test_option_walls_render_and_failures_are_harmless():
         raise RuntimeError("cboe down")
 
     assert CARD_ID in apply(page, frame, walls_fn=broken)
+
+
+def test_good_position_badge_and_structure_export(tmp_path):
+    import json
+    from swing_screener import write_structure
+    base = {"ticker": "AAA", "close": 10.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80, "dv": 99,
+            "vc": 0.8, "vdry": 0.8, "ext10": 0.0, "el21": 9.5, "stop": 9.2, "add": 11.0, "be": 12.5,
+            "pivot_line": 11.0, "hl": 8.0, "inside": True, "streak": 3}
+    page = lambda pos: card_html({"session": "2026-01-02", "universe": 1, "selected": 1, "watch": [], "ep": [],
+                                  "late": [], "core": [{**base, "pos": pos}]})
+    assert '<span class="sw-c good">好位置</span>' in page(0.6) and "位置 60%" in page(0.6)
+    assert '<span class="sw-c good">好位置</span>' not in page(0.9)
+    out = tmp_path / "structure.json"
+    low = np.r_[np.linspace(30, 10, 20), np.linspace(10.5, 19.5, 10), np.linspace(19, 14, 8), np.linspace(14.5, 17, 12)]
+    dates = pd.bdate_range("2026-01-01", periods=len(low))
+    frame = pd.DataFrame({"ticker": "AAA", "date": dates, "open": low + .5, "high": low + 1, "low": low, "close": low + .5})
+    assert write_structure(frame, out) == 1
+    s = json.loads(out.read_text())["AAA"]
+    assert s["hl"] == 14.0 and s["lld"] < s["lined"] < s["hld"]
