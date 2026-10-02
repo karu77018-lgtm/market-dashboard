@@ -1,7 +1,7 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
   "coverage": 1.0,
-  "generated_at": "2026-10-02T08:55:27Z",
+  "generated_at": "2026-10-02T09:41:27Z",
   "mc57": 23.184091721461883,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
@@ -19,7 +19,8 @@
     "massive": "READY",
     "massive_current_coverage": 0.9727822580645161,
     "missing_current_rows": 108,
-    "publication_state": "confirmed"
+    "publication_state": "confirmed",
+    "yahoo_substitute": null
   },
   "publication_scope": "source-mc57 plus derived data/jev-ranking.json only; V38 and vendor-input data JSON are not committed",
   "schema_version": "v38.acquisition.1",
@@ -114,7 +115,9 @@
     "requested": 3968,
     "target_session_coverage": 1.0,
     "target_session_fresh": 0,
+    "target_session_massive_substitute": 0,
     "target_session_received": 3968,
-    "target_session_same_day_cache": 3968
+    "target_session_same_day_cache": 3968,
+    "yahoo_circuit_open": false
   }
 }
