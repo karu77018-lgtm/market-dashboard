@@ -55,3 +55,19 @@ def test_short_history_and_empty_result_render_gracefully():
     assert result["core"] == [] and result["reason"] == "history_short"
     html = card_html({"session": "2026-01-02", "core": [], "watch": [], "ep": [], "universe": 0})
     assert "本日の買い候補なし" in html
+
+
+def test_late_entry_listed_when_today_no_longer_signals():
+    frame = _frame()
+    last_day = frame["date"].max()
+    lead = (frame["ticker"] == "LEAD") & (frame["date"] == last_day)
+    # Today: +1% close and a volume spike, so the volume-dry-up check fails today
+    # while yesterday's signal is still valid and close stays within +3%.
+    frame.loc[lead, ["open", "high", "low", "close"]] *= 1.01
+    frame.loc[lead, "volume"] = 2.0e7
+    result = evaluate(frame)
+    assert [r["ticker"] for r in result["core"]] == []
+    late = result["late"]
+    assert [r["ticker"] for r in late] == ["LEAD"] and late[0]["lag"] == 1
+    assert 0 < late[0]["from_signal"] <= 0.03
+    assert "LEAD" not in [r["ticker"] for r in result["watch"]]

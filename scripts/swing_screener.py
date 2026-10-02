@@ -68,83 +68,127 @@ def _pct_rank(values: pd.Series, mask: pd.Series) -> pd.Series:
     return v.rank(pct=True) * 100
 
 
+LATE_LAGS = (1, 2)
+LATE_MAX_UP = 0.03
+
+
+def _states(c: pd.DataFrame, h: pd.DataFrame, l: pd.DataFrame, v: pd.DataFrame) -> callable:
+    """Return a function giving the core-rule state for a (negative) row position."""
+    ma10 = c.rolling(10).mean()
+    ma50 = c.rolling(50).mean()
+    ma150 = c.rolling(150).mean()
+    ma200 = c.rolling(200).mean()
+    hi252 = h.rolling(252, min_periods=200).max()
+    lo252 = l.rolling(252, min_periods=200).min()
+    dv50 = (c * v).rolling(50, min_periods=40).mean()
+    dr = h / l - 1
+    adr20 = dr.rolling(20).mean()
+    vc = dr.rolling(10).mean() / dr.rolling(50).mean()
+    v50 = v.rolling(50).mean()
+    vdry = v.rolling(5).mean() / v50
+    chg = c / c.shift(1) - 1
+    el21 = l.ewm(span=21, adjust=False).mean()
+
+    def at(k: int) -> dict:
+        last = c.iloc[k]
+        liquid = (last >= MIN_PRICE) & (dv50.iloc[k] >= MIN_DV)
+        tt = (last > ma50.iloc[k]) & (ma50.iloc[k] > ma150.iloc[k]) & (ma150.iloc[k] > ma200.iloc[k]) \
+            & (ma200.iloc[k] > ma200.iloc[k - 20]) & (last >= 0.75 * hi252.iloc[k]) & (last >= 1.3 * lo252.iloc[k])
+
+        def ret(n: int) -> pd.Series:
+            return last / c.iloc[k - n] - 1 if len(c) + k >= n else pd.Series(np.nan, index=c.columns)
+
+        r189 = ret(189)
+        comp = 2 * ret(63) + ret(126) + r189 + ret(252)
+        dv_pct = _pct_rank(dv50.iloc[k], liquid)
+        rs189_pct = _pct_rank(r189, liquid)
+        ext10 = last / ma10.iloc[k] - 1
+        checks = {
+            "収縮": vc.iloc[k] <= MAX_VC,
+            "出来高減": vdry.iloc[k] <= MAX_VDRY,
+            "当日+3%未満": chg.iloc[k] < MAX_CHG,
+            "前日+3%以下": chg.iloc[k - 1] <= MAX_PREV_CHG,
+            "10日線+12%以内": ext10 <= MAX_EXT10,
+        }
+        timing = pd.Series(True, index=c.columns)
+        for m in checks.values():
+            timing &= m.fillna(False)
+        selected = liquid & tt & (dv_pct >= DV_PCT) & (rs189_pct >= RS189_PCT)
+        return {"last": last, "liquid": liquid, "tt": tt, "dv_pct": dv_pct, "rs189_pct": rs189_pct,
+                "comp_pct": _pct_rank(comp, liquid), "vc": vc.iloc[k], "vdry": vdry.iloc[k],
+                "chg": chg.iloc[k], "ext10": ext10, "el21": el21.iloc[k], "checks": checks,
+                "timing": timing, "selected": selected, "signal": selected & timing,
+                "adr20": adr20.iloc[k], "ma50": ma50.iloc[k], "v50_prev": v50.iloc[k - 1]}
+
+    at.el21 = el21
+    return at
+
+
 def evaluate(frame: pd.DataFrame) -> dict:
     p = _pivot(frame)
     o, h, l, c, v = p["open"], p["high"], p["low"], p["close"], p["volume"]
     if len(c) < 260:
-        return {"session": str(c.index[-1].date()) if len(c) else "", "core": [], "watch": [], "ep": [],
-                "universe": 0, "reason": "history_short"}
-    last = c.iloc[-1]
-    ma10 = c.rolling(10).mean().iloc[-1]
-    ma50s = c.rolling(50).mean()
-    ma50 = ma50s.iloc[-1]
-    ma150 = c.rolling(150).mean().iloc[-1]
-    ma200s = c.rolling(200).mean()
-    ma200, ma200_20 = ma200s.iloc[-1], ma200s.iloc[-21]
-    hi252 = h.rolling(252, min_periods=200).max().iloc[-1]
-    lo252 = l.rolling(252, min_periods=200).min().iloc[-1]
-    dv50 = (c * v).rolling(50, min_periods=40).mean().iloc[-1]
-    liquid = (last >= MIN_PRICE) & (dv50 >= MIN_DV)
-    tt = (last > ma50) & (ma50 > ma150) & (ma150 > ma200) & (ma200 > ma200_20) \
-        & (last >= 0.75 * hi252) & (last >= 1.3 * lo252)
+        return {"session": str(c.index[-1].date()) if len(c) else "", "core": [], "late": [], "watch": [],
+                "ep": [], "universe": 0, "reason": "history_short"}
+    state = _states(c, h, l, v)
+    s = state(-1)
+    last, liquid, tt, chg = s["last"], s["liquid"], s["tt"], s["chg"]
+    selected, timing, checks = s["selected"], s["timing"], s["checks"]
 
-    def ret(n: int) -> pd.Series:
-        return last / c.iloc[-1 - n] - 1 if len(c) > n else pd.Series(np.nan, index=c.columns)
+    def row(t: str, st: dict) -> dict:
+        px = float(st["last"][t])
+        return {"ticker": t, "close": px, "rs189": int(round(st["rs189_pct"][t])),
+                "dv": int(round(st["dv_pct"][t])), "vc": float(st["vc"][t]), "vdry": float(st["vdry"][t]),
+                "chg": float(st["chg"][t]), "ext10": float(st["ext10"][t]), "el21": float(st["el21"][t]),
+                "stop": px * (1 - STOP), "add": px * 1.10, "be": px * 1.25}
 
-    r189 = ret(189)
-    comp = 2 * ret(63) + ret(126) + r189 + ret(252)
-    dv_pct = _pct_rank(dv50, liquid)
-    rs189_pct = _pct_rank(r189, liquid)
-    comp_pct = _pct_rank(comp, liquid)
-
-    dr = h / l - 1
-    adr20 = dr.rolling(20).mean().iloc[-1]
-    vc = (dr.rolling(10).mean() / dr.rolling(50).mean()).iloc[-1]
-    v50 = v.rolling(50).mean()
-    vdry = (v.rolling(5).mean() / v50).iloc[-1]
-    chg_s = c / c.shift(1) - 1
-    chg, prev_chg = chg_s.iloc[-1], chg_s.iloc[-2]
-    ext10 = last / ma10 - 1
-    el21 = l.ewm(span=21, adjust=False).mean().iloc[-1]
-
-    selected = liquid & tt & (dv_pct >= DV_PCT) & (rs189_pct >= RS189_PCT)
-    checks = {
-        "収縮": vc <= MAX_VC,
-        "出来高減": vdry <= MAX_VDRY,
-        "当日+3%未満": chg < MAX_CHG,
-        "前日+3%以下": prev_chg <= MAX_PREV_CHG,
-        "10日線+12%以内": ext10 <= MAX_EXT10,
-    }
-    timing = pd.Series(True, index=c.columns)
-    for m in checks.values():
-        timing &= m.fillna(False)
-
-    def row(t: str) -> dict:
-        return {"ticker": t, "close": float(last[t]), "rs189": int(round(rs189_pct[t])),
-                "dv": int(round(dv_pct[t])), "vc": float(vc[t]), "vdry": float(vdry[t]),
-                "chg": float(chg[t]), "ext10": float(ext10[t]), "el21": float(el21[t]),
-                "stop": float(last[t] * (1 - STOP)), "add": float(last[t] * 1.10),
-                "be": float(last[t] * 1.25)}
-
-    core = [row(t) for t in selected[selected & timing].index]
+    core = [row(t, s) for t in selected[selected & timing].index]
     core.sort(key=lambda r: -r["rs189"])
+
+    # Late entries: signal 1-2 sessions ago, not re-signalled today, still near the signal close,
+    # no stop or 21EMA-low exit since, still selected, and today's no-chase checks pass.
+    late, seen = [], {r["ticker"] for r in core}
+    nochase = (chg < MAX_CHG) & (s["ext10"] <= MAX_EXT10)
+    for lag in LATE_LAGS:
+        past = state(-1 - lag)
+        for t in past["signal"][past["signal"]].index:
+            if t in seen or not bool(selected.get(t, False)) or not bool(nochase.get(t, False)):
+                continue
+            base = float(past["last"][t])
+            after = slice(len(c) - lag, len(c))
+            lows = l[t].iloc[after]
+            closes = c[t].iloc[after]
+            if (lows <= base * (1 - STOP)).any() or (closes < state.el21[t].iloc[after]).any():
+                continue
+            if float(last[t]) > base * (1 + LATE_MAX_UP):
+                continue
+            r = row(t, s)
+            r.update({"signal_date": str(c.index[-1 - lag].date()), "signal_close": base,
+                      "from_signal": float(last[t]) / base - 1, "lag": lag})
+            late.append(r)
+            seen.add(t)
+    late.sort(key=lambda r: (r["lag"], -r["rs189"]))
+
     watch = []
     for t in selected[selected & ~timing].index:
-        r = row(t)
+        if t in seen:
+            continue
+        r = row(t, s)
         r["missing"] = [k for k, m in checks.items() if not bool(m.get(t, False))]
         watch.append(r)
     watch.sort(key=lambda r: (len(r["missing"]), -r["rs189"]))
 
     # Theme slot: earnings-gap style entries with correlation-peer strength 50-90.
+    adr20, ma50 = s["adr20"], s["ma50"]
     gap = o.iloc[-1] / c.iloc[-2] - 1
-    volx = v.iloc[-1] / v50.iloc[-2]
+    volx = v.iloc[-1] / s["v50_prev"]
     rng = (h.iloc[-1] - l.iloc[-1]).replace(0, np.nan)
     clv = (last - l.iloc[-1]) / rng
     ep_mask = liquid & (gap >= 0.05) & (gap <= 0.20) & (chg >= 0.05) & (volx >= 3) & (volx <= 15) \
         & (clv >= 0.5) & (last > ma50) & (adr20 >= 0.03) & (adr20 < 0.07)
     ep = []
     if ep_mask.any():
-        peer = _peer_scores(c, liquid, comp_pct, list(ep_mask[ep_mask].index))
+        peer = _peer_scores(c, liquid, s["comp_pct"], list(ep_mask[ep_mask].index))
         for t in ep_mask[ep_mask].index:
             ps = peer.get(t)
             if ps is None or not (50 <= ps < 90):
@@ -153,7 +197,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
                        "volx": float(volx[t]), "peer": int(round(ps)), "adr": float(adr20[t]),
                        "stop": float(last[t] * (1 - STOP)), "tt": bool(tt[t])})
         ep.sort(key=lambda r: -r["peer"])
-    return {"session": str(c.index[-1].date()), "core": core, "watch": watch, "ep": ep,
+    return {"session": str(c.index[-1].date()), "core": core, "late": late, "watch": watch, "ep": ep,
             "universe": int(liquid.sum()), "selected": int(selected.sum())}
 
 
@@ -193,7 +237,7 @@ STYLE = """
 #mc57-swing-screener .sw-lv b{font-weight:700}
 #mc57-swing-screener .sw-miss{font-size:11px;border-radius:5px;padding:1px 6px;background:#efe9d6;color:#6b5a1e;white-space:nowrap}
 #mc57-swing-screener .sw-tag{font-size:11px;border-radius:5px;padding:1px 6px;color:#fff;white-space:nowrap}
-#mc57-swing-screener .sw-go{background:#23824d}#mc57-swing-screener .sw-wait{background:#8a7b3c}#mc57-swing-screener .sw-ep{background:#3774d3}
+#mc57-swing-screener .sw-go{background:#23824d}#mc57-swing-screener .sw-late{background:#5b8a5f}#mc57-swing-screener .sw-wait{background:#8a7b3c}#mc57-swing-screener .sw-ep{background:#3774d3}
 #mc57-swing-screener .sw-empty{font-size:13px;color:#4d4a40;padding:6px 2px}
 #mc57-swing-screener .sw-chips{font-size:12px;overflow-wrap:anywhere;line-height:1.7}
 </style>"""
@@ -210,6 +254,7 @@ def _d(v: float) -> str:
 def card_html(result: dict) -> str:
     e = html.escape
     core, watch, ep = result["core"], result["watch"], result["ep"]
+    late = result.get("late", [])
     rows = []
     for r in core[:12]:
         rows.append(
@@ -221,6 +266,17 @@ def card_html(result: dict) -> str:
             f'・建値へ {_d(r["be"])}（+25%）・安値21EMA {_d(r["el21"])}</div></div>'
         )
     core_body = "".join(rows) or '<div class="sw-empty">本日の買い候補なし（待つのもルール）。</div>'
+    lrows = []
+    for r in late[:10]:
+        lrows.append(
+            f'<div class="sw-row"><div class="sw-h"><span class="sw-tag sw-late">{r["lag"]}日前に成立</span>'
+            f'<span class="sw-tk">{e(r["ticker"])}</span><span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）</span></div>'
+            f'<div class="sw-m">成立 {e(r["signal_date"][5:].replace("-", "/"))} {_d(r["signal_close"])} から {_p(r["from_signal"])}'
+            f'・RS189 {r["rs189"]}・売買代金 {r["dv"]}</div>'
+            f'<div class="sw-lv">今入るなら 損切り <b>{_d(r["stop"])}</b>（−8%）・買い増し {_d(r["add"])}'
+            f'・建値へ {_d(r["be"])}・安値21EMA {_d(r["el21"])}</div></div>'
+        )
+    late_body = "".join(lrows) or '<div class="sw-empty">該当なし。</div>'
     wrows = []
     for r in watch[:15]:
         miss = "".join(f'<span class="sw-miss">{e(m)}</span>' for m in r["missing"])
@@ -260,11 +316,15 @@ def card_html(result: dict) -> str:
         '<b>売買</b>：終値で買う。資金の1%リスク・−8%損切り（1銘柄は資金の約12.5%）。'
         '終値+10%で持ち株の半分を1回だけ買い増し、高値+25%で損切りを建値へ、安値21EMAを割って引けたら手仕舞い。'
         '余剰資金の50%はQQQ。<br/>'
+        '<b>まだ入れる</b>：1〜2日前に条件が成立し、成立時の終値+3%以内・その後に損切り/安値21EMA割れなし・'
+        '選定条件を維持・当日+3%未満・10日線+12%以内。成立日に入るより成績は落ち、地合いが悪い時期は特に悪い'
+        '（PF 1日遅れ1.78・2日遅れ1.6前後）。株数は通常どおり、損切りは今の価格から−8%。<br/>'
         '<b>テーマ枠</b>：窓+5〜20%・終値+5%以上・出来高3〜15倍・上半分引け・50日線上・値幅3〜7%・'
         '相関の高い15銘柄のRS平均50〜90。リスク0.5%・同時3銘柄・60営業日で手仕舞い。<br/>'
         '2015〜2026年のバックテスト（現存銘柄・税金なし）で年率+24.5%・最大DD−28%。上場廃止銘柄は未検証。売買指示ではない。'
         '</div></details>'
         f'<div class="sw-sec">買い候補（本日の終値で条件成立）{copy_btn(core)}</div>{core_body}'
+        f'<div class="sw-sec">まだ入れる（1〜2日前に成立）{copy_btn(late)}</div>{late_body}'
         f'<div class="sw-sec">テーマ枠（本日の窓開け）{copy_btn(ep)}</div>{ep_body}'
         f'<div class="sw-sec">監視（選定OK・形待ち）{copy_btn(watch[:15])}</div>{watch_body}'
         '</div>'
