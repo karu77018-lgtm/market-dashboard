@@ -370,6 +370,17 @@ STYLE = """
 #mc57-swing-screener .sw-w:active{background:#ecebe6}
 #mc57-swing-screener .sw-w .sw-tk{font-size:14px}
 #mc57-swing-screener .sw-w .sw-chips{flex-basis:100%;margin-top:0}
+#mc57-swing-screener .sw-t.gw{border-left-color:#b9a24a}
+#mc57-swing-screener .sw-need{font-size:11px;font-weight:800;color:#6b5a1e;margin-top:6px}
+#mc57-swing-screener .sw-c.good-o{background:#e3f1e7;color:#1f6b3f}
+#mc57-swing-screener .sw-sum span.on{background:#23824d;color:#fff}#mc57-swing-screener .sw-sum span.on b{color:#fff}
+#mc57-swing-screener .sw-fold{margin:12px 0 4px;border:1px solid #e3e1db;border-radius:10px;background:#f6f5f1;padding:0 8px}
+#mc57-swing-screener .sw-fold summary{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 2px;font-weight:800;font-size:13px;cursor:pointer;list-style:none}
+#mc57-swing-screener .sw-fold summary::-webkit-details-marker{display:none}
+#mc57-swing-screener .sw-fold summary small{font-weight:600;color:#6f6c62;font-size:11px;margin-left:6px}
+#mc57-swing-screener .sw-fold summary b{white-space:nowrap;flex:0 0 auto;font-size:12px;background:#e6e4dd;border-radius:999px;padding:1px 8px}
+#mc57-swing-screener .sw-fold summary b::after{content:' ▸'}
+#mc57-swing-screener .sw-fold[open] summary b::after{content:' ▾'}
 #mc57-swing-screener .sw-empty{font-size:12px;color:#6f6c62;padding:2px 2px 4px}
 #mc57-swing-screener .sw-hint{font-size:10.5px;color:#6f6c62;margin:-2px 0 4px}
 </style>"""
@@ -495,30 +506,69 @@ def _foot(r: dict) -> str:
             f'・売買代金 {r["dv"]}</div>')
 
 
+def _wait_reason(r: dict) -> str:
+    """Why a fully-qualified name is not at a good entry point yet."""
+    line, hl, px, pos = r.get("pivot_line"), r.get("hl"), r["close"], r.get("pos")
+    if line is None or (isinstance(line, float) and math.isnan(line)) or not hl or hl >= line:
+        return "HL構造なし"
+    if px > line:
+        up = px / line - 1
+        tag = "伸びすぎ" if up > 0.08 else ("ライン抜け後" if up > 0.03 else "ライン抜け直後・だまし注意")
+        return f"ライン上{_p(up)}・{tag}"
+    if pos is not None and pos > GOOD_POS[1]:
+        return f"ライン直下 位置{pos * 100:.0f}%"
+    if pos is not None and pos < GOOD_POS[0]:
+        return f"HL寄り 位置{pos * 100:.0f}%"
+    return ""
+
+
+def _zone(r: dict) -> str:
+    line, hl = r.get("pivot_line"), r.get("hl")
+    if line is None or (isinstance(line, float) and math.isnan(line)) or not hl or hl >= line:
+        return ""
+    z0, z1 = (hl + (line - hl) * f for f in GOOD_POS)
+    px = r["close"]
+    return f'<span class="sw-c good-o">好位置 {_d(z0)}〜{_d(z1)}（{_p(z0 / px - 1)}〜{_p(z1 / px - 1)}）</span>'
+
+
 def card_html(result: dict) -> str:
     e = html.escape
     core, watch, ep = result["core"], result["watch"], result["ep"]
     late = result.get("late", [])
+    best = [r for r in core if _good(r)]
+    waiting = [r for r in core if not _good(r)]
+    good_watch = [r for r in watch if _good(r)]
+    other_watch = [r for r in watch if not _good(r)]
     tile = lambda cls, r, inner: f'<div class="sw-t{cls}" data-tkone="{e(r["ticker"])}">{inner}</div>'
-    core_body = "".join(
-        tile("", r, _top(r, _rs_box(r)) + _chips(r) + _struct_line(r) + _levels(r) + _opt_line(r) + _foot(r)) for r in core[:12]
-    ) or '<div class="sw-empty">本日の買い候補なし（待つのもルール）。</div>'
+    miss = lambda r: "".join(f'<span class="sw-c miss">{e(_miss_label(m, r))}</span>' for m in r["missing"])
+    best_body = "".join(
+        tile("", r, _top(r, _rs_box(r)) + _chips(r) + _struct_line(r) + _levels(r) + _opt_line(r) + _foot(r))
+        for r in best[:12]
+    ) or '<div class="sw-empty">該当なし（位置と形が両方そろうのを待つ）。</div>'
+    gw_body = "".join(
+        tile(" gw", r, _top(r, _rs_box(r))
+             + f'<div class="sw-need">あと{len(r["missing"])}条件</div><div class="sw-chips">{miss(r)}</div>'
+             + _chips(r) + _struct_line(r) + _levels(r) + _opt_line(r)) for r in good_watch[:12]
+    ) or '<div class="sw-empty">該当なし。</div>'
     late_body = "".join(
         tile(" late", r, _top(r, _rs_box(r))
              + _chips(r, f'<span class="sw-c">{r["lag"]}日前 {e(r["signal_date"][5:].replace("-", "/"))} '
                          f'{_d(r["signal_close"])}から{_p(r["from_signal"])}</span>')
              + _struct_line(r) + _levels(r) + _opt_line(r)) for r in late[:10]
     ) or '<div class="sw-empty">該当なし。</div>'
-    watch_body = "".join(
+    row = lambda r, extra: (
         f'<div class="sw-w" data-tkone="{e(r["ticker"])}"><span class="sw-tk">{e(r["ticker"])}</span>'
         f'<span class="sw-px">{_d(r["close"])}</span>{_ch(r["chg"])}'
-        f'<span class="sw-c">RS189 {r["rs189"]}</span>'
-        + ('<span class="sw-c good">好位置</span>' if _good(r) else "")
-        + ('<span class="sw-c hl">HL構造・ライン下</span>' if r.get("inside") else "")
-        + '<div class="sw-chips">'
-        + "".join(f'<span class="sw-c miss">{e(_miss_label(m, r))}</span>' for m in r["missing"])
-        + '</div></div>' for r in watch[:15]
-    ) or '<div class="sw-empty">選定条件を満たす銘柄なし。</div>'
+        f'<span class="sw-c">RS189 {r["rs189"]}</span>' + extra + '</div>')
+    wait_body = "".join(
+        row(r, f'<div class="sw-chips"><span class="sw-c old">{e(_wait_reason(r))}</span>{_zone(r)}</div>')
+        for r in waiting
+    )
+    watch_body = "".join(
+        row(r, (f'<span class="sw-c hl">HL構造・位置{r["pos"] * 100:.0f}%</span>' if r.get("pos") is not None
+                else ('<span class="sw-c hl">HL構造・ライン下</span>' if r.get("inside") else ""))
+            + f'<div class="sw-chips">{miss(r)}</div>') for r in other_watch[:15]
+    ) or '<div class="sw-empty">該当なし。</div>'
     ep_body = "".join(
         tile(" ep", r, _top(r, f'<div class="sw-rs"><b>{r["peer"]}</b><span>テーマ強度</span></div>')
              + '<div class="sw-chips">'
@@ -537,22 +587,34 @@ def card_html(result: dict) -> str:
         return (f'<button class="cp" data-tk="{e(tks)}" onclick="copyTk(event,this)">コピー '
                 f'<span class="n">{len(items)}</span></button>')
 
-    def sec(title: str, note: str, items: list[dict]) -> str:
-        return f'<div class="sw-sec"><span>{title}<small>{note}</small></span>{copy_btn(items)}</div>'
+    def sec(title: str, note: str, items: list[dict], cls: str = "") -> str:
+        return (f'<div class="sw-sec{cls}"><span>{title}<small>{note}</small></span>{copy_btn(items)}</div>')
 
-    summary = "".join(f'<span>{k}<b>{n}</b></span>' for k, n in
-                      (("買い", len(core)), ("まだ入れる", len(late)), ("テーマ", len(ep)), ("監視", len(watch))))
+    wait_block = (
+        '<details class="sw-fold"><summary>'
+        f'<span>条件OKだが位置待ち<small>ピボットから離れている・ライン直下・HL寄り</small></span><b>{len(waiting)}</b></summary>'
+        '<div class="sw-hint">全条件は満たすが、今の位置は検証で弱い（PF 1.4〜2.0、期間でばらつく）。'
+        '緑のゾーンまで押して形がそろえば本命に上がる。</div>'
+        f'{wait_body}</details>' if waiting else "")
+    summary = "".join(f'<span class="{c}">{k}<b>{n}</b></span>' for k, n, c in
+                      (("本命", len(best), "on" if best else ""), ("好位置・形待ち", len(good_watch), ""),
+                       ("まだ入れる", len(late), ""), ("位置待ち", len(waiting), ""),
+                       ("テーマ", len(ep), ""), ("監視", len(other_watch), "")))
     return (
         f'<div class="card" id="{CARD_ID}" data-source-improvement="swing-screener">'
         '<div class="chd"><h2>スイング候補（新ルール）<span class="h2en">Swing Screener</span></h2>'
-        f'<div class="chd-now" style="color:#23824d"><b>{len(core)}</b><span>買い候補</span></div></div>'
+        f'<div class="chd-now" style="color:#23824d"><b>{len(best)}</b><span>本命</span></div></div>'
         f'<div class="sub">{e(result["session"])} 終値基準・流動性あり{result["universe"]}銘柄から選定'
         f'{result.get("selected", 0)}銘柄。タップで銘柄詳細。</div>'
         f'<div class="sw-sum">{summary}</div>'
-        + sec("買い候補", "本日の終値で成立", core) + core_body
+        + sec("本命", "好位置×全条件OK・本日の終値で買い", best) + best_body
+        + sec("好位置で形待ち", "位置は良い・条件がそろえば本命", good_watch)
+        + '<div class="sw-hint">先回りより、条件がそろってから入るほうが成績が良い（PF 1.74→3.57）。黄色が残りの条件。</div>'
+        + gw_body
         + sec("まだ入れる", "1〜2日前に成立", late) + late_body
+        + wait_block
         + sec("テーマ枠", "本日の窓開け", ep) + ep_body
-        + sec("監視", "選定OK・形待ち", watch[:15])
+        + sec("その他の監視", "選定OK・形待ち", other_watch[:15])
         + '<div class="sw-hint">黄色は「今の値 → 成立に必要な値」</div>' + watch_body
         + '<details class="cxpl" style="margin-top:10px"><summary>ルールと見方</summary><div class="cxpl-b">'
         '<b>選定</b>：トレンドテンプレート・50日平均売買代金が上位5%・189日リターンが上位10%'
@@ -565,7 +627,7 @@ def card_html(result: dict) -> str:
         '（直近のLL→HL間の最高値・期間2〜10本で一番狭い構造）、黒い線が今の株価。濃い緑がHL→ラインの50〜75%の位置。<br/>'
         '<b>好位置</b>：今の株価がHL→ラインの50〜75%にある。2015〜2026年の検証で、今のルールを満たした日を位置で分けると'
         'このゾーンだけ3期間ともPFが高かった（4.29・3.68・1.73、全体平均+6.4%）。ライン直下（75〜100%）とライン抜け直後（+0〜3%）、'
-        'HL付近（0〜25%）は弱い。参考表示で、並び順は変えていない。<br/>'
+        'HL付近（0〜25%）は弱い。全条件OK×好位置を「本命」、全条件OKでも位置が悪いものは「位置待ち」に分けて表示（選定ルール自体は同じ）。<br/>'
         '<b>並び順</b>：HL構造・ライン下（安値が切り上がり、ラインの下で静かにしている）を優先し、その中はRS189順。'
         'バックテストでは、HL構造・ライン下のPFは2015〜20年2.22・2021〜24年1.89・2025〜26年2.34（今のルール全体は2.58・0.97・1.99）。'
         '<b>選定◯日目</b>は選定条件を連続で満たしている日数で、60日超の古いリーダーは成績が悪い（PF 1.40・0.17・0.87）。'
@@ -597,7 +659,10 @@ def apply(text: str, frame: pd.DataFrame, walls_fn=None) -> str:
         return text
     found: dict = {}
     if walls_fn is not None:
-        rows = result["core"] + result.get("late", []) + result["ep"] + result["watch"][:15]
+        seen_t: set = set()
+        rows = [r for r in result["core"] + result.get("late", []) + result["ep"]
+                + [w for w in result["watch"] if _good(w)] + result["watch"][:15]
+                if not (r["ticker"] in seen_t or seen_t.add(r["ticker"]))]
         try:
             found = walls_fn({r["ticker"]: r["close"] for r in rows}, result["session"]) or {}
         except Exception as exc:
