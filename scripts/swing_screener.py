@@ -292,25 +292,45 @@ def _peer_scores(c: pd.DataFrame, liquid: pd.Series, comp_pct: pd.Series, target
 
 STYLE = """
 <style id="mc57-swing-screener-style">
-#mc57-swing-screener .sw-sec{font-weight:700;font-size:13px;margin:10px 2px 4px;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
-#mc57-swing-screener .sw-row{border-top:1px solid #e1dfd6;padding:7px 2px}
-#mc57-swing-screener .sw-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;font-weight:700}
-#mc57-swing-screener .sw-tk{font-size:15px}
-#mc57-swing-screener .sw-px{font-size:12px;color:#4d4a40;font-variant-numeric:tabular-nums}
-#mc57-swing-screener .sw-m{font-size:12px;color:#4d4a40;margin-top:2px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-#mc57-swing-screener .sw-lv{font-size:12px;margin-top:2px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-#mc57-swing-screener .sw-lv b{font-weight:700}
-#mc57-swing-screener .sw-miss{font-size:11px;border-radius:5px;padding:1px 6px;background:#efe9d6;color:#6b5a1e;white-space:nowrap}
-#mc57-swing-screener .sw-tag{font-size:11px;border-radius:5px;padding:1px 6px;color:#fff;white-space:nowrap}
-#mc57-swing-screener .sw-go{background:#23824d}#mc57-swing-screener .sw-late{background:#5b8a5f}#mc57-swing-screener .sw-wait{background:#8a7b3c}#mc57-swing-screener .sw-ep{background:#3774d3}
-#mc57-swing-screener .sw-need{font-size:11px;color:#6b5a1e;font-weight:700}
-#mc57-swing-screener .sw-miss-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
-#mc57-swing-screener .sw-hl{font-size:11px;border-radius:5px;padding:1px 6px;border:1px solid #23824d;color:#23824d;white-space:nowrap}
-#mc57-swing-screener .sw-age{font-size:11px;color:#6f6c62;white-space:nowrap}
-#mc57-swing-screener .sw-stale{font-size:11px;border-radius:5px;padding:1px 6px;background:#f6e3dc;color:#9a3f2b;white-space:nowrap}
-#mc57-swing-screener .sw-st{font-size:12px;margin-top:2px;color:#2f5d3a;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
-#mc57-swing-screener .sw-empty{font-size:13px;color:#4d4a40;padding:6px 2px}
-#mc57-swing-screener .sw-chips{font-size:12px;overflow-wrap:anywhere;line-height:1.7}
+#mc57-swing-screener .sw-sum{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px}
+#mc57-swing-screener .sw-sum span{font-size:11px;border-radius:999px;padding:2px 9px;background:#e6e4dd;color:#4d4a40;font-weight:700}
+#mc57-swing-screener .sw-sum b{font-size:13px;margin-left:3px;color:#1c1b19}
+#mc57-swing-screener .sw-sec{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 6px;font-weight:800;font-size:13px}
+#mc57-swing-screener .sw-sec small{font-weight:600;color:#6f6c62;font-size:11px;margin-left:6px}
+#mc57-swing-screener .sw-t{background:#fbfaf7;border:1px solid #e3e1db;border-left:4px solid #23824d;border-radius:10px;padding:9px 10px 8px;margin:7px 0;cursor:pointer}
+#mc57-swing-screener .sw-t:active{background:#ecebe6}
+#mc57-swing-screener .sw-t.late{border-left-color:#7aa37d}
+#mc57-swing-screener .sw-t.ep{border-left-color:#3774d3}
+#mc57-swing-screener .sw-top{display:flex;align-items:baseline;gap:8px}
+#mc57-swing-screener .sw-tk{font-size:17px;font-weight:800;letter-spacing:.2px}
+#mc57-swing-screener .sw-px{font-size:13px;font-variant-numeric:tabular-nums;color:#33312a}
+#mc57-swing-screener .sw-ch{font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+#mc57-swing-screener .up{color:#18813e}#mc57-swing-screener .dn{color:#b42222}
+#mc57-swing-screener .sw-rs{margin-left:auto;text-align:right;line-height:1}
+#mc57-swing-screener .sw-rs b{font-size:17px;font-weight:800;font-variant-numeric:tabular-nums}
+#mc57-swing-screener .sw-rs span{display:block;font-size:9px;color:#6f6c62;margin-top:2px}
+#mc57-swing-screener .sw-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+#mc57-swing-screener .sw-c{font-size:10.5px;font-weight:700;border-radius:5px;padding:1px 6px;white-space:nowrap;background:#ecebe6;color:#55524a}
+#mc57-swing-screener .sw-c.hl{background:#e3f1e7;color:#1f6b3f;border:1px solid #9fcdb0}
+#mc57-swing-screener .sw-c.old{background:#f6e3dc;color:#9a3f2b}
+#mc57-swing-screener .sw-c.miss{background:#f3ecd6;color:#6b5a1e}
+#mc57-swing-screener .sw-c.ep{background:#e2ebfa;color:#2a5aa8}
+#mc57-swing-screener .sw-lv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-top:8px}
+#mc57-swing-screener .sw-lv div{background:#f0efeb;border-radius:6px;padding:4px 5px;min-width:0}
+#mc57-swing-screener .sw-lv i{display:block;font-style:normal;font-size:9.5px;color:#6f6c62;white-space:nowrap}
+#mc57-swing-screener .sw-lv b{display:block;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mc57-swing-screener .sw-lv .stop b{color:#b42222}
+#mc57-swing-screener .sw-bar{position:relative;height:6px;border-radius:3px;background:#e6e4dd;margin:12px 4px 3px}
+#mc57-swing-screener .sw-bar .in{position:absolute;top:0;bottom:0;background:#bfdcc8;border-radius:3px}
+#mc57-swing-screener .sw-bar .mk{position:absolute;top:-4px;width:3px;height:14px;margin-left:-1px;background:#1c1b19;border-radius:2px}
+#mc57-swing-screener .sw-bl{display:flex;justify-content:space-between;font-size:10px;color:#55524a;font-variant-numeric:tabular-nums}
+#mc57-swing-screener .sw-ft{font-size:10.5px;color:#6f6c62;margin-top:5px;font-variant-numeric:tabular-nums}
+#mc57-swing-screener .sw-w{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;border-top:1px solid #e3e1db;padding:7px 2px;cursor:pointer}
+#mc57-swing-screener .sw-w:active{background:#ecebe6}
+#mc57-swing-screener .sw-w .sw-tk{font-size:14px}
+#mc57-swing-screener .sw-w .sw-chips{flex-basis:100%;margin-top:0}
+#mc57-swing-screener .sw-empty{font-size:12px;color:#6f6c62;padding:2px 2px 4px}
+#mc57-swing-screener .sw-hint{font-size:10.5px;color:#6f6c62;margin:-2px 0 4px}
 </style>"""
 
 
@@ -347,75 +367,94 @@ def _rs3(r: dict) -> str:
     return f"RS 21・63・189 {f(r.get('rs21'))}・{f(r.get('rs63'))}・{r['rs189']}"
 
 
-def _badges(r: dict) -> str:
+def _ch(v: float) -> str:
+    return f'<span class="sw-ch {"up" if v >= 0 else "dn"}">{_p(v)}</span>'
+
+
+def _chips(r: dict, extra: str = "") -> str:
     out = []
     if r.get("inside"):
-        out.append('<span class="sw-hl">HL構造・ライン下</span>')
+        out.append('<span class="sw-c hl">HL構造・ライン下</span>')
     st = r.get("streak")
     if st is not None and st > STALE_DAYS:
-        out.append(f'<span class="sw-stale">選定{STALE_DAYS}日超</span>')
+        out.append(f'<span class="sw-c old">選定{STALE_DAYS}日超</span>')
     elif st:
-        out.append(f'<span class="sw-age">選定{st}日目</span>')
-    return "".join(out)
+        out.append(f'<span class="sw-c">選定{st}日目</span>')
+    f = lambda v: "—" if v is None else str(v)
+    out.append(f'<span class="sw-c">RS21 {f(r.get("rs21"))}・63 {f(r.get("rs63"))}</span>')
+    return f'<div class="sw-chips">{"".join(out)}{extra}</div>'
+
+
+
+
+def _top(r: dict, right: str) -> str:
+    e = html.escape
+    return (f'<div class="sw-top"><span class="sw-tk">{e(r["ticker"])}</span>'
+            f'<span class="sw-px">{_d(r["close"])}</span>{_ch(r["chg"])}{right}</div>')
+
+
+def _rs_box(r: dict) -> str:
+    return f'<div class="sw-rs"><b>{r["rs189"]}</b><span>RS189</span></div>'
+
+
+def _levels(r: dict) -> str:
+    cell = lambda cls, label, v: f'<div class="{cls}"><i>{label}</i><b>{_d(v)}</b></div>'
+    return ('<div class="sw-lv">' + cell("stop", "損切り −8%", r["stop"]) + cell("", "安値21EMA", r["el21"])
+            + cell("", "買い増し +10%", r["add"]) + cell("", "建値へ +25%", r["be"]) + '</div>')
 
 
 def _struct_line(r: dict) -> str:
+    """Price position between the HL (structure break) and the pivot line."""
     line, hl = r.get("pivot_line"), r.get("hl")
-    if line is None or (isinstance(line, float) and math.isnan(line)):
-        return '<div class="sw-st">HL構造なし（安値の切り上げ未確認）</div>'
+    if line is None or (isinstance(line, float) and math.isnan(line)) or not hl or hl >= line:
+        return '<div class="sw-ft">HL構造なし（安値の切り上げ未確認）</div>'
     px = r["close"]
-    return (f'<div class="sw-st">ピボットライン {_d(line)}（{_p(line / px - 1)}）・'
-            f'HL {_d(hl)}（{_p(hl / px - 1)}）＝割れたら構造崩れ</div>')
+    lo, hi = min(hl, px), max(line, px)
+    pos = lambda x: (x - lo) / (hi - lo) * 100 if hi > lo else 50
+    return (f'<div class="sw-bar"><div class="in" style="left:{pos(hl):.1f}%;width:{pos(line) - pos(hl):.1f}%"></div>'
+            f'<div class="mk" style="left:{pos(px):.1f}%"></div></div>'
+            f'<div class="sw-bl"><span>HL {_d(hl)} {_p(hl / px - 1)}</span>'
+            f'<span>ライン {_d(line)} {_p(line / px - 1)}</span></div>')
+
+
+def _foot(r: dict) -> str:
+    return (f'<div class="sw-ft">値幅 {r["vc"]:.2f}・出来高 {r["vdry"]:.2f}・10日線 {_p(r["ext10"])}'
+            f'・売買代金 {r["dv"]}</div>')
 
 
 def card_html(result: dict) -> str:
     e = html.escape
     core, watch, ep = result["core"], result["watch"], result["ep"]
     late = result.get("late", [])
-    rows = []
-    for r in core[:12]:
-        rows.append(
-            f'<div class="sw-row"><div class="sw-h"><span class="sw-tag sw-go">買い候補</span>'
-            f'<span class="sw-tk">{e(r["ticker"])}</span><span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）</span>{_badges(r)}</div>'
-            f'<div class="sw-m">{_rs3(r)}・売買代金 {r["dv"]}・値幅 {r["vc"]:.2f}・出来高 {r["vdry"]:.2f}'
-            f'・10日線 {_p(r["ext10"])}</div>{_struct_line(r)}'
-            f'<div class="sw-lv">損切り <b>{_d(r["stop"])}</b>（−8%）・買い増し {_d(r["add"])}（+10%）'
-            f'・建値へ {_d(r["be"])}（+25%）・安値21EMA {_d(r["el21"])}</div></div>'
-        )
-    core_body = "".join(rows) or '<div class="sw-empty">本日の買い候補なし（待つのもルール）。</div>'
-    lrows = []
-    for r in late[:10]:
-        lrows.append(
-            f'<div class="sw-row"><div class="sw-h"><span class="sw-tag sw-late">{r["lag"]}日前に成立</span>'
-            f'<span class="sw-tk">{e(r["ticker"])}</span><span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）</span>{_badges(r)}</div>'
-            f'<div class="sw-m">成立 {e(r["signal_date"][5:].replace("-", "/"))} {_d(r["signal_close"])} から {_p(r["from_signal"])}'
-            f'・{_rs3(r)}・売買代金 {r["dv"]}</div>{_struct_line(r)}'
-            f'<div class="sw-lv">今入るなら 損切り <b>{_d(r["stop"])}</b>（−8%）・買い増し {_d(r["add"])}'
-            f'・建値へ {_d(r["be"])}・安値21EMA {_d(r["el21"])}</div></div>'
-        )
-    late_body = "".join(lrows) or '<div class="sw-empty">該当なし。</div>'
-    wrows = []
-    for r in watch[:15]:
-        miss = "".join(f'<span class="sw-miss">{e(_miss_label(m, r))}</span>' for m in r["missing"])
-        n = len(r["missing"])
-        wrows.append(
-            f'<div class="sw-row"><div class="sw-h"><span class="sw-tk">{e(r["ticker"])}</span>'
-            f'<span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）</span>'
-            f'<span class="sw-need">あと{n}条件</span>{_badges(r)}</div>'
-            f'<div class="sw-m">{_rs3(r)}</div>'
-            f'<div class="sw-miss-row">{miss}</div></div>'
-        )
-    watch_body = "".join(wrows) or '<div class="sw-empty">選定条件を満たす銘柄なし。</div>'
-    erows = []
-    for r in ep[:8]:
-        tt = "" if r["tt"] else '<span class="sw-miss">トレンドテンプレ外</span>'
-        erows.append(
-            f'<div class="sw-row"><div class="sw-h"><span class="sw-tag sw-ep">テーマ枠</span>'
-            f'<span class="sw-tk">{e(r["ticker"])}</span><span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）</span>{tt}</div>'
-            f'<div class="sw-m">窓 {_p(r["gap"])}・出来高 {r["volx"]:.1f}倍・テーマ強度 {r["peer"]}・値幅 {r["adr"] * 100:.1f}%</div>'
-            f'<div class="sw-lv">損切り <b>{_d(r["stop"])}</b>（−8%）・60営業日で手仕舞い・リスク0.5%</div></div>'
-        )
-    ep_body = "".join(erows) or '<div class="sw-empty">本日のテーマ枠候補なし。</div>'
+    tile = lambda cls, r, inner: f'<div class="sw-t{cls}" data-tkone="{e(r["ticker"])}">{inner}</div>'
+    core_body = "".join(
+        tile("", r, _top(r, _rs_box(r)) + _chips(r) + _struct_line(r) + _levels(r) + _foot(r)) for r in core[:12]
+    ) or '<div class="sw-empty">本日の買い候補なし（待つのもルール）。</div>'
+    late_body = "".join(
+        tile(" late", r, _top(r, _rs_box(r))
+             + _chips(r, f'<span class="sw-c">{r["lag"]}日前 {e(r["signal_date"][5:].replace("-", "/"))} '
+                         f'{_d(r["signal_close"])}から{_p(r["from_signal"])}</span>')
+             + _struct_line(r) + _levels(r)) for r in late[:10]
+    ) or '<div class="sw-empty">該当なし。</div>'
+    watch_body = "".join(
+        f'<div class="sw-w" data-tkone="{e(r["ticker"])}"><span class="sw-tk">{e(r["ticker"])}</span>'
+        f'<span class="sw-px">{_d(r["close"])}</span>{_ch(r["chg"])}'
+        f'<span class="sw-c">RS189 {r["rs189"]}</span>'
+        + ('<span class="sw-c hl">HL構造・ライン下</span>' if r.get("inside") else "")
+        + '<div class="sw-chips">'
+        + "".join(f'<span class="sw-c miss">{e(_miss_label(m, r))}</span>' for m in r["missing"])
+        + '</div></div>' for r in watch[:15]
+    ) or '<div class="sw-empty">選定条件を満たす銘柄なし。</div>'
+    ep_body = "".join(
+        tile(" ep", r, _top(r, f'<div class="sw-rs"><b>{r["peer"]}</b><span>テーマ強度</span></div>')
+             + '<div class="sw-chips">'
+             + f'<span class="sw-c ep">窓 {_p(r["gap"])}</span><span class="sw-c ep">出来高 {r["volx"]:.1f}倍</span>'
+             + f'<span class="sw-c">値幅 {r["adr"] * 100:.1f}%</span>'
+             + ("" if r["tt"] else '<span class="sw-c miss">トレンドテンプレ外</span>') + '</div>'
+             + f'<div class="sw-lv" style="grid-template-columns:repeat(2,minmax(0,1fr))">'
+             + f'<div class="stop"><i>損切り −8%</i><b>{_d(r["stop"])}</b></div>'
+             + '<div><i>手仕舞い</i><b>60営業日・リスク0.5%</b></div></div>') for r in ep[:8]
+    ) or '<div class="sw-empty">本日のテーマ枠候補なし。</div>'
 
     def copy_btn(items: list[dict]) -> str:
         tks = ",".join(r["ticker"] for r in items)
@@ -424,38 +463,45 @@ def card_html(result: dict) -> str:
         return (f'<button class="cp" data-tk="{e(tks)}" onclick="copyTk(event,this)">コピー '
                 f'<span class="n">{len(items)}</span></button>')
 
+    def sec(title: str, note: str, items: list[dict]) -> str:
+        return f'<div class="sw-sec"><span>{title}<small>{note}</small></span>{copy_btn(items)}</div>'
+
+    summary = "".join(f'<span>{k}<b>{n}</b></span>' for k, n in
+                      (("買い", len(core)), ("まだ入れる", len(late)), ("テーマ", len(ep)), ("監視", len(watch))))
     return (
         f'<div class="card" id="{CARD_ID}" data-source-improvement="swing-screener">'
         '<div class="chd"><h2>スイング候補（新ルール）<span class="h2en">Swing Screener</span></h2>'
         f'<div class="chd-now" style="color:#23824d"><b>{len(core)}</b><span>買い候補</span></div></div>'
-        f'<div class="sub">{e(result["session"])} 終値基準・流動性あり {result["universe"]} 銘柄中、選定条件を満たすのは '
-        f'{result.get("selected", 0)} 銘柄。</div>'
-        '<details class="cxpl"><summary>ルール</summary><div class="cxpl-b">'
+        f'<div class="sub">{e(result["session"])} 終値基準・流動性あり{result["universe"]}銘柄から選定'
+        f'{result.get("selected", 0)}銘柄。タップで銘柄詳細。</div>'
+        f'<div class="sw-sum">{summary}</div>'
+        + sec("買い候補", "本日の終値で成立", core) + core_body
+        + sec("まだ入れる", "1〜2日前に成立", late) + late_body
+        + sec("テーマ枠", "本日の窓開け", ep) + ep_body
+        + sec("監視", "選定OK・形待ち", watch[:15])
+        + '<div class="sw-hint">黄色は「今の値 → 成立に必要な値」</div>' + watch_body
+        + '<details class="cxpl" style="margin-top:10px"><summary>ルールと見方</summary><div class="cxpl-b">'
         '<b>選定</b>：トレンドテンプレート・50日平均売買代金が上位5%・189日リターンが上位10%'
         '（株価$10以上・売買代金$20M以上の銘柄内）。<b>形</b>：10日/50日の平均値幅0.9以下・5日/50日の出来高0.9以下。'
         '<b>追わない</b>：当日+3%未満・前日+3%以下・10日線+12%以内。<br/>'
         '<b>売買</b>：終値で買う。資金の1%リスク・−8%損切り（1銘柄は資金の約12.5%）。'
         '終値+10%で持ち株の半分を1回だけ買い増し、高値+25%で損切りを建値へ、安値21EMAを割って引けたら手仕舞い。'
         '余剰資金の50%はQQQ。<br/>'
-        '<b>並び順</b>：HL構造・ライン下（安値が切り上がり、ピボットラインの下で静かにしている）を優先し、その中はRS189順。'
-        'ピボットライン＝直近のLL→HL間の最高値（期間2〜10本で一番狭い構造）、HL＝切り上げた安値で、割れたら構造崩れ。'
+        '<b>バー</b>：緑の始まりがHL（切り上げた安値・割れたら構造崩れ）、緑の終わりがピボットライン'
+        '（直近のLL→HL間の最高値・期間2〜10本で一番狭い構造）、黒い線が今の株価。<br/>'
+        '<b>並び順</b>：HL構造・ライン下（安値が切り上がり、ラインの下で静かにしている）を優先し、その中はRS189順。'
         'バックテストでは、HL構造・ライン下のPFは2015〜20年2.22・2021〜24年1.89・2025〜26年2.34（今のルール全体は2.58・0.97・1.99）。'
         '<b>選定◯日目</b>は選定条件を連続で満たしている日数で、60日超の古いリーダーは成績が悪い（PF 1.40・0.17・0.87）。'
         'RS21・63は参考表示（並び順には使わない。RS21上位5%は追いかけになりやすい）。<br/>'
+        '<b>下段の数字</b>：値幅＝10日÷50日の平均値幅、出来高＝5日÷50日の平均出来高（静かな日が続くと下がる）、'
+        '10日線＝10日線からの乖離、売買代金＝流動性の順位（100が最大）。<br/>'
         '<b>まだ入れる</b>：1〜2日前に条件が成立し、成立時の終値+3%以内・その後に損切り/安値21EMA割れなし・'
         '選定条件を維持・当日+3%未満・10日線+12%以内。成立日に入るより成績は落ち、地合いが悪い時期は特に悪い'
         '（PF 1日遅れ1.78・2日遅れ1.6前後）。株数は通常どおり、損切りは今の価格から−8%。<br/>'
         '<b>テーマ枠</b>：窓+5〜20%・終値+5%以上・出来高3〜15倍・上半分引け・50日線上・値幅3〜7%・'
-        '相関の高い15銘柄のRS平均50〜90。リスク0.5%・同時3銘柄・60営業日で手仕舞い。<br/>'
+        '相関の高い15銘柄のRS平均（テーマ強度）50〜90。リスク0.5%・同時3銘柄・60営業日で手仕舞い。<br/>'
         '2015〜2026年のバックテスト（現存銘柄・税金なし）で年率+24.5%・最大DD−28%。上場廃止銘柄は未検証。売買指示ではない。'
         '</div></details>'
-        f'<div class="sw-sec">買い候補（本日の終値で条件成立）{copy_btn(core)}</div>{core_body}'
-        f'<div class="sw-sec">まだ入れる（1〜2日前に成立）{copy_btn(late)}</div>{late_body}'
-        f'<div class="sw-sec">テーマ枠（本日の窓開け）{copy_btn(ep)}</div>{ep_body}'
-        f'<div class="sw-sec">監視（選定OK・形待ち）{copy_btn(watch[:15])}</div>'
-        '<div class="sub">バッジは「今の値 → 成立に必要な値」。値幅＝10日÷50日の平均値幅、出来高＝5日÷50日の平均出来高。'
-        '値幅と出来高は静かな日が続くと下がる。当日・前日は翌日以降に自然に解消することが多い。</div>'
-        f'{watch_body}'
         '</div>'
     )
 
