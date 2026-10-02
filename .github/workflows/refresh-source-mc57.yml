@@ -101,6 +101,15 @@ jobs:
             work/mc57-corrections/
           key: source-mc57-ohlcv-${{ github.run_id }}
           restore-keys: source-mc57-ohlcv-
+      - name: Restore Yahoo-failure fallback baseline
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            work/mc57-prices.csv
+            work/market-inputs-cache.json
+            work/massive-etf-grouped.json
+          key: source-mc57-fallback-${{ github.run_id }}
+          restore-keys: source-mc57-fallback-
       - name: Acquire current session and calculate MC57
         id: acquire
         shell: bash
@@ -146,6 +155,15 @@ jobs:
             work/universes/
             work/mc57-corrections/
           key: source-mc57-ohlcv-${{ github.run_id }}
+      - name: Preserve Yahoo-failure fallback baseline
+        if: always() && steps.acquire.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            work/mc57-prices.csv
+            work/market-inputs-cache.json
+            work/massive-etf-grouped.json
+          key: source-mc57-fallback-${{ github.run_id }}
       - name: Restore independent long ETF history cache
         uses: actions/cache/restore@v4
         with:

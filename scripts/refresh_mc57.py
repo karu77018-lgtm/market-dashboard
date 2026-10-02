@@ -35,6 +35,7 @@ from provider_inputs import (  # noqa: E402
     select_expanded_universe,
     select_preserved_count_fallback_universe,
 )
+import massive_fallback as mf  # noqa: E402
 
 
 MC57_ETFS = [
@@ -46,6 +47,9 @@ MC57_ETFS = [
     "PAVE", "PKB", "XRT", "IBUY", "PEJ", "BLOK", "WGMI", "DRIV", "MOO",
     "PHO", "WOOD", "QQQE",
 ]
+# Every Yahoo -> Massive/TradingView substitution made during this run.  It is
+# written to the manifest and rendered on the page as "Massive代替".
+SUBSTITUTE: dict[str, Any] = {}
 METRIC_NAMES = [
     "close_gt_sma10", "close_gt_sma20", "close_gt_sma50", "close_gt_sma200",
     "ret5_gt_0", "ret21_gt_0", "ret63_gt_0", "ret252_gt_0",
@@ -60,7 +64,7 @@ def dump(path: Path, obj: Any) -> None:
                                allow_nan=False) + "\n", encoding="utf-8")
 
 
-def recent_completed_sessions(count: int = 20) -> list[str]:
+def _yahoo_completed_sessions(count: int) -> list[str]:
     raw = la._download(yf, ["QQQ", "SPY"], period="3mo", threads=False)
     frames = {symbol: la.select_yfinance_symbol_frame(raw, symbol) for symbol in ("QQQ", "SPY")}
     qqq_dates, spy_dates = la.frame_dates(frames["QQQ"]), la.frame_dates(frames["SPY"])
@@ -69,6 +73,18 @@ def recent_completed_sessions(count: int = 20) -> list[str]:
     if len(common) < count:
         raise RuntimeError(f"only {len(common)} completed QQQ/SPY sessions available; need {count}")
     return common[-count:]
+
+
+def recent_completed_sessions(count: int = 20, massive_key: str = "") -> list[str]:
+    try:
+        return _yahoo_completed_sessions(count)
+    except Exception as exc:
+        if not massive_key:
+            raise
+        print(f"Yahoo session calendar failed ({type(exc).__name__}); trying Massive QQQ/SPY", flush=True)
+        sessions = mf.massive_completed_sessions(massive_key, count)
+        SUBSTITUTE["session_calendar"] = "Massive QQQ/SPY daily bars"
+        return sessions
 
 
 def resolve_refresh_sessions(
@@ -84,7 +100,9 @@ def resolve_refresh_sessions(
 
 
 def stock_ohlcv(tickers: list[str], target: str, output: Path,
-                *, chunk_size: int = 100) -> dict[str, Any]:
+                *, chunk_size: int = 100,
+                massive_grouped: dict[str, dict[str, dict[str, Any]]] | None = None,
+                sessions: list[str] | None = None) -> dict[str, Any]:
     """Three-year baseline, then one-month incremental adjusted OHLCV.
 
     GitHub Actions restores the prior successful CSV from a rolling cache.  New
@@ -92,6 +110,12 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
     recent data to cover missed sessions. A quote already quality-gated for the
     exact target session can be reused on a same-session rerun; an older session
     can never pass the gate.
+
+    When Yahoo fails, names that already have cached history are completed
+    from Massive grouped daily bars (only the sessions after the cache; at
+    most a few sessions; never for names without history).  After two whole
+    chunks come back empty, Yahoo is treated as down for the rest of the run
+    so a rate limit is not hammered further.
     """
     fields = ("ticker", "date", "open", "high", "low", "close", "volume",
               "is_complete", "split_checked", "split_anomaly")
@@ -116,9 +140,13 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
                 cached = pd.DataFrame()
         except Exception:
             cached = pd.DataFrame()
+    last_cached: dict[str, str] = {}
+    if not cached.empty:
+        last_cached = cached.groupby("ticker")["date"].max().astype(str).to_dict()
     fresh_path = output.with_suffix(".fresh.csv")
-    target_ok = target_fresh_ok = target_cache_ok = history_ok = 0
+    target_ok = target_fresh_ok = target_cache_ok = target_massive_ok = history_ok = 0
     failed: list[str] = []
+    empty_chunks, yahoo_down = 0, False
     with fresh_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
@@ -130,6 +158,9 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
             # target-session row is absent; never substitute an older date.
             pending = [ticker for ticker in originals if ticker not in cached_target_tickers]
             rows_by: dict[str, list[dict[str, Any]]] = {}
+            attempted = bool(pending) and not yahoo_down
+            if yahoo_down:
+                pending = []
             for attempt in range(3):
                 if not pending:
                     break
@@ -152,6 +183,11 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
                 pending = retry
                 if pending:
                     time.sleep(2 ** attempt)
+            if attempted:
+                empty_chunks = 0 if rows_by else empty_chunks + 1
+                if empty_chunks >= 2 and not yahoo_down:
+                    yahoo_down = True
+                    print("Yahoo returned no rows for two chunks; skipping Yahoo for the rest of the run", flush=True)
             for ticker in originals:
                 rows = rows_by.get(ticker, [])
                 if rows:
@@ -164,9 +200,19 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
                     target_ok += 1
                     target_cache_ok += 1
                 else:
-                    failed.append(ticker)
+                    last = max([last_cached.get(ticker, "")] + [r["date"] for r in rows if r["close"] is not None])
+                    filled = (mf.ohlcv_rows_from_grouped(ticker, last or None, target, sessions or [], massive_grouped)
+                              if massive_grouped and ticker in last_cached else [])
+                    if filled:
+                        writer.writerows(filled)
+                        target_ok += 1
+                        target_massive_ok += 1
+                    else:
+                        failed.append(ticker)
             print(f"stock OHLCV {min(offset + chunk_size, len(tickers))}/{len(tickers)}", flush=True)
     coverage = target_ok / len(tickers)
+    if target_massive_ok:
+        print(f"Massive grouped substitute for {target_massive_ok} stock bars", flush=True)
     if coverage < 0.95:
         raise RuntimeError(
             f"current-session stock coverage below 95%: {target_ok}/{len(tickers)}={coverage:.4f}"
@@ -193,6 +239,8 @@ def stock_ohlcv(tickers: list[str], target: str, output: Path,
         "target_session_received": target_ok, "target_session_coverage": coverage,
         "target_session_fresh": target_fresh_ok,
         "target_session_same_day_cache": target_cache_ok,
+        "target_session_massive_substitute": target_massive_ok,
+        "yahoo_circuit_open": yahoo_down,
         "failed_tickers": failed, "incremental_cache_used": bool(cached_tickers),
     }
 
@@ -233,7 +281,10 @@ def _price_frame(raw: pd.DataFrame, symbol: str) -> pd.Series:
     return series[~series.index.duplicated(keep="last")].sort_index()
 
 
-def mc57_prices(target: str) -> pd.DataFrame:
+def mc57_prices(target: str, *, cache_path: Path | None = None, sessions: list[str] | None = None,
+                etf_bars: mf.GroupedFetcher | None = None) -> pd.DataFrame:
+    """57 fixed ETFs' adjusted closes.  Yahoo first; on failure the last good
+    frame (``cache_path``) is extended with Massive closes, then TradingView."""
     series: dict[str, pd.Series] = {}
     pending = list(MC57_ETFS)
     for attempt in range(3):
@@ -257,6 +308,17 @@ def mc57_prices(target: str) -> pd.DataFrame:
         pending = retry
         if pending:
             time.sleep(30 if attempt == 0 else 60)
+    if pending and cache_path is not None and etf_bars is not None:
+        cached = mf.read_close_cache(cache_path)
+        for ticker in pending:
+            if ticker not in series and ticker in cached:
+                prior = cached[ticker].dropna()
+                series[ticker] = prior[prior.index <= pd.Timestamp(target)]
+        filled = mf.mc57_fill(series, pending, target=target, sessions=sessions or [], etf_bars=etf_bars)
+        if filled:
+            print("MC57 Massive substitute: " + ",".join(sorted(filled)), flush=True)
+            SUBSTITUTE["mc57_etfs_massive"] = sorted(filled)
+            pending = [ticker for ticker in pending if ticker not in set(filled)]
     if pending:
         # Yahoo occasionally publishes a complete historical frame without the
         # just-closed bar for every ETF.  Preserve that history and fill only
@@ -270,6 +332,9 @@ def mc57_prices(target: str) -> pd.DataFrame:
             close = fallback_closes.get(ticker)
             if close is None or ticker not in series or series[ticker].empty:
                 continue
+            last = series[ticker].index[-1].strftime("%Y-%m-%d")
+            if sessions and last != target and mf.gap_sessions(last, target, sessions) != [target]:
+                continue  # a cached frame with a multi-session hole is never bridged
             updated = series[ticker].copy()
             updated.loc[pd.Timestamp(target)] = float(close)
             series[ticker] = updated.sort_index()
@@ -283,7 +348,29 @@ def mc57_prices(target: str) -> pd.DataFrame:
     if pending:
         raise RuntimeError("MC57 fixed universe missing current closes: " + ",".join(pending))
     close = pd.DataFrame(series).sort_index()
-    return close[close.index <= pd.Timestamp(target)]
+    close = close[close.index <= pd.Timestamp(target)]
+    if cache_path is not None:
+        mf.write_close_cache(cache_path, close)
+    return close
+
+
+def market_inputs(target: str, generated_at: str, *, sessions: list[str], cache_path: Path,
+                  etf_bars: mf.GroupedFetcher | None) -> dict[str, Any]:
+    try:
+        market = la.download_market_inputs(yf, target_session=target, generated_at=generated_at)
+    except la.LiveAcquisitionError as exc:
+        if etf_bars is None or not cache_path.is_file():
+            raise
+        print(f"Yahoo market inputs failed ({exc}); trying Massive/TradingView substitutes", flush=True)
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        market = mf.market_inputs_fallback(
+            cached, target=target, generated_at=generated_at, sessions=sessions,
+            etf_bars=etf_bars, tv_bars=lambda symbols, day: mf.tradingview_daily_bars(symbols, day),
+        )
+        SUBSTITUTE["market_inputs"] = {"massive": market["massive_fallback_symbols"],
+                                       "tradingview": market["tradingview_fallback_symbols"]}
+    dump(cache_path, {k: v for k, v in market.items() if k not in {"fred", "massive_market_structure"}})
+    return market
 
 
 def _participation(condition: pd.DataFrame, valid: pd.DataFrame) -> pd.Series:
@@ -470,7 +557,8 @@ def main() -> int:
     except ProviderError:
         massive_key = ""
     fred_key = secret_from_env(("FRED_API_KEY",))
-    sessions = recent_completed_sessions(20)
+    SUBSTITUTE.clear()
+    sessions = recent_completed_sessions(20, massive_key)
     observed_target = sessions[-1]
     previous_session = None
     manifest_path = root / "latest-manifest.json"
@@ -567,7 +655,15 @@ def main() -> int:
     theme["session_date"], theme["generated_at"] = target, generated_at
     dump(data / "theme_membership.json", theme)
 
-    yahoo_stats = stock_ohlcv(tickers, target, work / "ohlcv.csv")
+    yahoo_stats = stock_ohlcv(tickers, target, work / "ohlcv.csv",
+                              massive_grouped=None if yahoo_fallback else grouped, sessions=sessions)
+    if yahoo_stats.get("target_session_massive_substitute"):
+        SUBSTITUTE["stock_bars_massive"] = yahoo_stats["target_session_massive_substitute"]
+    etf_tickers = sorted(set(MC57_ETFS) | {s for s in la.MARKET_SYMBOLS if s.replace("-", "").isalnum()})
+    etf_bars = None
+    if massive_key:
+        def etf_bars(days: list[str]) -> dict[str, dict[str, dict[str, Any]]]:
+            return mf.massive_grouped_raw(massive_key, days, etf_tickers, work / "massive-etf-grouped.json")
     if yahoo_fallback:
         structure_history = grouped_history_from_yahoo_ohlcv(
             work / "ohlcv.csv", tickers, target_session=target,
@@ -583,6 +679,8 @@ def main() -> int:
         cross_vendor = compare_current_closes(
             work / "ohlcv.csv", grouped, target_session=target, universe_count=len(tickers),
         )
+        if yahoo_stats.get("target_session_massive_substitute"):
+            cross_vendor["massive_substitute_rows"] = yahoo_stats["target_session_massive_substitute"]
         if cross_vendor["coverage"] < .95:
             raise RuntimeError(
                 f"Yahoo/Massive cross-vendor current-close coverage below 95%: {cross_vendor['coverage']:.4f}"
@@ -601,11 +699,13 @@ def main() -> int:
         "fred": fred,
     }
     dump(data / "provider_inputs.json", provider_inputs)
-    market = la.download_market_inputs(yf, target_session=target, generated_at=generated_at)
+    market = market_inputs(target, generated_at, sessions=sessions,
+                           cache_path=work / "market-inputs-cache.json", etf_bars=etf_bars)
     market["fred"] = fred
     market["massive_market_structure"] = market_structure
     dump(data / "market_inputs.json", market)
-    mc57 = compute_mc57(mc57_prices(target), target, generated_at,
+    mc57 = compute_mc57(mc57_prices(target, cache_path=work / "mc57-prices.csv", sessions=sessions,
+                                    etf_bars=etf_bars), target, generated_at,
                          history_output=root / "market-history" / "mc57-full.json")
     mc57 = preserve_same_session_mc57(root, mc57, correction_reason=args.mc57_correction_reason)
     dump(data / "mc57.json", mc57)
@@ -625,6 +725,7 @@ def main() -> int:
                          "missing_current_rows": (len(tickers) - yahoo_stats["target_session_received"] if yahoo_fallback else expansion_stats["massive_current_missing"]),
                          "adopted_universe_count": len(tickers),
                          "current_session_provider": "Yahoo Finance" if yahoo_fallback else "Massive",
+                         "yahoo_substitute": dict(SUBSTITUTE) or None,
                      },
                      "universe_expansion": {
                          "legacy": expansion_stats["legacy_universe"],
