@@ -102,3 +102,17 @@ def test_inside_structure_is_listed_first():
                                 "add": 11.0, "be": 12.5, "pivot_line": 10.5, "hl": 9.6, "inside": True, "streak": 3}]})
     assert "HL構造・ライン下" in html and "RS21 50・63 80" in html and "選定3日目" in html
     assert 'data-tkone="AAA"' in html  # tap opens the shared ticker detail overlay
+
+
+def test_option_walls_render_and_failures_are_harmless():
+    frame = _frame()
+    page = '<html><head></head><body><section id="t-alloc"></section></body></html>'
+    fake = lambda targets, session: {t: {"cw": 66.0, "cwp": 0.1, "pw": 55.0, "pwp": -0.08,
+                                          "gf": 58.5, "gfp": -0.025, "conf": "OK"} for t in targets}
+    out = apply(page, frame, walls_fn=fake)
+    assert "OP 上値の壁</i><b>$66 <em>+10.0%</em>" in out and "<b>$58.50 <em>" in out
+
+    def broken(targets, session):
+        raise RuntimeError("cboe down")
+
+    assert CARD_ID in apply(page, frame, walls_fn=broken)

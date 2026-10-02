@@ -324,6 +324,12 @@ STYLE = """
 #mc57-swing-screener .sw-bar .in{position:absolute;top:0;bottom:0;background:#bfdcc8;border-radius:3px}
 #mc57-swing-screener .sw-bar .mk{position:absolute;top:-4px;width:3px;height:14px;margin-left:-1px;background:#1c1b19;border-radius:2px}
 #mc57-swing-screener .sw-bl{display:flex;justify-content:space-between;font-size:10px;color:#55524a;font-variant-numeric:tabular-nums}
+#mc57-swing-screener .sw-opt{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-top:4px}
+#mc57-swing-screener .sw-opt div{background:#eeebf7;border-radius:6px;padding:4px 5px;min-width:0}
+#mc57-swing-screener .sw-opt i{display:block;font-style:normal;font-size:9.5px;color:#5d5591;white-space:nowrap}
+#mc57-swing-screener .sw-opt b{display:block;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mc57-swing-screener .sw-opt em{font-style:normal;font-weight:600;font-size:10.5px;color:#55524a}
+#mc57-swing-screener .sw-olow{font-size:10px;color:#9a3f2b;margin-top:2px}
 #mc57-swing-screener .sw-ft{font-size:10.5px;color:#6f6c62;margin-top:5px;font-variant-numeric:tabular-nums}
 #mc57-swing-screener .sw-w{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;border-top:1px solid #e3e1db;padding:7px 2px;cursor:pointer}
 #mc57-swing-screener .sw-w:active{background:#ecebe6}
@@ -417,6 +423,27 @@ def _struct_line(r: dict) -> str:
             f'<span>ライン {_d(line)} {_p(line / px - 1)}</span></div>')
 
 
+def _strike(v: float) -> str:
+    return f"${v:,.0f}" if float(v).is_integer() else f"${v:,.2f}"
+
+
+def _opt_line(r: dict) -> str:
+    o = r.get("opt")
+    if not o:
+        return ""
+    cells = []
+    for key, label in (("cw", "OP 上値の壁"), ("pw", "OP 下値の支え"), ("gf", "OP 境目")):
+        v = o.get(key)
+        if v and key == "gf" and v >= 100:
+            v = round(v)  # an estimated level, not a listed strike
+        value = f'{_strike(v)} <em>{_p(o[key + "p"])}</em>' if v else "—"
+        cells.append(f'<div><i>{label}</i><b>{value}</b></div>')
+    if all(not o.get(k) for k in ("cw", "pw", "gf")):
+        return ""
+    low = '<div class="sw-olow">建玉が薄いので参考度低め</div>' if o.get("conf") == "LOW" else ""
+    return f'<div class="sw-opt">{"".join(cells)}</div>{low}'
+
+
 def _foot(r: dict) -> str:
     return (f'<div class="sw-ft">値幅 {r["vc"]:.2f}・出来高 {r["vdry"]:.2f}・10日線 {_p(r["ext10"])}'
             f'・売買代金 {r["dv"]}</div>')
@@ -428,13 +455,13 @@ def card_html(result: dict) -> str:
     late = result.get("late", [])
     tile = lambda cls, r, inner: f'<div class="sw-t{cls}" data-tkone="{e(r["ticker"])}">{inner}</div>'
     core_body = "".join(
-        tile("", r, _top(r, _rs_box(r)) + _chips(r) + _struct_line(r) + _levels(r) + _foot(r)) for r in core[:12]
+        tile("", r, _top(r, _rs_box(r)) + _chips(r) + _struct_line(r) + _levels(r) + _opt_line(r) + _foot(r)) for r in core[:12]
     ) or '<div class="sw-empty">本日の買い候補なし（待つのもルール）。</div>'
     late_body = "".join(
         tile(" late", r, _top(r, _rs_box(r))
              + _chips(r, f'<span class="sw-c">{r["lag"]}日前 {e(r["signal_date"][5:].replace("-", "/"))} '
                          f'{_d(r["signal_close"])}から{_p(r["from_signal"])}</span>')
-             + _struct_line(r) + _levels(r)) for r in late[:10]
+             + _struct_line(r) + _levels(r) + _opt_line(r)) for r in late[:10]
     ) or '<div class="sw-empty">該当なし。</div>'
     watch_body = "".join(
         f'<div class="sw-w" data-tkone="{e(r["ticker"])}"><span class="sw-tk">{e(r["ticker"])}</span>'
@@ -453,7 +480,7 @@ def card_html(result: dict) -> str:
              + ("" if r["tt"] else '<span class="sw-c miss">トレンドテンプレ外</span>') + '</div>'
              + f'<div class="sw-lv" style="grid-template-columns:repeat(2,minmax(0,1fr))">'
              + f'<div class="stop"><i>損切り −8%</i><b>{_d(r["stop"])}</b></div>'
-             + '<div><i>手仕舞い</i><b>60営業日・リスク0.5%</b></div></div>') for r in ep[:8]
+             + '<div><i>手仕舞い</i><b>60営業日・リスク0.5%</b></div></div>' + _opt_line(r)) for r in ep[:8]
     ) or '<div class="sw-empty">本日のテーマ枠候補なし。</div>'
 
     def copy_btn(items: list[dict]) -> str:
@@ -495,6 +522,9 @@ def card_html(result: dict) -> str:
         'RS21・63は参考表示（並び順には使わない。RS21上位5%は追いかけになりやすい）。<br/>'
         '<b>下段の数字</b>：値幅＝10日÷50日の平均値幅、出来高＝5日÷50日の平均出来高（静かな日が続くと下がる）、'
         '10日線＝10日線からの乖離、売買代金＝流動性の順位（100が最大）。<br/>'
+        '<b>OP（オプション・参考）</b>：Cboeの遅延データ。45日以内に満期のオプションで、建玉×ガンマが最大の行使価格を'
+        '上値の壁（コール・今の株価より上）と下値の支え（プット・下）として表示。境目＝ディーラーのガンマが正負に入れ替わる価格'
+        '（上では値動きが落ち着きやすく、下では荒れやすいとされる）。建玉は前営業日時点。ルールの判定には使わない。<br/>'
         '<b>まだ入れる</b>：1〜2日前に条件が成立し、成立時の終値+3%以内・その後に損切り/安値21EMA割れなし・'
         '選定条件を維持・当日+3%未満・10日線+12%以内。成立日に入るより成績は落ち、地合いが悪い時期は特に悪い'
         '（PF 1日遅れ1.78・2日遅れ1.6前後）。株数は通常どおり、損切りは今の価格から−8%。<br/>'
@@ -506,13 +536,32 @@ def card_html(result: dict) -> str:
     )
 
 
-def apply(text: str, frame: pd.DataFrame) -> str:
+def apply(text: str, frame: pd.DataFrame, walls_fn=None) -> str:
+    """Insert the card; ``walls_fn(targets, session)`` optionally adds option walls."""
     if CARD_ID in text or SECTION not in text:
         return text
     try:
-        card = card_html(evaluate(frame))
+        result = evaluate(frame)
     except Exception as exc:  # display-only: never break publication
         print(f"swing screener skipped: {exc!r}", flush=True)
         return text
+    found: dict = {}
+    if walls_fn is not None:
+        rows = result["core"] + result.get("late", []) + result["ep"] + result["watch"][:15]
+        try:
+            found = walls_fn({r["ticker"]: r["close"] for r in rows}, result["session"]) or {}
+        except Exception as exc:
+            print(f"option walls skipped: {exc!r}", flush=True)
+        for r in rows:
+            r["opt"] = found.get(r["ticker"])
+    try:
+        card = card_html(result)
+    except Exception as exc:
+        print(f"swing screener skipped: {exc!r}", flush=True)
+        return text
     text = text.replace(SECTION, SECTION + card, 1)
-    return text.replace("</head>", STYLE + "</head>", 1)
+    text = text.replace("</head>", STYLE + "</head>", 1)
+    if found:
+        from options_walls import update_det
+        text = update_det(text, found)
+    return text
