@@ -99,7 +99,8 @@ def _states(c: pd.DataFrame, h: pd.DataFrame, l: pd.DataFrame, v: pd.DataFrame) 
             return last / c.iloc[k - n] - 1 if len(c) + k >= n else pd.Series(np.nan, index=c.columns)
 
         r189 = ret(189)
-        comp = 2 * ret(63) + ret(126) + r189 + ret(252)
+        r63 = ret(63)
+        comp = 2 * r63 + ret(126) + r189 + ret(252)
         dv_pct = _pct_rank(dv50.iloc[k], liquid)
         rs189_pct = _pct_rank(r189, liquid)
         ext10 = last / ma10.iloc[k] - 1
@@ -115,6 +116,7 @@ def _states(c: pd.DataFrame, h: pd.DataFrame, l: pd.DataFrame, v: pd.DataFrame) 
             timing &= m.fillna(False)
         selected = liquid & tt & (dv_pct >= DV_PCT) & (rs189_pct >= RS189_PCT)
         return {"last": last, "liquid": liquid, "tt": tt, "dv_pct": dv_pct, "rs189_pct": rs189_pct,
+                "rs21_pct": _pct_rank(ret(21), liquid), "rs63_pct": _pct_rank(r63, liquid),
                 "comp_pct": _pct_rank(comp, liquid), "vc": vc.iloc[k], "vdry": vdry.iloc[k],
                 "chg": chg.iloc[k], "ext10": ext10, "el21": el21.iloc[k], "checks": checks,
                 "timing": timing, "selected": selected, "signal": selected & timing,
@@ -123,6 +125,39 @@ def _states(c: pd.DataFrame, h: pd.DataFrame, l: pd.DataFrame, v: pd.DataFrame) 
 
     at.el21 = el21
     return at
+
+
+STALE_DAYS = 60
+PIVOT_LENGTHS = range(2, 11)
+
+
+def structure_pivot(high: np.ndarray, low: np.ndarray) -> tuple[float, float]:
+    """LL->HL structure on the last bar: (pivot line, HL) of the tightest valid setup.
+
+    For each pivot length n in 2..10 a pivot low at bar p is the lowest low of p-n..p+n and is
+    only known at bar p+n. When a confirmed pivot low is higher than the previous one (LL->HL),
+    the highest high between them is the pivot line. The setup is invalidated once a later low
+    breaks the HL. Among the valid setups on the last bar the lowest pivot line is chosen.
+    Returns (nan, nan) when no valid setup exists.
+    """
+    n_bars = len(low)
+    best_line, best_hl = np.inf, np.nan
+    for n in PIVOT_LENGTHS:
+        roll = pd.Series(low).rolling(2 * n + 1, center=True).min().to_numpy()
+        pivots = np.where((low == roll) & ~np.isnan(low))[0]
+        confirm = {p + n: p for p in pivots if p + n < n_bars}
+        prev, setup = None, None
+        for t in range(n_bars):
+            if setup is not None and low[t] < setup[1]:
+                setup = None
+            if t in confirm:
+                p = confirm[t]
+                if prev is not None and low[p] > low[prev]:
+                    setup = (p, low[p], float(np.nanmax(high[prev:p + 1])))
+                prev = p
+        if setup is not None and setup[2] < best_line:
+            best_line, best_hl = setup[2], float(setup[1])
+    return (float("nan"), float("nan")) if np.isinf(best_line) else (float(best_line), best_hl)
 
 
 def evaluate(frame: pd.DataFrame) -> dict:
@@ -136,16 +171,44 @@ def evaluate(frame: pd.DataFrame) -> dict:
     last, liquid, tt, chg = s["last"], s["liquid"], s["tt"], s["chg"]
     selected, timing, checks = s["selected"], s["timing"], s["checks"]
 
+    # Consecutive sessions meeting the selection rules (capped just above the stale threshold).
+    today_sel = list(selected[selected].index)
+    streak = {t: 0 for t in today_sel}
+    alive = set(today_sel)
+    for back in range(1, STALE_DAYS + 2):
+        if not alive:
+            break
+        sel_k = state(-back)["selected"] if back > 1 else selected
+        for t in list(alive):
+            if bool(sel_k.get(t, False)):
+                streak[t] += 1
+            else:
+                alive.discard(t)
+    struct_cache: dict[str, tuple[float, float]] = {}
+
+    def struct(t: str) -> tuple[float, float]:
+        if t not in struct_cache:
+            hh, ll = h[t].to_numpy(dtype=float)[-260:], l[t].to_numpy(dtype=float)[-260:]
+            struct_cache[t] = structure_pivot(hh, ll)
+        return struct_cache[t]
+
+    def pct_int(v) -> int | None:
+        return None if pd.isna(v) else int(round(float(v)))
+
     def row(t: str, st: dict) -> dict:
         px = float(st["last"][t])
+        line, hl = struct(t)
+        inside = bool(not math.isnan(line) and px <= line)
         return {"ticker": t, "close": px, "rs189": int(round(st["rs189_pct"][t])),
+                "rs21": pct_int(st["rs21_pct"].get(t)), "rs63": pct_int(st["rs63_pct"].get(t)),
+                "pivot_line": line, "hl": hl, "inside": inside, "streak": streak.get(t),
                 "dv": int(round(st["dv_pct"][t])), "vc": float(st["vc"][t]), "vdry": float(st["vdry"][t]),
                 "chg": float(st["chg"][t]), "prev_chg": float(st["prev_chg"][t]),
                 "ext10": float(st["ext10"][t]), "el21": float(st["el21"][t]),
                 "stop": px * (1 - STOP), "add": px * 1.10, "be": px * 1.25}
 
     core = [row(t, s) for t in selected[selected & timing].index]
-    core.sort(key=lambda r: -r["rs189"])
+    core.sort(key=lambda r: (not r["inside"], -r["rs189"]))
 
     # Late entries: signal 1-2 sessions ago, not re-signalled today, still near the signal close,
     # no stop or 21EMA-low exit since, still selected, and today's no-chase checks pass.
@@ -169,7 +232,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
                       "from_signal": float(last[t]) / base - 1, "lag": lag})
             late.append(r)
             seen.add(t)
-    late.sort(key=lambda r: (r["lag"], -r["rs189"]))
+    late.sort(key=lambda r: (r["lag"], not r["inside"], -r["rs189"]))
 
     watch = []
     for t in selected[selected & ~timing].index:
@@ -178,7 +241,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
         r = row(t, s)
         r["missing"] = [k for k, m in checks.items() if not bool(m.get(t, False))]
         watch.append(r)
-    watch.sort(key=lambda r: (len(r["missing"]), -r["rs189"]))
+    watch.sort(key=lambda r: (len(r["missing"]), not r["inside"], -r["rs189"]))
 
     # Theme slot: earnings-gap style entries with correlation-peer strength 50-90.
     adr20, ma50 = s["adr20"], s["ma50"]
@@ -242,6 +305,10 @@ STYLE = """
 #mc57-swing-screener .sw-go{background:#23824d}#mc57-swing-screener .sw-late{background:#5b8a5f}#mc57-swing-screener .sw-wait{background:#8a7b3c}#mc57-swing-screener .sw-ep{background:#3774d3}
 #mc57-swing-screener .sw-need{font-size:11px;color:#6b5a1e;font-weight:700}
 #mc57-swing-screener .sw-miss-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+#mc57-swing-screener .sw-hl{font-size:11px;border-radius:5px;padding:1px 6px;border:1px solid #23824d;color:#23824d;white-space:nowrap}
+#mc57-swing-screener .sw-age{font-size:11px;color:#6f6c62;white-space:nowrap}
+#mc57-swing-screener .sw-stale{font-size:11px;border-radius:5px;padding:1px 6px;background:#f6e3dc;color:#9a3f2b;white-space:nowrap}
+#mc57-swing-screener .sw-st{font-size:12px;margin-top:2px;color:#2f5d3a;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 #mc57-swing-screener .sw-empty{font-size:13px;color:#4d4a40;padding:6px 2px}
 #mc57-swing-screener .sw-chips{font-size:12px;overflow-wrap:anywhere;line-height:1.7}
 </style>"""
@@ -275,6 +342,32 @@ def _miss_label(name: str, r: dict) -> str:
     return name
 
 
+def _rs3(r: dict) -> str:
+    f = lambda v: "—" if v is None else str(v)
+    return f"RS 21・63・189 {f(r.get('rs21'))}・{f(r.get('rs63'))}・{r['rs189']}"
+
+
+def _badges(r: dict) -> str:
+    out = []
+    if r.get("inside"):
+        out.append('<span class="sw-hl">HL構造・ライン下</span>')
+    st = r.get("streak")
+    if st is not None and st > STALE_DAYS:
+        out.append(f'<span class="sw-stale">選定{STALE_DAYS}日超</span>')
+    elif st:
+        out.append(f'<span class="sw-age">選定{st}日目</span>')
+    return "".join(out)
+
+
+def _struct_line(r: dict) -> str:
+    line, hl = r.get("pivot_line"), r.get("hl")
+    if line is None or (isinstance(line, float) and math.isnan(line)):
+        return '<div class="sw-st">HL構造なし（安値の切り上げ未確認）</div>'
+    px = r["close"]
+    return (f'<div class="sw-st">ピボットライン {_d(line)}（{_p(line / px - 1)}）・'
+            f'HL {_d(hl)}（{_p(hl / px - 1)}）＝割れたら構造崩れ</div>')
+
+
 def card_html(result: dict) -> str:
     e = html.escape
     core, watch, ep = result["core"], result["watch"], result["ep"]
@@ -283,9 +376,9 @@ def card_html(result: dict) -> str:
     for r in core[:12]:
         rows.append(
             f'<div class="sw-row"><div class="sw-h"><span class="sw-tag sw-go">買い候補</span>'
-            f'<span class="sw-tk">{e(r["ticker"])}</span><span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）</span></div>'
-            f'<div class="sw-m">RS189 {r["rs189"]}・売買代金 {r["dv"]}・値幅 {r["vc"]:.2f}・出来高 {r["vdry"]:.2f}'
-            f'・10日線 {_p(r["ext10"])}</div>'
+            f'<span class="sw-tk">{e(r["ticker"])}</span><span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）</span>{_badges(r)}</div>'
+            f'<div class="sw-m">{_rs3(r)}・売買代金 {r["dv"]}・値幅 {r["vc"]:.2f}・出来高 {r["vdry"]:.2f}'
+            f'・10日線 {_p(r["ext10"])}</div>{_struct_line(r)}'
             f'<div class="sw-lv">損切り <b>{_d(r["stop"])}</b>（−8%）・買い増し {_d(r["add"])}（+10%）'
             f'・建値へ {_d(r["be"])}（+25%）・安値21EMA {_d(r["el21"])}</div></div>'
         )
@@ -294,9 +387,9 @@ def card_html(result: dict) -> str:
     for r in late[:10]:
         lrows.append(
             f'<div class="sw-row"><div class="sw-h"><span class="sw-tag sw-late">{r["lag"]}日前に成立</span>'
-            f'<span class="sw-tk">{e(r["ticker"])}</span><span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）</span></div>'
+            f'<span class="sw-tk">{e(r["ticker"])}</span><span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）</span>{_badges(r)}</div>'
             f'<div class="sw-m">成立 {e(r["signal_date"][5:].replace("-", "/"))} {_d(r["signal_close"])} から {_p(r["from_signal"])}'
-            f'・RS189 {r["rs189"]}・売買代金 {r["dv"]}</div>'
+            f'・{_rs3(r)}・売買代金 {r["dv"]}</div>{_struct_line(r)}'
             f'<div class="sw-lv">今入るなら 損切り <b>{_d(r["stop"])}</b>（−8%）・買い増し {_d(r["add"])}'
             f'・建値へ {_d(r["be"])}・安値21EMA {_d(r["el21"])}</div></div>'
         )
@@ -307,8 +400,9 @@ def card_html(result: dict) -> str:
         n = len(r["missing"])
         wrows.append(
             f'<div class="sw-row"><div class="sw-h"><span class="sw-tk">{e(r["ticker"])}</span>'
-            f'<span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）・RS189 {r["rs189"]}</span>'
-            f'<span class="sw-need">あと{n}条件</span></div>'
+            f'<span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）</span>'
+            f'<span class="sw-need">あと{n}条件</span>{_badges(r)}</div>'
+            f'<div class="sw-m">{_rs3(r)}</div>'
             f'<div class="sw-miss-row">{miss}</div></div>'
         )
     watch_body = "".join(wrows) or '<div class="sw-empty">選定条件を満たす銘柄なし。</div>'
@@ -343,6 +437,11 @@ def card_html(result: dict) -> str:
         '<b>売買</b>：終値で買う。資金の1%リスク・−8%損切り（1銘柄は資金の約12.5%）。'
         '終値+10%で持ち株の半分を1回だけ買い増し、高値+25%で損切りを建値へ、安値21EMAを割って引けたら手仕舞い。'
         '余剰資金の50%はQQQ。<br/>'
+        '<b>並び順</b>：HL構造・ライン下（安値が切り上がり、ピボットラインの下で静かにしている）を優先し、その中はRS189順。'
+        'ピボットライン＝直近のLL→HL間の最高値（期間2〜10本で一番狭い構造）、HL＝切り上げた安値で、割れたら構造崩れ。'
+        'バックテストでは、HL構造・ライン下のPFは2015〜20年2.22・2021〜24年1.89・2025〜26年2.34（今のルール全体は2.58・0.97・1.99）。'
+        '<b>選定◯日目</b>は選定条件を連続で満たしている日数で、60日超の古いリーダーは成績が悪い（PF 1.40・0.17・0.87）。'
+        'RS21・63は参考表示（並び順には使わない。RS21上位5%は追いかけになりやすい）。<br/>'
         '<b>まだ入れる</b>：1〜2日前に条件が成立し、成立時の終値+3%以内・その後に損切り/安値21EMA割れなし・'
         '選定条件を維持・当日+3%未満・10日線+12%以内。成立日に入るより成績は落ち、地合いが悪い時期は特に悪い'
         '（PF 1日遅れ1.78・2日遅れ1.6前後）。株数は通常どおり、損切りは今の価格から−8%。<br/>'
