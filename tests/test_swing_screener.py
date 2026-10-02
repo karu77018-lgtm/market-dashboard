@@ -137,7 +137,7 @@ def test_sections_split_best_waiting_and_good_watch():
     i_best, i_gw, i_far = (html.index(f'data-tkone="{t}"') for t in ("BEST", "GW", "FAR"))
     assert i_best < i_gw < i_far
     assert "ライン上+17.6%・伸びすぎ" in html and "好位置 $77.50〜$81.25" in html
-    assert "あと1条件" in html and "値幅 0.930 → 0.90以下" in html
+    assert "あと1条件" in html and "値幅 0.930 → 0.90（あと3.2%縮小）" in html
 
 
 def test_good_position_badge_and_structure_export(tmp_path):

@@ -370,6 +370,10 @@ STYLE = """
 #mc57-swing-screener .sw-w:active{background:#ecebe6}
 #mc57-swing-screener .sw-w .sw-tk{font-size:14px}
 #mc57-swing-screener .sw-w .sw-chips{flex-basis:100%;margin-top:0}
+#mc57-swing-screener .sw-t.nx{border-left-color:#6f93c4;background:#fdfdfb}
+#mc57-swing-screener .sw-c.nx{background:#e6edf7;color:#2c5288}
+#mc57-swing-screener .sw-c.nx.one{background:#2c5288;color:#fff}
+#mc57-swing-screener .sw-c.need{background:#f1f4f8;color:#3c4a5e;border:1px solid #dbe3ee;font-weight:600}
 #mc57-swing-screener .sw-t.gw{border-left-color:#b9a24a}
 #mc57-swing-screener .sw-need{font-size:11px;font-weight:800;color:#6b5a1e;margin-top:6px}
 #mc57-swing-screener .sw-c.good-o{background:#e3f1e7;color:#1f6b3f}
@@ -411,6 +415,28 @@ def _miss_label(name: str, r: dict) -> str:
         return f"前日 {r['prev_chg'] * 100:+.2f}% → +3%以下"
     if name == "10日線+12%以内":
         return f"10日線 {r['ext10'] * 100:+.2f}% → +12%以内"
+    return name
+
+
+def _pct_left(v: float) -> str:
+    x = (1 - MAX_VC / v) * 100
+    return f"{x:.2f}%" if x < 1 else f"{x:.1f}%"
+
+
+def _need(name: str, r: dict) -> str:
+    """Remaining condition, framed as how close it is (watch tiles)."""
+    if name == "収縮":
+        return f"値幅 {_ratio(r['vc'])} → 0.90（あと{_pct_left(r['vc'])}縮小）"
+    if name == "出来高減":
+        return f"出来高 {_ratio(r['vdry'])} → 0.90（あと{_pct_left(r['vdry'])}減）"
+    if name == "当日+3%未満":
+        return f"当日 {r['chg'] * 100:+.2f}% → 明日+3%未満なら解消"
+    if name == "前日+3%以下":
+        if r["chg"] <= MAX_PREV_CHG:
+            return f"前日 {r['prev_chg'] * 100:+.2f}% → 明日解消（今日{r['chg'] * 100:+.1f}%）"
+        return f"前日 {r['prev_chg'] * 100:+.2f}% → +3%以下"
+    if name == "10日線+12%以内":
+        return f"10日線 {r['ext10'] * 100:+.1f}% → +12%以内まで押し待ち"
     return name
 
 
@@ -540,7 +566,7 @@ def card_html(result: dict) -> str:
     good_watch = [r for r in watch if _good(r)]
     other_watch = [r for r in watch if not _good(r)]
     tile = lambda cls, r, inner: f'<div class="sw-t{cls}" data-tkone="{e(r["ticker"])}">{inner}</div>'
-    miss = lambda r: "".join(f'<span class="sw-c miss">{e(_miss_label(m, r))}</span>' for m in r["missing"])
+    miss = lambda r: "".join(f'<span class="sw-c need">{e(_need(m, r))}</span>' for m in r["missing"])
     best_body = "".join(
         tile("", r, _top(r, _rs_box(r)) + _chips(r) + _struct_line(r) + _levels(r) + _opt_line(r) + _foot(r))
         for r in best[:12]
@@ -564,11 +590,13 @@ def card_html(result: dict) -> str:
         row(r, f'<div class="sw-chips"><span class="sw-c old">{e(_wait_reason(r))}</span>{_zone(r)}</div>')
         for r in waiting
     )
-    watch_body = "".join(
-        row(r, (f'<span class="sw-c hl">HL構造・位置{r["pos"] * 100:.0f}%</span>' if r.get("pos") is not None
-                else ('<span class="sw-c hl">HL構造・ライン下</span>' if r.get("inside") else ""))
-            + f'<div class="sw-chips">{miss(r)}</div>') for r in other_watch[:15]
-    ) or '<div class="sw-empty">該当なし。</div>'
+    def nx_tile(r: dict) -> str:
+        n = len(r["missing"])
+        pill = f'<span class="sw-c nx{" one" if n == 1 else ""}">あと{n}条件</span>'
+        needs = "".join(f'<span class="sw-c need">{e(_need(m, r))}</span>' for m in r["missing"])
+        return tile(" nx", r, _top(r, _rs_box(r)) + f'<div class="sw-chips">{pill}{needs}</div>'
+                    + _chips(r) + _struct_line(r))
+    watch_body = "".join(nx_tile(r) for r in other_watch[:15]) or '<div class="sw-empty">該当なし。</div>'
     ep_body = "".join(
         tile(" ep", r, _top(r, f'<div class="sw-rs"><b>{r["peer"]}</b><span>テーマ強度</span></div>')
              + '<div class="sw-chips">'
@@ -598,8 +626,8 @@ def card_html(result: dict) -> str:
         f'{wait_body}</details>' if waiting else "")
     summary = "".join(f'<span class="{c}">{k}<b>{n}</b></span>' for k, n, c in
                       (("本命", len(best), "on" if best else ""), ("好位置・形待ち", len(good_watch), ""),
-                       ("まだ入れる", len(late), ""), ("位置待ち", len(waiting), ""),
-                       ("テーマ", len(ep), ""), ("監視", len(other_watch), "")))
+                       ("まだ入れる", len(late), ""), ("次の候補", len(other_watch), ""),
+                       ("テーマ", len(ep), ""), ("位置待ち", len(waiting), "")))
     return (
         f'<div class="card" id="{CARD_ID}" data-source-improvement="swing-screener">'
         '<div class="chd"><h2>スイング候補（新ルール）<span class="h2en">Swing Screener</span></h2>'
@@ -609,13 +637,14 @@ def card_html(result: dict) -> str:
         f'<div class="sw-sum">{summary}</div>'
         + sec("本命", "好位置×全条件OK・本日の終値で買い", best) + best_body
         + sec("好位置で形待ち", "位置は良い・条件がそろえば本命", good_watch)
-        + '<div class="sw-hint">先回りより、条件がそろってから入るほうが成績が良い（PF 1.74→3.57）。黄色が残りの条件。</div>'
+        + '<div class="sw-hint">先回りより、条件がそろってから入るほうが成績が良い（PF 1.74→3.57）。</div>'
         + gw_body
         + sec("まだ入れる", "1〜2日前に成立", late) + late_body
-        + wait_block
+        + sec("次の候補", "選定OK・あと少しで成立", other_watch[:15])
+        + '<div class="sw-hint">残りの条件がそろった日に、位置しだいで本命か位置待ちへ移る。あと1条件のものが近い。</div>'
+        + watch_body
         + sec("テーマ枠", "本日の窓開け", ep) + ep_body
-        + sec("その他の監視", "選定OK・形待ち", other_watch[:15])
-        + '<div class="sw-hint">黄色は「今の値 → 成立に必要な値」</div>' + watch_body
+        + wait_block
         + '<details class="cxpl" style="margin-top:10px"><summary>ルールと見方</summary><div class="cxpl-b">'
         '<b>選定</b>：トレンドテンプレート・50日平均売買代金が上位5%・189日リターンが上位10%'
         '（株価$10以上・売買代金$20M以上の銘柄内）。<b>形</b>：10日/50日の平均値幅0.9以下・5日/50日の出来高0.9以下。'
