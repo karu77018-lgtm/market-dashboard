@@ -167,6 +167,8 @@ def main() -> int:
     text = apply(text, html_path.resolve().parent)
     from theme_gate import apply as apply_theme_gate
     text = apply_theme_gate(text, frame, Path(args.themes))
+    from swing_screener import apply as apply_swing_screener
+    text = apply_swing_screener(text, frame)
     html_path.write_text(text, encoding="utf-8")
     print(json.dumps({"session_date": args.session, "ticker_count": meta["ticker_count"],
                       "cards": ["50MA participation", "52-week new highs minus new lows"],
