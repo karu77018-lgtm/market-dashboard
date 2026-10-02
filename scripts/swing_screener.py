@@ -118,7 +118,8 @@ def _states(c: pd.DataFrame, h: pd.DataFrame, l: pd.DataFrame, v: pd.DataFrame) 
                 "comp_pct": _pct_rank(comp, liquid), "vc": vc.iloc[k], "vdry": vdry.iloc[k],
                 "chg": chg.iloc[k], "ext10": ext10, "el21": el21.iloc[k], "checks": checks,
                 "timing": timing, "selected": selected, "signal": selected & timing,
-                "adr20": adr20.iloc[k], "ma50": ma50.iloc[k], "v50_prev": v50.iloc[k - 1]}
+                "adr20": adr20.iloc[k], "ma50": ma50.iloc[k], "v50_prev": v50.iloc[k - 1],
+                "prev_chg": chg.iloc[k - 1]}
 
     at.el21 = el21
     return at
@@ -139,7 +140,8 @@ def evaluate(frame: pd.DataFrame) -> dict:
         px = float(st["last"][t])
         return {"ticker": t, "close": px, "rs189": int(round(st["rs189_pct"][t])),
                 "dv": int(round(st["dv_pct"][t])), "vc": float(st["vc"][t]), "vdry": float(st["vdry"][t]),
-                "chg": float(st["chg"][t]), "ext10": float(st["ext10"][t]), "el21": float(st["el21"][t]),
+                "chg": float(st["chg"][t]), "prev_chg": float(st["prev_chg"][t]),
+                "ext10": float(st["ext10"][t]), "el21": float(st["el21"][t]),
                 "stop": px * (1 - STOP), "add": px * 1.10, "be": px * 1.25}
 
     core = [row(t, s) for t in selected[selected & timing].index]
@@ -238,6 +240,8 @@ STYLE = """
 #mc57-swing-screener .sw-miss{font-size:11px;border-radius:5px;padding:1px 6px;background:#efe9d6;color:#6b5a1e;white-space:nowrap}
 #mc57-swing-screener .sw-tag{font-size:11px;border-radius:5px;padding:1px 6px;color:#fff;white-space:nowrap}
 #mc57-swing-screener .sw-go{background:#23824d}#mc57-swing-screener .sw-late{background:#5b8a5f}#mc57-swing-screener .sw-wait{background:#8a7b3c}#mc57-swing-screener .sw-ep{background:#3774d3}
+#mc57-swing-screener .sw-need{font-size:11px;color:#6b5a1e;font-weight:700}
+#mc57-swing-screener .sw-miss-row{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
 #mc57-swing-screener .sw-empty{font-size:13px;color:#4d4a40;padding:6px 2px}
 #mc57-swing-screener .sw-chips{font-size:12px;overflow-wrap:anywhere;line-height:1.7}
 </style>"""
@@ -249,6 +253,26 @@ def _p(v: float) -> str:
 
 def _d(v: float) -> str:
     return "—" if v is None or (isinstance(v, float) and math.isnan(v)) else f"${v:,.2f}"
+
+
+def _ratio(v: float) -> str:
+    text = f"{v:.3f}"
+    return f"{v:.4f}" if text == "0.900" else text
+
+
+def _miss_label(name: str, r: dict) -> str:
+    """Current value -> value needed, for one unmet timing condition."""
+    if name == "収縮":
+        return f"値幅 {_ratio(r['vc'])} → 0.90以下"
+    if name == "出来高減":
+        return f"出来高 {_ratio(r['vdry'])} → 0.90以下"
+    if name == "当日+3%未満":
+        return f"当日 {r['chg'] * 100:+.2f}% → +3%未満"
+    if name == "前日+3%以下":
+        return f"前日 {r['prev_chg'] * 100:+.2f}% → +3%以下"
+    if name == "10日線+12%以内":
+        return f"10日線 {r['ext10'] * 100:+.2f}% → +12%以内"
+    return name
 
 
 def card_html(result: dict) -> str:
@@ -279,10 +303,13 @@ def card_html(result: dict) -> str:
     late_body = "".join(lrows) or '<div class="sw-empty">該当なし。</div>'
     wrows = []
     for r in watch[:15]:
-        miss = "".join(f'<span class="sw-miss">{e(m)}</span>' for m in r["missing"])
+        miss = "".join(f'<span class="sw-miss">{e(_miss_label(m, r))}</span>' for m in r["missing"])
+        n = len(r["missing"])
         wrows.append(
             f'<div class="sw-row"><div class="sw-h"><span class="sw-tk">{e(r["ticker"])}</span>'
-            f'<span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）・RS189 {r["rs189"]}</span>{miss}</div></div>'
+            f'<span class="sw-px">{_d(r["close"])}（{_p(r["chg"])}）・RS189 {r["rs189"]}</span>'
+            f'<span class="sw-need">あと{n}条件</span></div>'
+            f'<div class="sw-miss-row">{miss}</div></div>'
         )
     watch_body = "".join(wrows) or '<div class="sw-empty">選定条件を満たす銘柄なし。</div>'
     erows = []
@@ -326,7 +353,10 @@ def card_html(result: dict) -> str:
         f'<div class="sw-sec">買い候補（本日の終値で条件成立）{copy_btn(core)}</div>{core_body}'
         f'<div class="sw-sec">まだ入れる（1〜2日前に成立）{copy_btn(late)}</div>{late_body}'
         f'<div class="sw-sec">テーマ枠（本日の窓開け）{copy_btn(ep)}</div>{ep_body}'
-        f'<div class="sw-sec">監視（選定OK・形待ち）{copy_btn(watch[:15])}</div>{watch_body}'
+        f'<div class="sw-sec">監視（選定OK・形待ち）{copy_btn(watch[:15])}</div>'
+        '<div class="sub">バッジは「今の値 → 成立に必要な値」。値幅＝10日÷50日の平均値幅、出来高＝5日÷50日の平均出来高。'
+        '値幅と出来高は静かな日が続くと下がる。当日・前日は翌日以降に自然に解消することが多い。</div>'
+        f'{watch_body}'
         '</div>'
     )
 
