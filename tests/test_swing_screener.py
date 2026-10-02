@@ -80,3 +80,24 @@ def test_watch_badges_show_current_and_required_values():
     assert _miss_label("出来高減", r) == "出来高 1.070 → 0.90以下"
     assert _miss_label("前日+3%以下", r) == "前日 +3.90% → +3%以下"
     assert _miss_label("10日線+12%以内", r) == "10日線 +14.10% → +12%以内"
+
+
+def test_structure_pivot_detects_ll_to_hl_and_invalidates_on_break():
+    from swing_screener import structure_pivot
+    # Down to a low (LL) at 10, rally to 20, pull back to a higher low (HL) at 14, then drift.
+    low = np.r_[np.linspace(30, 10, 20), np.linspace(10.5, 19.5, 10), np.linspace(19, 14, 8), np.linspace(14.5, 17, 12)]
+    high = low + 1.0
+    line, hl = structure_pivot(high, low)
+    assert abs(hl - 14.0) < 1e-9
+    assert line >= 20.0  # highest high between LL and HL
+    broken = np.r_[low, [13.0]]
+    line2, hl2 = structure_pivot(np.r_[high, [14.0]], broken)
+    assert not (abs(hl2 - 14.0) < 1e-9)  # the 14.0 HL setup is invalidated by the break
+
+
+def test_inside_structure_is_listed_first():
+    html = card_html({"session": "2026-01-02", "universe": 1, "selected": 2, "watch": [], "ep": [], "late": [],
+                      "core": [{"ticker": "AAA", "close": 10.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80,
+                                "dv": 99, "vc": 0.8, "vdry": 0.8, "ext10": 0.0, "el21": 9.5, "stop": 9.2,
+                                "add": 11.0, "be": 12.5, "pivot_line": 10.5, "hl": 9.6, "inside": True, "streak": 3}]})
+    assert "HL構造・ライン下" in html and "RS 21・63・189 50・80・99" in html and "選定3日目" in html
