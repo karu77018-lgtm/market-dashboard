@@ -132,6 +132,34 @@ var old=window.showDet;if(typeof old==='function'){window.showDet=function(tk){o
 </script>'''
 
 
+def substitute_badge(text: str, manifest_path: Path) -> str:
+    """Mark the page when part of today's data came from Massive instead of Yahoo."""
+    try:
+        status = json.loads(manifest_path.read_text(encoding="utf-8")).get("provider_status") or {}
+    except Exception:
+        return text
+    sub = status.get("yahoo_substitute")
+    if not sub or 'id="mc57-substitute"' in text:
+        return text
+    parts = []
+    if sub.get("session_calendar"):
+        parts.append("営業日判定")
+    if sub.get("stock_bars_massive"):
+        parts.append(f"個別{int(sub['stock_bars_massive']):,}銘柄")
+    if sub.get("mc57_etfs_massive"):
+        parts.append(f"MC57 ETF {len(sub['mc57_etfs_massive'])}本")
+    market = sub.get("market_inputs") or {}
+    if market.get("massive") or market.get("tradingview"):
+        parts.append(f"市場指標{len(market.get('massive', [])) + len(market.get('tradingview', []))}本")
+    detail = "・".join(parts) or "一部"
+    badge = ('<span id="mc57-substitute" title="Yahoo取得失敗のため当日分をMassive（分割調整・配当未調整）'
+             '等で代替" style="margin-left:8px;padding:1px 6px;border-radius:6px;font-size:11px;'
+             'font-weight:700;background:#fff3cd;color:#7a5200;border:1px solid #e6c46a">'
+             f'Massive代替：{detail}</span>')
+    anchor = '</div></header>'
+    return text.replace(anchor, badge + anchor, 1) if anchor in text else text
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--html", default="source-mc57.html")
@@ -169,6 +197,7 @@ def main() -> int:
     text = apply_theme_gate(text, frame, Path(args.themes))
     from swing_screener import apply as apply_swing_screener
     text = apply_swing_screener(text, frame)
+    text = substitute_badge(text, html_path.resolve().parent / "latest-manifest.json")
     html_path.write_text(text, encoding="utf-8")
     print(json.dumps({"session_date": args.session, "ticker_count": meta["ticker_count"],
                       "cards": ["50MA participation", "52-week new highs minus new lows"],
