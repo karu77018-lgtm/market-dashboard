@@ -100,4 +100,5 @@ def test_inside_structure_is_listed_first():
                       "core": [{"ticker": "AAA", "close": 10.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80,
                                 "dv": 99, "vc": 0.8, "vdry": 0.8, "ext10": 0.0, "el21": 9.5, "stop": 9.2,
                                 "add": 11.0, "be": 12.5, "pivot_line": 10.5, "hl": 9.6, "inside": True, "streak": 3}]})
-    assert "HL構造・ライン下" in html and "RS 21・63・189 50・80・99" in html and "選定3日目" in html
+    assert "HL構造・ライン下" in html and "RS21 50・63 80" in html and "選定3日目" in html
+    assert 'data-tkone="AAA"' in html  # tap opens the shared ticker detail overlay
