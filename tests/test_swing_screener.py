@@ -71,3 +71,12 @@ def test_late_entry_listed_when_today_no_longer_signals():
     assert [r["ticker"] for r in late] == ["LEAD"] and late[0]["lag"] == 1
     assert 0 < late[0]["from_signal"] <= 0.03
     assert "LEAD" not in [r["ticker"] for r in result["watch"]]
+
+
+def test_watch_badges_show_current_and_required_values():
+    from swing_screener import _miss_label
+    r = {"vc": 0.9004, "vdry": 1.07, "chg": 0.0298, "prev_chg": 0.039, "ext10": 0.141}
+    assert _miss_label("収縮", r) == "値幅 0.9004 → 0.90以下"
+    assert _miss_label("出来高減", r) == "出来高 1.070 → 0.90以下"
+    assert _miss_label("前日+3%以下", r) == "前日 +3.90% → +3%以下"
+    assert _miss_label("10日線+12%以内", r) == "10日線 +14.10% → +12%以内"
