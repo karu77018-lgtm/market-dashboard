@@ -245,6 +245,8 @@ def main() -> int:
         print(f"breakout health skipped: {exc!r}", flush=True)
         health = None
     text = breakout_health.apply_daily(text, health, regime)
+    from pickup_watch import apply as apply_pickup_watch
+    text = apply_pickup_watch(text, frame, regime=regime)  # separate watch card, below the swing card
     text = apply_swing_screener(text, frame, walls_fn=fetch_walls, regime=regime, health=health)
     from rules_tab import apply as apply_rules_tab
     text = apply_rules_tab(text, regime=regime, health=health)
