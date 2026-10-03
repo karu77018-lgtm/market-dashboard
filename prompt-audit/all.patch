@@ -1,0 +1,73 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index e9206fd..87b58f6 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -1,13 +1,30 @@
+ # Codex project instructions
+ 
++## Data and publication policy
++
++- Market data has two passes per session. The morning (JST) refresh at 21:45 UTC publishes a
++  provisional session from Yahoo Finance (yfinance) while Massive has not released it (the usual
++  case on the free tier). The delayed Massive probes (05:30-19:30 UTC, Tue-Sat) replace it with the
++  confirmed Massive publication. `latest-manifest.json` records which state is live.
++- GitHub holds data and published outputs. Keep writes to it to what the scheduled workflows
++  already publish; do not add workflows, scheduled jobs, or commits that write to the repository
++  unless asked.
++- Run backtests and research evaluations locally, not in GitHub Actions.
++
+ ## Jev
+ 
+-This repository includes a direct Codex -> Jev MCP integration.
++This repository includes a direct Codex -> Jev MCP integration. The `jev_evaluate`
++tool is registered only in `.codex/config.toml` (server `tools/jev_mcp.py`); other
++agents such as Claude Code do not have it unless they register that server themselves.
+ 
+-- Use the MCP tool `jev_evaluate` when a task benefits from a bounded probabilistic decision, classification, score, selection, or verification.
++- Use the MCP tool `jev_evaluate` when the task itself calls for a Jev judgment (a bounded probabilistic decision, classification, score, or selection over structured state). Each call is an external API request; ordinary code checks and test verification do not need it.
+ - Jev is not a prose model. Give it structured state and explicit typed questions, then use its returned answers/probabilities as evidence for the next step.
+ - Supported Jev question types are `noul`, `choice`, and `score`. The local MCP adapter also accepts `boolean` and maps it to `noul`.
+ - Do not print, echo, log, or commit `AI_GATEWAY_API_KEY` or `JEV_API_KEY`.
+ - If the Jev tool reports a missing key, the Codex environment needs either `AI_GATEWAY_API_KEY` or `JEV_API_KEY`.
+ - The default endpoint is Vercel AI Gateway's TypeSafe-compatible Jev System One endpoint. `JEV_ENDPOINT` may override it when intentionally configured.
+ - Do not change MC57, V38, Massive, FRED, or publication logic merely to use Jev.
++- The published Jev ranking (`data/jev-ranking.json`) and the research backfill use a different
++  service: the Jev investment engine (`JEV_API_URL`, default `https://jev-investment-engine.vercel.app/api/jev`,
++  secret `JEV_API_SECRET`), called from `scripts/run_jev_live_shadow.py` and `scripts/jev_backfill.py`.
++  The MCP tool above does not produce or change that ranking.
+diff --git a/tools/jev_mcp.py b/tools/jev_mcp.py
+index e2aef5f..8901635 100644
+--- a/tools/jev_mcp.py
++++ b/tools/jev_mcp.py
+@@ -109,9 +109,13 @@ def _call_jev(state: Any, questions: Any) -> dict[str, Any]:
+ TOOL = {
+     "name": "jev_evaluate",
+     "description": (
+-        "Evaluate structured state with TypeSafe AI Jev. Use for bounded "
+-        "probabilistic decisions, classification, scoring, selection, or "
+-        "verification. Returns Jev typed answers and probabilities."
++        "Evaluate structured state with TypeSafe AI Jev (System One endpoint). "
++        "Use for a bounded probabilistic decision, classification, score, "
++        "selection, or verification over the state you supply; it is not a prose "
++        "model and does not look anything up. Each call is an external network request (30 s "
++        "timeout) and needs JEV_API_KEY or AI_GATEWAY_API_KEY. Returns Jev's "
++        "JSON response (typed answers and probabilities) unchanged; on failure "
++        "returns isError with the HTTP status or validation message."
+     ),
+     "inputSchema": {
+         "type": "object",
+@@ -125,8 +129,12 @@ TOOL = {
+             "questions": {
+                 "type": "object",
+                 "description": (
+-                    "Named Jev questions. Each question uses type noul, choice, "
+-                    "or score; boolean is accepted as an alias for noul."
++                    "Named Jev questions: {name: question}. Each question is an "
++                    "object with `type` (noul, choice, or score; boolean is "
++                    "accepted as an alias for noul) and `instructions` (required, "
++                    "non-empty string). A choice question also needs `criteria`, "
++                    "an object with at least two options. Other fields are passed "
++                    "to Jev unchanged."
+                 ),
+                 "additionalProperties": {"type": "object"},
+             },

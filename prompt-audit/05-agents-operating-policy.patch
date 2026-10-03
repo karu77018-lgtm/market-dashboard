@@ -1,0 +1,21 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index e9206fd..cadfed8 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -1,5 +1,16 @@
+ # Codex project instructions
+ 
++## Data and publication policy
++
++- Market data has two passes per session. The morning (JST) refresh at 21:45 UTC publishes a
++  provisional session from Yahoo Finance (yfinance) while Massive has not released it (the usual
++  case on the free tier). The delayed Massive probes (05:30-19:30 UTC, Tue-Sat) replace it with the
++  confirmed Massive publication. `latest-manifest.json` records which state is live.
++- GitHub holds data and published outputs. Keep writes to it to what the scheduled workflows
++  already publish; do not add workflows, scheduled jobs, or commits that write to the repository
++  unless asked.
++- Run backtests and research evaluations locally, not in GitHub Actions.
++
+ ## Jev
+ 
+ This repository includes a direct Codex -> Jev MCP integration.

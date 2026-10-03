@@ -1,0 +1,36 @@
+diff --git a/tools/jev_mcp.py b/tools/jev_mcp.py
+index e2aef5f..bcab498 100644
+--- a/tools/jev_mcp.py
++++ b/tools/jev_mcp.py
+@@ -109,9 +109,13 @@ def _call_jev(state: Any, questions: Any) -> dict[str, Any]:
+ TOOL = {
+     "name": "jev_evaluate",
+     "description": (
+-        "Evaluate structured state with TypeSafe AI Jev. Use for bounded "
+-        "probabilistic decisions, classification, scoring, selection, or "
+-        "verification. Returns Jev typed answers and probabilities."
++        "Evaluate structured state with TypeSafe AI Jev (System One endpoint). "
++        "Use for a bounded probabilistic decision, classification, score, "
++        "selection, or verification over the state you supply; it is not a prose "
++        "model and does not look anything up. Each call is an external network request (30 s "
++        "timeout) and needs JEV_API_KEY or AI_GATEWAY_API_KEY. Returns Jev's "
++        "JSON response (typed answers and probabilities) unchanged; on failure "
++        "returns isError with the HTTP status or validation message."
+     ),
+     "inputSchema": {
+         "type": "object",
+@@ -125,8 +129,12 @@ TOOL = {
+             "questions": {
+                 "type": "object",
+                 "description": (
+-                    "Named Jev questions. Each question uses type noul, choice, "
+-                    "or score; boolean is accepted as an alias for noul."
++                    "Named Jev questions: {name: question}. Each question is an "
++                    "object with `type` (noul, choice, or score; boolean is "
++                    "accepted as an alias for noul) and `instructions` (required, "
++                    "non-empty string). A choice question also needs `criteria`, "
++                    "an object with at least two options. Other fields are passed "
++                    "to Jev unchanged."
+                 ),
+                 "additionalProperties": {"type": "object"},
+             },

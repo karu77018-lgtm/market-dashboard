@@ -1,0 +1,13 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index e9206fd..9b60c69 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -4,7 +4,7 @@
+ 
+ This repository includes a direct Codex -> Jev MCP integration.
+ 
+-- Use the MCP tool `jev_evaluate` when a task benefits from a bounded probabilistic decision, classification, score, selection, or verification.
++- Use the MCP tool `jev_evaluate` when the task itself calls for a Jev judgment (a bounded probabilistic decision, classification, score, or selection over structured state). Each call is an external API request; ordinary code checks and test verification do not need it.
+ - Jev is not a prose model. Give it structured state and explicit typed questions, then use its returned answers/probabilities as evidence for the next step.
+ - Supported Jev question types are `noul`, `choice`, and `score`. The local MCP adapter also accepts `boolean` and maps it to `noul`.
+ - Do not print, echo, log, or commit `AI_GATEWAY_API_KEY` or `JEV_API_KEY`.
