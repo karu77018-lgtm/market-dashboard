@@ -1,7 +1,7 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
   "coverage": 1.0,
-  "generated_at": "2026-10-03T03:10:26Z",
+  "generated_at": "2026-10-03T04:11:33Z",
   "mc57": 25.612179558723792,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
@@ -12,14 +12,14 @@
   "positions_status": "DATA_REQUIRED",
   "provider_status": {
     "adopted_universe_count": 3968,
-    "cross_vendor_coverage": null,
-    "current_session_provider": "Yahoo Finance",
+    "cross_vendor_coverage": 0.9765625,
+    "current_session_provider": "Massive",
     "fred": "READY",
     "fred_required_coverage": 1.0,
-    "massive": "FALLBACK_YAHOO",
-    "massive_current_coverage": null,
-    "missing_current_rows": 0,
-    "publication_state": "provisional",
+    "massive": "READY",
+    "massive_current_coverage": 0.9765625,
+    "missing_current_rows": 93,
+    "publication_state": "confirmed",
     "yahoo_substitute": null
   },
   "publication_scope": "source-mc57 plus derived data/jev-ranking.json only; V38 and vendor-input data JSON are not committed",
@@ -63,16 +63,18 @@
     "legacy_universe": 3380,
     "malformed_rows": 0,
     "massive_broad_expansion": 571,
-    "massive_current_coverage": 0.0,
-    "massive_current_covered": 0,
-    "massive_current_missing": 3968,
+    "massive_current_coverage": 0.9765625,
+    "massive_current_covered": 3875,
+    "massive_current_missing": 93,
     "massive_grouped": {
-      "fetched_sessions": [],
-      "latest_session": "2026-10-01",
-      "reason": "provider request rejected: https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/2026-10-02 (status=403)",
+      "fetched_sessions": [
+        "2026-10-02"
+      ],
+      "latest_eligible_rows": 5557,
+      "latest_session": "2026-10-02",
       "requested_sessions": 20,
       "sessions": 20,
-      "status": "YAHOO_FALLBACK"
+      "status": "READY"
     },
     "massive_reference": {
       "asof_date": "2026-09-30",
