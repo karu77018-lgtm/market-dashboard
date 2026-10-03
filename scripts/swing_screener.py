@@ -196,7 +196,7 @@ def tier(r: dict) -> str:
         return "D"
     if 2 <= age <= 5:
         return "A"
-    if age <= 8 or _good(r):
+    if age <= 8:
         return "B"
     return "C"
 
@@ -688,19 +688,15 @@ def card_html(result: dict) -> str:
     late = result.get("late", [])
     best = [r for r in core if tier(r) in ("S", "A")]
     waiting = [r for r in core if tier(r) not in ("S", "A")]
-    good_watch = [r for r in watch if _good(r)]
-    other_watch = [r for r in watch if not _good(r)]
+    other_watch = watch
+    late_low = [r for r in late if tier(r) in ("C", "D")]
+    late = [r for r in late if tier(r) not in ("C", "D")]
     tile = lambda cls, r, inner: f'<div class="sw-t{cls}" data-tkone="{e(r["ticker"])}">{inner}</div>'
     miss = lambda r: "".join(f'<span class="sw-c need">{e(_need(m, r))}</span>' for m in r["missing"])
     best_body = "".join(
         tile("", r, _top(r, _rs_box(r)) + _chips(r) + _struct_line(r) + _levels(r) + _opt_line(r) + _foot(r))
         for r in best[:12]
     ) or '<div class="sw-empty">該当なし（週足SARの鮮度と形がそろうのを待つ）。</div>'
-    gw_body = "".join(
-        tile(" gw", r, _top(r, _rs_box(r))
-             + f'<div class="sw-need">あと{len(r["missing"])}条件</div><div class="sw-chips">{miss(r)}</div>'
-             + _chips(r) + _struct_line(r) + _levels(r) + _opt_line(r)) for r in good_watch[:12]
-    ) or '<div class="sw-empty">該当なし。</div>'
     late_body = "".join(
         tile(" late", r, _top(r, _rs_box(r))
              + _chips(r, f'<span class="sw-c">{r["lag"]}日前 {e(r["signal_date"][5:].replace("-", "/"))} '
@@ -717,6 +713,12 @@ def card_html(result: dict) -> str:
                + (f'<span class="sw-c {_sar_label(r)[1]}">{_sar_label(r)[0]}</span>' if _sar_label(r)[0] else "")
                + f'{_zone(r)}</div>')
         for r in waiting
+    ) + "".join(
+        row(r, f'<div class="sw-chips"><span class="sw-c tier t{tier(r)}">優先{tier(r)}</span>'
+               + f'<span class="sw-c">{r["lag"]}日前に成立・{_p(r["from_signal"])}</span>'
+               + (f'<span class="sw-c {_sar_label(r)[1]}">{_sar_label(r)[0]}</span>' if _sar_label(r)[0] else "")
+               + '</div>')
+        for r in late_low
     )
     def nx_tile(r: dict) -> str:
         n = len(r["missing"])
@@ -748,14 +750,15 @@ def card_html(result: dict) -> str:
 
     wait_block = (
         '<details class="sw-fold"><summary>'
-        f'<span>条件OKだが優先度低め<small>週足SARの鮮度切れ・位置が悪い</small></span><b>{len(waiting)}</b></summary>'
-        '<div class="sw-hint">全条件は満たすが、検証で弱い組み合わせ（優先B 1.80・C 1.53・D 1.05）。'
-        '週足SARが新しく転換するか、好位置まで押せば上がる。</div>'
-        f'{wait_body}</details>' if waiting else "")
+        f'<span>条件OKだが優先度低め<small>週足SARの鮮度切れ・ベア</small></span><b>{len(waiting) + len(late_low)}</b></summary>'
+        '<div class="sw-hint">全条件は満たす（または1〜2日前に満たした）が、検証で弱い組み合わせ'
+        '（当日成立のPF 優先B 1.80・C 1.53・D 1.05、まだ入れるの優先C 1.40・D 0.78）。'
+        '週足SARが新しく転換すれば上がる。</div>'
+        f'{wait_body}</details>' if waiting or late_low else "")
     summary = "".join(f'<span class="{c}">{k}<b>{n}</b></span>' for k, n, c in
-                      (("本命", len(best), "on" if best else ""), ("好位置・形待ち", len(good_watch), ""),
+                      (("本命", len(best), "on" if best else ""),
                        ("まだ入れる", len(late), ""), ("次の候補", len(other_watch), ""),
-                       ("テーマ", len(ep), ""), ("優先度低め", len(waiting), "")))
+                       ("テーマ", len(ep), ""), ("優先度低め", len(waiting) + len(late_low), "")))
     return (
         f'<div class="card" id="{CARD_ID}" data-source-improvement="swing-screener">'
         '<div class="chd"><h2>スイング候補（新ルール）<span class="h2en">Swing Screener</span></h2>'
@@ -764,10 +767,7 @@ def card_html(result: dict) -> str:
         f'{result.get("selected", 0)}銘柄。タップで銘柄詳細。</div>'
         f'<div class="sw-sum">{summary}</div>'
         + sec("本命", "優先S・A×全条件OK・本日の終値で買い", best) + best_body
-        + sec("好位置で形待ち", "位置は良い・条件がそろえば本命", good_watch)
-        + '<div class="sw-hint">先回りより、条件がそろってから入るほうが成績が良い（PF 1.74→3.57）。</div>'
-        + gw_body
-        + sec("まだ入れる", "1〜2日前に成立", late) + late_body
+        + sec("まだ入れる", "1〜2日前に成立・優先S〜B", late) + late_body
         + sec("次の候補", "選定OK・あと少しで成立", other_watch[:15])
         + '<div class="sw-hint">並び順：優先S・A×あと1条件 → 優先B×あと1条件 → 優先S・A×あと2条件 → その他。'
           '10営業日以内に条件がそろう率と、そろった後の成績で決めた順。</div>'
@@ -777,13 +777,16 @@ def card_html(result: dict) -> str:
         + '<details class="cxpl" style="margin-top:10px"><summary>ルールと見方</summary><div class="cxpl-b">'
         '<b>優先度</b>（2015〜2026年、今のルール成立日をPFで比較）：'
         '<b>S</b> 好位置×週足SAR転換0〜5週（PF 15、件数61と少なめ）／<b>A</b> 週足SAR 2〜5週（2.97）／'
-        '<b>B</b> SAR転換週・1週目・6〜8週、または好位置×SAR6週〜（1.80）／<b>C</b> SAR9週〜（1.53）／<b>D</b> SARベア・HL構造なし（1.05）。'
+        '<b>B</b> SAR転換週・1週目・6〜8週（1.80）／<b>C</b> SAR9週〜（好位置でも。1.53）／<b>D</b> SARベア・HL構造なし（1.05）。'
         '本命は優先S・A。週足SARは0.02・0.02・0.08、確定した週足のみ。'
         '条件を1つずつ外すと、SARの鮮度を外したときに最も悪化（PF 5.47→2.04）、次がHL構造（→3.46）。'
         '値幅の収縮と10日線は、SARとHL構造があればほぼ影響なし。<br/>'
         '<b>次の候補の並び</b>：監視した日から10営業日以内に全条件がそろう率×そろった後の平均で比較すると、'
         '優先S・A×あと1条件 +4.3%（成立率58%・PF 3.31）、B×あと1 +2.1%、S・A×あと2 +0.9%、その他は0〜0.5%。'
-        '優先度は順位どおりに効くが、残り条件数は「あと1かどうか」だけが効く（あと2〜4はほぼ同じ）。<br/>'
+        '優先度は順位どおりに効くが、残り条件数は「あと1かどうか」だけが効く（あと2〜4はほぼ同じ）。'
+        '好位置はSARが新鮮なとき（優先S）だけ効き、SAR6週以降の好位置×あと1は監視の価値+0.2%と、'
+        '好位置以外の同条件（+3.0%）より悪い。そのため好位置だけの別枠は設けない。'
+        'まだ入れるも優先度どおりに効く（PF A 2.72・B 2.00・C 1.40・D 0.78）ので、C・Dは優先度低めへ。<br/>'
         '<b>選定</b>：トレンドテンプレート・50日平均売買代金が上位5%・189日リターンが上位10%'
         '（株価$10以上・売買代金$20M以上の銘柄内）。<b>形</b>：10日/50日の平均値幅0.9以下・5日/50日の出来高0.9以下。'
         '<b>追わない</b>：当日+3%未満・前日+3%以下・10日線+12%以内。<br/>'
