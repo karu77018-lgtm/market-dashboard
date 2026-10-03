@@ -54,7 +54,7 @@ def test_short_history_and_empty_result_render_gracefully():
     result = evaluate(short)
     assert result["core"] == [] and result["reason"] == "history_short"
     html = card_html({"session": "2026-01-02", "core": [], "watch": [], "ep": [], "universe": 0})
-    assert "位置と形が両方そろうのを待つ" in html
+    assert "週足SARの鮮度と形がそろうのを待つ" in html
 
 
 def test_late_entry_listed_when_today_no_longer_signals():
@@ -99,7 +99,8 @@ def test_inside_structure_is_listed_first():
     html = card_html({"session": "2026-01-02", "universe": 1, "selected": 2, "watch": [], "ep": [], "late": [],
                       "core": [{"ticker": "AAA", "close": 10.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80,
                                 "dv": 99, "vc": 0.8, "vdry": 0.8, "ext10": 0.0, "el21": 9.5, "stop": 9.2,
-                                "add": 11.0, "be": 12.5, "pivot_line": 10.5, "hl": 9.6, "inside": True, "pos": 0.6, "streak": 3}]})
+                                "add": 11.0, "be": 12.5, "pivot_line": 10.5, "hl": 9.6, "inside": True, "pos": 0.6, "streak": 3,
+                                "sar_up": True, "sar_age": 3}]})
     assert "HL構造・ライン下" in html and "RS21 50・63 80" in html and "選定3日目" in html
     assert 'data-tkone="AAA"' in html  # tap opens the shared ticker detail overlay
 
@@ -114,7 +115,7 @@ def test_option_walls_render_and_failures_are_harmless():
     opt = {"cw": 66.0, "cwp": 0.1, "pw": 55.0, "pwp": -0.08, "gf": 58.5, "gfp": -0.025, "conf": "OK"}
     row = {"ticker": "AAA", "close": 60.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80, "dv": 99, "vc": 0.8,
            "vdry": 0.8, "ext10": 0.0, "el21": 57.0, "stop": 55.2, "add": 66.0, "be": 75.0, "pivot_line": 64.0,
-           "hl": 52.0, "inside": True, "pos": 0.67, "streak": 3, "opt": opt}
+           "hl": 52.0, "inside": True, "pos": 0.67, "streak": 3, "opt": opt, "sar_up": True, "sar_age": 2}
     html = card_html({"session": "2026-01-02", "universe": 1, "selected": 1, "watch": [], "ep": [], "late": [],
                       "core": [row]})
     assert "OP 上値の壁</i><b>$66 <em>+10.0%</em>" in html and "<b>$58.50 <em>" in html
@@ -128,10 +129,12 @@ def test_option_walls_render_and_failures_are_harmless():
 def test_sections_split_best_waiting_and_good_watch():
     base = {"close": 100.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80, "dv": 99, "vc": 0.8, "vdry": 0.8,
             "ext10": 0.0, "el21": 95.0, "stop": 92.0, "add": 110.0, "be": 125.0, "streak": 3}
-    best = {**base, "ticker": "BEST", "pivot_line": 110.0, "hl": 80.0, "inside": True, "pos": 2 / 3}
-    far = {**base, "ticker": "FAR", "pivot_line": 85.0, "hl": 70.0, "inside": False, "pos": None}
+    best = {**base, "ticker": "BEST", "pivot_line": 110.0, "hl": 80.0, "inside": True, "pos": 2 / 3,
+            "sar_up": True, "sar_age": 3}
+    far = {**base, "ticker": "FAR", "pivot_line": 85.0, "hl": 70.0, "inside": False, "pos": None,
+           "sar_up": True, "sar_age": 12}
     gw = {**base, "ticker": "GW", "pivot_line": 110.0, "hl": 80.0, "inside": True, "pos": 2 / 3,
-          "missing": ["収縮"], "vc": 0.93}
+          "missing": ["収縮"], "vc": 0.93, "sar_up": True, "sar_age": 4}
     html = card_html({"session": "2026-01-02", "universe": 1, "selected": 3, "ep": [], "late": [],
                       "core": [far, best], "watch": [gw]})
     i_best, i_gw, i_far = (html.index(f'data-tkone="{t}"') for t in ("BEST", "GW", "FAR"))
@@ -145,7 +148,7 @@ def test_good_position_badge_and_structure_export(tmp_path):
     from swing_screener import write_structure
     base = {"ticker": "AAA", "close": 10.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80, "dv": 99,
             "vc": 0.8, "vdry": 0.8, "ext10": 0.0, "el21": 9.5, "stop": 9.2, "add": 11.0, "be": 12.5,
-            "pivot_line": 11.0, "hl": 8.0, "inside": True, "streak": 3}
+            "pivot_line": 11.0, "hl": 8.0, "inside": True, "streak": 3, "sar_up": True, "sar_age": 3}
     page = lambda pos: card_html({"session": "2026-01-02", "universe": 1, "selected": 1, "watch": [], "ep": [],
                                   "late": [], "core": [{**base, "pos": pos}]})
     assert '<span class="sw-c good">好位置</span>' in page(0.6) and "位置 60%" in page(0.6)
@@ -157,3 +160,22 @@ def test_good_position_badge_and_structure_export(tmp_path):
     assert write_structure(frame, out) == 1
     s = json.loads(out.read_text())["AAA"]
     assert s["hl"] == 14.0 and s["lld"] < s["lined"] < s["hld"]
+
+
+def test_weekly_sar_and_priority_tiers():
+    from swing_screener import psar_flags, tier, weekly_sar_state
+    # Down 20 weeks, then up 6 weeks: one bull flip near the turn.
+    c = np.r_[np.linspace(100, 60, 20), np.linspace(62, 90, 6)]
+    up, flip = psar_flags(c + 1, c - 1, c)
+    assert not up[15] and up[-1] and flip.sum() == 1 and 20 <= int(np.where(flip)[0][0]) <= 24
+    days = pd.bdate_range("2025-01-06", periods=26 * 5)
+    daily = np.repeat(c, 5)
+    sar_up, age = weekly_sar_state(pd.Series(daily + 1, days), pd.Series(daily - 1, days), pd.Series(daily, days))
+    assert sar_up and age == 25 - int(np.where(flip)[0][0])
+    r = {"pivot_line": 110.0, "hl": 80.0, "pos": 0.6, "sar_up": True}
+    assert tier({**r, "sar_age": 3}) == "S"
+    assert tier({**r, "pos": 0.9, "sar_age": 3}) == "A"
+    assert tier({**r, "pos": 0.9, "sar_age": 1}) == "B"
+    assert tier({**r, "sar_age": 7}) == "B"  # 好位置 but no longer fresh
+    assert tier({**r, "pos": 0.9, "sar_age": 12}) == "C"
+    assert tier({**r, "sar_up": False, "sar_age": None}) == "D"
