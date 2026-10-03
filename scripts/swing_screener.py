@@ -132,6 +132,90 @@ PIVOT_LENGTHS = range(2, 11)
 
 
 GOOD_POS = (0.50, 0.75)  # backtest sweet spot inside the HL structure
+SAR_PARAMS = (0.02, 0.02, 0.08)  # weekly Parabolic SAR (start, increment, max)
+TIER_ORDER = {"S": 0, "A": 1, "B": 2, "C": 3, "D": 4}
+
+
+def psar_flags(h: np.ndarray, l: np.ndarray, c: np.ndarray, a0: float = 0.02, inc: float = 0.02,
+               amax: float = 0.08) -> tuple[np.ndarray, np.ndarray]:
+    """Parabolic SAR trend state per bar and bull-flip flags (Wilder, SAR capped by the prior two bars)."""
+    n = len(c)
+    up, flip = np.zeros(n, bool), np.zeros(n, bool)
+    if n < 3:
+        return up, flip
+    bull = c[1] >= c[0]
+    ep, s, af = (h[0], l[0], a0) if bull else (l[0], h[0], a0)
+    up[0] = bull
+    for i in range(1, n):
+        s = s + af * (ep - s)
+        if bull:
+            s = min(s, l[i - 1], l[i - 2] if i >= 2 else l[i - 1])
+            if l[i] < s:
+                bull, s, ep, af = False, ep, l[i], a0
+            elif h[i] > ep:
+                ep, af = h[i], min(af + inc, amax)
+        else:
+            s = max(s, h[i - 1], h[i - 2] if i >= 2 else h[i - 1])
+            if h[i] > s:
+                bull, s, ep, af = True, ep, h[i], a0
+                flip[i] = True
+            elif l[i] < ep:
+                ep, af = l[i], min(af + inc, amax)
+        up[i] = bull
+    return up, flip
+
+
+def weekly_sar_state(high: pd.Series, low: pd.Series, close: pd.Series) -> tuple[bool | None, int | None]:
+    """(bull?, completed weeks since the last bull flip) on completed W-FRI weeks only."""
+    df = pd.DataFrame({"h": high, "l": low, "c": close}).dropna()
+    if len(df) < 30:
+        return None, None
+    wk = df.index.to_period("W-FRI")
+    agg = df.groupby(wk).agg(h=("h", "max"), l=("l", "min"), c=("c", "last"))
+    if df.index[-1].weekday() != 4:  # the current week is not finished yet
+        agg = agg.iloc[:-1]
+    if len(agg) < 10:
+        return None, None
+    up, flip = psar_flags(agg["h"].to_numpy(float), agg["l"].to_numpy(float), agg["c"].to_numpy(float), *SAR_PARAMS)
+    if not up[-1]:
+        return False, None
+    hits = np.where(flip)[0]
+    return True, (int(len(flip) - 1 - hits[-1]) if len(hits) else None)
+
+
+def tier(r: dict) -> str:
+    """Signal priority from the 2015-2026 ablation: weekly-SAR freshness first, then position."""
+    up, age = r.get("sar_up"), r.get("sar_age")
+    if not up:
+        return "D"
+    age = 99 if age is None else age
+    if _good(r) and age <= 5:
+        return "S"
+    line, hl = r.get("pivot_line"), r.get("hl")
+    if line is None or (isinstance(line, float) and math.isnan(line)) or not hl or hl >= line:
+        return "D"
+    if 2 <= age <= 5:
+        return "A"
+    if age <= 8 or _good(r):
+        return "B"
+    return "C"
+
+
+def _sar_label(r: dict) -> tuple[str, str]:
+    up, age = r.get("sar_up"), r.get("sar_age")
+    if up is None:
+        return "", ""
+    if not up:
+        return "週足SARベア", "old"
+    if age is None or age >= 9:
+        return f"週足SAR {age if age is not None else '9+'}週目・鮮度切れ", "old"
+    if age == 0:
+        return "週足SAR 転換週", "fresh0"
+    if age == 1:
+        return "週足SAR 1週目・様子見", "fresh0"
+    if age <= 5:
+        return f"週足SAR {age}週目・旬", "fresh"
+    return f"週足SAR {age}週目", ""
 
 
 def structure_detail(high: np.ndarray, low: np.ndarray) -> dict | None:
@@ -237,10 +321,22 @@ def evaluate(frame: pd.DataFrame) -> dict:
                 "dv": int(round(st["dv_pct"][t])), "vc": float(st["vc"][t]), "vdry": float(st["vdry"][t]),
                 "chg": float(st["chg"][t]), "prev_chg": float(st["prev_chg"][t]),
                 "ext10": float(st["ext10"][t]), "el21": float(st["el21"][t]),
-                "stop": px * (1 - STOP), "add": px * 1.10, "be": px * 1.25}
+                "stop": px * (1 - STOP), "add": px * 1.10, "be": px * 1.25,
+                **dict(zip(("sar_up", "sar_age"), sar_state(t)))}
 
+    sar_cache: dict[str, tuple] = {}
+
+    def sar_state(t: str) -> tuple:
+        if t not in sar_cache:
+            try:
+                sar_cache[t] = weekly_sar_state(h[t], l[t], c[t])
+            except Exception:
+                sar_cache[t] = (None, None)
+        return sar_cache[t]
+
+    rank = lambda r: TIER_ORDER[tier(r)]
     core = [row(t, s) for t in selected[selected & timing].index]
-    core.sort(key=lambda r: (not r["inside"], -r["rs189"]))
+    core.sort(key=lambda r: (rank(r), not r["inside"], -r["rs189"]))
 
     # Late entries: signal 1-2 sessions ago, not re-signalled today, still near the signal close,
     # no stop or 21EMA-low exit since, still selected, and today's no-chase checks pass.
@@ -264,7 +360,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
                       "from_signal": float(last[t]) / base - 1, "lag": lag})
             late.append(r)
             seen.add(t)
-    late.sort(key=lambda r: (r["lag"], not r["inside"], -r["rs189"]))
+    late.sort(key=lambda r: (rank(r), r["lag"], -r["rs189"]))
 
     watch = []
     for t in selected[selected & ~timing].index:
@@ -273,7 +369,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
         r = row(t, s)
         r["missing"] = [k for k, m in checks.items() if not bool(m.get(t, False))]
         watch.append(r)
-    watch.sort(key=lambda r: (len(r["missing"]), not r["inside"], -r["rs189"]))
+    watch.sort(key=lambda r: (rank(r), len(r["missing"]), -r["rs189"]))
 
     # Theme slot: earnings-gap style entries with correlation-peer strength 50-90.
     adr20, ma50 = s["adr20"], s["ma50"]
@@ -370,6 +466,11 @@ STYLE = """
 #mc57-swing-screener .sw-w:active{background:#ecebe6}
 #mc57-swing-screener .sw-w .sw-tk{font-size:14px}
 #mc57-swing-screener .sw-w .sw-chips{flex-basis:100%;margin-top:0}
+#mc57-swing-screener .sw-c.tier{color:#fff;font-weight:800}
+#mc57-swing-screener .sw-c.tS{background:#1a6b3c}#mc57-swing-screener .sw-c.tA{background:#2f8f57}
+#mc57-swing-screener .sw-c.tB{background:#8a8574}#mc57-swing-screener .sw-c.tC{background:#a8a293}#mc57-swing-screener .sw-c.tD{background:#b9876f}
+#mc57-swing-screener .sw-c.fresh{background:#e3f1e7;color:#1f6b3f;border:1px solid #9fcdb0}
+#mc57-swing-screener .sw-c.fresh0{background:#f3ecd6;color:#6b5a1e}
 #mc57-swing-screener .sw-t.nx{border-left-color:#6f93c4;background:#fdfdfb}
 #mc57-swing-screener .sw-c.nx{background:#e6edf7;color:#2c5288}
 #mc57-swing-screener .sw-c.nx.one{background:#2c5288;color:#fff}
@@ -451,6 +552,11 @@ def _ch(v: float) -> str:
 
 def _chips(r: dict, extra: str = "") -> str:
     out = []
+    if r.get("sar_up") is not None:
+        t = tier(r)
+        out.append(f'<span class="sw-c tier t{t}">優先{t}</span>')
+        text, cls = _sar_label(r)
+        out.append(f'<span class="sw-c {cls}">{text}</span>')
     if _good(r):
         out.append('<span class="sw-c good">好位置</span>')
     if r.get("inside"):
@@ -561,8 +667,8 @@ def card_html(result: dict) -> str:
     e = html.escape
     core, watch, ep = result["core"], result["watch"], result["ep"]
     late = result.get("late", [])
-    best = [r for r in core if _good(r)]
-    waiting = [r for r in core if not _good(r)]
+    best = [r for r in core if tier(r) in ("S", "A")]
+    waiting = [r for r in core if tier(r) not in ("S", "A")]
     good_watch = [r for r in watch if _good(r)]
     other_watch = [r for r in watch if not _good(r)]
     tile = lambda cls, r, inner: f'<div class="sw-t{cls}" data-tkone="{e(r["ticker"])}">{inner}</div>'
@@ -570,7 +676,7 @@ def card_html(result: dict) -> str:
     best_body = "".join(
         tile("", r, _top(r, _rs_box(r)) + _chips(r) + _struct_line(r) + _levels(r) + _opt_line(r) + _foot(r))
         for r in best[:12]
-    ) or '<div class="sw-empty">該当なし（位置と形が両方そろうのを待つ）。</div>'
+    ) or '<div class="sw-empty">該当なし（週足SARの鮮度と形がそろうのを待つ）。</div>'
     gw_body = "".join(
         tile(" gw", r, _top(r, _rs_box(r))
              + f'<div class="sw-need">あと{len(r["missing"])}条件</div><div class="sw-chips">{miss(r)}</div>'
@@ -587,7 +693,10 @@ def card_html(result: dict) -> str:
         f'<span class="sw-px">{_d(r["close"])}</span>{_ch(r["chg"])}'
         f'<span class="sw-c">RS189 {r["rs189"]}</span>' + extra + '</div>')
     wait_body = "".join(
-        row(r, f'<div class="sw-chips"><span class="sw-c old">{e(_wait_reason(r))}</span>{_zone(r)}</div>')
+        row(r, f'<div class="sw-chips"><span class="sw-c tier t{tier(r)}">優先{tier(r)}</span>'
+               + (f'<span class="sw-c old">{e(_wait_reason(r))}</span>' if _wait_reason(r) else "")
+               + (f'<span class="sw-c {_sar_label(r)[1]}">{_sar_label(r)[0]}</span>' if _sar_label(r)[0] else "")
+               + f'{_zone(r)}</div>')
         for r in waiting
     )
     def nx_tile(r: dict) -> str:
@@ -620,14 +729,14 @@ def card_html(result: dict) -> str:
 
     wait_block = (
         '<details class="sw-fold"><summary>'
-        f'<span>条件OKだが位置待ち<small>ピボットから離れている・ライン直下・HL寄り</small></span><b>{len(waiting)}</b></summary>'
-        '<div class="sw-hint">全条件は満たすが、今の位置は検証で弱い（PF 1.4〜2.0、期間でばらつく）。'
-        '緑のゾーンまで押して形がそろえば本命に上がる。</div>'
+        f'<span>条件OKだが優先度低め<small>週足SARの鮮度切れ・位置が悪い</small></span><b>{len(waiting)}</b></summary>'
+        '<div class="sw-hint">全条件は満たすが、検証で弱い組み合わせ（優先B 1.80・C 1.53・D 1.05）。'
+        '週足SARが新しく転換するか、好位置まで押せば上がる。</div>'
         f'{wait_body}</details>' if waiting else "")
     summary = "".join(f'<span class="{c}">{k}<b>{n}</b></span>' for k, n, c in
                       (("本命", len(best), "on" if best else ""), ("好位置・形待ち", len(good_watch), ""),
                        ("まだ入れる", len(late), ""), ("次の候補", len(other_watch), ""),
-                       ("テーマ", len(ep), ""), ("位置待ち", len(waiting), "")))
+                       ("テーマ", len(ep), ""), ("優先度低め", len(waiting), "")))
     return (
         f'<div class="card" id="{CARD_ID}" data-source-improvement="swing-screener">'
         '<div class="chd"><h2>スイング候補（新ルール）<span class="h2en">Swing Screener</span></h2>'
@@ -635,17 +744,23 @@ def card_html(result: dict) -> str:
         f'<div class="sub">{e(result["session"])} 終値基準・流動性あり{result["universe"]}銘柄から選定'
         f'{result.get("selected", 0)}銘柄。タップで銘柄詳細。</div>'
         f'<div class="sw-sum">{summary}</div>'
-        + sec("本命", "好位置×全条件OK・本日の終値で買い", best) + best_body
+        + sec("本命", "優先S・A×全条件OK・本日の終値で買い", best) + best_body
         + sec("好位置で形待ち", "位置は良い・条件がそろえば本命", good_watch)
         + '<div class="sw-hint">先回りより、条件がそろってから入るほうが成績が良い（PF 1.74→3.57）。</div>'
         + gw_body
         + sec("まだ入れる", "1〜2日前に成立", late) + late_body
         + sec("次の候補", "選定OK・あと少しで成立", other_watch[:15])
-        + '<div class="sw-hint">残りの条件がそろった日に、位置しだいで本命か位置待ちへ移る。あと1条件のものが近い。</div>'
+        + '<div class="sw-hint">残りの条件がそろった日に、優先度しだいで本命か優先度低めへ移る。優先A・あと1条件のものが近い。</div>'
         + watch_body
         + sec("テーマ枠", "本日の窓開け", ep) + ep_body
         + wait_block
         + '<details class="cxpl" style="margin-top:10px"><summary>ルールと見方</summary><div class="cxpl-b">'
+        '<b>優先度</b>（2015〜2026年、今のルール成立日をPFで比較）：'
+        '<b>S</b> 好位置×週足SAR転換0〜5週（PF 15、件数61と少なめ）／<b>A</b> 週足SAR 2〜5週（2.97）／'
+        '<b>B</b> SAR転換週・1週目・6〜8週、または好位置×SAR6週〜（1.80）／<b>C</b> SAR9週〜（1.53）／<b>D</b> SARベア・HL構造なし（1.05）。'
+        '本命は優先S・A。週足SARは0.02・0.02・0.08、確定した週足のみ。'
+        '条件を1つずつ外すと、SARの鮮度を外したときに最も悪化（PF 5.47→2.04）、次がHL構造（→3.46）。'
+        '値幅の収縮と10日線は、SARとHL構造があればほぼ影響なし。<br/>'
         '<b>選定</b>：トレンドテンプレート・50日平均売買代金が上位5%・189日リターンが上位10%'
         '（株価$10以上・売買代金$20M以上の銘柄内）。<b>形</b>：10日/50日の平均値幅0.9以下・5日/50日の出来高0.9以下。'
         '<b>追わない</b>：当日+3%未満・前日+3%以下・10日線+12%以内。<br/>'
