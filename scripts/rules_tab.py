@@ -31,6 +31,28 @@ def _table(head: list[str], rows: list[list[str]], num_cols: tuple[int, ...] = (
     return f'<table class="rtb"><tr>{th}</tr>{body}</table>'
 
 
+# (year, stock-only %, with QQQ 50% %, QQQ price %, stock-only intra-year max DD %, trades, win %)
+YEARLY = [
+    (2015, -0.1, 5.9, 8.7, -4.9, 21, 43), (2016, -5.7, -1.0, 5.9, -4.3, 19, 26),
+    (2017, 7.6, 17.8, 31.5, -5.7, 39, 33), (2018, 7.8, 7.0, -1.0, -9.3, 25, 36),
+    (2019, 3.9, 17.0, 37.8, -4.9, 24, 29), (2020, 98.4, 105.9, 47.6, -19.6, 52, 44),
+    (2021, 12.5, 22.0, 26.8, -17.5, 44, 20), (2022, -5.0, -16.2, -33.1, -6.9, 13, 15),
+    (2023, 0.4, 16.9, 53.8, -20.0, 59, 22), (2024, 96.6, 103.0, 24.8, -15.9, 74, 35),
+    (2025, 25.0, 31.9, 20.2, -24.5, 43, 40), (2026, 76.0, 83.5, 16.7, -17.1, 26, 46),
+]
+
+
+def _pct(v: float) -> str:
+    color = "#c62828" if v < 0 else "#18813d" if v > 0 else "#565243"
+    return f'<span style="color:{color}">{v:+.1f}%</span>'.replace("-", "−")
+
+
+def _yearly() -> str:
+    rows = [[str(y) if y < 2026 else "2026*", _pct(a), _pct(b), _pct(q), f"{d:.1f}%".replace("-", "−")]
+            for y, a, b, q, d, n, w in YEARLY]
+    return _table(["年", "個別株", "QQQ50%込", "QQQ", "年内DD"], rows, num_cols=(1, 2, 3, 4))
+
+
 def _regime_line(regime: dict[str, Any] | None) -> str:
     if not regime or regime.get("on") is None:
         return ""
@@ -106,6 +128,9 @@ def rules_html(regime: dict[str, Any] | None = None) -> str:
         'リスク0.5%、同時3銘柄、60営業日で手仕舞い。</div>'
         '<div class="rh">6. カードの見方</div>' + li(card)
         + '<div class="rh">やらないこと</div>' + li(dont)
+        + '<div class="rh">成績（単年）</div>'
+        '<div class="rnote">個別株＝個別株だけ、QQQ50%込み＝余剰資金の半分をQQQに置いた場合。年内DD＝個別株だけの年内最大下落。2026年は1〜8月。</div>'
+        + _yearly()
         + '<div class="rwarn"><b>成績</b>（2015年1月〜2026年8月、地合い込み）：個別株だけで年率22.3%・最大DD−24.5%（約10.5倍）。'
         '余剰資金の50%をQQQに置くと年率28.5%・DD−23.5%。<br>'
         '現存銘柄だけで検証（上場廃止銘柄は未検証）、税金・テーマ枠は含まない。'
