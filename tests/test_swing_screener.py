@@ -177,6 +177,7 @@ def test_weekly_sar_and_priority_tiers():
     assert tier({**r, "pos": 0.9, "sar_age": 3}) == "A"
     assert tier({**r, "pos": 0.9, "sar_age": 1}) == "B"
     assert tier({**r, "sar_age": 7}) == "B"  # 好位置 but no longer fresh
+    assert tier({**r, "sar_age": 12}) == "C"  # 好位置 does not rescue a stale SAR
     assert tier({**r, "pos": 0.9, "sar_age": 12}) == "C"
     assert tier({**r, "sar_up": False, "sar_age": None}) == "D"
 
@@ -189,3 +190,17 @@ def test_watch_bucket_order():
     sa2 = {**r, "sar_age": 3, "missing": ["収縮", "出来高減"]}
     c2 = {**r, "sar_age": 12, "missing": ["収縮", "出来高減"]}
     assert [watch_bucket(x) for x in (sa1, b1, sa2, c2)] == [0, 1, 2, 4]
+
+
+def test_low_priority_late_entries_move_to_fold():
+    base = {"close": 100.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80, "dv": 99, "vc": 0.8, "vdry": 0.8,
+            "ext10": 0.0, "el21": 95.0, "stop": 92.0, "add": 110.0, "be": 125.0, "streak": 3, "lag": 1,
+            "signal_date": "2026-01-01", "signal_close": 99.0, "from_signal": 0.01,
+            "pivot_line": 110.0, "hl": 80.0, "inside": True, "pos": 0.9}
+    ok = {**base, "ticker": "LATEA", "sar_up": True, "sar_age": 3}
+    bear = {**base, "ticker": "LATED", "sar_up": False, "sar_age": None}
+    html = card_html({"session": "2026-01-02", "universe": 1, "selected": 2, "ep": [], "core": [], "watch": [],
+                      "late": [ok, bear]})
+    fold = html.index('class="sw-fold"')
+    assert html.index('data-tkone="LATEA"') < fold < html.index('data-tkone="LATED"')
+    assert "1日前に成立" in html
