@@ -767,7 +767,7 @@ def card_html(result: dict) -> str:
     summary = "".join(f'<span class="{c}">{k}<b>{n}</b></span>' for k, n, c in
                       (("本命", len(best), "on" if best else ""),
                        ("まだ入れる", len(late), ""), ("次の候補", len(other_watch), ""),
-                       ("テーマ", len(ep), ""), ("優先度低め", len(waiting) + len(late_low), "")))
+                       ("テーマ", len(ep), ""), ("買わない", len(waiting) + len(late_low), "")))
     return (
         f'<div class="card" id="{CARD_ID}" data-source-improvement="swing-screener">'
         '<div class="chd"><h2>スイング候補（新ルール）<span class="h2en">Swing Screener</span></h2>'
