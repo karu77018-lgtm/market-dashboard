@@ -213,3 +213,29 @@ def test_buy_set_is_sar_bull_outside_hl_side():
     assert buyable({**r, "inside": True, "pos": 0.9})            # right under the line
     assert not buyable({**r, "inside": True, "pos": 0.3})        # HL-side zone
     assert not buyable({**r, "sar_up": False, "inside": True, "pos": 0.6})
+
+
+def test_regime_stops_new_entries_but_keeps_watchlist(tmp_path):
+    import json
+    from swing_screener import regime_from_market
+    rows = [{"date": f"d{i}", "close": 100.0 + i * 0.1} for i in range(220)]
+    f = tmp_path / "m.json"
+    f.write_text(json.dumps({"series": {"QQQ": rows}}))
+    assert regime_from_market(f)["on"] is True
+    rows[-1]["close"] = 50.0
+    f.write_text(json.dumps({"series": {"QQQ": rows}}))
+    reg = regime_from_market(f)
+    assert reg["on"] is False
+    assert regime_from_market(tmp_path / "missing.json") is None
+    base = {"close": 100.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80, "dv": 99, "vc": 0.8, "vdry": 0.8,
+            "ext10": 0.0, "el21": 95.0, "stop": 92.0, "add": 110.0, "be": 125.0, "streak": 3,
+            "pivot_line": 110.0, "hl": 80.0, "inside": True, "pos": 0.9, "sar_up": True, "sar_age": 3}
+    watch = {**base, "ticker": "NEXT", "missing": ["収縮"], "vc": 0.93}
+    html = card_html({"session": "2026-01-02", "universe": 1, "selected": 2, "ep": [], "late": [],
+                      "core": [{**base, "ticker": "BUY"}], "watch": [watch], "regime": reg})
+    assert "地合い：新規停止" in html
+    assert html.index('data-tkone="BUY"') > html.index('class="sw-fold"')   # moved out of 本命
+    assert 'data-tkone="NEXT"' in html                                       # watchlist still shown
+    ok = card_html({"session": "2026-01-02", "universe": 1, "selected": 2, "ep": [], "late": [],
+                    "core": [{**base, "ticker": "BUY"}], "watch": [], "regime": {"on": True, "close": 110.0, "ma": 100.0}})
+    assert "地合いOK" in ok and ok.index('data-tkone="BUY"') < ok.find('class="sw-fold"') if 'sw-fold' in ok else True

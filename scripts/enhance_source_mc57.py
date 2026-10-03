@@ -235,7 +235,9 @@ def main() -> int:
     text = apply_theme_gate(text, frame, Path(args.themes))
     from swing_screener import apply as apply_swing_screener
     from options_walls import fetch_walls
-    text = apply_swing_screener(text, frame, walls_fn=fetch_walls)
+    from swing_screener import regime_from_market
+    regime = regime_from_market(html_path.resolve().parent / "data" / "market_inputs.json")
+    text = apply_swing_screener(text, frame, walls_fn=fetch_walls, regime=regime)
     text = substitute_badge(text, html_path.resolve().parent / "latest-manifest.json")
     html_path.write_text(text, encoding="utf-8")
     print(json.dumps({"session_date": args.session, "ticker_count": meta["ticker_count"],
