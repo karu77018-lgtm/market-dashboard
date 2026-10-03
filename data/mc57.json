@@ -36447,6 +36447,7 @@
   "reference": {
     "verification_kind": "RECOVERED_FORMAL_SPEC_2026-09-16"
   },
+  "same_session_snapshot_reused": true,
   "schema_version": "v38.mc57.1",
   "session_date": "2026-10-02",
   "sigma_prior": 19.093742608744495,
