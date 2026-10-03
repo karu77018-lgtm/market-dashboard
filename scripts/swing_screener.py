@@ -182,6 +182,35 @@ def weekly_sar_state(high: pd.Series, low: pd.Series, close: pd.Series) -> tuple
     return True, (int(len(flip) - 1 - hits[-1]) if len(hits) else None)
 
 
+REGIME_MA = 200
+
+
+def regime_from_market(path) -> dict | None:
+    """Market regime for new entries: QQQ close above its 200-day average (from data/market_inputs.json)."""
+    import json
+    from pathlib import Path
+    try:
+        rows = json.loads(Path(path).read_text(encoding="utf-8"))["series"]["QQQ"]
+        closes = [float(r["close"]) for r in rows if r.get("close") is not None]
+    except Exception:
+        return None
+    if len(closes) < REGIME_MA:
+        return None
+    ma = sum(closes[-REGIME_MA:]) / REGIME_MA
+    return {"on": closes[-1] > ma, "close": closes[-1], "ma": ma, "date": rows[-1].get("date")}
+
+
+def _regime_bar(reg: dict | None) -> str:
+    if not reg:
+        return '<div class="sw-reg na">地合い判定なし（QQQのデータ未取得）</div>'
+    gap = reg["close"] / reg["ma"] - 1
+    if reg["on"]:
+        return (f'<div class="sw-reg on">地合いOK：QQQ {_d(reg["close"])} は200日線 {_d(reg["ma"])} の'
+                f'{_p(gap)}上。新規エントリー可</div>')
+    return (f'<div class="sw-reg off"><b>地合い：新規停止</b>　QQQ {_d(reg["close"])} が200日線 {_d(reg["ma"])} を'
+            f'{_p(gap)}下回っています。本命は出さず、持ち株は通常どおり手仕舞いのルールで管理。次の候補は監視を続ける</div>')
+
+
 def hl_side(r: dict) -> bool:
     """Inside the HL structure but in the lower half (HL->line 0-50%): the one weak entry zone."""
     pos = r.get("pos")
@@ -500,6 +529,10 @@ STYLE = """
 #mc57-swing-screener .sw-c.tB{background:#8a8574}#mc57-swing-screener .sw-c.tC{background:#a8a293}#mc57-swing-screener .sw-c.tD{background:#b9876f}
 #mc57-swing-screener .sw-c.fresh{background:#e3f1e7;color:#1f6b3f;border:1px solid #9fcdb0}
 #mc57-swing-screener .sw-c.fresh0{background:#f3ecd6;color:#6b5a1e}
+#mc57-swing-screener .sw-reg{font-size:11.5px;border-radius:8px;padding:6px 9px;margin:0 0 8px;line-height:1.5}
+#mc57-swing-screener .sw-reg.on{background:#e3f1e7;color:#1f6b3f}
+#mc57-swing-screener .sw-reg.off{background:#f6e3dc;color:#8a2f1d;border:1px solid #e3b4a3}
+#mc57-swing-screener .sw-reg.na{background:#ecebe6;color:#6f6c62}
 #mc57-swing-screener .sw-t.nx{border-left-color:#6f93c4;background:#fdfdfb}
 #mc57-swing-screener .sw-c.nx{background:#e6edf7;color:#2c5288}
 #mc57-swing-screener .sw-c.nx.one{background:#2c5288;color:#fff}
@@ -696,11 +729,13 @@ def card_html(result: dict) -> str:
     e = html.escape
     core, watch, ep = result["core"], result["watch"], result["ep"]
     late = result.get("late", [])
-    best = [r for r in core if buyable(r)]
-    waiting = [r for r in core if not buyable(r)]
+    reg = result.get("regime")
+    stopped = bool(reg) and not reg["on"]
+    best = [r for r in core if buyable(r) and not stopped]
+    waiting = [r for r in core if not buyable(r) or stopped]
     other_watch = watch
-    late_low = [r for r in late if not buyable(r)]
-    late = [r for r in late if buyable(r)]
+    late_low = [r for r in late if not buyable(r) or stopped]
+    late = [r for r in late if buyable(r) and not stopped]
     tile = lambda cls, r, inner: f'<div class="sw-t{cls}" data-tkone="{e(r["ticker"])}">{inner}</div>'
     miss = lambda r: "".join(f'<span class="sw-c need">{e(_need(m, r))}</span>' for m in r["missing"])
     best_body = "".join(
@@ -760,7 +795,7 @@ def card_html(result: dict) -> str:
 
     wait_block = (
         '<details class="sw-fold"><summary>'
-        f'<span>条件OKだが買わない<small>週足SARベア・HL寄り</small></span><b>{len(waiting) + len(late_low)}</b></summary>'
+        f'<span>条件OKだが買わない<small>週足SARベア・HL寄り{"・地合い停止" if stopped else ""}</small></span><b>{len(waiting) + len(late_low)}</b></summary>'
         '<div class="sw-hint">全条件は満たす（または1〜2日前に満たした）が、週足SARがベア、またはHL→ラインの0〜50%（HL寄り）。'
         '検証ではこれを外すと個別株だけの年率18.5%→21.2%、最大DD−28%→−25%。週足SARがブルに戻るか、ラインに寄れば本命へ。</div>'
         f'{wait_body}</details>' if waiting or late_low else "")
@@ -774,7 +809,7 @@ def card_html(result: dict) -> str:
         f'<div class="chd-now" style="color:#23824d"><b>{len(best)}</b><span>本命</span></div></div>'
         f'<div class="sub">{e(result["session"])} 終値基準・流動性あり{result["universe"]}銘柄から選定'
         f'{result.get("selected", 0)}銘柄。タップで銘柄詳細。</div>'
-        f'<div class="sw-sum">{summary}</div>'
+        f'<div class="sw-sum">{summary}</div>' + _regime_bar(reg)
         + sec("本命", "全条件OK×週足SARブル×HL寄り以外・本日の終値で買い", best) + best_body
         + sec("まだ入れる", "1〜2日前に成立・本命と同じ条件", late) + late_body
         + sec("次の候補", "選定OK・あと少しで成立", other_watch[:15])
@@ -787,6 +822,9 @@ def card_html(result: dict) -> str:
         '<b>選定</b>：トレンドテンプレート（株価＞50日線＞150日線＞200日線・200日線が20日前より上・52週高値から−25%以内）・'
         '50日平均売買代金が上位5%・189日リターンが上位10%（株価$10以上・売買代金$20M以上の銘柄内）。<br/>'
         '<b>形</b>：10日/50日の平均値幅0.9以下・5日/50日の出来高0.9以下・当日+3%未満・前日+3%以下。当日の終値で買う。<br/>'
+        '<b>地合い</b>：QQQが200日線より上の日だけ新規で買う（割れている日は本命を出さない。持ち株は通常の手仕舞いルール）。'
+        '2016〜2026年の検証で年率25.6%→27.4%、2022年の損失−11.7%→−5.0%。100〜300日線のどれでもほぼ同じ。'
+        'MC57（≥40〜60）や日足SAR・21EMAで止めると、戻りの初動を逃して年率が下がる。週足SARはほぼ影響なし。<br/>'
         '<b>本命</b>：全条件OK×週足SARがブル×HL寄り（HL→ラインの0〜50%）以外。'
         '2015〜2026年の総当たり検証（個別株だけ）で年率21.2%・最大DD−25%（全条件OKを全部買うと18.5%・−28%）。'
         '開始年を変えても5通りすべてで上回った。好位置・ライン直下・ライン上（伸びすぎ含む）は外すと悪化するので位置では絞らない。<br/>'
@@ -814,7 +852,7 @@ def card_html(result: dict) -> str:
     )
 
 
-def apply(text: str, frame: pd.DataFrame, walls_fn=None) -> str:
+def apply(text: str, frame: pd.DataFrame, walls_fn=None, regime: dict | None = None) -> str:
     """Insert the card; ``walls_fn(targets, session)`` optionally adds option walls."""
     if CARD_ID in text or SECTION not in text:
         return text
@@ -823,6 +861,7 @@ def apply(text: str, frame: pd.DataFrame, walls_fn=None) -> str:
     except Exception as exc:  # display-only: never break publication
         print(f"swing screener skipped: {exc!r}", flush=True)
         return text
+    result["regime"] = regime
     found: dict = {}
     if walls_fn is not None:
         seen_t: set = set()
