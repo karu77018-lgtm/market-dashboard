@@ -725,6 +725,14 @@ def _zone(r: dict) -> str:
     return f'<span class="sw-c good-o">好位置 {_d(z0)}〜{_d(z1)}（{_p(z0 / px - 1)}〜{_p(z1 / px - 1)}）</span>'
 
 
+def _health_line(health: dict | None, reg: dict | None) -> str:
+    try:
+        from breakout_health import positions_line
+        return positions_line(health, reg)
+    except Exception:
+        return ""
+
+
 def card_html(result: dict) -> str:
     e = html.escape
     core, watch, ep = result["core"], result["watch"], result["ep"]
@@ -809,7 +817,7 @@ def card_html(result: dict) -> str:
         f'<div class="chd-now" style="color:#23824d"><b>{len(best)}</b><span>本命</span></div></div>'
         f'<div class="sub">{e(result["session"])} 終値基準・流動性あり{result["universe"]}銘柄から選定'
         f'{result.get("selected", 0)}銘柄。タップで銘柄詳細。</div>'
-        f'<div class="sw-sum">{summary}</div>' + _regime_bar(reg)
+        f'<div class="sw-sum">{summary}</div>' + _regime_bar(reg) + _health_line(result.get("health"), reg)
         + sec("本命", "全条件OK×週足SARブル×HL寄り以外・本日の終値で買い", best) + best_body
         + sec("まだ入れる", "1〜2日前に成立・本命と同じ条件", late) + late_body
         + sec("次の候補", "選定OK・あと少しで成立", other_watch[:15])
@@ -834,7 +842,8 @@ def card_html(result: dict) -> str:
         '<b>次の候補の並び</b>：監視した日から10営業日以内に全条件がそろう率×そろった後の成績で、'
         '優先S・A×あと1条件 → B×あと1 → S・A×あと2 → その他。残り条件数は「あと1かどうか」だけが効く。<br/>'
         '<b>売買</b>：資金の1%リスク・−8%損切り（1銘柄は資金の約12.5%）。終値+10%で持ち株の半分を1回だけ買い増し'
-        '（これがないと年率12〜14%）。安値21EMAを割って引けたら手仕舞い。余剰資金の50%はQQQ（年率+5〜6pt）。<br/>'
+        '（これがないと年率12〜14%）。安値21EMAを割って引けたら手仕舞い。余剰資金の50%はQQQ。'
+        'ブレイク成功度が不調かつQQQが200日線より上の日は100%（年率28.5%→32.3%・DDは同じ）。<br/>'
         '<b>外した条件</b>：52週安値+30%・10日線+12%以内・高値+25%で建値へ。外しても成績はほぼ同じ（21.2%→21.0%）。<br/>'
         '<b>バー</b>：緑の始まりがHL（切り上げた安値・割れたら構造崩れ）、緑の終わりがピボットライン'
         '（直近のLL→HL間の最高値・期間2〜10本で一番狭い構造）、黒い線が今の株価。濃い緑がHL→ラインの50〜75%（好位置）。<br/>'
@@ -852,7 +861,8 @@ def card_html(result: dict) -> str:
     )
 
 
-def apply(text: str, frame: pd.DataFrame, walls_fn=None, regime: dict | None = None) -> str:
+def apply(text: str, frame: pd.DataFrame, walls_fn=None, regime: dict | None = None,
+          health: dict | None = None) -> str:
     """Insert the card; ``walls_fn(targets, session)`` optionally adds option walls."""
     if CARD_ID in text or SECTION not in text:
         return text
@@ -862,6 +872,7 @@ def apply(text: str, frame: pd.DataFrame, walls_fn=None, regime: dict | None = N
         print(f"swing screener skipped: {exc!r}", flush=True)
         return text
     result["regime"] = regime
+    result["health"] = health
     found: dict = {}
     if walls_fn is not None:
         seen_t: set = set()

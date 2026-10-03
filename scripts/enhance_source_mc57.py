@@ -237,9 +237,17 @@ def main() -> int:
     from options_walls import fetch_walls
     from swing_screener import regime_from_market
     regime = regime_from_market(html_path.resolve().parent / "data" / "market_inputs.json")
-    text = apply_swing_screener(text, frame, walls_fn=fetch_walls, regime=regime)
+    import breakout_health
+    try:
+        health = breakout_health.compute(frame)
+        print(f"breakout health: {None if not health else health['value']} ({None if not health else health['n']} signals)", flush=True)
+    except Exception as exc:  # display-only
+        print(f"breakout health skipped: {exc!r}", flush=True)
+        health = None
+    text = breakout_health.apply_daily(text, health, regime)
+    text = apply_swing_screener(text, frame, walls_fn=fetch_walls, regime=regime, health=health)
     from rules_tab import apply as apply_rules_tab
-    text = apply_rules_tab(text, regime=regime)
+    text = apply_rules_tab(text, regime=regime, health=health)
     text = substitute_badge(text, html_path.resolve().parent / "latest-manifest.json")
     html_path.write_text(text, encoding="utf-8")
     print(json.dumps({"session_date": args.session, "ticker_count": meta["ticker_count"],

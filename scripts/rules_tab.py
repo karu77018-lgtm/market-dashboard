@@ -32,6 +32,7 @@ def _table(head: list[str], rows: list[list[str]], num_cols: tuple[int, ...] = (
 
 
 # (year, stock-only %, with QQQ 50% %, QQQ price %, stock-only intra-year max DD %, trades, win %)
+# The "QQQ込" column shown on the page is the breakout-health switch (breakout_health.YEARLY).
 YEARLY = [
     (2015, -0.1, 5.9, 8.7, -4.9, 21, 43), (2016, -5.7, -1.0, 5.9, -4.3, 19, 26),
     (2017, 7.6, 17.8, 31.5, -5.7, 39, 33), (2018, 7.8, 7.0, -1.0, -9.3, 25, 36),
@@ -48,9 +49,24 @@ def _pct(v: float) -> str:
 
 
 def _yearly() -> str:
-    rows = [[str(y) if y < 2026 else "2026*", _pct(a), _pct(b), _pct(q), f"{d:.1f}%".replace("-", "−")]
+    from breakout_health import YEARLY as SWITCH
+    sw = {y: b for y, _, b in SWITCH}
+    rows = [[str(y) if y < 2026 else "2026*", _pct(a), _pct(sw.get(y, b)), _pct(q), f"{d:.1f}%".replace("-", "−")]
             for y, a, b, q, d, n, w in YEARLY]
-    return _table(["年", "個別株", "QQQ50%込", "QQQ", "年内DD"], rows, num_cols=(1, 2, 3, 4))
+    return _table(["年", "個別株", "QQQ込", "QQQ", "年内DD"], rows, num_cols=(1, 2, 3, 4))
+
+
+def _health_line(health: dict[str, Any] | None, regime: dict[str, Any] | None) -> str:
+    try:
+        from breakout_health import _fmt, allocation
+    except Exception:
+        return ""
+    if not health or health.get("on") is None:
+        return ""
+    pct, why = allocation(health, regime)
+    word = "好調" if health["on"] else "不調"
+    return (f'<div class="rreg {"on" if health["on"] else "off"}">今日のブレイク成功度：{_fmt(health["value"])}（{word}）'
+            f' <span>→ 余剰資金のQQQ {pct}%{"" if health["on"] else f"（{why}）"}</span></div>')
 
 
 def _regime_line(regime: dict[str, Any] | None) -> str:
@@ -64,7 +80,7 @@ def _regime_line(regime: dict[str, Any] | None) -> str:
     return f'<div class="rreg {"on" if on else "off"}">{label}{detail}</div>'
 
 
-def rules_html(regime: dict[str, Any] | None = None) -> str:
+def rules_html(regime: dict[str, Any] | None = None, health: dict[str, Any] | None = None) -> str:
     form = _table(["条件", "基準", "意味"], [
         ["値幅", "10日平均値幅÷50日平均値幅 ≤ 0.90", "値動きが縮んでいる"],
         ["出来高", "5日平均出来高÷50日平均 ≤ 0.90", "売りが枯れている"],
@@ -85,7 +101,7 @@ def rules_html(regime: dict[str, Any] | None = None) -> str:
         ["買い増し", "終値が買値+10%で、持ち株の半分を1回だけ"],
         ["手仕舞い", "安値21EMAを割って引けたら。日数制限なし"],
         ["同時保有", "コア最大10銘柄（テーマ枠込みで最大15）"],
-        ["余剰資金", "50%をQQQに置く（任意）"],
+        ["余剰資金", "50%をQQQ。ブレイク成功度が不調かつQQQが200日線より上の日は100%（下の7）"],
     ])
     card = [
         "<b>本命</b>：今日買うもの",
@@ -108,7 +124,7 @@ def rules_html(regime: dict[str, Any] | None = None) -> str:
         '<div class="card"><h2>スイングルール（新ルール） <span class="h2en">Swing Rules</span></h2>'
         '<div class="sub" style="color:#467ed6">売買代金トップの中から一番強い銘柄を、形がそろった日の終値で買う。'
         '損は−8%で切り、勝ちは買い増して安値21EMAを割るまで伸ばす。毎日の候補はPositionsタブ「スイング候補」。</div>'
-        + _regime_line(regime)
+        + _regime_line(regime) + _health_line(health, regime)
         + '<div class="rh">0. 地合い</div>'
         '<div class="sub">QQQが200日線より上の日だけ新規で買う。割れている日は新規停止（持ち株は通常の手仕舞いルールのまま）。</div>'
         '<div class="rh">1. 選定（3つすべて）</div>'
@@ -127,12 +143,21 @@ def rules_html(regime: dict[str, Any] | None = None) -> str:
         '<div class="sub">窓+5〜20%・終値+5%以上・出来高3〜15倍・上半分引け・50日線上・値幅3〜7%・相関の高い銘柄のRS平均50〜90。'
         'リスク0.5%、同時3銘柄、60営業日で手仕舞い。</div>'
         '<div class="rh">6. カードの見方</div>' + li(card)
+        + '<div class="rh">7. 余剰資金の配分（ブレイク成功度）</div>'
+        '<div class="sub"><b>ブレイク成功度</b>＝直近63営業日の本命シグナル（地合いは問わない）が10日後に平均何%動いたか。'
+        '0%以上＝好調、マイナス＝不調。<b>不調かつQQQが200日線より上の日は余剰資金を100%QQQ</b>、それ以外は50%。'
+        '個別株の売買は変えない。DailyタブとPositionsタブに今日の値を表示。</div>'
+        + li(["指数は上がるのに勢い株が伸びない年（2016・2021・2023年）を不調と判定し、その年をQQQで埋める",
+              "年率28.5%→32.3%、最大DD−23.5%のまま（同じ平均QQQ比率の固定配分より年率+2.2pt・DDも浅い）",
+              "QQQが200日線より下ではQQQを増やさない（2022年のような下げで傷を深くしない）",
+              "不調でも新規エントリーは止めない・リスクも減らさない（止めると年率が下がる）",
+              "サイトのF1〜F3・MC57・リーダーの強さは「崩れるか」の計器で、この切り替えには効かない"])
         + '<div class="rh">やらないこと</div>' + li(dont)
         + '<div class="rh">成績（単年）</div>'
-        '<div class="rnote">個別株＝個別株だけ、QQQ50%込み＝余剰資金の半分をQQQに置いた場合。年内DD＝個別株だけの年内最大下落。2026年は1〜8月。</div>'
+        '<div class="rnote">個別株＝個別株だけ、QQQ込＝余剰資金を7のルールでQQQに置いた場合。年内DD＝個別株だけの年内最大下落。2026年は1〜8月。</div>'
         + _yearly()
         + '<div class="rwarn"><b>成績</b>（2015年1月〜2026年8月、地合い込み）：個別株だけで年率22.3%・最大DD−24.5%（約10.5倍）。'
-        '余剰資金の50%をQQQに置くと年率28.5%・DD−23.5%。<br>'
+        '余剰資金を7のルールでQQQに置くと年率32.3%・DD−23.5%（約26倍、50%固定なら28.5%）。<br>'
         '現存銘柄だけで検証（上場廃止銘柄は未検証）、税金・テーマ枠は含まない。'
         '2021〜24年のように地合いの悪い期間は弱い。売買の推奨ではなく検証結果のまとめ。</div></div>'
     )
@@ -141,12 +166,12 @@ def rules_html(regime: dict[str, Any] | None = None) -> str:
 SECTION = re.compile(r'(<section id="t-rules">)(.*?)(</section>)', re.S)
 
 
-def apply(text: str, regime: dict[str, Any] | None = None) -> str:
+def apply(text: str, regime: dict[str, Any] | None = None, health: dict[str, Any] | None = None) -> str:
     """Replace the whole Rules tab content.  No-op if the tab is missing."""
     m = SECTION.search(text)
     if not m:
         return text
-    out = text[:m.start(2)] + rules_html(regime) + text[m.end(2):]
+    out = text[:m.start(2)] + rules_html(regime, health) + text[m.end(2):]
     if STYLE not in out:
         out = out.replace("</head>", STYLE + "</head>", 1)
     return out
