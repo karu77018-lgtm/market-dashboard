@@ -132,14 +132,14 @@ def test_sections_split_best_waiting_and_good_watch():
     best = {**base, "ticker": "BEST", "pivot_line": 110.0, "hl": 80.0, "inside": True, "pos": 2 / 3,
             "sar_up": True, "sar_age": 3}
     far = {**base, "ticker": "FAR", "pivot_line": 85.0, "hl": 70.0, "inside": False, "pos": None,
-           "sar_up": True, "sar_age": 12}
+           "sar_up": False, "sar_age": None}
     gw = {**base, "ticker": "GW", "pivot_line": 110.0, "hl": 80.0, "inside": True, "pos": 2 / 3,
           "missing": ["収縮"], "vc": 0.93, "sar_up": True, "sar_age": 4}
     html = card_html({"session": "2026-01-02", "universe": 1, "selected": 3, "ep": [], "late": [],
                       "core": [far, best], "watch": [gw]})
     i_best, i_gw, i_far = (html.index(f'data-tkone="{t}"') for t in ("BEST", "GW", "FAR"))
     assert i_best < i_gw < i_far
-    assert "ライン上+17.6%・伸びすぎ" in html and "好位置 $77.50〜$81.25" in html
+    assert "好位置 $77.50〜$81.25" in html
     assert "あと1条件" in html and "値幅 0.930 → 0.90（あと3.2%縮小）" in html
 
 
@@ -204,3 +204,12 @@ def test_low_priority_late_entries_move_to_fold():
     fold = html.index('class="sw-fold"')
     assert html.index('data-tkone="LATEA"') < fold < html.index('data-tkone="LATED"')
     assert "1日前に成立" in html
+
+
+def test_buy_set_is_sar_bull_outside_hl_side():
+    from swing_screener import buyable
+    r = {"pivot_line": 110.0, "hl": 80.0, "sar_up": True, "sar_age": 12}
+    assert buyable({**r, "inside": False, "pos": None})          # extended above the line: still bought
+    assert buyable({**r, "inside": True, "pos": 0.9})            # right under the line
+    assert not buyable({**r, "inside": True, "pos": 0.3})        # HL-side zone
+    assert not buyable({**r, "sar_up": False, "inside": True, "pos": 0.6})

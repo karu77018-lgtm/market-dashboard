@@ -93,7 +93,7 @@ def _states(c: pd.DataFrame, h: pd.DataFrame, l: pd.DataFrame, v: pd.DataFrame) 
         last = c.iloc[k]
         liquid = (last >= MIN_PRICE) & (dv50.iloc[k] >= MIN_DV)
         tt = (last > ma50.iloc[k]) & (ma50.iloc[k] > ma150.iloc[k]) & (ma150.iloc[k] > ma200.iloc[k]) \
-            & (ma200.iloc[k] > ma200.iloc[k - 20]) & (last >= 0.75 * hi252.iloc[k]) & (last >= 1.3 * lo252.iloc[k])
+            & (ma200.iloc[k] > ma200.iloc[k - 20]) & (last >= 0.75 * hi252.iloc[k])
 
         def ret(n: int) -> pd.Series:
             return last / c.iloc[k - n] - 1 if len(c) + k >= n else pd.Series(np.nan, index=c.columns)
@@ -109,7 +109,6 @@ def _states(c: pd.DataFrame, h: pd.DataFrame, l: pd.DataFrame, v: pd.DataFrame) 
             "出来高減": vdry.iloc[k] <= MAX_VDRY,
             "当日+3%未満": chg.iloc[k] < MAX_CHG,
             "前日+3%以下": chg.iloc[k - 1] <= MAX_PREV_CHG,
-            "10日線+12%以内": ext10 <= MAX_EXT10,
         }
         timing = pd.Series(True, index=c.columns)
         for m in checks.values():
@@ -181,6 +180,17 @@ def weekly_sar_state(high: pd.Series, low: pd.Series, close: pd.Series) -> tuple
         return False, None
     hits = np.where(flip)[0]
     return True, (int(len(flip) - 1 - hits[-1]) if len(hits) else None)
+
+
+def hl_side(r: dict) -> bool:
+    """Inside the HL structure but in the lower half (HL->line 0-50%): the one weak entry zone."""
+    pos = r.get("pos")
+    return bool(r.get("inside")) and pos is not None and pos < 0.5
+
+
+def buyable(r: dict) -> bool:
+    """本命: all rule conditions met (caller) x weekly SAR bull x not in the HL-side zone."""
+    return bool(r.get("sar_up")) and not hl_side(r)
 
 
 def tier(r: dict) -> str:
@@ -360,7 +370,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
     # Late entries: signal 1-2 sessions ago, not re-signalled today, still near the signal close,
     # no stop or 21EMA-low exit since, still selected, and today's no-chase checks pass.
     late, seen = [], {r["ticker"] for r in core}
-    nochase = (chg < MAX_CHG) & (s["ext10"] <= MAX_EXT10)
+    nochase = chg < MAX_CHG
     for lag in LATE_LAGS:
         past = state(-1 - lag)
         for t in past["signal"][past["signal"]].index:
@@ -462,7 +472,7 @@ STYLE = """
 #mc57-swing-screener .sw-c.old{background:#f6e3dc;color:#9a3f2b}
 #mc57-swing-screener .sw-c.miss{background:#f3ecd6;color:#6b5a1e}
 #mc57-swing-screener .sw-c.ep{background:#e2ebfa;color:#2a5aa8}
-#mc57-swing-screener .sw-lv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-top:8px}
+#mc57-swing-screener .sw-lv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-top:8px}
 #mc57-swing-screener .sw-lv div{background:#f0efeb;border-radius:6px;padding:4px 5px;min-width:0}
 #mc57-swing-screener .sw-lv i{display:block;font-style:normal;font-size:9.5px;color:#6f6c62;white-space:nowrap}
 #mc57-swing-screener .sw-lv b{display:block;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -610,7 +620,7 @@ def _rs_box(r: dict) -> str:
 def _levels(r: dict) -> str:
     cell = lambda cls, label, v: f'<div class="{cls}"><i>{label}</i><b>{_d(v)}</b></div>'
     return ('<div class="sw-lv">' + cell("stop", "損切り −8%", r["stop"]) + cell("", "安値21EMA", r["el21"])
-            + cell("", "買い増し +10%", r["add"]) + cell("", "建値へ +25%", r["be"]) + '</div>')
+            + cell("", "買い増し +10%", r["add"]) + '</div>')
 
 
 def _struct_line(r: dict) -> str:
@@ -653,7 +663,7 @@ def _opt_line(r: dict) -> str:
 
 
 def _foot(r: dict) -> str:
-    return (f'<div class="sw-ft">値幅 {r["vc"]:.2f}・出来高 {r["vdry"]:.2f}・10日線 {_p(r["ext10"])}'
+    return (f'<div class="sw-ft">値幅 {r["vc"]:.2f}・出来高 {r["vdry"]:.2f}'
             f'・売買代金 {r["dv"]}</div>')
 
 
@@ -686,11 +696,11 @@ def card_html(result: dict) -> str:
     e = html.escape
     core, watch, ep = result["core"], result["watch"], result["ep"]
     late = result.get("late", [])
-    best = [r for r in core if tier(r) in ("S", "A")]
-    waiting = [r for r in core if tier(r) not in ("S", "A")]
+    best = [r for r in core if buyable(r)]
+    waiting = [r for r in core if not buyable(r)]
     other_watch = watch
-    late_low = [r for r in late if tier(r) in ("C", "D")]
-    late = [r for r in late if tier(r) not in ("C", "D")]
+    late_low = [r for r in late if not buyable(r)]
+    late = [r for r in late if buyable(r)]
     tile = lambda cls, r, inner: f'<div class="sw-t{cls}" data-tkone="{e(r["ticker"])}">{inner}</div>'
     miss = lambda r: "".join(f'<span class="sw-c need">{e(_need(m, r))}</span>' for m in r["missing"])
     best_body = "".join(
@@ -750,10 +760,9 @@ def card_html(result: dict) -> str:
 
     wait_block = (
         '<details class="sw-fold"><summary>'
-        f'<span>条件OKだが優先度低め<small>週足SARの鮮度切れ・ベア</small></span><b>{len(waiting) + len(late_low)}</b></summary>'
-        '<div class="sw-hint">全条件は満たす（または1〜2日前に満たした）が、検証で弱い組み合わせ'
-        '（当日成立のPF 優先B 1.80・C 1.53・D 1.05、まだ入れるの優先C 1.40・D 0.78）。'
-        '週足SARが新しく転換すれば上がる。</div>'
+        f'<span>条件OKだが買わない<small>週足SARベア・HL寄り</small></span><b>{len(waiting) + len(late_low)}</b></summary>'
+        '<div class="sw-hint">全条件は満たす（または1〜2日前に満たした）が、週足SARがベア、またはHL→ラインの0〜50%（HL寄り）。'
+        '検証ではこれを外すと個別株だけの年率18.5%→21.2%、最大DD−28%→−25%。週足SARがブルに戻るか、ラインに寄れば本命へ。</div>'
         f'{wait_body}</details>' if waiting or late_low else "")
     summary = "".join(f'<span class="{c}">{k}<b>{n}</b></span>' for k, n, c in
                       (("本命", len(best), "on" if best else ""),
@@ -766,8 +775,8 @@ def card_html(result: dict) -> str:
         f'<div class="sub">{e(result["session"])} 終値基準・流動性あり{result["universe"]}銘柄から選定'
         f'{result.get("selected", 0)}銘柄。タップで銘柄詳細。</div>'
         f'<div class="sw-sum">{summary}</div>'
-        + sec("本命", "優先S・A×全条件OK・本日の終値で買い", best) + best_body
-        + sec("まだ入れる", "1〜2日前に成立・優先S〜B", late) + late_body
+        + sec("本命", "全条件OK×週足SARブル×HL寄り以外・本日の終値で買い", best) + best_body
+        + sec("まだ入れる", "1〜2日前に成立・本命と同じ条件", late) + late_body
         + sec("次の候補", "選定OK・あと少しで成立", other_watch[:15])
         + '<div class="sw-hint">並び順：優先S・A×あと1条件 → 優先B×あと1条件 → 優先S・A×あと2条件 → その他。'
           '10営業日以内に条件がそろう率と、そろった後の成績で決めた順。</div>'
@@ -775,44 +784,31 @@ def card_html(result: dict) -> str:
         + sec("テーマ枠", "本日の窓開け", ep) + ep_body
         + wait_block
         + '<details class="cxpl" style="margin-top:10px"><summary>ルールと見方</summary><div class="cxpl-b">'
-        '<b>優先度</b>（2015〜2026年、今のルール成立日をPFで比較）：'
-        '<b>S</b> 好位置×週足SAR転換0〜5週（PF 15、件数61と少なめ）／<b>A</b> 週足SAR 2〜5週（2.97）／'
-        '<b>B</b> SAR転換週・1週目・6〜8週（1.80）／<b>C</b> SAR9週〜（好位置でも。1.53）／<b>D</b> SARベア・HL構造なし（1.05）。'
-        '本命は優先S・A。週足SARは0.02・0.02・0.08、確定した週足のみ。'
-        '条件を1つずつ外すと、SARの鮮度を外したときに最も悪化（PF 5.47→2.04）、次がHL構造（→3.46）。'
-        '値幅の収縮と10日線は、SARとHL構造があればほぼ影響なし。<br/>'
-        '<b>次の候補の並び</b>：監視した日から10営業日以内に全条件がそろう率×そろった後の平均で比較すると、'
-        '優先S・A×あと1条件 +4.3%（成立率58%・PF 3.31）、B×あと1 +2.1%、S・A×あと2 +0.9%、その他は0〜0.5%。'
-        '優先度は順位どおりに効くが、残り条件数は「あと1かどうか」だけが効く（あと2〜4はほぼ同じ）。'
-        '好位置はSARが新鮮なとき（優先S）だけ効き、SAR6週以降の好位置×あと1は監視の価値+0.2%と、'
-        '好位置以外の同条件（+3.0%）より悪い。そのため好位置だけの別枠は設けない。'
-        'まだ入れるも優先度どおりに効く（PF A 2.72・B 2.00・C 1.40・D 0.78）ので、C・Dは優先度低めへ。<br/>'
-        '<b>選定</b>：トレンドテンプレート・50日平均売買代金が上位5%・189日リターンが上位10%'
-        '（株価$10以上・売買代金$20M以上の銘柄内）。<b>形</b>：10日/50日の平均値幅0.9以下・5日/50日の出来高0.9以下。'
-        '<b>追わない</b>：当日+3%未満・前日+3%以下・10日線+12%以内。<br/>'
-        '<b>売買</b>：終値で買う。資金の1%リスク・−8%損切り（1銘柄は資金の約12.5%）。'
-        '終値+10%で持ち株の半分を1回だけ買い増し、高値+25%で損切りを建値へ、安値21EMAを割って引けたら手仕舞い。'
-        '余剰資金の50%はQQQ。<br/>'
+        '<b>選定</b>：トレンドテンプレート（株価＞50日線＞150日線＞200日線・200日線が20日前より上・52週高値から−25%以内）・'
+        '50日平均売買代金が上位5%・189日リターンが上位10%（株価$10以上・売買代金$20M以上の銘柄内）。<br/>'
+        '<b>形</b>：10日/50日の平均値幅0.9以下・5日/50日の出来高0.9以下・当日+3%未満・前日+3%以下。当日の終値で買う。<br/>'
+        '<b>本命</b>：全条件OK×週足SARがブル×HL寄り（HL→ラインの0〜50%）以外。'
+        '2015〜2026年の総当たり検証（個別株だけ）で年率21.2%・最大DD−25%（全条件OKを全部買うと18.5%・−28%）。'
+        '開始年を変えても5通りすべてで上回った。好位置・ライン直下・ライン上（伸びすぎ含む）は外すと悪化するので位置では絞らない。<br/>'
+        '<b>優先度</b>（並び順とバッジだけ）：S 好位置×週足SAR転換0〜5週／A SAR 2〜5週（旬）／B SAR転換週・1週目・6〜8週／'
+        'C SAR9週〜／D SARベア・HL構造なし。SARの鮮度や好位置で絞ると勝率は上がるが件数が減って年率は下がる（S・Aだけだと12%）。'
+        '週足SARは0.02・0.02・0.08、確定した週足のみ。<br/>'
+        '<b>次の候補の並び</b>：監視した日から10営業日以内に全条件がそろう率×そろった後の成績で、'
+        '優先S・A×あと1条件 → B×あと1 → S・A×あと2 → その他。残り条件数は「あと1かどうか」だけが効く。<br/>'
+        '<b>売買</b>：資金の1%リスク・−8%損切り（1銘柄は資金の約12.5%）。終値+10%で持ち株の半分を1回だけ買い増し'
+        '（これがないと年率12〜14%）。安値21EMAを割って引けたら手仕舞い。余剰資金の50%はQQQ（年率+5〜6pt）。<br/>'
+        '<b>外した条件</b>：52週安値+30%・10日線+12%以内・高値+25%で建値へ。外しても成績はほぼ同じ（21.2%→21.0%）。<br/>'
         '<b>バー</b>：緑の始まりがHL（切り上げた安値・割れたら構造崩れ）、緑の終わりがピボットライン'
-        '（直近のLL→HL間の最高値・期間2〜10本で一番狭い構造）、黒い線が今の株価。濃い緑がHL→ラインの50〜75%の位置。<br/>'
-        '<b>好位置</b>：今の株価がHL→ラインの50〜75%にある。2015〜2026年の検証で、今のルールを満たした日を位置で分けると'
-        'このゾーンだけ3期間ともPFが高かった（4.29・3.68・1.73、全体平均+6.4%）。ライン直下（75〜100%）とライン抜け直後（+0〜3%）、'
-        'HL付近（0〜25%）は弱い。全条件OK×好位置を「本命」、全条件OKでも位置が悪いものは「位置待ち」に分けて表示（選定ルール自体は同じ）。<br/>'
-        '<b>並び順</b>：HL構造・ライン下（安値が切り上がり、ラインの下で静かにしている）を優先し、その中はRS189順。'
-        'バックテストでは、HL構造・ライン下のPFは2015〜20年2.22・2021〜24年1.89・2025〜26年2.34（今のルール全体は2.58・0.97・1.99）。'
-        '<b>選定◯日目</b>は選定条件を連続で満たしている日数で、60日超の古いリーダーは成績が悪い（PF 1.40・0.17・0.87）。'
-        'RS21・63は参考表示（並び順には使わない。RS21上位5%は追いかけになりやすい）。<br/>'
+        '（直近のLL→HL間の最高値・期間2〜10本で一番狭い構造）、黒い線が今の株価。濃い緑がHL→ラインの50〜75%（好位置）。<br/>'
         '<b>下段の数字</b>：値幅＝10日÷50日の平均値幅、出来高＝5日÷50日の平均出来高（静かな日が続くと下がる）、'
-        '10日線＝10日線からの乖離、売買代金＝流動性の順位（100が最大）。<br/>'
+        '売買代金＝流動性の順位（100が最大）。RS21・63は参考表示。<br/>'
         '<b>OP（オプション・参考）</b>：Cboeの遅延データ。45日以内に満期のオプションで、建玉×ガンマが最大の行使価格を'
-        '上値の壁（コール・今の株価より上）と下値の支え（プット・下）として表示。境目＝ディーラーのガンマが正負に入れ替わる価格'
-        '（上では値動きが落ち着きやすく、下では荒れやすいとされる）。建玉は前営業日時点。ルールの判定には使わない。<br/>'
+        '上値の壁（コール）と下値の支え（プット）、ディーラーのガンマが正負に入れ替わる価格を境目として表示。建玉は前営業日時点。判定には使わない。<br/>'
         '<b>まだ入れる</b>：1〜2日前に条件が成立し、成立時の終値+3%以内・その後に損切り/安値21EMA割れなし・'
-        '選定条件を維持・当日+3%未満・10日線+12%以内。成立日に入るより成績は落ち、地合いが悪い時期は特に悪い'
-        '（PF 1日遅れ1.78・2日遅れ1.6前後）。株数は通常どおり、損切りは今の価格から−8%。<br/>'
+        '選定条件を維持・当日+3%未満。損切りは今の価格から−8%。<br/>'
         '<b>テーマ枠</b>：窓+5〜20%・終値+5%以上・出来高3〜15倍・上半分引け・50日線上・値幅3〜7%・'
         '相関の高い15銘柄のRS平均（テーマ強度）50〜90。リスク0.5%・同時3銘柄・60営業日で手仕舞い。<br/>'
-        '2015〜2026年のバックテスト（現存銘柄・税金なし）で年率+24.5%・最大DD−28%。上場廃止銘柄は未検証。売買指示ではない。'
+        '現存銘柄のみ・税金なしの検証で、上場廃止銘柄は未検証。売買指示ではない。'
         '</div></details>'
         '</div>'
     )
