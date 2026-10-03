@@ -201,6 +201,25 @@ def tier(r: dict) -> str:
     return "C"
 
 
+def watch_bucket(r: dict) -> int:
+    """Watch-list order from the forward test (value of watching = 10-day signal rate x result).
+
+    S/A with 1 condition left (+4.3%/day) > B with 1 left (+2.1%) > S/A with 2 left (+0.9%)
+    > other B or 1-left (~+0.5%) > the rest (~0%). Priority matters first; the count of
+    missing conditions only matters as "1 left" vs more.
+    """
+    t, n = tier(r), len(r.get("missing", []))
+    if t in ("S", "A") and n <= 1:
+        return 0
+    if t == "B" and n <= 1:
+        return 1
+    if t in ("S", "A") and n == 2:
+        return 2
+    if t == "B" or n <= 1:
+        return 3
+    return 4
+
+
 def _sar_label(r: dict) -> tuple[str, str]:
     up, age = r.get("sar_up"), r.get("sar_age")
     if up is None:
@@ -369,7 +388,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
         r = row(t, s)
         r["missing"] = [k for k, m in checks.items() if not bool(m.get(t, False))]
         watch.append(r)
-    watch.sort(key=lambda r: (rank(r), len(r["missing"]), -r["rs189"]))
+    watch.sort(key=lambda r: (watch_bucket(r), rank(r), -r["rs189"]))
 
     # Theme slot: earnings-gap style entries with correlation-peer strength 50-90.
     adr20, ma50 = s["adr20"], s["ma50"]
@@ -750,7 +769,8 @@ def card_html(result: dict) -> str:
         + gw_body
         + sec("まだ入れる", "1〜2日前に成立", late) + late_body
         + sec("次の候補", "選定OK・あと少しで成立", other_watch[:15])
-        + '<div class="sw-hint">残りの条件がそろった日に、優先度しだいで本命か優先度低めへ移る。優先A・あと1条件のものが近い。</div>'
+        + '<div class="sw-hint">並び順：優先S・A×あと1条件 → 優先B×あと1条件 → 優先S・A×あと2条件 → その他。'
+          '10営業日以内に条件がそろう率と、そろった後の成績で決めた順。</div>'
         + watch_body
         + sec("テーマ枠", "本日の窓開け", ep) + ep_body
         + wait_block
@@ -761,6 +781,9 @@ def card_html(result: dict) -> str:
         '本命は優先S・A。週足SARは0.02・0.02・0.08、確定した週足のみ。'
         '条件を1つずつ外すと、SARの鮮度を外したときに最も悪化（PF 5.47→2.04）、次がHL構造（→3.46）。'
         '値幅の収縮と10日線は、SARとHL構造があればほぼ影響なし。<br/>'
+        '<b>次の候補の並び</b>：監視した日から10営業日以内に全条件がそろう率×そろった後の平均で比較すると、'
+        '優先S・A×あと1条件 +4.3%（成立率58%・PF 3.31）、B×あと1 +2.1%、S・A×あと2 +0.9%、その他は0〜0.5%。'
+        '優先度は順位どおりに効くが、残り条件数は「あと1かどうか」だけが効く（あと2〜4はほぼ同じ）。<br/>'
         '<b>選定</b>：トレンドテンプレート・50日平均売買代金が上位5%・189日リターンが上位10%'
         '（株価$10以上・売買代金$20M以上の銘柄内）。<b>形</b>：10日/50日の平均値幅0.9以下・5日/50日の出来高0.9以下。'
         '<b>追わない</b>：当日+3%未満・前日+3%以下・10日線+12%以内。<br/>'

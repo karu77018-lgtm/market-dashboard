@@ -179,3 +179,13 @@ def test_weekly_sar_and_priority_tiers():
     assert tier({**r, "sar_age": 7}) == "B"  # 好位置 but no longer fresh
     assert tier({**r, "pos": 0.9, "sar_age": 12}) == "C"
     assert tier({**r, "sar_up": False, "sar_age": None}) == "D"
+
+
+def test_watch_bucket_order():
+    from swing_screener import watch_bucket
+    r = {"pivot_line": 110.0, "hl": 80.0, "pos": 0.9, "sar_up": True}
+    sa1 = {**r, "sar_age": 3, "missing": ["収縮"]}
+    b1 = {**r, "sar_age": 7, "missing": ["収縮"]}
+    sa2 = {**r, "sar_age": 3, "missing": ["収縮", "出来高減"]}
+    c2 = {**r, "sar_age": 12, "missing": ["収縮", "出来高減"]}
+    assert [watch_bucket(x) for x in (sa1, b1, sa2, c2)] == [0, 1, 2, 4]
