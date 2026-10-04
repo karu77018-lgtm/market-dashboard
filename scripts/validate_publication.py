@@ -7,6 +7,9 @@ import re
 from pathlib import Path
 
 
+MAX_MEDIAN_VENDOR_GAP = 0.02
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=".")
@@ -32,7 +35,22 @@ def main() -> int:
     missing = [marker for marker in required if marker not in html]
     if missing:
         raise SystemExit("HTML markers missing: " + ", ".join(missing))
-    if re.search(r"\\bvar\\s+MAJ\\s*=\\s*\\[\\s*\\]\\s*;", html):
+    # Every output must describe the same completed session.
+    sessions = {
+        "latest-manifest.json": session, "data/mc57.json": mc57.get("session_date"),
+        "data/rs.json": rs.get("session_date"), "data/provider_inputs.json": providers.get("session_date"),
+        "chart-data/index.json": index.get("session_date"),
+    }
+    mismatched = {k: v for k, v in sessions.items() if v != session}
+    if mismatched:
+        raise SystemExit(f"session mismatch against {session}: {mismatched}")
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from rules_tab import rule_problems
+    problems = rule_problems(html)
+    if problems:
+        raise SystemExit("rule version mismatch: " + "; ".join(problems))
+    if re.search(r"\bvar\s+MAJ\s*=\s*\[\s*\]\s*;", html):
         raise SystemExit("Sector Rotation share card major-sector data is empty (MAJ=[])")
     if session not in html:
         raise SystemExit(f"target session {session} not present in HTML")
@@ -69,6 +87,11 @@ def main() -> int:
         raise SystemExit("Massive market-structure coverage below 95%")
     if massive.get("status") == "READY" and float(cross.get("coverage", 0)) < .95:
         raise SystemExit("Yahoo/Massive cross-vendor coverage below 95%")
+    # Both vendors are split-adjusted, so a typical name agrees within a fraction of
+    # a percent; a large median gap means one side has wrong scale or wrong day.
+    median_gap = cross.get("median_absolute_deviation")
+    if massive.get("status") == "READY" and (median_gap is None or float(median_gap) > MAX_MEDIAN_VENDOR_GAP):
+        raise SystemExit(f"Yahoo/Massive median close gap {median_gap} exceeds {MAX_MEDIAN_VENDOR_GAP:.0%}")
     if fred.get("status") not in {"READY", "PARTIAL"}:
         raise SystemExit("FRED provider inputs are not usable")
     if float(fred.get("required_coverage", 0)) < .70:

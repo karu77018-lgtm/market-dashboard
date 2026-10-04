@@ -30,6 +30,7 @@ WINDOW = 63
 HISTORY = 252
 MIN_SIGNALS = 5
 CARD_ID = "mc57-breakout-health"
+from rules_tab import RULE_ID  # noqa: E402
 
 # Year-by-year backtest (2015-01 .. 2026-08, 6-position rule): idle cash 50% QQQ vs this switch.
 YEARLY = [
@@ -180,7 +181,7 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
     n = health.get("n") if health else 0
     since_txt = f"・{since[5:].replace('-', '/')}から" if since else ""
     return (
-        f'<div class="card" id="{CARD_ID}"><div class="chd"><h2>ブレイク成功度<span class="h2en">Breakout Health</span></h2>'
+        f'<div class="card" id="{CARD_ID}" data-rule="{RULE_ID}"><div class="chd"><h2>ブレイク成功度<span class="h2en">Breakout Health</span></h2>'
         f'<div class="chd-now" style="color:{color}"><b>{html.escape(_fmt(value))}</b><span>{word}</span></div></div>'
         f'<div class="sub">スイングの本命シグナルが10日後に平均何%動いたか（直近63営業日・{n}件{since_txt}）。'
         f'<b>余剰資金のQQQ：{pct}%</b>（{html.escape(why)}）</div>'

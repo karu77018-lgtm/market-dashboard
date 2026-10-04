@@ -34,6 +34,8 @@ import math
 import numpy as np
 import pandas as pd
 
+from rules_tab import RULE_ID  # noqa: E402
+
 CARD_ID = "mc57-swing-screener"
 SECTION = '<section id="t-alloc">'
 
@@ -195,24 +197,42 @@ def weekly_sar_state(high: pd.Series, low: pd.Series, close: pd.Series) -> tuple
 REGIME_MA = 200
 
 
-def regime_from_market(path) -> dict | None:
-    """Market regime for new entries: QQQ close above its 200-day average (from data/market_inputs.json)."""
+def regime_from_market(path, session: str | None = None) -> dict | None:
+    """Market regime for new entries: QQQ close above its 200-day average (from data/market_inputs.json).
+
+    Returns None (= unknown, entries stay stopped) unless the last finite close is
+    dated ``session`` and at least REGIME_MA finite closes exist.  Dates travel
+    with their closes, so a stale close is never relabelled as today.
+    """
     import json
+    import math
     from pathlib import Path
     try:
         rows = json.loads(Path(path).read_text(encoding="utf-8"))["series"]["QQQ"]
-        closes = [float(r["close"]) for r in rows if r.get("close") is not None]
+        pairs = []
+        for r in rows:
+            try:
+                v = float(r["close"])
+            except (TypeError, ValueError, KeyError):
+                continue
+            if math.isfinite(v) and v > 0 and r.get("date"):
+                pairs.append((str(r["date"])[:10], v))
     except Exception:
         return None
-    if len(closes) < REGIME_MA:
+    pairs.sort()
+    if len(pairs) < REGIME_MA:
         return None
+    if session is not None and pairs[-1][0] != session:
+        return None
+    closes = [v for _, v in pairs]
     ma = sum(closes[-REGIME_MA:]) / REGIME_MA
-    return {"on": closes[-1] > ma, "close": closes[-1], "ma": ma, "date": rows[-1].get("date")}
+    return {"on": closes[-1] > ma, "close": closes[-1], "ma": ma, "date": pairs[-1][0]}
 
 
 def _regime_bar(reg: dict | None) -> str:
     if not reg:
-        return '<div class="sw-reg na">地合い判定なし（QQQのデータ未取得）</div>'
+        return ('<div class="sw-reg off"><b>地合い：判定不可</b>　QQQの終値が取れないか、日付が今日と一致しません。'
+                '確認できるまで本命は出さず監視だけ（持ち株は通常どおり手仕舞いのルール）</div>')
     gap = reg["close"] / reg["ma"] - 1
     if reg["on"]:
         return (f'<div class="sw-reg on">地合いOK：QQQ {_d(reg["close"])} は200日線 {_d(reg["ma"])} の'
@@ -806,7 +826,7 @@ def card_html(result: dict) -> str:
     core, watch, ep = result["core"], result["watch"], result["ep"]
     late = result.get("late", [])
     reg = result.get("regime")
-    stopped = bool(reg) and not reg["on"]
+    stopped = not reg or reg.get("on") is not True  # unknown regime = stopped (fail closed)
     best = [r for r in core if buyable(r) and not stopped]
     waiting = [r for r in core if not buyable(r) or stopped]
     other_watch = watch
@@ -889,7 +909,8 @@ def card_html(result: dict) -> str:
                        ("好位置", len(result.get("glead", [])), ""),
                        ("テーマ", len(ep), ""), ("買わない", len(waiting) + len(late_low), "")))
     return (
-        f'<div class="card" id="{CARD_ID}" data-source-improvement="swing-screener">'
+        f'<div class="card" id="{CARD_ID}" data-source-improvement="swing-screener" data-rule="{RULE_ID}"'
+        f' data-session="{e(result["session"])}" data-regime="{"unknown" if not reg else ("on" if reg.get("on") else "off")}">'
         '<div class="chd"><h2>スイング候補（新ルール）<span class="h2en">Swing Screener</span></h2>'
         f'<div class="chd-now" style="color:#23824d"><b>{len(best)}</b><span>本命</span></div></div>'
         f'<div class="sub">{e(result["session"])} 終値基準・流動性あり{result["universe"]}銘柄から選定'

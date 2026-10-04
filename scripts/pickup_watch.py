@@ -30,6 +30,7 @@ import numpy as np
 import pandas as pd
 
 CARD_ID = "mc57-pickup-watch"
+from rules_tab import RULE_ID  # noqa: E402
 SECTION = '<section id="t-alloc">'
 MAP_PATH = Path(__file__).with_name("industry_map.json")
 
@@ -140,7 +141,7 @@ def card_html(res: dict) -> str:
     e = html.escape
     rows = res["rows"]
     ready = [r for r in rows if r["ready"]]
-    stopped = res.get("regime_on") is False
+    stopped = res.get("regime_on") is not True  # unknown regime = stopped
 
     def item(r: dict) -> str:
         cls = "pw-up" if r["chg"] >= 0 else "pw-dn"
@@ -163,14 +164,14 @@ def card_html(res: dict) -> str:
     copy = (f'<button class="cp" data-tk="{e(tks)}" onclick="copyTk(event,this)">コピー <span class="n">{min(len(rows), 15)}</span></button>'
             if tks else "")
     return (
-        f'<div class="card" id="{CARD_ID}" data-source-improvement="pickup-watch">'
+        f'<div class="card" id="{CARD_ID}" data-source-improvement="pickup-watch" data-rule="{RULE_ID}">'
         '<div class="chd"><h2>拾う枠（監視）<span class="h2en">Mid-cap Leaders</span></h2>'
         f'<div class="chd-now" style="color:#7a4fb3"><b>{len(ready)}</b><span>形OK</span></div></div>'
         f'<div class="sub">{e(res["session"])} 終値基準・本体（売買代金上位5%）の外で、しっかり伸びている中堅株。'
         f'該当{len(rows)}銘柄。タップで銘柄詳細。</div>'
         '<div class="pw-note">参考の監視リスト（資金は割り当てない）。形OKの検証PFは1.92と高いが、'
         '単独で運用すると年率約14%・最大DD−45%で、本体に足すと全体の伸びは下がる。'
-        f'{"地合い停止中（QQQが200日線割れ）は新規なし。" if stopped else ""}</div>'
+        f'{("地合い停止中（QQQが200日線割れ）は新規なし。" if res.get("regime_on") is False else "地合い判定不可（QQQ未取得・日付不一致）のため新規なし。") if stopped else ""}</div>'
         f'<div style="display:flex;justify-content:flex-end;margin:-2px 0 2px">{copy}</div>'
         + body
         + '<details class="cxpl" style="margin-top:8px"><summary>条件と検証</summary><div class="cxpl-b">'

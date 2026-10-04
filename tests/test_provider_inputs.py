@@ -182,3 +182,17 @@ def test_yahoo_ohlcv_becomes_grouped_fallback(tmp_path):
     assert grouped["2026-09-25"]["A"] == {
         "o": 10.0, "h": 12.0, "l": 9.0, "c": 11.0, "v": 200.0,
     }
+
+
+def test_massive_key_only_sent_to_trusted_https_host():
+    import pytest
+    from provider_inputs import ProviderError, _url_with_key
+    ok = _url_with_key("https://api.massive.com/v3/reference/tickers?cursor=abc", "KEY", path_prefix="/v3/reference/tickers")
+    assert "apiKey=KEY" in ok and "cursor=abc" in ok
+    for bad in ("https://evil.example/v3/reference/tickers?cursor=a", "http://api.massive.com/v3/reference/tickers",
+                "https://api.massive.com.evil.example/v3/reference/tickers", "https://u:p@api.massive.com/v3/reference/tickers",
+                "https://api.massive.com:8443/v3/reference/tickers"):
+        with pytest.raises(ProviderError):
+            _url_with_key(bad, "KEY", path_prefix="/v3/reference/tickers")
+    with pytest.raises(ProviderError):
+        _url_with_key("https://api.massive.com/v2/other", "KEY", path_prefix="/v3/reference/tickers")

@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/publish-display-fixes.yml', 'scripts/dashboard_fixes.py', 'scripts/archive_tab.py', 'scripts/rotation_split.py', 'scripts/track_record.py', 'scripts/render_jev_ranking.py', 'assets/jev-ranking.js']
+    paths: ['.github/workflows/publish-display-fixes.yml', 'scripts/dashboard_fixes.py', 'scripts/archive_tab.py', 'scripts/rotation_split.py', 'scripts/track_record.py', 'scripts/rule_refresh.py', 'scripts/rules_tab.py', 'scripts/swing_screener.py', 'scripts/pickup_watch.py', 'scripts/breakout_health.py', 'scripts/render_jev_ranking.py', 'assets/jev-ranking.js']
 permissions:
   contents: write
 concurrency:
@@ -23,11 +23,34 @@ jobs:
         run: tar -xJf bootstrap/recovery-assets.tar.xz
       - name: Install display verification dependencies
         run: python -m pip install 'numpy<3' 'pandas<3' yfinance==0.2.66 requests beautifulsoup4 lxml pytest
+      - name: Restore the last refresh's saved inputs (no market re-acquisition)
+        uses: actions/cache/restore@v4
+        with:
+          # identical path list to the refresh's save step (the cache version depends on it)
+          path: |
+            work/ohlcv.csv
+            work/mc57-authoritative.json
+            work/massive-reference.json
+            work/massive-grouped.json
+            work/universes/
+            work/mc57-corrections/
+          key: source-mc57-ohlcv-display-${{ github.run_id }}
+          restore-keys: source-mc57-ohlcv-
+      - name: Restore the last refresh's market inputs
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            work/mc57-prices.csv
+            work/market-inputs-cache.json
+            work/massive-etf-grouped.json
+          key: source-mc57-fallback-display-${{ github.run_id }}
+          restore-keys: source-mc57-fallback-
       - name: Apply display adapters using the already published data
         run: |
           python scripts/dashboard_fixes.py
           python scripts/archive_tab.py --html source-mc57.html
           python scripts/rotation_split.py --html source-mc57.html
+          python scripts/rule_refresh.py
           python scripts/track_record.py
           python scripts/render_jev_ranking.py
           python - <<'PY'

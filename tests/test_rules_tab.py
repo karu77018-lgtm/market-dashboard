@@ -27,5 +27,6 @@ def test_rules_tab_replaces_core12_with_swing_rules():
 def test_rules_tab_regime_off_and_missing():
     off = rules_tab.apply(PAGE, regime={"on": False, "close": 500.0, "ma": 550.0, "date": "d"})
     assert "今日の地合い：新規停止" in off
-    assert "今日の地合い" not in rules_tab.apply(PAGE, regime=None)
+    assert "今日の地合い：判定不可" in rules_tab.apply(PAGE, regime=None)
+    assert rules_tab.rule_problems(rules_tab.apply(PAGE)) == ["mc57-swing-screener: missing"]
     assert rules_tab.apply("<html></html>") == "<html></html>"
