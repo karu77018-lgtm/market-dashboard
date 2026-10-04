@@ -107,6 +107,24 @@ def swing_candidates(html: str) -> list[tuple[str, str]]:
     return sorted(found, key=lambda item: order[item[1]])
 
 
+WALL_NEAR_SLOTS = 20
+_GROUP_ORDER = {"cand": 0, "rs21": 1, "rs63": 2, "rs189": 3, "dv": 4}
+
+
+def wall_near(details: dict[str, Any]) -> list[str]:
+    """Tickers whose upper option wall is 0-5% above the close, study priority first."""
+    near = []
+    for ticker, detail in details.items():
+        opt = detail.get("opt") if isinstance(detail, dict) else None
+        if not isinstance(opt, dict) or not opt.get("cw"):
+            continue
+        cwp = opt.get("cwp")
+        if isinstance(cwp, (int, float)) and 0 <= cwp <= 0.05:
+            rs = detail.get("rs189") if isinstance(detail.get("rs189"), (int, float)) else 0
+            near.append((_GROUP_ORDER.get(str(opt.get("grp")), 5), -float(rs), ticker))
+    return [t for _, _, t in sorted(near)]
+
+
 def load_dashboard(path: Path, limit: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     html = path.read_text(encoding="utf-8")
     try:
@@ -148,6 +166,11 @@ def load_dashboard(path: Path, limit: int) -> tuple[list[dict[str, Any]], dict[s
     # Primary targets: the new swing rule's 本命 / まだ入れる / 次の候補.
     for ticker, section in swing_candidates(html):
         add(ticker, section)
+
+    # Option-wall study: names just below a call wall (+0..5%), so the weekly
+    # check can ask whether news catalysts help a stock through its wall.
+    for ticker in wall_near(details)[:WALL_NEAR_SLOTS]:
+        add(ticker, "壁近接")
 
     # Remaining capacity: other dashboard names explicitly surfaced to the user
     # (Core 12 and its bench are archived and intentionally excluded).

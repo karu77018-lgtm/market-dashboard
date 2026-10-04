@@ -18,6 +18,7 @@ from run_jev_live_shadow import (  # noqa: E402
     evaluate_jev,
     fetch_news_bulk,
     load_dashboard,
+    wall_near,
     main,
     normalize_news,
     ranking_row,
@@ -357,3 +358,19 @@ def test_jev_is_decoupled_and_audit_artifact_is_private():
     )[0]
     assert "include-hidden-files: true" in block
     assert "cancel-in-progress: true" in jev_workflow
+
+
+def test_wall_near_names_follow_swing_candidates(tmp_path: Path):
+    details = {
+        "FAR": {"opt": {"cw": 120, "cwp": 0.20, "grp": "rs21"}, "rs189": 99},
+        "NEARDV": {"opt": {"cw": 104, "cwp": 0.04, "grp": "dv"}, "rs189": 99},
+        "NEAR21": {"opt": {"cw": 102, "cwp": 0.02, "grp": "rs21"}, "rs189": 50},
+        "BELOW": {"opt": {"cw": 95, "cwp": -0.05, "grp": "rs63"}, "rs189": 90},
+    }
+    assert wall_near(details) == ["NEAR21", "NEARDV"]
+    html = f'<script>window.DET={json.dumps(details)};</script>' + _swing_card([("本命", "FAR")])
+    path = tmp_path / "dashboard.html"
+    path.write_text(html, encoding="utf-8")
+    candidates, _ = load_dashboard(path, 3)
+    assert [(c["ticker"], c["sources"][0]) for c in candidates] == [
+        ("FAR", "本命"), ("NEAR21", "壁近接"), ("NEARDV", "壁近接")]
