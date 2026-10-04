@@ -49,9 +49,11 @@ If `JEV_API_SECRET` is configured, callers must send:
 
 The weekday/manual `Refresh source-mc57` workflow invokes
 `scripts/run_jev_live_shadow.py` after the dashboard publication gates pass.
-It evaluates up to 12 current MC57 names using at most eight Massive news items
-published during the preceding 30 days and no later than
-`latest-manifest.json.generated_at`.
+It evaluates up to 70 dashboard names (default `--max-candidates 70`): the swing
+candidates (本命・まだ入れる・次の候補) first, then names just below an option
+call wall (壁近接, up to 20), then ピックアップ・新高値圏 and RS21/63/189 leaders,
+using at most eight Massive news items published during the preceding 30 days
+and no later than `latest-manifest.json.generated_at`.
 
 - Each eligible ticker runs the frozen `jev-text-v1` question set three times.
 - Results and the supplied state are stored in Neon by the Jev API.
@@ -59,9 +61,13 @@ published during the preceding 30 days and no later than
 - Tickers without point-in-time news are skipped instead of asking Jev to guess.
 - Push-triggered rebuilds do not invoke Jev; scheduled and manual runs do.
 - A Jev failure cannot block the dashboard or Phase A-0 preservation.
+- A duplicate (already saved) evaluation counts as success only when its scores
+  can be restored (from the API's stored aggregate or the last public ranking);
+  a partial run never replaces a ranking of the same session.
 - The 90-day GitHub audit Artifact contains only ticker, counts, evaluation IDs,
   cost, and the state SHA-256. Vendor news text is never written to GitHub.
 
 GitHub Actions needs a `JEV_API_SECRET` repository Secret whose value exactly
-matches the `JEV_API_SECRET` configured for the Vercel project. The optional
+matches the `JEV_API_SECRET` configured for the Vercel project. The secret is
+required: without it the API refuses every request (503), it is never optional. The optional
 `JEV_API_URL` repository Variable may override the production endpoint.
