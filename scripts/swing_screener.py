@@ -132,6 +132,15 @@ PIVOT_LENGTHS = range(2, 11)
 
 
 GOOD_POS = (0.50, 0.75)  # backtest sweet spot inside the HL structure
+# 好位置リーダー (watch only, never added to the mechanical slots): outside today's 本命,
+# trend template, 50-day dollar volume top 50%, RS189 and RS63 top 20%, weekly SAR bull
+# flipped 0-8 completed weeks ago, inside the HL structure at 50-75%, setup OK.
+# 2015-2026: ~19 names/yr, PF 2.12 (2.75 / 2.05 / 1.88 by period) excluding 本命 overlap;
+# adding them to the 6 slots lowers CAGR (42.4% -> 38-40%), so they stay discretionary.
+GL_DV_PCT = 50
+GL_RS189_PCT = 80
+GL_RS63_PCT = 80
+GL_SAR_MAX = 8
 SAR_PARAMS = (0.02, 0.02, 0.08)  # weekly Parabolic SAR (start, increment, max)
 TIER_ORDER = {"S": 0, "A": 1, "B": 2, "C": 3, "D": 4}
 
@@ -221,6 +230,13 @@ def hl_side(r: dict) -> bool:
 def buyable(r: dict) -> bool:
     """本命: all rule conditions met (caller) x weekly SAR bull x not in the HL-side zone."""
     return bool(r.get("sar_up")) and not hl_side(r)
+
+
+def good_leader_ok(r: dict) -> bool:
+    """Position/trend part of the 好位置リーダー rule (liquidity/RS/setup are checked by the caller)."""
+    age, pos = r.get("sar_age"), r.get("pos")
+    return (bool(r.get("sar_up")) and age is not None and 0 <= age <= GL_SAR_MAX
+            and bool(r.get("inside")) and pos is not None and GOOD_POS[0] <= pos <= GOOD_POS[1])
 
 
 def tier(r: dict) -> str:
@@ -430,6 +446,25 @@ def evaluate(frame: pd.DataFrame) -> dict:
         watch.append(r)
     watch.sort(key=lambda r: (watch_bucket(r), rank(r), -r["rs189"]))
 
+    # 好位置リーダー (watch only): leaders just outside the 本命 selection sitting at a good position.
+    glead, glead_near = [], []
+    taken = seen | {r["ticker"] for r in watch}
+    gl_mask = liquid & tt & (s["dv_pct"] >= GL_DV_PCT) & (s["rs189_pct"] >= GL_RS189_PCT) \
+        & (s["rs63_pct"] >= GL_RS63_PCT)
+    for t in gl_mask[gl_mask.fillna(False)].index:
+        if t in taken:
+            continue
+        r = row(t, s)
+        if not good_leader_ok(r):
+            continue
+        r["missing"] = [k for k, m in checks.items() if not bool(m.get(t, False))]
+        if not r["missing"]:
+            glead.append(r)
+        elif len(r["missing"]) == 1:
+            glead_near.append(r)
+    glead.sort(key=lambda r: (r["sar_age"], -r["rs189"]))
+    glead_near.sort(key=lambda r: (r["sar_age"], -r["rs189"]))
+
     # Theme slot: earnings-gap style entries with correlation-peer strength 50-90.
     adr20, ma50 = s["adr20"], s["ma50"]
     gap = o.iloc[-1] / c.iloc[-2] - 1
@@ -450,6 +485,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
                        "stop": float(last[t] * (1 - STOP)), "tt": bool(tt[t])})
         ep.sort(key=lambda r: -r["peer"])
     return {"session": str(c.index[-1].date()), "core": core, "late": late, "watch": watch, "ep": ep,
+            "glead": glead, "glead_near": glead_near,
             "universe": int(liquid.sum()), "selected": int(selected.sum()), "study": study_groups(s)}
 
 
@@ -517,6 +553,7 @@ STYLE = """
 #mc57-swing-screener .sw-t:active{background:#ecebe6}
 #mc57-swing-screener .sw-t.late{border-left-color:#7aa37d}
 #mc57-swing-screener .sw-t.ep{border-left-color:#3774d3}
+#mc57-swing-screener .sw-t.gl{border-left-color:#a7c96b}
 #mc57-swing-screener .sw-top{display:flex;align-items:baseline;gap:8px}
 #mc57-swing-screener .sw-tk{font-size:17px;font-weight:800;letter-spacing:.2px}
 #mc57-swing-screener .sw-px{font-size:13px;font-variant-numeric:tabular-nums;color:#33312a}
@@ -811,6 +848,14 @@ def card_html(result: dict) -> str:
         return tile(" nx", r, _top(r, _rs_box(r)) + f'<div class="sw-chips">{pill}{needs}</div>'
                     + _chips(r) + _struct_line(r))
     watch_body = "".join(nx_tile(r) for r in other_watch[:15]) or '<div class="sw-empty">該当なし。</div>'
+    glead, glead_near = result.get("glead", []), result.get("glead_near", [])
+    gl_body = "".join(
+        tile(" gl", r, _top(r, _rs_box(r)) + _chips(r) + _struct_line(r) + _levels(r) + _foot(r)) for r in glead[:10]
+    ) + "".join(
+        tile(" nx", r, _top(r, _rs_box(r)) + '<div class="sw-chips"><span class="sw-c nx one">あと1つ</span>'
+             + "".join(f'<span class="sw-c need">{e(_need(m, r))}</span>' for m in r["missing"]) + '</div>' + _chips(r))
+        for r in glead_near[:8]
+    ) or '<div class="sw-empty">該当なし。</div>'
     ep_body = "".join(
         tile(" ep", r, _top(r, f'<div class="sw-rs"><b>{r["peer"]}</b><span>テーマ強度</span></div>')
              + '<div class="sw-chips">'
@@ -841,6 +886,7 @@ def card_html(result: dict) -> str:
     summary = "".join(f'<span class="{c}">{k}<b>{n}</b></span>' for k, n, c in
                       (("本命", len(best), "on" if best else ""),
                        ("まだ入れる", len(late), ""), ("次の候補", len(other_watch), ""),
+                       ("好位置", len(result.get("glead", [])), ""),
                        ("テーマ", len(ep), ""), ("買わない", len(waiting) + len(late_low), "")))
     return (
         f'<div class="card" id="{CARD_ID}" data-source-improvement="swing-screener">'
@@ -855,6 +901,12 @@ def card_html(result: dict) -> str:
         + '<div class="sw-hint">並び順：優先S・A×あと1条件 → 優先B×あと1条件 → 優先S・A×あと2条件 → その他。'
           '10営業日以内に条件がそろう率と、そろった後の成績で決めた順。</div>'
         + watch_body
+        + sec("好位置リーダー（検討可）", "本命の外・監視のみ", glead)
+        + '<div class="sw-hint">本命の一歩外（売買代金上位50%・RS189とRS63が上位20%・TT）で、週足SAR転換8週以内の好位置にあり、形がそろった銘柄。'
+          '2015〜2026年の検証でPF 2.12・年19件（本命と重なるものを除く）。ただし本命の6枠に機械的に混ぜると年率が42.4%→38〜40%に下がるので、'
+          '空き枠があるときに裁量で検討する監視リスト。入るなら本命と同じ売買ルール'
+          + ('（地合い停止中は新規不可・参考表示）' if stopped else '') + '。</div>'
+        + gl_body
         + sec("テーマ枠", "本日の窓開け", ep) + ep_body
         + wait_block
         + '<details class="cxpl" style="margin-top:10px"><summary>ルールと見方</summary><div class="cxpl-b">'
