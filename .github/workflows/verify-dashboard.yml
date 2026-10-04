@@ -29,6 +29,7 @@ jobs:
       - name: Verify display adapters using published inputs
         run: |
           python scripts/dashboard_fixes.py
+          python scripts/archive_tab.py --html source-mc57.html
           python scripts/render_jev_ranking.py
       - name: Verify all tabs, mobile overflow and Jev freshness
         run: node tests/market_history_ui.cjs
