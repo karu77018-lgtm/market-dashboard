@@ -250,6 +250,11 @@ def main() -> int:
     text = apply_swing_screener(text, frame, walls_fn=fetch_walls, regime=regime, health=health)
     from rules_tab import apply as apply_rules_tab
     text = apply_rules_tab(text, regime=regime, health=health)
+    import track_record
+    try:  # display + ledger only; never blocks publication
+        text = track_record.run(text, frame, args.session, html_path.resolve().parent)
+    except Exception as exc:
+        print(f"track record skipped: {exc!r}", flush=True)
     from archive_tab import apply as apply_archive_tab
     text = apply_archive_tab(text)  # Core 12 / old W30 rule -> アーカイブ tab (display only)
     from rotation_split import apply as apply_rotation_split

@@ -442,6 +442,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- source-mc57.html chart-data market-history assets latest-manifest.json universe-snapshots && git add -f -- data/jev-ranking.json data/mc57.json
           if test -n "$HASH_RECORD_PATH"; then git add -- "$HASH_RECORD_PATH"; fi
+          if test -f track-record/signals.json; then git add -- track-record/signals.json; fi
           if test -n "$FULL_MARKER_PATH"; then git add -- "$FULL_MARKER_PATH"; fi
           if git diff --cached --quiet; then echo "No publication change"; exit 0; fi
           session="$(python -c 'import json; print(json.load(open("latest-manifest.json"))["session_date"])')"
