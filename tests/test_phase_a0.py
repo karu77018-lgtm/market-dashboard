@@ -397,3 +397,37 @@ def test_interim_recovery_does_not_require_neon() -> None:
     assert "NEON_DATABASE_URL" not in required
     assert 'neon_status = "not_configured"' in recovery
     assert "optional Neon manifest was not recorded" in recovery
+
+
+def test_restore_requires_external_files_with_matching_hash(tmp_path: Path) -> None:
+    from scripts.phase_a0.restore_snapshot_chain import resolve_external
+    output, git = tmp_path / "out", tmp_path / "git"
+    (git / "chart-data").mkdir(parents=True)
+    (git / "chart-data/index.json").write_text('{"v":2}\n', encoding="utf-8")
+    want = sha256_file(git / "chart-data/index.json")
+    applied = [{"external_files": []}, {"external_files": [{"path": "chart-data/index.json", "sha256": want}]}]
+    output.mkdir()
+    missing = resolve_external(applied, output, None)
+    assert missing == [{"path": "chart-data/index.json", "reason": "missing or hash mismatch"}]
+    (output / "chart-data").mkdir()
+    (output / "chart-data/index.json").write_text('{"v":1}\n', encoding="utf-8")  # stale copy from the full
+    assert resolve_external(applied, output, None)
+    assert resolve_external(applied, output, git) == []
+    assert (output / "chart-data/index.json").read_text(encoding="utf-8") == '{"v":2}\n'
+    (git / "chart-data/index.json").write_text("tampered", encoding="utf-8")
+    (output / "chart-data/index.json").unlink()
+    assert resolve_external(applied, output, git)                      # wrong hash is never copied
+    assert not (output / "chart-data/index.json").exists()
+
+
+def test_reused_drive_archive_reports_missing_hash_index(tmp_path: Path) -> None:
+    from scripts.phase_a0.upload_google_drive import hash_record_exists
+    assert not hash_record_exists(tmp_path, "drive-1")
+    record = tmp_path / "research-hashes/2026/10/05/42.json"
+    record.parent.mkdir(parents=True)
+    record.write_text(json.dumps({"drive_file_id": "drive-1"}), encoding="utf-8")
+    (record.parent / "broken.json").write_text("{", encoding="utf-8")
+    assert hash_record_exists(tmp_path, "drive-1")
+    assert not hash_record_exists(tmp_path, "drive-2")
+    workflow = (ROOT / ".github/workflows/refresh-source-mc57.yml").read_text(encoding="utf-8")
+    assert workflow.count("steps.drive_upload.outputs.index_missing == 'true'") >= 3

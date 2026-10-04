@@ -40,27 +40,9 @@ CUTOFF_RULE = "nyse-close-v2"  # actual NYSE close in New York time (13:00 on ea
 NEW_YORK = ZoneInfo("America/New_York")
 
 
-def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
-    d = date(year, month, 1)
-    d += timedelta(days=(weekday - d.weekday()) % 7)
-    return d + timedelta(weeks=n - 1)
+from market_calendar import early_close, session_close_utc  # noqa: E402,F401  (shared NYSE calendar)
 
 
-def early_close(day: date) -> bool:
-    """NYSE 13:00 closes: July 3 (when July 4 falls Tue-Fri), day after Thanksgiving,
-    Christmas Eve on a weekday (Mon-Thu)."""
-    if day.month == 7 and day.day == 3 and day.weekday() < 5 and date(day.year, 7, 4).weekday() in (1, 2, 3, 4):
-        return True
-    if day == _nth_weekday(day.year, 11, 3, 4) + timedelta(days=1):
-        return True
-    return day.month == 12 and day.day == 24 and day.weekday() < 4
-
-
-def session_close_utc(session_date: str) -> datetime:
-    """The session's actual NYSE close as an aware UTC datetime (DST and early closes)."""
-    day = date.fromisoformat(session_date)
-    close = dtime(13, 0) if early_close(day) else dtime(16, 0)
-    return datetime.combine(day, close, tzinfo=NEW_YORK).astimezone(timezone.utc)
 KEYWORDS = {
     "guidance_up": r"(rais|boost|lift|hik|increas)\w* (its |full[- ]year |fy\d* |annual |\d{4} )?(guidance|outlook|forecast)|guidance (raise|hike)|above[- ]consensus guidance",
     "beat": r"\bbeats?\b|tops? (estimates|expectations|forecasts)|better[- ]than[- ]expected|record (revenue|quarter|sales|results)",

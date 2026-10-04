@@ -253,7 +253,7 @@ jobs:
           GOOGLE_DRIVE_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_FOLDER_ID || secrets.GOOGLE_DRIVE_FOLDER_ID }}
         run: python scripts/phase_a0/upload_google_drive.py "${{ steps.snapshot.outputs.snapshot_path }}"
       - name: Write run-id hash history
-        if: steps.drive_upload.outcome == 'success' && steps.drive_upload.outputs.duplicate_content != 'true'
+        if: steps.drive_upload.outcome == 'success' && (steps.drive_upload.outputs.duplicate_content != 'true' || steps.drive_upload.outputs.index_missing == 'true')
         id: hash_record
         continue-on-error: true
         run: >-
@@ -271,7 +271,7 @@ jobs:
           --source google_drive_live
           --snapshot-mode "${{ steps.snapshot.outputs.snapshot_mode }}"
       - name: Optionally append copy to Neon manifest
-        if: steps.drive_upload.outcome == 'success' && steps.drive_upload.outputs.duplicate_content != 'true' && steps.neon_config.outputs.enabled == 'true'
+        if: steps.drive_upload.outcome == 'success' && (steps.drive_upload.outputs.duplicate_content != 'true' || steps.drive_upload.outputs.index_missing == 'true') && steps.neon_config.outputs.enabled == 'true'
         id: neon_record
         continue-on-error: true
         env: {NEON_DATABASE_URL: "${{ secrets.NEON_DATABASE_URL }}"}
@@ -358,7 +358,7 @@ jobs:
             ${{ steps.interim.outputs.metadata_path }}
       - name: Record successful monthly full snapshot
         if: >-
-          always() && steps.drive_upload.outputs.duplicate_content != 'true' && steps.snapshot.outputs.snapshot_mode == 'full' && (
+          always() && (steps.drive_upload.outputs.duplicate_content != 'true' || steps.drive_upload.outputs.index_missing == 'true') && steps.snapshot.outputs.snapshot_mode == 'full' && (
             steps.hash_record.outcome == 'success' ||
             steps.interim_artifact.outcome == 'success'
           )
