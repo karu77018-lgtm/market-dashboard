@@ -37,7 +37,10 @@ async function verify(page,width){
   assert.equal(await page.locator('#t-jev').getAttribute('data-ranking-state'),expectedState,'session/hash freshness');
   const scoreBox=await page.locator('.jev-table tbody tr:first-child .jev-score').boundingBox();
   assert(scoreBox&&scoreBox.x+scoreBox.width<=width,'Jev expected value initially visible '+width);
-  assert.equal(await page.locator('.core-table-wrap').count(),2,'both Core 12 tables contained');
+  assert(await page.locator('.core-table-wrap').count()>=2,'Core 12 tables contained');
+  assert.equal(await page.locator('nav a.tabx', {hasText:'Core 12'}).count(),0,'Core 12 tab renamed to archive');
+  assert.equal(await page.locator('#t-port #archive-intro').count(),1,'Core 12 and old rule live in the archive tab');
+  assert.equal(await page.locator('#t-alloc .emergency, #t-today #archive-intro').count(),0,'archived cards left Positions/Setups');
   assert((await page.locator('#taExpo').innerText()).includes('目標露出（上限）'));
   assert(!(await page.locator('#taExpo').innerText()).includes('フル投資'));
   assert(await page.locator('#taEst').isVisible(),'estimated NQ explicitly visible');

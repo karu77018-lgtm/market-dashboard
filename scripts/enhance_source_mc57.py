@@ -250,6 +250,8 @@ def main() -> int:
     text = apply_swing_screener(text, frame, walls_fn=fetch_walls, regime=regime, health=health)
     from rules_tab import apply as apply_rules_tab
     text = apply_rules_tab(text, regime=regime, health=health)
+    from archive_tab import apply as apply_archive_tab
+    text = apply_archive_tab(text)  # Core 12 / old W30 rule -> アーカイブ tab (display only)
     text = substitute_badge(text, html_path.resolve().parent / "latest-manifest.json")
     html_path.write_text(text, encoding="utf-8")
     print(json.dumps({"session_date": args.session, "ticker_count": meta["ticker_count"],
