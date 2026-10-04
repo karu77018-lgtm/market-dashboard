@@ -77,6 +77,23 @@ def test_late_entry_listed_when_today_no_longer_signals():
     assert "LEAD" not in [r["ticker"] for r in result["watch"]]
 
 
+
+def test_late_entry_requires_buyable_on_its_signal_day(monkeypatch):
+    import swing_screener as ss
+    frame = _frame()
+    last_day = frame["date"].max()
+    lead = (frame["ticker"] == "LEAD") & (frame["date"] == last_day)
+    frame.loc[lead, ["open", "high", "low", "close"]] *= 1.01
+    frame.loc[lead, "volume"] = 2.0e7
+    real = ss.weekly_sar_state
+
+    def sar(high, low, close):  # bearish as of the signal day, bullish today
+        return (False, None) if high.index[-1] < last_day else real(high, low, close)
+
+    monkeypatch.setattr(ss, "weekly_sar_state", sar)
+    result = ss.evaluate(frame)
+    assert result["late"] == []
+
 def test_watch_badges_show_current_and_required_values():
     from swing_screener import _miss_label
     r = {"vc": 0.9004, "vdry": 1.07, "chg": 0.0298, "prev_chg": 0.039, "ext10": 0.141}
@@ -290,3 +307,18 @@ def test_good_leader_rule_and_card_section():
     assert "あと1つ" in html and "週足SAR 2週目" in html and "監視リスト" in html and "買い増し +20%" in html
     empty = card_html({"regime": ON, "session": "2026-01-02", "universe": 10, "selected": 0, "core": [], "watch": [], "ep": [], "late": []})
     assert "好位置リーダー（検討可）" in empty
+
+
+def test_good_leader_counts_copy_and_overlap_match():
+    base = {"close": 100.0, "chg": 0.0, "rs189": 90, "rs21": 50, "rs63": 85, "dv": 60, "vc": 0.8, "vdry": 0.8,
+            "ext10": 0.0, "el21": 95.0, "stop": 92.0, "add": 110.0, "be": 125.0, "streak": 3, "pivot_line": 110.0,
+            "hl": 80.0, "inside": True, "pos": 0.6, "sar_up": True, "sar_age": 2}
+    glead = [{**base, "ticker": f"G{i}"} for i in range(12)]
+    near = [{**base, "ticker": "N1", "missing": ["収縮"]}, {**base, "ticker": "BEST", "missing": ["収縮"]}]
+    html = card_html({"regime": ON, "session": "2026-01-02", "universe": 1, "selected": 1, "ep": [], "late": [],
+                      "watch": [], "core": [{**base, "ticker": "BEST"}], "glead": glead, "glead_near": near})
+    assert "好位置<b>13</b>" in html                                    # 12 + N1 (BEST is already 本命)
+    i = html.index("好位置リーダー（検討可）")
+    copy = html[i:html.index("</div>", i)]
+    assert "G11" in copy and "N1" in copy and "BEST" not in copy
+    assert "全 12+1件" in html

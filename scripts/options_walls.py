@@ -38,6 +38,12 @@ OCC = re.compile(r"^([A-Z]+)(\d{6})([CP])(\d{8})$")
 
 
 def fetch_chain(ticker: str, *, timeout: float = 20.0) -> list[dict[str, Any]] | None:
+    got = fetch_chain_with_time(ticker, timeout=timeout)
+    return got[0] if got else None
+
+
+def fetch_chain_with_time(ticker: str, *, timeout: float = 20.0) -> tuple[list[dict[str, Any]], str | None] | None:
+    """(options, Cboe quote timestamp) — the timestamp is kept so freshness is real."""
     req = urllib.request.Request(CBOE_URL.format(ticker.replace(".", "")),
                                  headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
     try:
@@ -46,7 +52,20 @@ def fetch_chain(ticker: str, *, timeout: float = 20.0) -> list[dict[str, Any]] |
     except Exception:
         return None
     options = (payload.get("data") or {}).get("options") if isinstance(payload, dict) else None
-    return options if isinstance(options, list) else None
+    if not isinstance(options, list):
+        return None
+    stamp = payload.get("timestamp") if isinstance(payload, dict) else None
+    return options, (str(stamp) if stamp else None)
+
+
+def quote_age(stamp: str | None, session: str) -> int | None:
+    """Calendar days from the session to the quote time (None when unknown)."""
+    if not stamp:
+        return None
+    try:
+        return (date.fromisoformat(stamp[:10]) - date.fromisoformat(session)).days
+    except ValueError:
+        return None
 
 
 def _parse(options: Iterable[dict[str, Any]], ticker: str, session: str) -> list[tuple]:
@@ -119,7 +138,7 @@ def walls(options: list[dict[str, Any]], *, ticker: str, spot: float, session: s
         "pw": pw, "pwp": (pw / spot - 1) if pw else None,
         "gf": round(gf, 2) if gf else None, "gfp": (gf / spot - 1) if gf else None,
         "cwoi": int(call_oi[cw]) if cw else None, "pwoi": int(put_oi[pw]) if pw else None,
-        "total_oi": int(total), "age": 0, "source": "Cboe delayed quotes (OI as of prior session)",
+        "total_oi": int(total), "age": None, "source": "Cboe delayed quotes (OI as of prior session)",
         "conf": "LOW" if total < LOW_TOTAL_OI or wall_oi < LOW_WALL_OI else "OK",
     }
     return out if cw or pw or gf else None
@@ -133,13 +152,16 @@ def fetch_walls(targets: dict[str, float], session: str,
     for ticker, spot in targets.items():
         if failures >= max_failures:
             break
-        chain = fetch_chain(ticker)
-        if chain is None:
+        got = fetch_chain_with_time(ticker)
+        if got is None:
             failures += 1
             continue
         failures = 0
+        chain, stamp = got
         result = walls(chain, ticker=ticker, spot=spot, session=session)
         if result:
+            result["asof"] = stamp
+            result["age"] = quote_age(stamp, session)
             out[ticker] = result
         time.sleep(pause)
     print(f"option walls: {len(out)}/{len(targets)} tickers", flush=True)

@@ -44,3 +44,15 @@ def test_update_det_fills_existing_detail_rows():
     det = json.loads(body)
     assert det["AAA"]["opt"] == {"cw": 105.0} and det["BBB"]["opt"] is None
     assert out.endswith(";var y=1;</script>")
+
+
+def test_quote_age_uses_the_real_timestamp():
+    assert ow.quote_age("2026-10-05 09:31:00", "2026-10-02") == 3
+    assert ow.quote_age(None, "2026-10-02") is None
+    assert ow.quote_age("garbage", "2026-10-02") is None
+
+
+def test_exact_three_percent_previous_day_is_allowed():
+    import pandas as pd
+    c = pd.Series([100.0, 103.0])
+    assert ((c / c.shift(1) - 1).round(9)).iloc[-1] <= 0.03
