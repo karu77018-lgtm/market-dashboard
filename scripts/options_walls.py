@@ -1,5 +1,9 @@
 """Option walls for the swing candidates (reference only, never a trading gate).
 
+Also fetched for the 50-day dollar-volume top 5% (the rule's liquidity tier) as a
+comparison group for the weekly study of whether walls relate to later returns.
+Those values go only into the ticker detail (DET), not onto the swing card.
+
 Source: Cboe delayed quotes (one JSON per underlying with open interest, IV and
 greeks for every listed option).  Open interest is published by OCC once a day,
 so the walls describe positioning as of the previous session.

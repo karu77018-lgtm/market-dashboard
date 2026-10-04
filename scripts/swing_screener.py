@@ -339,7 +339,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
     o, h, l, c, v = p["open"], p["high"], p["low"], p["close"], p["volume"]
     if len(c) < 260:
         return {"session": str(c.index[-1].date()) if len(c) else "", "core": [], "late": [], "watch": [],
-                "ep": [], "universe": 0, "reason": "history_short"}
+                "ep": [], "universe": 0, "reason": "history_short", "dv_top": []}
     state = _states(c, h, l, v)
     s = state(-1)
     last, liquid, tt, chg = s["last"], s["liquid"], s["tt"], s["chg"]
@@ -449,8 +449,13 @@ def evaluate(frame: pd.DataFrame) -> dict:
                        "volx": float(volx[t]), "peer": int(round(ps)), "adr": float(adr20[t]),
                        "stop": float(last[t] * (1 - STOP)), "tt": bool(tt[t])})
         ep.sort(key=lambda r: -r["peer"])
+    # Comparison group for the option-wall study: the rule's own liquidity tier
+    # (50-day dollar volume top 5% of the liquid universe), candidates or not.
+    dv_pct = s["dv_pct"]
+    top = dv_pct[liquid & (dv_pct >= DV_PCT)].sort_values(ascending=False)
+    dv_top = [(t, float(last[t])) for t in top.index if not pd.isna(last[t])]
     return {"session": str(c.index[-1].date()), "core": core, "late": late, "watch": watch, "ep": ep,
-            "universe": int(liquid.sum()), "selected": int(selected.sum())}
+            "universe": int(liquid.sum()), "selected": int(selected.sum()), "dv_top": dv_top}
 
 
 def _peer_scores(c: pd.DataFrame, liquid: pd.Series, comp_pct: pd.Series, targets: list[str]) -> dict:
@@ -882,8 +887,14 @@ def apply(text: str, frame: pd.DataFrame, walls_fn=None, regime: dict | None = N
         rows = [r for r in result["core"] + result.get("late", []) + result["ep"]
                 + [w for w in result["watch"] if _good(w)] + result["watch"][:15]
                 if not (r["ticker"] in seen_t or seen_t.add(r["ticker"]))]
+        targets = {r["ticker"]: r["close"] for r in rows}
+        # Candidates first (they are displayed); then the dollar-volume top 5% as a
+        # comparison group, stored only in the ticker detail (DET) for the
+        # weekly option-wall study.  Not displayed on the card.
+        for t, px in result.get("dv_top", []):
+            targets.setdefault(t, px)
         try:
-            found = walls_fn({r["ticker"]: r["close"] for r in rows}, result["session"]) or {}
+            found = walls_fn(targets, result["session"]) or {}
         except Exception as exc:
             print(f"option walls skipped: {exc!r}", flush=True)
         for r in rows:
