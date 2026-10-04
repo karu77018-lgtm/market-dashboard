@@ -114,6 +114,9 @@ def test_option_walls_render_and_failures_are_harmless():
     fake = lambda targets, session: asked.extend(targets) or {}
     apply(page, frame, walls_fn=fake)
     assert asked[0] == "LEAD"
+    assert len(asked) == len(set(asked))  # candidates first, dollar-volume top 5% added once
+    top = [t for t, _ in evaluate(frame)["dv_top"]]
+    assert top and set(top) <= set(asked)
     opt = {"cw": 66.0, "cwp": 0.1, "pw": 55.0, "pwp": -0.08, "gf": 58.5, "gfp": -0.025, "conf": "OK"}
     row = {"ticker": "AAA", "close": 60.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80, "dv": 99, "vc": 0.8,
            "vdry": 0.8, "ext10": 0.0, "el21": 57.0, "stop": 55.2, "add": 66.0, "be": 75.0, "pivot_line": 64.0,
