@@ -20,7 +20,7 @@ async function verify(page,width){
   const narrowAxes=await sparks.evaluateAll(items=>items.filter(e=>{const r=e.getBoundingClientRect(),a=e.nextElementSibling?.getBoundingClientRect();return r.width>0&&(!a||a.width<r.width*.8);}).length);
   assert.equal(narrowAxes,0,'date axes span their graph including grid rate cards');
   const tabs=page.locator('nav a.tabx');
-  assert.equal(await tabs.count(),11,'all original tabs including Jev');
+  assert.equal(await tabs.count(),12,'all tabs including Jev, Themes and archive');
   assert.equal(await page.locator('.mh-card [data-window="2y"][aria-pressed="true"]').count(),await page.locator('.mh-card[data-history-key]').count());
   assert(!requests.some(u=>/-(?:5|10)y\.json/.test(u)),'initial page must not request 5/10Y');
   for(let i=0;i<await tabs.count();i++){
@@ -41,6 +41,8 @@ async function verify(page,width){
   assert.equal(await page.locator('nav a.tabx', {hasText:'Core 12'}).count(),0,'Core 12 tab renamed to archive');
   assert.equal(await page.locator('#t-port #archive-intro').count(),1,'Core 12 and old rule live in the archive tab');
   assert.equal(await page.locator('#t-alloc .emergency, #t-today #archive-intro').count(),0,'archived cards left Positions/Setups');
+  assert.equal(await page.locator('#t-themes #mc57-theme-gate').count(),1,'theme gate lives on Themes');
+  assert.equal(await page.locator('#t-rotation #mc57-theme-gate, #t-rotation #index-internals-divergence').count(),0,'Rotation keeps money-flow cards only');
   assert((await page.locator('#taExpo').innerText()).includes('目標露出（上限）'));
   assert(!(await page.locator('#taExpo').innerText()).includes('フル投資'));
   assert(await page.locator('#taEst').isVisible(),'estimated NQ explicitly visible');
@@ -143,7 +145,7 @@ async function verify(page,width){
   await page.unroute('**/data/jev-ranking.json');
   assert.deepEqual(errors,[],'no JS errors across all tabs and manual NQ controls');
   await page.screenshot({path:root+'/work/market-ui-'+width+'.png',fullPage:false});
-  console.log('PASS desktop/mobile, 11 tabs, MC57 3 windows, leadership/cap/relative 3 windows, GICS available combinations (unavailable hidden), normalized=100, viewport='+width);
+  console.log('PASS desktop/mobile, 12 tabs, MC57 3 windows, leadership/cap/relative 3 windows, GICS available combinations (unavailable hidden), normalized=100, viewport='+width);
 }
 (async()=>{
   let browser;
