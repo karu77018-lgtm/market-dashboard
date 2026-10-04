@@ -89,7 +89,7 @@ def _states(c: pd.DataFrame, h: pd.DataFrame, l: pd.DataFrame, v: pd.DataFrame) 
     vc = dr.rolling(10).mean() / dr.rolling(50).mean()
     v50 = v.rolling(50).mean()
     vdry = v.rolling(5).mean() / v50
-    chg = c / c.shift(1) - 1
+    chg = (c / c.shift(1) - 1).round(9)  # an exact +3.00% must compare as 0.03, not 0.0300000001
     el21 = l.ewm(span=21, adjust=False).mean()
 
     def at(k: int) -> dict:
@@ -429,6 +429,21 @@ def evaluate(frame: pd.DataFrame) -> dict:
                 sar_cache[t] = (None, None)
         return sar_cache[t]
 
+    def was_buyable(t: str, lag: int) -> bool:
+        """本命 conditions on the signal day itself, using only data up to that day."""
+        end = len(c) - lag
+        hh = h[t].to_numpy(dtype=float)[:end][-260:]
+        ll = l[t].to_numpy(dtype=float)[:end][-260:]
+        px = float(c[t].iloc[end - 1])
+        line, hl = structure_pivot(hh, ll)
+        inside = bool(not math.isnan(line) and px <= line)
+        pos = (px - hl) / (line - hl) if inside and line > hl else None
+        try:
+            up, _ = weekly_sar_state(h[t].iloc[:end], l[t].iloc[:end], c[t].iloc[:end])
+        except Exception:
+            up = None
+        return buyable({"inside": inside, "pos": pos, "sar_up": up})
+
     rank = lambda r: TIER_ORDER[tier(r)]
     core = [row(t, s) for t in selected[selected & timing].index]
     core.sort(key=lambda r: (rank(r), not r["inside"], -r["rs189"]))
@@ -450,6 +465,8 @@ def evaluate(frame: pd.DataFrame) -> dict:
                 continue
             if float(last[t]) > base * (1 + LATE_MAX_UP):
                 continue
+            if not was_buyable(t, lag):
+                continue  # it was not a 本命 on its own signal day (SAR / HL position then)
             r = row(t, s)
             r.update({"signal_date": str(c.index[-1 - lag].date()), "signal_close": base,
                       "from_signal": float(last[t]) / base - 1, "lag": lag})
@@ -468,7 +485,9 @@ def evaluate(frame: pd.DataFrame) -> dict:
 
     # 好位置リーダー (watch only): leaders just outside the 本命 selection sitting at a good position.
     glead, glead_near = [], []
-    taken = seen | {r["ticker"] for r in watch}
+    # Overlap with the other sections is removed in card_html, after their final
+    # classification (a core name that ends up "買わない" must stay eligible here).
+    taken: set[str] = set()
     gl_mask = liquid & tt & (s["dv_pct"] >= GL_DV_PCT) & (s["rs189_pct"] >= GL_RS189_PCT) \
         & (s["rs63_pct"] >= GL_RS63_PCT)
     for t in gl_mask[gl_mask.fillna(False)].index:
@@ -868,7 +887,11 @@ def card_html(result: dict) -> str:
         return tile(" nx", r, _top(r, _rs_box(r)) + f'<div class="sw-chips">{pill}{needs}</div>'
                     + _chips(r) + _struct_line(r))
     watch_body = "".join(nx_tile(r) for r in other_watch[:15]) or '<div class="sw-empty">該当なし。</div>'
-    glead, glead_near = result.get("glead", []), result.get("glead_near", [])
+    shown = ({r["ticker"] for r in best + late + waiting + late_low}
+             | {r["ticker"] for r in other_watch[:15]})
+    glead = [r for r in result.get("glead", []) if r["ticker"] not in shown]
+    glead_near = [r for r in result.get("glead_near", []) if r["ticker"] not in shown]
+    gl_all = glead + glead_near
     gl_body = "".join(
         tile(" gl", r, _top(r, _rs_box(r)) + _chips(r) + _struct_line(r) + _levels(r) + _foot(r)) for r in glead[:10]
     ) + "".join(
@@ -876,6 +899,9 @@ def card_html(result: dict) -> str:
              + "".join(f'<span class="sw-c need">{e(_need(m, r))}</span>' for m in r["missing"]) + '</div>' + _chips(r))
         for r in glead_near[:8]
     ) or '<div class="sw-empty">該当なし。</div>'
+    if len(glead) > 10 or len(glead_near) > 8:
+        gl_body += (f'<div class="sw-hint">表示 {min(len(glead), 10)}+{min(len(glead_near), 8)}件 ／ 全 {len(glead)}+{len(glead_near)}件'
+                    '（コピーには全件が入ります）</div>')
     ep_body = "".join(
         tile(" ep", r, _top(r, f'<div class="sw-rs"><b>{r["peer"]}</b><span>テーマ強度</span></div>')
              + '<div class="sw-chips">'
@@ -906,7 +932,7 @@ def card_html(result: dict) -> str:
     summary = "".join(f'<span class="{c}">{k}<b>{n}</b></span>' for k, n, c in
                       (("本命", len(best), "on" if best else ""),
                        ("まだ入れる", len(late), ""), ("次の候補", len(other_watch), ""),
-                       ("好位置", len(result.get("glead", [])), ""),
+                       ("好位置", len(glead) + len(glead_near), ""),
                        ("テーマ", len(ep), ""), ("買わない", len(waiting) + len(late_low), "")))
     return (
         f'<div class="card" id="{CARD_ID}" data-source-improvement="swing-screener" data-rule="{RULE_ID}"'
@@ -922,7 +948,7 @@ def card_html(result: dict) -> str:
         + '<div class="sw-hint">並び順：優先S・A×あと1条件 → 優先B×あと1条件 → 優先S・A×あと2条件 → その他。'
           '10営業日以内に条件がそろう率と、そろった後の成績で決めた順。</div>'
         + watch_body
-        + sec("好位置リーダー（検討可）", "本命の外・監視のみ", glead)
+        + sec("好位置リーダー（検討可）", f"本命の外・監視のみ（形OK {len(glead)}・あと1つ {len(glead_near)}）", gl_all)
         + '<div class="sw-hint">本命の一歩外（売買代金上位50%・RS189とRS63が上位20%・TT）で、週足SAR転換8週以内の好位置にあり、形がそろった銘柄。'
           '2015〜2026年の検証でPF 2.12・年19件（本命と重なるものを除く）。ただし本命の6枠に機械的に混ぜると年率が42.4%→38〜40%に下がるので、'
           '空き枠があるときに裁量で検討する監視リスト。入るなら本命と同じ売買ルール'

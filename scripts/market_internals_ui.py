@@ -161,6 +161,29 @@ def strip_color_market_text(soup):
         if text!=str(node): node.replace_with(text)
 
 
+HEADLINE_LABELS={'defensive':('攻め優勢','守り優勢'),'credit':('リスクオン','信用悪化・警戒')}
+
+
+def history_headline(root,idx,key):
+    """(last value, label, color) from market-history/<key>-2y.json, same rule as the card."""
+    entry=(idx.get('files',{}) or {}).get(key,{}) or {}
+    path=root/'market-history'/(entry.get('2y') or f'{key}-2y.json')
+    try:
+        data=json.loads(path.read_text())
+        values=[v for v in data['series'][key] if v is not None]
+    except Exception:
+        return None
+    if len(values)<60 or data.get('dates',[None])[-1]!=data.get('session_date'):
+        return None
+    up,dn=HEADLINE_LABELS[key]
+    win,lb=50,10
+    ma=[sum(values[i-win+1:i+1])/win for i in range(win-1,len(values))]
+    above=values[-1]>ma[-1]; slope=ma[-1]-ma[-1-lb]
+    if above and slope>=0: return values[-1],up,'#7ff0a8'
+    if not above and slope<0: return values[-1],dn,'#fca5a5'
+    return values[-1],'中立','#9aa4b2'
+
+
 def apply_html(text,root, *, mc=None,summary=None,breadth=None):
     if 'id="market-history-script"' in text: return text
     mc=mc or json.loads((root/'data/mc57.json').read_text())
@@ -249,6 +272,16 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
                     plot.insert_before(reading)
                 if reading:
                     reading.append(BeautifulSoup('<div class="sub mh-history-note">現ユニバースの参考値。過去時点の構成を再現できないため長期履歴は表示しません。</div>','html.parser'))
+    # Headline value and label from the very series the chart shows (2Y file), so the
+    # number on the card can never disagree with the chart's last point.
+    for key in ('defensive','credit'):
+        card=soup.select_one(f'.mh-existing[data-history-key="{key}"]')
+        now=card.select_one('.chd-now') if card else None
+        head=history_headline(root,idx,key)
+        if now is not None and head:
+            value,label,color=head
+            now.clear(); now['style']=f'color:{color}'
+            now.append(BeautifulSoup(f'<b>{value:+.1f}σ</b><span>{label}</span>','html.parser'))
     rotation=soup.select_one('#t-rotation')
     if rotation is None: raise RuntimeError('Rotation tab missing')
     added=(summary_card(summary,breadth)+chart_card('leadership','サイズ別相対推移 / Market Leadership',
@@ -305,6 +338,74 @@ def apply_html(text,root, *, mc=None,summary=None,breadth=None):
     return str(soup).replace('<footer class="disc">', "<footer class='disc'>")
 
 
+REAL_ESTATE_SUBS=('REIT','不動産')
+
+
+def split_real_estate(hier):
+    """TradingView puts REITs under 金融.  Split that big group by its detailed
+    sectors so XLF and XLRE are compared with their own stocks."""
+    fin=(hier or {}).get('金融') or []
+    real=[s for s in fin if any(k in str(s.get('sub') or '') for k in REAL_ESTATE_SUBS)]
+    rest=[s for s in fin if s not in real]
+    def agg(subs):
+        tot=sum(int(s.get('n') or 0) for s in subs)
+        if tot<=0: return None
+        rs=sum(float(s.get('rs') or 0)*int(s.get('n') or 0) for s in subs)/tot
+        br=sum(float(s.get('br') or 0)*int(s.get('n') or 0) for s in subs)/tot
+        return {'rs':int(round(rs)),'br':int(round(br)),'n':tot}
+    return {'金融':agg(rest),'不動産':agg(real)}
+
+
+def install_audit_hooks(module):
+    """2026-10-05 audit: F03 (金融/不動産 share one population) and F06 (next-week
+    calendar included the session day itself).  Display only."""
+    original_ivb=getattr(module,'build_index_vs_breadth',None)
+    if original_ivb:
+        def ivb(mkt):
+            rows=original_ivb(mkt)
+            split=split_real_estate(mkt.get('etf_hier'))
+            for r in rows:
+                if r.get('ja') in split:
+                    v=split[r['ja']]
+                    if v: r.update(v)
+                    else: r.update({'rs':None,'br':None,'n':0})
+            return rows
+        module.build_index_vs_breadth=ivb
+    original_card=getattr(module,'_index_vs_breadth_card',None)
+    if original_card:
+        def ivb_card(rows):
+            body=''
+            for r in rows or []:
+                if not r.get('n'):
+                    body+=(f'<div class="ivbrow"><div class="ivbn">・ {html.escape(r["ja"])}<span class="mut"> {html.escape(r.get("tk") or "")}</span></div>'
+                           f'<div class="ivbm mut">指数 {r["x"]:.1f}（{html.escape(r.get("q") or "")}） ／ 中身 未提供（対応する業種なし）</div></div>')
+                    continue
+                gap=r['x']-100.0
+                cls='neg' if (gap>=0 and r['br']<25) else ('pos' if r['br']>=45 else 'mut')
+                mark='⚠' if (gap>=0 and r['br']<25) else ('◎' if r['br']>=45 else '・')
+                body+=(f'<div class="ivbrow"><div class="ivbn">{mark} {html.escape(r["ja"])}<span class="mut"> {html.escape(r.get("tk") or "")}</span></div>'
+                       f'<div class="ivbm {cls}">指数 {r["x"]:.1f}（{html.escape(r.get("q") or "")}） ／ 中身 RS{r["rs"]} ・ 強{r["br"]}% ・ {r["n"]}銘柄</div></div>')
+            if not body: return ''
+            return ('<div class="card"><div class="hdr"><h2>指数と中身の乖離 <span class="h2en">Index vs Breadth</span></h2></div>'
+                    '<div class="sub">左=セクターETFの相対力（時価総額加重・100が市場並み）、'
+                    '右=同領域の自ユニバース銘柄：詳細業種ごとのRS189中央値を銘柄数で加重平均したRSと、ブレッドス（RS189が80以上の比率）。'
+                    '不動産はREIT・不動産開発の業種、金融はそれ以外の金融業種。'
+                    '<details class="subx"><summary>詳しく</summary><div class="subx-b"><b>指数が市場並み以上なのに強が25%未満＝上位数銘柄だけで持ち上がっている</b>。'
+                    '等加重で持つ本体にとっては、指数の強さより中身の広がりが効く。⚠が乖離。</div></details></div>'+body+'</div>')
+        module._index_vs_breadth_card=ivb_card
+    original_cal=getattr(module,'build_econ_calendar',None)
+    if original_cal:
+        def cal(asof=None):
+            import pandas as pd
+            if asof is None: return original_cal(asof)
+            start=pd.Timestamp(asof)+pd.Timedelta(days=1)   # the session day itself is past
+            out=original_cal(start)
+            end=start+pd.Timedelta(days=7)
+            return out.replace('定例スケジュールからの推定（目安）。',
+                               f'{start.month}/{start.day}〜{end.month}/{end.day}の定例スケジュールからの推定（目安）。',1)
+        module.build_econ_calendar=cal
+
+
 def install(module,root,data_dir):
     """Generator hook: narrative code never sees SAR. Trading functions untouched."""
     mc=json.loads((data_dir/'mc57.json').read_text())
@@ -335,6 +436,7 @@ def install(module,root,data_dir):
         return original_categories(mkt,m,breadth,(None,None),aux) if original_categories else ''
     module._market_comment=comment
     module.build_categorized_commentary=categories
+    install_audit_hooks(module)
     # Display-only export from the unchanged native VIX model. Its 1990 monthly
     # calibration, EVENT rules and LWMA/state calculations remain authoritative.
     original_cycle=getattr(module,'build_vix_cycle',None)

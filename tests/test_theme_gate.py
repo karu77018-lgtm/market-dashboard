@@ -60,3 +60,18 @@ def test_card_is_inserted_before_theme_thermometer_once(tmp_path):
 def test_card_handles_no_qualifying_theme():
     html = card_html({"session": "2026-09-30", "themes": []})
     assert "合格・監視テーマなし" in html
+
+
+def test_missing_recent_observations_are_not_filled_into_a_pass():
+    frame, members = _frame()
+    last4 = sorted(frame["date"].unique())[-4:]
+    # 4 of 6 members missing the last four sessions: today has fewer than the
+    # required real observations, so the theme must not be judged at all.
+    gone = frame["ticker"].isin(["HOT0", "HOT1", "HOT2", "HOT3"]) & frame["date"].isin(last4)
+    result = evaluate(frame[~gone], members)
+    assert "テスト急騰" not in {t["theme"] for t in result["themes"]}
+
+
+def test_short_history_is_not_judged_against_a_52_week_high():
+    frame, members = _frame(n_days=245)
+    assert "テスト急騰" not in {t["theme"] for t in evaluate(frame, members)["themes"]}

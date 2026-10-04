@@ -55,6 +55,7 @@ jobs:
           python scripts/rotation_split.py --html source-mc57.html
           python scripts/rule_refresh.py
           python scripts/track_record.py
+          python scripts/audit_display.py
           python scripts/render_jev_ranking.py
       - name: Verify all tabs, mobile overflow and Jev freshness
         run: node tests/market_history_ui.cjs

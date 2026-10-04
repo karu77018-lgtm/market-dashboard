@@ -228,7 +228,9 @@ def build(root,target, *, offline=False):
     f['gics11']=gics
     # Derived long charts; exact existing trailing z convention, no missing-price fill.
     derived={}
-    for name,num,dens in [('credit','HYG',['IEI']),('defensive','XLY',['XLP','XLV','XLU'])]:
+    # Same instruments as the Daily headline (equal-weight consumer discretionary vs
+    # staples+utilities), so the headline, the label and every window are one series.
+    for name,num,dens in [('credit','HYG',['IEI']),('defensive','RSPD',['RSPS','RSPU'])]:
         if all(k in frame for k in [num,*dens]):
             p=frame[[num,*dens]].dropna(how='all'); starts=p.iloc[0]
             denom=p[dens].div(starts[dens]).mean(axis=1).where(p[dens].notna().all(axis=1))

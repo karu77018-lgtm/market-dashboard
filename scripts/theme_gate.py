@@ -62,8 +62,10 @@ def _membership(rows: list[dict]) -> dict[str, list[str]]:
 def evaluate(frame: pd.DataFrame, rows: list[dict]) -> dict:
     close = frame.pivot_table(index="date", columns="ticker", values="close", aggfunc="last").sort_index()
     high = frame.pivot_table(index="date", columns="ticker", values="high", aggfunc="last").reindex(close.index)
-    close = close.ffill(limit=3)
-    rets = close.pct_change(fill_method=None).clip(-0.5, 1.0)
+    raw = close
+    # Returns only from real observations (a filled price would count as a 0% day).
+    rets = raw.pct_change(fill_method=None).clip(-0.5, 1.0)
+    close = close.ffill(limit=3)  # level measures (SMA, highs, RS) tolerate short gaps
     rs = _rs_percentile(close)
     last = close.iloc[-1]
     sma50 = close.rolling(50, min_periods=50).mean().iloc[-1]
@@ -79,15 +81,19 @@ def evaluate(frame: pd.DataFrame, rows: list[dict]) -> dict:
             continue
         sub = rets[members]
         n = sub.notna().sum(axis=1)
-        idx = (1 + sub.mean(axis=1).where(n >= MIN_MEMBERS).fillna(0)).cumprod()
-        idx = idx.where(n.rolling(20).min() >= MIN_MEMBERS).dropna()
-        if len(idx) < 210:
+        daily = sub.mean(axis=1).where(n >= MIN_MEMBERS)
+        window = daily.iloc[-252:]
+        # Every day of the 52-week window (including today) needs MIN_MEMBERS real
+        # observations; otherwise the theme is not computable today (never fill 0).
+        if len(window) < 252 or window.isna().any():
             continue
+        idx = (1 + window).cumprod()
         hi252 = idx.iloc[-252:].max()
         t_r63 = idx.iloc[-1] / idx.iloc[-64] - 1
         from_high = idx.iloc[-1] / hi252 - 1
         ext200 = idx.iloc[-1] / idx.iloc[-200:].mean() - 1
-        leaders = [t for t in members if rs.get(t, 0) >= LEADER_RS and pd.notna(sma200.get(t)) and last[t] > sma200[t]]
+        leaders = [t for t in members if rs.get(t, 0) >= LEADER_RS and pd.notna(sma200.get(t))
+                   and pd.notna(raw[t].iloc[-1]) and last[t] > sma200[t]]
         ignition = idx.iloc[-1] >= NEAR_HIGH * hi252 and t_r63 >= IGNITION_R63
         breadth = len(leaders) >= MIN_LEADERS
         not_hot = ext200 <= MAX_EXT200
