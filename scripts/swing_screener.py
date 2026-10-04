@@ -13,9 +13,10 @@ Core (main strategy)
               5-day / 50-day average volume <= 0.9.
   No chase  : session change < +3%, previous session <= +3%, close within
               +12% of the 10-day average.
-  Trade     : buy at the close, 1% account risk with an -8% stop (about 12.5%
-              of equity), add half once at +10%, move the stop to break-even
-              after +25%, exit on a close below the 21-day EMA of lows.
+  Trade     : at most 6 positions; buy about 1/6 of equity (16.7%) at the
+              close with an -8% stop, add the same amount at +10% and again at
+              +20% (one name capped at 40% of equity), exit on a close below the
+              21-day EMA of lows.
 
 Theme slot (earnings-gap style entries)
   Gap up +5% to +20%, close >= +5%, volume 3-15x the 50-day average, close in
@@ -379,7 +380,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
                 "dv": int(round(st["dv_pct"][t])), "vc": float(st["vc"][t]), "vdry": float(st["vdry"][t]),
                 "chg": float(st["chg"][t]), "prev_chg": float(st["prev_chg"][t]),
                 "ext10": float(st["ext10"][t]), "el21": float(st["el21"][t]),
-                "stop": px * (1 - STOP), "add": px * 1.10, "be": px * 1.25,
+                "stop": px * (1 - STOP), "add": px * 1.10, "add2": px * 1.20, "be": px * 1.25,
                 **dict(zip(("sar_up", "sar_age"), sar_state(t)))}
 
     sar_cache: dict[str, tuple] = {}
@@ -501,7 +502,7 @@ STYLE = """
 #mc57-swing-screener .sw-c.old{background:#f6e3dc;color:#9a3f2b}
 #mc57-swing-screener .sw-c.miss{background:#f3ecd6;color:#6b5a1e}
 #mc57-swing-screener .sw-c.ep{background:#e2ebfa;color:#2a5aa8}
-#mc57-swing-screener .sw-lv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-top:8px}
+#mc57-swing-screener .sw-lv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;margin-top:8px}
 #mc57-swing-screener .sw-lv div{background:#f0efeb;border-radius:6px;padding:4px 5px;min-width:0}
 #mc57-swing-screener .sw-lv i{display:block;font-style:normal;font-size:9.5px;color:#6f6c62;white-space:nowrap}
 #mc57-swing-screener .sw-lv b{display:block;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -653,7 +654,8 @@ def _rs_box(r: dict) -> str:
 def _levels(r: dict) -> str:
     cell = lambda cls, label, v: f'<div class="{cls}"><i>{label}</i><b>{_d(v)}</b></div>'
     return ('<div class="sw-lv">' + cell("stop", "損切り −8%", r["stop"]) + cell("", "安値21EMA", r["el21"])
-            + cell("", "買い増し +10%", r["add"]) + '</div>')
+            + cell("", "買い増し +10%", r["add"])
+            + cell("", "買い増し +20%", r.get("add2", r["close"] * 1.20)) + '</div>')
 
 
 def _struct_line(r: dict) -> str:
@@ -841,9 +843,10 @@ def card_html(result: dict) -> str:
         '週足SARは0.02・0.02・0.08、確定した週足のみ。<br/>'
         '<b>次の候補の並び</b>：監視した日から10営業日以内に全条件がそろう率×そろった後の成績で、'
         '優先S・A×あと1条件 → B×あと1 → S・A×あと2 → その他。残り条件数は「あと1かどうか」だけが効く。<br/>'
-        '<b>売買</b>：資金の1%リスク・−8%損切り（1銘柄は資金の約12.5%）。終値+10%で持ち株の半分を1回だけ買い増し'
-        '（これがないと年率12〜14%）。安値21EMAを割って引けたら手仕舞い。余剰資金の50%はQQQ。'
-        'ブレイク成功度が不調かつQQQが200日線より上の日は100%（年率28.5%→32.3%・DDは同じ）。<br/>'
+        '<b>売買</b>：最大6銘柄。最初は資金の約1/6（16.7%）を買い、−8%で損切り（1回のリスクは資金の約1.3%）。'
+        '終値が買値+10%で同額、+20%でもう一度同額を買い増し（1銘柄の上限は資金の40%）。安値21EMAを割って引けたら手仕舞い。'
+        '最大10銘柄・+10%で半分買い増しの旧ルール（年率32.4%・DD−23.5%）より、年率42.4%・DD−30.3%（余剰資金のQQQ切替込み）。'
+        '余剰資金の50%はQQQ。ブレイク成功度が不調かつQQQが200日線より上の日は100%（上乗せの多くはQQQ比率の高さによるもので、判定そのものの効果は年+1〜2pt）。<br/>'
         '<b>外した条件</b>：52週安値+30%・10日線+12%以内・高値+25%で建値へ。外しても成績はほぼ同じ（21.2%→21.0%）。<br/>'
         '<b>バー</b>：緑の始まりがHL（切り上げた安値・割れたら構造崩れ）、緑の終わりがピボットライン'
         '（直近のLL→HL間の最高値・期間2〜10本で一番狭い構造）、黒い線が今の株価。濃い緑がHL→ラインの50〜75%（好位置）。<br/>'

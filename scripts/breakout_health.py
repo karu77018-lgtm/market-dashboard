@@ -11,8 +11,10 @@ Definition (same as the 2015-2026 backtest):
   < 0 is 不調 (momentum entries are not being rewarded).
 
 Allocation rule: when 不調 and QQQ is above its 200-day average, hold 100% of idle
-cash in QQQ; otherwise 50%.  Backtest (stock trades unchanged): CAGR 28.5% -> 32.3%,
-max DD -23.5% -> -23.5%.
+cash in QQQ; otherwise 50%.  Backtest with the 6-position rule (stock trades
+unchanged): CAGR 38.5% -> 42.4%, max DD -30.3% either way.  The switch holds about
+63% of idle cash in QQQ on average and a fixed 63% gives 40.0%, so the timing
+itself adds roughly +1 to +2 points a year (positive in 35 of 36 parameter sets).
 """
 from __future__ import annotations
 
@@ -29,11 +31,11 @@ HISTORY = 252
 MIN_SIGNALS = 5
 CARD_ID = "mc57-breakout-health"
 
-# Year-by-year backtest (2015-01 .. 2026-08): idle cash 50% QQQ vs this switch.
+# Year-by-year backtest (2015-01 .. 2026-08, 6-position rule): idle cash 50% QQQ vs this switch.
 YEARLY = [
-    (2015, 5.9, 6.9), (2016, -1.0, 3.7), (2017, 17.8, 22.4), (2018, 7.0, 11.4), (2019, 17.0, 20.1),
-    (2020, 105.9, 107.0), (2021, 22.0, 30.5), (2022, -16.2, -18.1), (2023, 16.9, 26.3),
-    (2024, 103.0, 108.1), (2025, 31.9, 35.1), (2026, 83.5, 83.5),
+    (2015, 7.8, 8.8), (2016, -2.4, 2.4), (2017, 19.5, 23.7), (2018, 11.6, 15.3), (2019, 17.6, 20.4),
+    (2020, 154.6, 156.0), (2021, 51.1, 60.6), (2022, -16.1, -17.4), (2023, 28.3, 38.3),
+    (2024, 141.6, 145.5), (2025, 43.6, 47.5), (2026, 86.8, 87.2),
 ]
 
 
@@ -185,7 +187,7 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
         '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
         '0%以上＝好調（勢い株が報われている）、マイナス＝不調（指数は上がっても勢い株が伸びない「退屈な年」型）。'
         '不調かつQQQが200日線より上の日は、余剰資金を100%QQQに置く（それ以外は50%）。個別株の売買ルールは変えない。<br/>'
-        '2015〜2026年の検証で年率28.5%→32.3%、最大DDは−23.5%のまま。退屈だった2016・2021・2023年は不調判定が約3分の2、'
+        '2015〜2026年の検証（最大6銘柄ルール）で年率38.5%→42.4%、最大DDは−30.3%のまま。ただし平均するとQQQを約63%持つ形になり、63%固定でも40.0%。判定そのものの上乗せは年+1〜2pt程度（日数や基準を変えた36通り中35通りでプラス）。退屈だった2016・2021・2023年は不調判定が約3分の2、'
         '好調だった2020・2026年は約5%。崩れの警戒（F1〜F3・MC57）とは別の問い＝「買ったシグナルが伸びているか」を測る。'
         '10日後の結果が出たシグナルだけを使うので先読みはない。地合い停止中もシグナルは数え続ける。</div></details>'
         + (_spark(health["history"]) if health else "")

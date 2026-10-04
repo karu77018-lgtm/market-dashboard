@@ -103,6 +103,8 @@ def test_inside_structure_is_listed_first():
                                 "sar_up": True, "sar_age": 3}]})
     assert "HL構造・ライン下" in html and "RS21 50・63 80" in html and "選定3日目" in html
     assert 'data-tkone="AAA"' in html  # tap opens the shared ticker detail overlay
+    assert "買い増し +10%" in html and "買い増し +20%" in html and "$12.00" in html  # second add level (falls back to close x1.20)
+    assert "最大6銘柄" in html
 
 
 def test_option_walls_render_and_failures_are_harmless():
