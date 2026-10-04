@@ -104,7 +104,39 @@ def atomic_write(path: Path, data: bytes) -> None:
     os.replace(temp, path)
 
 
-def restore_chain(snapshots: list[Path], output: Path) -> dict:
+def _sha256(path: Path) -> str:
+    import hashlib
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def resolve_external(applied: list[dict], output: Path, external_root: Path | None) -> list[dict]:
+    """External files (kept in Git, not in the delta) of the latest snapshot must be
+    present with the recorded hash; copy them from ``external_root`` when given.
+    Returns the files that are still missing or different."""
+    import shutil
+    latest = applied[-1].get("external_files") or [] if applied else []
+    unresolved = []
+    for row in latest:
+        rel, want = str(row.get("path") or ""), str(row.get("sha256") or "")
+        if not rel or not want:
+            unresolved.append({"path": rel, "reason": "no recorded hash"})
+            continue
+        target = output / rel
+        if not (target.is_file() and _sha256(target) == want) and external_root is not None:
+            source = external_root / rel
+            if source.is_file() and _sha256(source) == want:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+        if not (target.is_file() and _sha256(target) == want):
+            unresolved.append({"path": rel, "reason": "missing or hash mismatch"})
+    return unresolved
+
+
+def restore_chain(snapshots: list[Path], output: Path, external_root: Path | None = None) -> dict:
     if not snapshots:
         raise ValueError("at least one snapshot is required")
     if output.exists() and any(output.iterdir()):
@@ -145,7 +177,10 @@ def restore_chain(snapshots: list[Path], output: Path) -> dict:
             "snapshot_mode": mode,
             "external_files": manifest.get("external_files", []),
         })
-    result = {"status": "success", "output": str(output), "applied": applied}
+    unresolved = resolve_external(applied, output, external_root)
+    # A reconstruction is complete only when every external file matches its hash.
+    result = {"status": "success" if not unresolved else "incomplete_external",
+              "output": str(output), "applied": applied, "unresolved_external": unresolved}
     atomic_write(
         output / ".preservation/reconstruction-report.json",
         (json.dumps(result, indent=2, sort_keys=True) + "\n").encode(),
@@ -157,10 +192,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Restore one monthly full snapshot and its daily deltas")
     parser.add_argument("snapshots", nargs="+")
     parser.add_argument("--output", required=True)
+    parser.add_argument("--external-root", help="Git checkout of the snapshot's commit, for external files")
     args = parser.parse_args()
-    result = restore_chain([Path(value) for value in args.snapshots], Path(args.output))
+    result = restore_chain([Path(value) for value in args.snapshots], Path(args.output),
+                           Path(args.external_root) if args.external_root else None)
     print(json.dumps(result, sort_keys=True))
-    return 0
+    return 0 if result["status"] == "success" else 2
 
 
 if __name__ == "__main__":

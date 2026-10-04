@@ -98,9 +98,20 @@ def find_existing_content(token: str, folder_id: str, properties: dict) -> dict 
     return rows[0] if rows else None
 
 
+def hash_record_exists(root: Path, drive_file_id: str) -> bool:
+    for path in (root / "research-hashes").rglob("*.json"):
+        try:
+            if json.loads(path.read_text(encoding="utf-8")).get("drive_file_id") == drive_file_id:
+                return True
+        except (OSError, ValueError, AttributeError):
+            continue
+    return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Create a new private Google Drive snapshot file")
     parser.add_argument("snapshot")
+    parser.add_argument("--root", default=".")
     parser.add_argument("--folder-id", default=os.environ.get("GOOGLE_DRIVE_FOLDER_ID"))
     parser.add_argument("--client-id", default=os.environ.get("GOOGLE_DRIVE_CLIENT_ID"))
     parser.add_argument("--client-secret", default=os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET"))
@@ -124,7 +135,11 @@ def main() -> int:
     reused = created is not None
     if created is None:
         created = upload_create_only(token, args.folder_id, snapshot, properties=properties)
-    result = {"duplicate_content": str(reused).lower(), "drive_file_id": created["id"], "drive_file_name": created.get("name", snapshot.name),
+    # A reused archive whose hash record never reached Git (e.g. the earlier run
+    # stopped after the upload) must still get its index; report that explicitly.
+    index_missing = reused and not hash_record_exists(Path(args.root), created["id"])
+    result = {"duplicate_content": str(reused).lower(), "index_missing": str(index_missing).lower(),
+              "drive_file_id": created["id"], "drive_file_name": created.get("name", snapshot.name),
               "drive_created_time": created.get("createdTime", ""),
               "drive_md5_checksum": created.get("md5Checksum", ""),
               "drive_size": created.get("size", str(snapshot.stat().st_size))}

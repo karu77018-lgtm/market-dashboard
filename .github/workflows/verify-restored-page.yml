@@ -34,7 +34,10 @@ jobs:
                       text=body.decode('utf-8')
                       assert text.count('JEV_RANKING_NAV_START')==1
                       assert "id='t-jev'" in text
-                      assert 'data-source-improvement=' not in text
+                      # same contract as the current publication: rule cards present and consistent
+                      assert 'data-source-improvement="swing-screener"' in text
+                      import sys; sys.path.insert(0,'scripts'); from rules_tab import rule_problems
+                      assert not rule_problems(text), rule_problems(text)
                       assert 'Jev期待値' in text
                       break
               except Exception as exc:
