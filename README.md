@@ -59,7 +59,7 @@ MC57 reading details show the latest correction. The formula is unchanged.
 ## Verification
 
 `python -m pytest` runs deterministic provider, preservation and display tests.
-`node tests/market_history_ui.cjs` verifies all 12 tabs at desktop and 375/390/430px,
+`node tests/market_history_ui.cjs` verifies all 13 tabs at desktop and 375/390/430px,
 including whole-page overflow, mobile Jev scores, manual NQ labels, and history
 controls. Optional `CHROMIUM_EXECUTABLE_PATH` selects a local Chromium binary.
 
