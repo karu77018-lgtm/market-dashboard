@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run bounded, point-in-time Jev shadow evaluations for current MC57 names.
+"""Run bounded, point-in-time Jev shadow evaluations for the new-rule swing candidates.
 
 The script deliberately keeps vendor text out of Git and Actions artifacts. It
 fetches Massive news in paginated time-window batches, fans matching articles
@@ -79,21 +79,48 @@ def embedded_json(html: str, variable: str) -> Any:
     return value
 
 
+SWING_CARD_ID = "mc57-swing-screener"
+# New-rule candidates, in priority order.  Only these three sections of the
+# Positions "スイング候補" card are evaluated as primary Jev targets; the
+# archived Core 12 table and its bench are no longer used.
+SWING_SECTIONS = ("本命", "まだ入れる", "次の候補")
+_SWING_SECTION = re.compile(
+    r'<div class="sw-sec[^"]*"><span>([^<]+)<small>.*?</span>'
+    r'(?:<button class="cp" data-tk="([^"]*)")?', re.S)
+
+
+def swing_candidates(html: str) -> list[tuple[str, str]]:
+    """(ticker, section) from the swing card, in section and display order."""
+    start = html.find(f'id="{SWING_CARD_ID}"')
+    if start < 0:
+        return []
+    end = html.find("</section>", start)
+    card = html[start:end if end > 0 else len(html)]
+    found: list[tuple[str, str]] = []
+    for match in _SWING_SECTION.finditer(card):
+        title = match.group(1).strip()
+        if title not in SWING_SECTIONS or not match.group(2):
+            continue
+        for ticker in match.group(2).split(","):
+            found.append((ticker.strip().upper(), title))
+    order = {name: i for i, name in enumerate(SWING_SECTIONS)}
+    return sorted(found, key=lambda item: order[item[1]])
+
+
 def load_dashboard(path: Path, limit: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     html = path.read_text(encoding="utf-8")
-    calc = embedded_json(html, "CALC")
+    try:
+        calc = embedded_json(html, "CALC")
+    except ShadowRunError:
+        calc = {}
     details = embedded_json(html, "DET")
-    if not isinstance(calc, dict) or not isinstance(calc.get("names"), list):
-        raise ShadowRunError("window.CALC.names is missing")
+    if not isinstance(calc, dict):
+        calc = {}
     if not isinstance(details, dict):
         details = {}
 
     candidates: list[dict[str, Any]] = []
     by_ticker: dict[str, dict[str, Any]] = {}
-    calc_by_ticker = {
-        str(row.get("t") or "").strip().upper(): row
-        for row in calc["names"] if isinstance(row, dict)
-    }
 
     def add(ticker: str, source: str) -> None:
         ticker = ticker.strip().upper()
@@ -107,7 +134,7 @@ def load_dashboard(path: Path, limit: int) -> tuple[list[dict[str, Any]], dict[s
         if len(candidates) >= limit:
             return
         detail = details.get(ticker) if isinstance(details.get(ticker), dict) else {}
-        row = calc_by_ticker.get(ticker) or {
+        row = {
             "t": ticker,
             "rk": None,
             "rs": detail.get("rs189"),
@@ -118,30 +145,23 @@ def load_dashboard(path: Path, limit: int) -> tuple[list[dict[str, Any]], dict[s
         candidates.append(candidate)
         by_ticker[ticker] = candidate
 
-    ordered = sorted(
-        (row for row in calc["names"] if isinstance(row, dict)),
-        key=lambda row: (int(row.get("rk") or 10_000), str(row.get("t") or "")),
-    )
-    for row in ordered:
-        ticker = str(row.get("t") or "").strip().upper()
-        add(ticker, "Core 12")
+    # Primary targets: the new swing rule's 本命 / まだ入れる / 次の候補.
+    for ticker, section in swing_candidates(html):
+        add(ticker, section)
 
-    # Expand beyond Core 12 to dashboard names explicitly surfaced to the user.
-    named: list[tuple[int, int, str, str]] = []
+    # Remaining capacity: other dashboard names explicitly surfaced to the user
+    # (Core 12 and its bench are archived and intentionally excluded).
+    named: list[tuple[int, str, str]] = []
     for ticker, detail in details.items():
         if not isinstance(detail, dict):
             continue
         for label in detail.get("loc") or []:
             label = str(label)
-            if label.startswith("Core 12 #"):
-                named.append((0, int(label.rsplit("#", 1)[1]), ticker, "Core 12"))
-            elif label.startswith("控え #"):
-                named.append((1, int(label.rsplit("#", 1)[1]), ticker, "控え"))
-            elif label == "ピックアップ":
-                named.append((2, 0, ticker, "ピックアップ"))
+            if label == "ピックアップ":
+                named.append((0, ticker, "ピックアップ"))
             elif label == "新高値圏":
-                named.append((3, 0, ticker, "新高値圏"))
-    for _, __, ticker, source in sorted(named, key=lambda x: (x[0], x[1], x[2])):
+                named.append((1, ticker, "新高値圏"))
+    for _, ticker, source in sorted(named):
         add(ticker, source)
 
     # Add leaders from each independent RS horizon.  Ten per period keeps the

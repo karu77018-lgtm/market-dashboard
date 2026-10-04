@@ -25,45 +25,62 @@ from run_jev_live_shadow import (  # noqa: E402
 )
 
 
-def test_embedded_json_and_dashboard_candidate_order(tmp_path: Path):
+def _swing_card(sections: list[tuple[str, str]]) -> str:
+    body = "".join(
+        f'<div class="sw-sec"><span>{title}<small>note</small></span>'
+        + (f'<button class="cp" data-tk="{tks}" onclick="copyTk(event,this)">コピー <span class="n">1</span></button>' if tks else "")
+        + '</div><div class="sw-t">tile</div>'
+        for title, tks in sections)
+    return f'<section id="t-alloc"><div class="card" id="mc57-swing-screener">{body}</div></section>'
+
+
+def test_embedded_json_and_swing_candidate_order(tmp_path: Path):
     html = (
-        '<script>window.DET={"BBB":{"sec":"Tech"},"AAA":{"sec":"Health"}};</script>'
-        '<script>window.CALC={"color":"Blue","names":['
-        '{"t":"BBB","rk":2,"rs":98},{"t":"AAA","rk":1,"rs":99},'
-        '{"t":"AAA","rk":3}]};</script>'
+        '<script>window.DET={"BBB":{"sec":"Tech"},"AAA":{"sec":"Health"},"CCC":{}};</script>'
+        '<script>window.CALC={"color":"Blue","names":[{"t":"ZZZ","rk":1,"rs":99}]};</script>'
+        + _swing_card([("本命", "BBB"), ("まだ入れる", ""), ("次の候補", "AAA,CCC"),
+                       ("テーマ枠", "THEME")])
     )
     path = tmp_path / "dashboard.html"
     path.write_text(html, encoding="utf-8")
 
     assert embedded_json(html, "CALC")["color"] == "Blue"
     candidates, calc = load_dashboard(path, 12)
-    assert [row["ticker"] for row in candidates] == ["AAA", "BBB"]
-    assert candidates[0]["detail"]["sec"] == "Health"
+    tickers = [row["ticker"] for row in candidates]
+    assert tickers[:3] == ["BBB", "AAA", "CCC"]
+    assert "ZZZ" not in tickers and "THEME" not in tickers  # archived Core 12 / theme slot excluded
+    assert candidates[0]["sources"] == ["本命"]
+    assert candidates[1]["sources"] == ["次の候補"]
+    assert candidates[1]["detail"]["sec"] == "Health"
     assert calc["color"] == "Blue"
 
 
-def test_dashboard_candidates_include_named_and_each_rs_horizon(tmp_path: Path):
+def test_dashboard_candidates_exclude_core12_and_include_each_rs_horizon(tmp_path: Path):
     details = {
-        "CORE": {"loc": ["Core 12 #1"], "rs21": 50, "rs": 50, "rs189": 50},
+        "CORE": {"loc": ["Core 12 #1"], "rs21": 10, "rs": 10, "rs189": 10},
+        "BENCH": {"loc": ["控え #31"], "rs21": 10, "rs": 10, "rs189": 10},
         "PICK": {"loc": ["ピックアップ"], "rs21": 40, "rs": 40, "rs189": 40},
+        "SWING": {"loc": [], "rs21": 50, "rs": 50, "rs189": 50},
         "SHORT": {"loc": [], "rs21": 99, "rs": 20, "rs189": 20},
         "MID": {"loc": [], "rs21": 20, "rs": 99, "rs189": 20},
         "LONG": {"loc": [], "rs21": 20, "rs": 20, "rs189": 99},
     }
     html = (
         f'<script>window.DET={json.dumps(details)};</script>'
-        '<script>window.CALC={"names":[{"t":"CORE","rk":1,"rs":50}]};</script>'
+        + _swing_card([("本命", ""), ("まだ入れる", "SWING"), ("次の候補", "")])
     )
     path = tmp_path / "dashboard.html"
     path.write_text(html, encoding="utf-8")
 
+    candidates, _ = load_dashboard(path, 4)
+    assert [row["ticker"] for row in candidates] == ["SWING", "PICK", "SHORT", "LONG"]
     candidates, _ = load_dashboard(path, 60)
     by_ticker = {row["ticker"]: row for row in candidates}
-    assert list(by_ticker)[:2] == ["CORE", "PICK"]
     assert "RS21上位" in by_ticker["SHORT"]["sources"]
     assert "RS63上位" in by_ticker["MID"]["sources"]
     assert "RS189上位" in by_ticker["LONG"]["sources"]
-    assert by_ticker["CORE"]["sources"] == ["Core 12", "RS21上位", "RS63上位", "RS189上位"]
+    assert by_ticker["SWING"]["sources"][0] == "まだ入れる"
+    assert all("Core 12" not in row["sources"] and "控え" not in row["sources"] for row in candidates)
 
 
 def test_fetch_news_bulk_uses_page_calls_not_ticker_calls():
@@ -309,7 +326,8 @@ def test_missing_required_configuration_is_a_failed_shadow_run(
     )
     (tmp_path / "source-mc57.html").write_text(
         '<script>window.DET={"AAA":{"sec":"Tech"}};</script>'
-        '<script>window.CALC={"names":[{"t":"AAA","rk":1,"rs":99}]};</script>',
+        '<script>window.CALC={"names":[{"t":"AAA","rk":1,"rs":99}]};</script>'
+        + _swing_card([("本命", "AAA")]),
         encoding="utf-8",
     )
     monkeypatch.delenv("MASSIVE_API_KEY", raising=False)

@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/publish-display-fixes.yml', 'scripts/dashboard_fixes.py', 'scripts/render_jev_ranking.py', 'assets/jev-ranking.js']
+    paths: ['.github/workflows/publish-display-fixes.yml', 'scripts/dashboard_fixes.py', 'scripts/archive_tab.py', 'scripts/rotation_split.py', 'scripts/render_jev_ranking.py', 'assets/jev-ranking.js']
 permissions:
   contents: write
 concurrency:
@@ -26,6 +26,8 @@ jobs:
       - name: Apply display adapters using the already published data
         run: |
           python scripts/dashboard_fixes.py
+          python scripts/archive_tab.py --html source-mc57.html
+          python scripts/rotation_split.py --html source-mc57.html
           python scripts/render_jev_ranking.py
           python - <<'PY'
           import json, sys
