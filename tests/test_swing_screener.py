@@ -252,3 +252,25 @@ def test_regime_stops_new_entries_but_keeps_watchlist(tmp_path):
     ok = card_html({"session": "2026-01-02", "universe": 1, "selected": 2, "ep": [], "late": [],
                     "core": [{**base, "ticker": "BUY"}], "watch": [], "regime": {"on": True, "close": 110.0, "ma": 100.0}})
     assert "地合いOK" in ok and ok.index('data-tkone="BUY"') < ok.find('class="sw-fold"') if 'sw-fold' in ok else True
+
+
+def test_good_leader_rule_and_card_section():
+    from swing_screener import good_leader_ok
+    base = {"sar_up": True, "sar_age": 3, "inside": True, "pos": 0.6}
+    assert good_leader_ok(base)
+    assert not good_leader_ok({**base, "sar_age": 9})
+    assert not good_leader_ok({**base, "sar_age": None})
+    assert not good_leader_ok({**base, "sar_up": False})
+    assert not good_leader_ok({**base, "pos": 0.45}) and not good_leader_ok({**base, "pos": 0.8})
+    assert not good_leader_ok({**base, "inside": False})
+    row = {"ticker": "GLD1", "close": 50.0, "chg": 0.01, "rs189": 85, "rs21": 70, "rs63": 88, "dv": 60,
+           "vc": 0.8, "vdry": 0.8, "ext10": 0.0, "el21": 48.0, "stop": 46.0, "add": 55.0, "add2": 60.0, "be": 62.5,
+           "pivot_line": 52.0, "hl": 46.0, "inside": True, "pos": 0.66, "streak": None, "sar_up": True, "sar_age": 2,
+           "missing": []}
+    near = {**row, "ticker": "GLD2", "missing": ["出来高減"], "vdry": 0.95}
+    html = card_html({"session": "2026-01-02", "universe": 10, "selected": 0, "core": [], "watch": [], "ep": [], "late": [],
+                      "glead": [row], "glead_near": [near]})
+    assert "好位置リーダー（検討可）" in html and 'data-tkone="GLD1"' in html and 'data-tkone="GLD2"' in html
+    assert "あと1つ" in html and "週足SAR 2週目" in html and "監視リスト" in html and "買い増し +20%" in html
+    empty = card_html({"session": "2026-01-02", "universe": 10, "selected": 0, "core": [], "watch": [], "ep": [], "late": []})
+    assert "好位置リーダー（検討可）" in empty
