@@ -26,11 +26,26 @@ jobs:
         run: |
           npm install --no-save --package-lock=false playwright@1.58.2
           npx playwright install --with-deps chromium
+      - name: Restore the last refresh's saved inputs (no market re-acquisition)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            work/ohlcv.csv
+          key: source-mc57-ohlcv-display-${{ github.run_id }}
+          restore-keys: source-mc57-ohlcv-
+      - name: Restore the last refresh's market inputs
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            work/market-inputs-cache.json
+          key: source-mc57-fallback-display-${{ github.run_id }}
+          restore-keys: source-mc57-fallback-
       - name: Verify display adapters using published inputs
         run: |
           python scripts/dashboard_fixes.py
           python scripts/archive_tab.py --html source-mc57.html
           python scripts/rotation_split.py --html source-mc57.html
+          python scripts/rule_refresh.py
           python scripts/track_record.py
           python scripts/render_jev_ranking.py
       - name: Verify all tabs, mobile overflow and Jev freshness

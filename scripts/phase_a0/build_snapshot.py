@@ -23,9 +23,12 @@ DEFAULT_PATHS = (
     "data/state.json", "data/rs.json", "data/market_inputs.json", "data/mktcap.json",
     "data/theme_membership.json", "data/provider_inputs.json", "work/ohlcv.csv",
     "work/massive-reference.json", "work/massive-grouped.json",
+    "track-record/signals.json", "data/jev-ranking.json",
 )
 
 DELTA_EXTERNAL_PATHS = {"chart-data"}
+# Archived when present; their absence must not block publication.
+OPTIONAL_PATHS = {"track-record/signals.json", "data/jev-ranking.json"}
 
 
 def iso_utc(value: str | None = None) -> str:
@@ -38,6 +41,8 @@ def collect_files(root: Path, requested: list[str]) -> list[Path]:
     for raw in requested:
         path = root / raw
         if not path.exists():
+            if raw in OPTIONAL_PATHS:
+                continue
             raise FileNotFoundError(f"required snapshot path is missing: {raw}")
         files.update(item for item in path.rglob("*") if item.is_file()) if path.is_dir() else files.add(path)
     return sorted(files, key=lambda path: path.relative_to(root).as_posix())

@@ -474,7 +474,7 @@ def validate_output(output: Path, data_dir: Path, session: str) -> None:
     if expected not in text:
         raise CloneBuildError(f"rendered market-condition value is not current MC57 ({current:.4f})")
     import re
-    if re.search(r"\\bvar\\s+MAJ\\s*=\\s*\\[\\s*\\]\\s*;", text):
+    if re.search(r"\bvar\s+MAJ\s*=\s*\[\s*\]\s*;", text):
         raise CloneBuildError("sector-rotation Publish card has empty major-sector data (MAJ=[])")
 
 

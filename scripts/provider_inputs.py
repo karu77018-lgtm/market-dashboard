@@ -115,8 +115,17 @@ def record_grouped_fallback(cache_path: str | Path, session_date: str, reason: s
     _write_json(path, payload)
 
 
-def _url_with_key(url: str, api_key: str) -> str:
+TRUSTED_MASSIVE_HOSTS = frozenset({"api.massive.com", "api.polygon.io"})
+
+
+def _url_with_key(url: str, api_key: str, *, path_prefix: str | None = None) -> str:
+    """Attach the key only to an https URL on a trusted Massive host (and path)."""
     parts = urlsplit(url)
+    if parts.scheme != "https" or parts.hostname not in TRUSTED_MASSIVE_HOSTS or parts.username or parts.password \
+            or (parts.port not in (None, 443)):
+        raise ProviderError(f"refusing to send the Massive key to {parts.scheme}://{parts.hostname}")
+    if path_prefix and not parts.path.startswith(path_prefix):
+        raise ProviderError(f"unexpected Massive pagination path {parts.path!r}")
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
     query["apiKey"] = api_key
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
@@ -221,7 +230,7 @@ def fetch_massive_reference(
                     "cik": item.get("cik"), "composite_figi": item.get("composite_figi"),
                 })
         next_url = payload.get("next_url")
-        url = _url_with_key(str(next_url), api_key) if next_url else ""
+        url = _url_with_key(str(next_url), api_key, path_prefix="/v3/reference/tickers") if next_url else ""
         params = None
         if pages > 50:
             raise ProviderError("Massive reference pagination exceeded 50 pages")

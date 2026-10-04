@@ -12,6 +12,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from swing_screener import CARD_ID, apply, card_html, evaluate  # noqa: E402
 
 
+
+# Known, open market regime (unknown regime now stops new entries).
+ON = {"on": True, "close": 110.0, "ma": 100.0, "date": "2026-01-02"}
+
 def _frame(n_days: int = 320) -> pd.DataFrame:
     dates = pd.bdate_range("2025-01-01", periods=n_days)
     rng = np.random.default_rng(1)
@@ -53,7 +57,7 @@ def test_short_history_and_empty_result_render_gracefully():
     short = _frame(120)
     result = evaluate(short)
     assert result["core"] == [] and result["reason"] == "history_short"
-    html = card_html({"session": "2026-01-02", "core": [], "watch": [], "ep": [], "universe": 0})
+    html = card_html({"regime": ON, "session": "2026-01-02", "core": [], "watch": [], "ep": [], "universe": 0})
     assert "週足SARの鮮度と形がそろうのを待つ" in html
 
 
@@ -96,7 +100,7 @@ def test_structure_pivot_detects_ll_to_hl_and_invalidates_on_break():
 
 
 def test_inside_structure_is_listed_first():
-    html = card_html({"session": "2026-01-02", "universe": 1, "selected": 2, "watch": [], "ep": [], "late": [],
+    html = card_html({"regime": ON, "session": "2026-01-02", "universe": 1, "selected": 2, "watch": [], "ep": [], "late": [],
                       "core": [{"ticker": "AAA", "close": 10.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80,
                                 "dv": 99, "vc": 0.8, "vdry": 0.8, "ext10": 0.0, "el21": 9.5, "stop": 9.2,
                                 "add": 11.0, "be": 12.5, "pivot_line": 10.5, "hl": 9.6, "inside": True, "pos": 0.6, "streak": 3,
@@ -129,7 +133,7 @@ def test_option_walls_render_and_failures_are_harmless():
     row = {"ticker": "AAA", "close": 60.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80, "dv": 99, "vc": 0.8,
            "vdry": 0.8, "ext10": 0.0, "el21": 57.0, "stop": 55.2, "add": 66.0, "be": 75.0, "pivot_line": 64.0,
            "hl": 52.0, "inside": True, "pos": 0.67, "streak": 3, "opt": opt, "sar_up": True, "sar_age": 2}
-    html = card_html({"session": "2026-01-02", "universe": 1, "selected": 1, "watch": [], "ep": [], "late": [],
+    html = card_html({"regime": ON, "session": "2026-01-02", "universe": 1, "selected": 1, "watch": [], "ep": [], "late": [],
                       "core": [row]})
     assert "OP 上値の壁</i><b>$66 <em>+10.0%</em>" in html and "<b>$58.50 <em>" in html
 
@@ -148,7 +152,7 @@ def test_sections_split_best_waiting_and_good_watch():
            "sar_up": False, "sar_age": None}
     gw = {**base, "ticker": "GW", "pivot_line": 110.0, "hl": 80.0, "inside": True, "pos": 2 / 3,
           "missing": ["収縮"], "vc": 0.93, "sar_up": True, "sar_age": 4}
-    html = card_html({"session": "2026-01-02", "universe": 1, "selected": 3, "ep": [], "late": [],
+    html = card_html({"regime": ON, "session": "2026-01-02", "universe": 1, "selected": 3, "ep": [], "late": [],
                       "core": [far, best], "watch": [gw]})
     i_best, i_gw, i_far = (html.index(f'data-tkone="{t}"') for t in ("BEST", "GW", "FAR"))
     assert i_best < i_gw < i_far
@@ -162,7 +166,7 @@ def test_good_position_badge_and_structure_export(tmp_path):
     base = {"ticker": "AAA", "close": 10.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80, "dv": 99,
             "vc": 0.8, "vdry": 0.8, "ext10": 0.0, "el21": 9.5, "stop": 9.2, "add": 11.0, "be": 12.5,
             "pivot_line": 11.0, "hl": 8.0, "inside": True, "streak": 3, "sar_up": True, "sar_age": 3}
-    page = lambda pos: card_html({"session": "2026-01-02", "universe": 1, "selected": 1, "watch": [], "ep": [],
+    page = lambda pos: card_html({"regime": ON, "session": "2026-01-02", "universe": 1, "selected": 1, "watch": [], "ep": [],
                                   "late": [], "core": [{**base, "pos": pos}]})
     assert '<span class="sw-c good">好位置</span>' in page(0.6) and "位置 60%" in page(0.6)
     assert '<span class="sw-c good">好位置</span>' not in page(0.9)
@@ -212,7 +216,7 @@ def test_low_priority_late_entries_move_to_fold():
             "pivot_line": 110.0, "hl": 80.0, "inside": True, "pos": 0.9}
     ok = {**base, "ticker": "LATEA", "sar_up": True, "sar_age": 3}
     bear = {**base, "ticker": "LATED", "sar_up": False, "sar_age": None}
-    html = card_html({"session": "2026-01-02", "universe": 1, "selected": 2, "ep": [], "core": [], "watch": [],
+    html = card_html({"regime": ON, "session": "2026-01-02", "universe": 1, "selected": 2, "ep": [], "core": [], "watch": [],
                       "late": [ok, bear]})
     fold = html.index('class="sw-fold"')
     assert html.index('data-tkone="LATEA"') < fold < html.index('data-tkone="LATED"')
@@ -231,7 +235,7 @@ def test_buy_set_is_sar_bull_outside_hl_side():
 def test_regime_stops_new_entries_but_keeps_watchlist(tmp_path):
     import json
     from swing_screener import regime_from_market
-    rows = [{"date": f"d{i}", "close": 100.0 + i * 0.1} for i in range(220)]
+    rows = [{"date": f"d{i:03d}", "close": 100.0 + i * 0.1} for i in range(220)]
     f = tmp_path / "m.json"
     f.write_text(json.dumps({"series": {"QQQ": rows}}))
     assert regime_from_market(f)["on"] is True
@@ -240,16 +244,28 @@ def test_regime_stops_new_entries_but_keeps_watchlist(tmp_path):
     reg = regime_from_market(f)
     assert reg["on"] is False
     assert regime_from_market(tmp_path / "missing.json") is None
+    assert regime_from_market(f, "d219")["on"] is False          # dated session matches
+    assert regime_from_market(f, "d220") is None                 # stale QQQ is not today
+    rows.append({"date": "d220", "close": None})                 # today's close missing
+    f.write_text(json.dumps({"series": {"QQQ": rows}}))
+    assert regime_from_market(f, "d220") is None
+    unknown = card_html({"session": "2026-01-02", "universe": 1, "selected": 1, "ep": [], "late": [], "watch": [],
+                         "core": [{**{"close": 100.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80, "dv": 99,
+                                      "vc": 0.8, "vdry": 0.8, "ext10": 0.0, "el21": 95.0, "stop": 92.0, "add": 110.0,
+                                      "be": 125.0, "streak": 3, "pivot_line": 110.0, "hl": 80.0, "inside": True,
+                                      "pos": 0.9, "sar_up": True, "sar_age": 3}, "ticker": "BUY"}], "regime": None})
+    assert "地合い：判定不可" in unknown and 'data-regime="unknown"' in unknown
+    assert unknown.index('data-tkone="BUY"') > unknown.index('class="sw-fold"')   # no 本命 when unknown
     base = {"close": 100.0, "chg": 0.0, "rs189": 99, "rs21": 50, "rs63": 80, "dv": 99, "vc": 0.8, "vdry": 0.8,
             "ext10": 0.0, "el21": 95.0, "stop": 92.0, "add": 110.0, "be": 125.0, "streak": 3,
             "pivot_line": 110.0, "hl": 80.0, "inside": True, "pos": 0.9, "sar_up": True, "sar_age": 3}
     watch = {**base, "ticker": "NEXT", "missing": ["収縮"], "vc": 0.93}
-    html = card_html({"session": "2026-01-02", "universe": 1, "selected": 2, "ep": [], "late": [],
+    html = card_html({"regime": ON, "session": "2026-01-02", "universe": 1, "selected": 2, "ep": [], "late": [],
                       "core": [{**base, "ticker": "BUY"}], "watch": [watch], "regime": reg})
     assert "地合い：新規停止" in html
     assert html.index('data-tkone="BUY"') > html.index('class="sw-fold"')   # moved out of 本命
     assert 'data-tkone="NEXT"' in html                                       # watchlist still shown
-    ok = card_html({"session": "2026-01-02", "universe": 1, "selected": 2, "ep": [], "late": [],
+    ok = card_html({"regime": ON, "session": "2026-01-02", "universe": 1, "selected": 2, "ep": [], "late": [],
                     "core": [{**base, "ticker": "BUY"}], "watch": [], "regime": {"on": True, "close": 110.0, "ma": 100.0}})
     assert "地合いOK" in ok and ok.index('data-tkone="BUY"') < ok.find('class="sw-fold"') if 'sw-fold' in ok else True
 
@@ -268,9 +284,9 @@ def test_good_leader_rule_and_card_section():
            "pivot_line": 52.0, "hl": 46.0, "inside": True, "pos": 0.66, "streak": None, "sar_up": True, "sar_age": 2,
            "missing": []}
     near = {**row, "ticker": "GLD2", "missing": ["出来高減"], "vdry": 0.95}
-    html = card_html({"session": "2026-01-02", "universe": 10, "selected": 0, "core": [], "watch": [], "ep": [], "late": [],
+    html = card_html({"regime": ON, "session": "2026-01-02", "universe": 10, "selected": 0, "core": [], "watch": [], "ep": [], "late": [],
                       "glead": [row], "glead_near": [near]})
     assert "好位置リーダー（検討可）" in html and 'data-tkone="GLD1"' in html and 'data-tkone="GLD2"' in html
     assert "あと1つ" in html and "週足SAR 2週目" in html and "監視リスト" in html and "買い増し +20%" in html
-    empty = card_html({"session": "2026-01-02", "universe": 10, "selected": 0, "core": [], "watch": [], "ep": [], "late": []})
+    empty = card_html({"regime": ON, "session": "2026-01-02", "universe": 10, "selected": 0, "core": [], "watch": [], "ep": [], "late": []})
     assert "好位置リーダー（検討可）" in empty

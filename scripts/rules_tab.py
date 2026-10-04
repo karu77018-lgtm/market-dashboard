@@ -9,6 +9,31 @@ from __future__ import annotations
 import re
 from typing import Any
 
+# Single source of the adopted rule version.  Every rule-dependent card carries
+# it as data-rule so publication can refuse a page that mixes versions.
+RULE_ID = "swing-v2-max6"
+RULE_CARDS = ("rules-card", "mc57-swing-screener", "mc57-breakout-health", "mc57-pickup-watch", "track-record-card")
+_RULE_ATTR = re.compile(r'<div[^>]*\bid="([^"]+)"[^>]*\bdata-rule="([^"]*)"|<div[^>]*\bdata-rule="([^"]*)"[^>]*\bid="([^"]+)"')
+
+
+def rule_versions(text: str) -> dict[str, str]:
+    """{card id: data-rule} for the rule-dependent cards present in the page."""
+    out: dict[str, str] = {}
+    for m in _RULE_ATTR.finditer(text):
+        cid, rule = (m.group(1), m.group(2)) if m.group(1) else (m.group(4), m.group(3))
+        if cid in RULE_CARDS:
+            out[cid] = rule
+    return out
+
+
+def rule_problems(text: str, required: tuple[str, ...] = ("rules-card", "mc57-swing-screener")) -> list[str]:
+    found = rule_versions(text)
+    problems = [f"{cid}: missing" for cid in required if cid not in found]
+    for cid in RULE_CARDS:
+        if f'id="{cid}"' in text and found.get(cid) != RULE_ID:
+            problems.append(f"{cid}: rule {found.get(cid)!r} != {RULE_ID!r}")
+    return problems
+
 STYLE = ('<style>#t-rules .rtb{width:100%;border-collapse:collapse;font-size:12px;margin:4px 0 6px}'
          '#t-rules .rtb th,#t-rules .rtb td{border-bottom:1px solid #e0ddd5;padding:5px 6px;text-align:left;'
          'vertical-align:top;line-height:1.5;white-space:normal;word-break:break-word;overflow-wrap:anywhere}'
@@ -72,7 +97,8 @@ def _health_line(health: dict[str, Any] | None, regime: dict[str, Any] | None) -
 
 def _regime_line(regime: dict[str, Any] | None) -> str:
     if not regime or regime.get("on") is None:
-        return ""
+        return ('<div class="rreg off">今日の地合い：判定不可 <span>QQQの終値が取れないか日付が一致しないため、'
+                '新規は停止扱い</span></div>')
     on = bool(regime["on"])
     detail = ""
     if regime.get("close") and regime.get("ma"):
@@ -126,7 +152,7 @@ def rules_html(regime: dict[str, Any] | None = None, health: dict[str, Any] | No
     ]
     li = lambda items: '<ul class="rules">' + "".join(f"<li>{x}</li>" for x in items) + "</ul>"
     return (
-        '<div class="card"><h2>スイングルール（新ルール） <span class="h2en">Swing Rules</span></h2>'
+        f'<div class="card" id="rules-card" data-rule="{RULE_ID}"><h2>スイングルール（新ルール） <span class="h2en">Swing Rules</span></h2>'
         '<div class="sub" style="color:#467ed6">売買代金トップの中から一番強い銘柄を、形がそろった日の終値で買う。'
         '最大6銘柄に絞り、損は−8%で切り、勝ちは+10%・+20%で買い増して安値21EMAを割るまで伸ばす。毎日の候補はPositionsタブ「スイング候補」。</div>'
         + _regime_line(regime) + _health_line(health, regime)

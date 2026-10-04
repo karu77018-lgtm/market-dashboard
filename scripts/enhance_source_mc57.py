@@ -236,7 +236,7 @@ def main() -> int:
     from swing_screener import apply as apply_swing_screener
     from options_walls import fetch_walls
     from swing_screener import regime_from_market
-    regime = regime_from_market(html_path.resolve().parent / "data" / "market_inputs.json")
+    regime = regime_from_market(html_path.resolve().parent / "data" / "market_inputs.json", args.session)
     import breakout_health
     try:
         health = breakout_health.compute(frame)
