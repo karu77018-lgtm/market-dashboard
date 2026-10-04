@@ -20,9 +20,11 @@ import os
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time as dtime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -33,6 +35,32 @@ from run_jev_live_shadow import (DEFAULT_JEV_URL, MASSIVE_NEWS_URL, POSITIVE_QUE
 LOOKBACK_DAYS = 30
 HISTORY_DAYS = 120
 MAX_DOCS = 8
+MAX_NEWS_PAGES = 10
+CUTOFF_RULE = "nyse-close-v2"  # actual NYSE close in New York time (13:00 on early-close days)
+NEW_YORK = ZoneInfo("America/New_York")
+
+
+def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
+    d = date(year, month, 1)
+    d += timedelta(days=(weekday - d.weekday()) % 7)
+    return d + timedelta(weeks=n - 1)
+
+
+def early_close(day: date) -> bool:
+    """NYSE 13:00 closes: July 3 (when July 4 falls Tue-Fri), day after Thanksgiving,
+    Christmas Eve on a weekday (Mon-Thu)."""
+    if day.month == 7 and day.day == 3 and day.weekday() < 5 and date(day.year, 7, 4).weekday() in (1, 2, 3, 4):
+        return True
+    if day == _nth_weekday(day.year, 11, 3, 4) + timedelta(days=1):
+        return True
+    return day.month == 12 and day.day == 24 and day.weekday() < 4
+
+
+def session_close_utc(session_date: str) -> datetime:
+    """The session's actual NYSE close as an aware UTC datetime (DST and early closes)."""
+    day = date.fromisoformat(session_date)
+    close = dtime(13, 0) if early_close(day) else dtime(16, 0)
+    return datetime.combine(day, close, tzinfo=NEW_YORK).astimezone(timezone.utc)
 KEYWORDS = {
     "guidance_up": r"(rais|boost|lift|hik|increas)\w* (its |full[- ]year |fy\d* |annual |\d{4} )?(guidance|outlook|forecast)|guidance (raise|hike)|above[- ]consensus guidance",
     "beat": r"\bbeats?\b|tops? (estimates|expectations|forecasts)|better[- ]than[- ]expected|record (revenue|quarter|sales|results)",
@@ -69,13 +97,29 @@ def mask_text(text: str, ticker: str, names: list[str]) -> str:
     return t
 
 
-def fetch_history(client, *, ticker: str, api_key: str, cutoff: datetime, timeout: int) -> list[dict[str, Any]]:
+def fetch_history(client, *, ticker: str, api_key: str, cutoff: datetime, timeout: int,
+                  max_pages: int = MAX_NEWS_PAGES) -> tuple[list[dict[str, Any]], bool]:
+    """All news in the window (following next_url), and whether it was truncated."""
     start = cutoff - timedelta(days=HISTORY_DAYS)
-    payload = request_json(client, MASSIVE_NEWS_URL, params={
+    params: dict[str, Any] | None = {
         "ticker": ticker, "published_utc.gte": utc_iso(start), "published_utc.lte": utc_iso(cutoff),
-        "sort": "published_utc", "order": "desc", "limit": 1000, "apiKey": api_key}, timeout=timeout)
+        "sort": "published_utc", "order": "desc", "limit": 1000, "apiKey": api_key}
+    url, raw, truncated = MASSIVE_NEWS_URL, [], False
+    for page in range(max_pages):
+        payload = request_json(client, url, params=params, timeout=timeout)
+        raw.extend(payload.get("results") or [])
+        next_url = payload.get("next_url")
+        if not next_url:
+            break
+        parsed = urlparse(str(next_url))
+        if parsed.scheme != "https" or parsed.netloc != "api.massive.com" or not parsed.path.startswith("/v2/reference/news"):
+            raise ShadowRunError("Massive news pagination returned an unexpected URL")
+        if page + 1 >= max_pages:
+            truncated = True
+            break
+        url, params = str(next_url), {"apiKey": api_key}
     docs, seen = [], set()
-    for row in payload.get("results") or []:
+    for row in raw:
         if not isinstance(row, dict):
             continue
         try:
@@ -94,14 +138,16 @@ def fetch_history(client, *, ticker: str, api_key: str, cutoff: datetime, timeou
                      "publisher": str(pub.get("name") or "")[:200],
                      "n_tickers": len(row.get("tickers") or [])})
     docs.sort(key=lambda d: d["published"], reverse=True)
-    return docs
+    return docs, truncated
 
 
-def news_features(docs: list[dict[str, Any]], cutoff: datetime) -> dict[str, Any]:
+def news_features(docs: list[dict[str, Any]], cutoff: datetime, truncated: bool = False) -> dict[str, Any]:
     recent = [d for d in docs if d["published"] >= cutoff - timedelta(days=LOOKBACK_DAYS)]
     prior = [d for d in docs if d["published"] < cutoff - timedelta(days=LOOKBACK_DAYS)]
     feats: dict[str, Any] = {"n30": len(recent), "n_prior90": len(prior),
-                             "surge": round(len(recent) / (len(prior) / 3 + 1), 4),
+                             # an incomplete older window would inflate the surge: never guess it
+                             "surge": None if truncated else round(len(recent) / (len(prior) / 3 + 1), 4),
+                             "truncated": truncated,
                              "publishers30": len({d["publisher"] for d in recent}),
                              "solo30": sum(d["n_tickers"] <= 2 for d in recent)}
     for k, pat in KEYWORDS.items():
@@ -196,25 +242,29 @@ def main() -> int:
             results[ev_id][variant] = {"error": str(exc) if isinstance(exc, ShadowRunError) else type(exc).__name__}
 
     def flush():
-        out_path.write_text(json.dumps({"schema_version": "jev-backfill-results-v1", "question_set_version": QUESTION_SET_VERSION,
+        out_path.write_text(json.dumps({"schema_version": "jev-backfill-results-v2", "cutoff_rule": CUTOFF_RULE,
+                                        "question_set_version": QUESTION_SET_VERSION,
                                         "events_file": args.events, "results": results}, ensure_ascii=False, indent=1,
                                        allow_nan=False, default=str), encoding="utf-8")
 
     for n, ev in enumerate(events):
-        cutoff = parse_timestamp(ev["asof"], field="asof")
+        # Point-in-time boundary = the session's real NYSE close (the stored asof used a
+        # fixed 21:00Z, one hour late in daylight time and wrong on early closes).
+        cutoff = min(parse_timestamp(ev["asof"], field="asof"), session_close_utc(ev["session_date"]))
         if last is not None:
             wait = args.massive_min_interval - (time.monotonic() - last)
             if wait > 0:
                 time.sleep(wait)
         last = time.monotonic()
-        rec: dict[str, Any] = {"ticker": ev["ticker"], "asof": ev["asof"]}
+        rec: dict[str, Any] = {"ticker": ev["ticker"], "asof": utc_iso(cutoff), "asof_stored": ev["asof"],
+                               "cutoff_rule": CUTOFF_RULE}
         results[ev["event_id"]] = rec
         try:
-            docs = fetch_history(news_client, ticker=ev["ticker"], api_key=massive_key, cutoff=cutoff, timeout=45)
+            docs, truncated = fetch_history(news_client, ticker=ev["ticker"], api_key=massive_key, cutoff=cutoff, timeout=45)
         except Exception as exc:
             rec["news_error"] = str(exc) if isinstance(exc, ShadowRunError) else type(exc).__name__
             continue
-        rec.update(news_features(docs, cutoff))
+        rec.update(news_features(docs, cutoff, truncated))
         if rec["n30"] == 0:
             continue
         for variant in variants:
@@ -228,8 +278,13 @@ def main() -> int:
     flush()
     ok = sum(1 for r in results.values() for v in variants if isinstance(r.get(v), dict) and "error" not in r[v])
     err = sum(1 for r in results.values() for v in variants if isinstance(r.get(v), dict) and "error" in r[v])
-    print(f"Jev backfill complete: events={len(results)} jev_ok={ok} jev_errors={err}")
-    return 0
+    news_err = sum(1 for r in results.values() if "news_error" in r)
+    truncated = sum(1 for r in results.values() if r.get("truncated"))
+    missing = sum(1 for r in results.values() if r.get("n30") and any(v not in r for v in variants))
+    print(f"Jev backfill complete: events={len(results)} jev_ok={ok} jev_errors={err} "
+          f"news_errors={news_err} truncated_windows={truncated} unfinished={missing} cutoff_rule={CUTOFF_RULE}")
+    # Any failure or unfinished evaluation makes the run unsuccessful (never a green "complete").
+    return 1 if (err or news_err or missing) else 0
 
 
 if __name__ == "__main__":

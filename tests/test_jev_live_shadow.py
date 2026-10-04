@@ -374,3 +374,27 @@ def test_wall_near_names_follow_swing_candidates(tmp_path: Path):
     candidates, _ = load_dashboard(path, 3)
     assert [(c["ticker"], c["sources"][0]) for c in candidates] == [
         ("FAR", "本命"), ("NEAR21", "壁近接"), ("NEARDV", "壁近接")]
+
+
+def test_unrecoverable_duplicate_is_an_error_and_keeps_same_session_ranking(tmp_path: Path, monkeypatch):
+    import run_jev_live_shadow as rj
+    (tmp_path / "latest-manifest.json").write_text(
+        json.dumps({"session_date": "2026-10-02", "generated_at": "2026-10-02T22:00:00Z"}), encoding="utf-8")
+    (tmp_path / "source-mc57.html").write_text(
+        '<script>window.DET={"AAA":{"sec":"Tech"}};</script>' + _swing_card([("本命", "AAA")]), encoding="utf-8")
+    ranking = tmp_path / "data" / "jev-ranking.json"
+    ranking.parent.mkdir(parents=True)
+    prior = {"session_date": "2026-10-02", "rows": [{"ticker": "OLD", "state_sha256": "zz", "expected_value_score": 1}]}
+    ranking.write_text(json.dumps(prior), encoding="utf-8")
+    doc = {"title": "t", "description": "d", "published_utc": "2026-10-02T12:00:00Z", "publisher": "p", "url": "u"}
+    monkeypatch.setenv("MASSIVE_API_KEY", "m")
+    monkeypatch.setenv("JEV_API_SECRET", "j")
+    monkeypatch.setattr(rj, "fetch_news_bulk", lambda *a, **k: ({"AAA": [doc]}, {"pages": 1}))
+    monkeypatch.setattr(rj, "evaluate_jev", lambda *a, **k: {"evaluation_id": "9", "duplicate": True,
+                                                            "gateway_cost_usd": 0, "aggregate": None})
+    monkeypatch.setattr(sys, "argv", ["run_jev_live_shadow.py", "--root", str(tmp_path)])
+    assert rj.main() == 1                                         # not a silent success
+    summary = json.loads((tmp_path / ".preservation/jev/live-shadow-summary.json").read_text())
+    assert summary["evaluated_count"] == 0 and summary["error_count"] == 1
+    assert json.loads(ranking.read_text()) == prior               # same-session ranking kept
+    assert rj.prior_ranking_session(tmp_path / "missing.json") is None

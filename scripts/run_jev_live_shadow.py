@@ -613,6 +613,14 @@ def load_prior_ranking(path: Path) -> dict[str, dict[str, Any]]:
     }
 
 
+def prior_ranking_session(path: Path) -> Any:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload.get("session_date") if isinstance(payload, dict) else None
+
+
 def write_public_ranking(
     path: Path,
     *,
@@ -908,6 +916,12 @@ def main() -> int:
                 )
             elif result["duplicate"] and state_hash in prior_ranking:
                 derived = prior_ranking[state_hash]
+            if derived is None:
+                # Saved earlier but neither the API nor the last public ranking can
+                # give the scores back: this is not a successful evaluation.
+                raise ShadowRunError(
+                    f"Jev evaluation #{result['evaluation_id']} for {ticker} has no recoverable aggregate"
+                )
             if derived is not None:
                 ranking_rows.append(derived)
             summary["evaluated_count"] += 1
@@ -936,7 +950,13 @@ def main() -> int:
             print(f"::warning title=Jev shadow {ticker} failed::{safe_error}")
 
     summary["status"] = "partial" if summary["error_count"] else "success"
-    if ranking_rows or not summary["error_count"]:
+    prior_session = prior_ranking_session(ranking_path)
+    keep_prior = bool(summary["error_count"]) and prior_session == summary["session_date"]
+    if keep_prior:
+        # A partial rerun must not replace a complete ranking of the same session.
+        summary["ranking_kept"] = "previous ranking of the same session retained (errors in this run)"
+        print("::warning title=Jev ranking kept::errors in this run; previous ranking of the same session retained")
+    elif ranking_rows or not summary["error_count"]:
         write_public_ranking(
             ranking_path,
             session_date=summary["session_date"],
