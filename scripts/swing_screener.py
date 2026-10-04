@@ -339,7 +339,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
     o, h, l, c, v = p["open"], p["high"], p["low"], p["close"], p["volume"]
     if len(c) < 260:
         return {"session": str(c.index[-1].date()) if len(c) else "", "core": [], "late": [], "watch": [],
-                "ep": [], "universe": 0, "reason": "history_short", "dv_top": []}
+                "ep": [], "universe": 0, "reason": "history_short", "study": []}
     state = _states(c, h, l, v)
     s = state(-1)
     last, liquid, tt, chg = s["last"], s["liquid"], s["tt"], s["chg"]
@@ -449,13 +449,37 @@ def evaluate(frame: pd.DataFrame) -> dict:
                        "volx": float(volx[t]), "peer": int(round(ps)), "adr": float(adr20[t]),
                        "stop": float(last[t] * (1 - STOP)), "tt": bool(tt[t])})
         ep.sort(key=lambda r: -r["peer"])
-    # Comparison group for the option-wall study: the rule's own liquidity tier
-    # (50-day dollar volume top 5% of the liquid universe), candidates or not.
-    dv_pct = s["dv_pct"]
-    top = dv_pct[liquid & (dv_pct >= DV_PCT)].sort_values(ascending=False)
-    dv_top = [(t, float(last[t])) for t in top.index if not pd.isna(last[t])]
     return {"session": str(c.index[-1].date()), "core": core, "late": late, "watch": watch, "ep": ep,
-            "universe": int(liquid.sum()), "selected": int(selected.sum()), "dv_top": dv_top}
+            "universe": int(liquid.sum()), "selected": int(selected.sum()), "study": study_groups(s)}
+
+
+# Option-wall study groups (comparison only, never displayed on the card):
+# the rule's liquidity tier, near-candidates without the liquidity condition,
+# and short/medium-term RS leaders where option flow is most active.
+STUDY_GROUPS = (("dv", None), ("rs189", 40), ("rs63", 30), ("rs21", 30))
+
+
+def study_groups(s: dict) -> list[tuple[str, float, str]]:
+    liquid, last = s["liquid"], s["last"]
+    pools = {
+        "dv": s["dv_pct"][liquid & (s["dv_pct"] >= DV_PCT)],
+        "rs189": s["rs189_pct"][liquid & s["tt"]],
+        "rs63": s["rs63_pct"][liquid],
+        "rs21": s["rs21_pct"][liquid],
+    }
+    out: list[tuple[str, float, str]] = []
+    seen: set[str] = set()
+    for grp, cap in STUDY_GROUPS:
+        taken = 0
+        for t in pools[grp].dropna().sort_values(ascending=False).index:
+            if cap is not None and taken >= cap:
+                break
+            if t in seen or pd.isna(last[t]):
+                continue
+            out.append((t, float(last[t]), grp))
+            seen.add(t)
+            taken += 1
+    return out
 
 
 def _peer_scores(c: pd.DataFrame, liquid: pd.Series, comp_pct: pd.Series, targets: list[str]) -> dict:
@@ -888,13 +912,19 @@ def apply(text: str, frame: pd.DataFrame, walls_fn=None, regime: dict | None = N
                 + [w for w in result["watch"] if _good(w)] + result["watch"][:15]
                 if not (r["ticker"] in seen_t or seen_t.add(r["ticker"]))]
         targets = {r["ticker"]: r["close"] for r in rows}
-        # Candidates first (they are displayed); then the dollar-volume top 5% as a
-        # comparison group, stored only in the ticker detail (DET) for the
-        # weekly option-wall study.  Not displayed on the card.
-        for t, px in result.get("dv_top", []):
-            targets.setdefault(t, px)
+        group = {t: "cand" for t in targets}
+        # Candidates first (they are displayed); then the study groups, stored only
+        # in the ticker detail (DET) with a group tag for the weekly option-wall
+        # study.  Not displayed on the card.
+        for t, px, grp in result.get("study", []):
+            if t not in targets:
+                targets[t] = px
+                group[t] = grp
         try:
             found = walls_fn(targets, result["session"]) or {}
+            for t, opt in found.items():
+                if isinstance(opt, dict):
+                    opt["grp"] = group.get(t, "cand")
         except Exception as exc:
             print(f"option walls skipped: {exc!r}", flush=True)
         for r in rows:

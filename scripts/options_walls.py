@@ -1,8 +1,9 @@
 """Option walls for the swing candidates (reference only, never a trading gate).
 
-Also fetched for the 50-day dollar-volume top 5% (the rule's liquidity tier) as a
-comparison group for the weekly study of whether walls relate to later returns.
-Those values go only into the ticker detail (DET), not onto the swing card.
+Also fetched for study groups (dollar-volume top 5%, RS189 x trend template top 40,
+RS63 top 30, RS21 top 30) for the weekly study of whether walls relate to later
+returns.  Those go only into the ticker detail (DET, tagged with "grp"), not onto
+the swing card.
 
 Source: Cboe delayed quotes (one JSON per underlying with open interest, IV and
 greeks for every listed option).  Open interest is published by OCC once a day,
@@ -125,7 +126,7 @@ def walls(options: list[dict[str, Any]], *, ticker: str, spot: float, session: s
 
 
 def fetch_walls(targets: dict[str, float], session: str,
-                *, pause: float = 0.25, max_failures: int = 4) -> dict[str, dict[str, Any]]:
+                *, pause: float = 0.25, max_failures: int = 6) -> dict[str, dict[str, Any]]:
     """targets: ticker -> session close."""
     out: dict[str, dict[str, Any]] = {}
     failures = 0
