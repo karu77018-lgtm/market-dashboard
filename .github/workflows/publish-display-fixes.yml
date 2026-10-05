@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/publish-display-fixes.yml', 'scripts/dashboard_fixes.py', 'scripts/archive_tab.py', 'scripts/rotation_split.py', 'scripts/track_record.py', 'scripts/track_portfolio.py', 'scripts/rule_refresh.py', 'scripts/audit_display.py', 'scripts/rules_tab.py', 'scripts/swing_screener.py', 'scripts/pickup_watch.py', 'scripts/breakout_health.py', 'scripts/render_jev_ranking.py', 'scripts/design_system.py', 'scripts/naming.py', 'scripts/setups_curate.py', 'scripts/breadth_refresh.py', 'scripts/ipo_base.py', 'scripts/rsline_lead.py', 'scripts/option_layout.py', 'assets/market-history.js', 'assets/jev-ranking.js']
+    paths: ['.github/workflows/publish-display-fixes.yml', 'scripts/dashboard_fixes.py', 'scripts/archive_tab.py', 'scripts/rotation_split.py', 'scripts/track_record.py', 'scripts/track_portfolio.py', 'scripts/rule_refresh.py', 'scripts/audit_display.py', 'scripts/rules_tab.py', 'scripts/swing_screener.py', 'scripts/pickup_watch.py', 'scripts/breakout_health.py', 'scripts/render_jev_ranking.py', 'scripts/design_system.py', 'scripts/naming.py', 'scripts/setups_curate.py', 'scripts/breadth_refresh.py', 'scripts/candle_refresh.py', 'scripts/enhance_source_mc57.py', 'scripts/ipo_base.py', 'scripts/rsline_lead.py', 'scripts/option_layout.py', 'assets/market-history.js', 'assets/jev-ranking.js']
 permissions:
   contents: write
 concurrency:
@@ -53,6 +53,7 @@ jobs:
           python scripts/rotation_split.py --html source-mc57.html
           python scripts/rule_refresh.py
           python scripts/breadth_refresh.py
+          python scripts/candle_refresh.py
           python scripts/ipo_base.py
           python scripts/rsline_lead.py
           python scripts/option_layout.py
