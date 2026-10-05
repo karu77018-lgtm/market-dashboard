@@ -1,6 +1,7 @@
 """オプション配置の良い候補 (Setups tab, under validation).
 
-Of the Positions-tab candidates (本命・まだ入れる・次の候補・好位置リーダー・拾う枠),
+Of the Positions-tab candidates (本命・まだ入れる・次の候補・好位置リーダー・拾う枠)
+and the RS leaders (trend template x RS189 top 40),
 show the ones whose option positioning leaves room above and support below:
 
 * 上値の壁 (largest call OI at or above the price) is >= +10% away, or absent:
@@ -35,7 +36,7 @@ SCHEMA = "option-layout.1"
 ROOM = 0.10
 SUPPORT = (-0.08, 0.0)
 HORIZON = 20
-ROLES = ("本命", "まだ入れる", "次の候補", "好位置", "拾う枠")
+ROLES = ("本命", "まだ入れる", "次の候補", "好位置", "拾う枠", "RS上位")
 
 
 # ---------------------------------------------------------------- candidates
@@ -61,6 +62,8 @@ def collect(swing: dict | None, pickup: dict | None) -> list[dict]:
         add("好位置", swing.get("glead", [])[:10] + swing.get("glead_near", [])[:8])
     if pickup:
         add("拾う枠", [r for r in pickup.get("rows", []) if len(r.get("missing", [])) <= 1])
+    if swing:  # RS leaders: trend template x RS189 top 40 (the option-wall study group)
+        add("RS上位", [{"ticker": t, "close": px} for t, px, grp in swing.get("study", []) if grp == "rs189"])
     return out
 
 
@@ -223,11 +226,11 @@ def card_html(rows: list[dict] | None, summ: dict | None, session: str | None) -
     asof = f"（{e(session)} 終値・建玉は前営業日）" if session else ""
     return (
         f'<div class="card ds-merged" id="{CARD_ID}"><div class="hdr"><h2>オプション配置の良い候補</h2>{copy}</div>'
-        f'<div class="sub">Positionsタブの候補のうち、上に壁がなく、損切りより上に支えがあるもの{asof}。'
+        f'<div class="sub">Positionsタブの候補とRS上位のうち、上に壁がなく、損切りより上に支えがあるもの{asof}。'
         '<b>検証中</b>：建玉の過去データがないので、毎日記録して成績を確かめている。買う・買わないはPositionsタブのルールで決める。</div>'
         f'{body}{rec}'
         '<details class="cxpl"><summary>条件と見方</summary><div class="cxpl-b">'
-        '対象：本命・まだ入れる・次の候補・好位置リーダー・拾う枠（形OKかあと1つ）。条件（すべて）：'
+        '対象：本命・まだ入れる・次の候補・好位置リーダー・拾う枠（形OKかあと1つ）・RS上位（トレンドテンプレート×RS189上位40）。条件（すべて）：'
         '上値の壁（コール建玉が最大の権利行使価格）が+10%以上先（最初の買い増しまで上が空いている）／'
         '下値の支え（プット建玉が最大の価格）が0〜−8%（−8%の損切りより上）／'
         '性質の境目（ディーラーのガンマが正負に入れ替わる価格）より上（値動きが落ち着きやすい側）／建玉が十分。'
@@ -289,7 +292,7 @@ def apply(text: str, rows: list[dict] | None, summ: dict | None, session: str | 
     pos = at if at is not None and sec < at <= end else end
     block = (f'<div class="msec ds-merged-head" id="{MSEC_ID}"><div class="msec-l">オプション配置（検証中）'
              '<span class="msec-en">Option Layout</span></div>'
-             '<div class="msec-q">候補のうち、上に壁がなく下に支えがあるもの</div></div>'
+             '<div class="msec-q">候補とRS上位のうち、上に壁がなく下に支えがあるもの</div></div>'
              + card_html(rows, summ, session))
     text = text[:pos] + block + text[pos:]
     return text.replace("</head>", STYLE + "</head>", 1)
