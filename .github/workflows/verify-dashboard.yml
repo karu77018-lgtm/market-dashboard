@@ -57,6 +57,8 @@ jobs:
           python scripts/rule_refresh.py
           python scripts/breadth_refresh.py
           python scripts/ipo_base.py
+          python scripts/rsline_lead.py
+          python scripts/option_layout.py
           python scripts/track_record.py
           python scripts/audit_display.py
           python scripts/naming.py

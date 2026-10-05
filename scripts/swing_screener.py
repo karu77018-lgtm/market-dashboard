@@ -992,6 +992,9 @@ def card_html(result: dict) -> str:
     )
 
 
+LAST: dict | None = None  # the last evaluated result (same process only)
+
+
 def apply(text: str, frame: pd.DataFrame, walls_fn=None, regime: dict | None = None,
           health: dict | None = None) -> str:
     """Insert the card; ``walls_fn(targets, session)`` optionally adds option walls."""
@@ -1009,6 +1012,7 @@ def apply(text: str, frame: pd.DataFrame, walls_fn=None, regime: dict | None = N
         seen_t: set = set()
         rows = [r for r in result["core"] + result.get("late", []) + result["ep"]
                 + [w for w in result["watch"] if _good(w)] + result["watch"][:15]
+                + result.get("glead", [])[:10] + result.get("glead_near", [])[:8]
                 if not (r["ticker"] in seen_t or seen_t.add(r["ticker"]))]
         targets = {r["ticker"]: r["close"] for r in rows}
         group = {t: "cand" for t in targets}
@@ -1035,6 +1039,8 @@ def apply(text: str, frame: pd.DataFrame, walls_fn=None, regime: dict | None = N
         return text
     text = text.replace(SECTION, SECTION + card, 1)
     text = text.replace("</head>", STYLE + "</head>", 1)
+    global LAST
+    LAST = result  # read by option_layout (Setups) in the same run
     if found:
         from options_walls import update_det
         text = update_det(text, found)
