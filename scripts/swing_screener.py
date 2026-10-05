@@ -619,6 +619,7 @@ STYLE = """
 #mc57-swing-screener .sw-c.good{background:#23824d;color:#fff}
 #mc57-swing-screener .sw-bar .mk{position:absolute;top:-4px;width:3px;height:14px;margin-left:-1px;background:#1c1b19;border-radius:2px}
 #mc57-swing-screener .sw-bl{display:flex;justify-content:space-between;font-size:10px;color:#55524a;font-variant-numeric:tabular-nums}
+#mc57-swing-screener .sw-ogood{margin-top:4px;font-size:10.5px;font-weight:800;color:#17683f;background:#e2f0e6;border-radius:6px;padding:2px 6px;display:inline-block}
 #mc57-swing-screener .sw-opt{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin-top:4px}
 #mc57-swing-screener .sw-opt div{background:#eeebf7;border-radius:6px;padding:4px 5px;min-width:0}
 #mc57-swing-screener .sw-opt i{display:block;font-style:normal;font-size:9.5px;color:#5d5591;white-space:nowrap}
@@ -799,7 +800,10 @@ def _opt_line(r: dict) -> str:
     if all(not o.get(k) for k in ("cw", "pw", "gf")):
         return ""
     low = '<div class="sw-olow">建玉が薄いので参考度低め</div>' if o.get("conf") == "LOW" else ""
-    return f'<div class="sw-opt">{"".join(cells)}</div>{low}'
+    from option_layout import judge
+    good = ('<div class="sw-ogood">オプション配置◎ 上に壁なし・損切りより上に支え（Setupsで検証中）</div>'
+            if judge(o)[0] else "")
+    return f'<div class="sw-opt">{"".join(cells)}</div>{low}{good}'
 
 
 def _foot(r: dict) -> str:

@@ -34,13 +34,15 @@ def test_collect_roles_in_positions_order_each_ticker_once():
              "core": [{"ticker": "AAA", "close": 10, **bull}, {"ticker": "NOPE", "close": 10, "sar_up": False}],
              "late": [{"ticker": "BBB", "close": 20, **bull}],
              "watch": [{"ticker": "CCC", "close": 30}, {"ticker": "AAA", "close": 10}],
-             "glead": [{"ticker": "DDD", "close": 40}], "glead_near": []}
+             "glead": [{"ticker": "DDD", "close": 40}], "glead_near": [],
+             "study": [("GGG", 70.0, "rs189"), ("AAA", 10.0, "rs189"), ("HHH", 80.0, "rs21")]}
     pickup = {"rows": [{"ticker": "EEE", "close": 50, "missing": []},
                        {"ticker": "FFF", "close": 60, "missing": ["a", "b"]}]}
     got = [(c["t"], c["role"]) for c in ol.collect(swing, pickup)]
-    assert got == [("AAA", "本命"), ("BBB", "まだ入れる"), ("CCC", "次の候補"), ("DDD", "好位置"), ("EEE", "拾う枠")]
+    assert got == [("AAA", "本命"), ("BBB", "まだ入れる"), ("CCC", "次の候補"), ("DDD", "好位置"), ("EEE", "拾う枠"),
+                   ("GGG", "RS上位")]
     stopped = dict(swing, regime={"on": False})
-    assert [c["role"] for c in ol.collect(stopped, None)] == ["次の候補", "次の候補", "好位置"]
+    assert [c["role"] for c in ol.collect(stopped, None)] == ["次の候補", "次の候補", "好位置", "RS上位"]
 
 
 def test_forward_and_independent_summary():
@@ -113,3 +115,9 @@ def test_fetch_walls_retries_transient_misses(monkeypatch):
     monkeypatch.setattr(ow.time, "sleep", lambda s: None)
     got = ow.fetch_walls({"A": 10.0, "B": 20.0, "C": 30.0}, "2026-10-02")
     assert sorted(got) == ["A", "B", "C"] and calls == ["A", "B", "C", "B"]
+
+
+def test_positions_tile_shows_the_option_badge_only_when_it_passes():
+    import swing_screener as sw
+    assert "オプション配置◎" in sw._opt_line({"opt": opt(0.12, -0.04, -0.10)})
+    assert "オプション配置◎" not in sw._opt_line({"opt": opt(0.025, -0.04, -0.10)})

@@ -164,6 +164,8 @@ jobs:
             work/market-inputs-cache.json
             work/massive-etf-grouped.json
           key: source-mc57-fallback-${{ github.run_id }}
+      - name: Verify daily bars are regular-session (official open/close)
+        run: python scripts/session_check.py --root .
       - name: Restore independent long ETF history cache
         uses: actions/cache/restore@v4
         with:
