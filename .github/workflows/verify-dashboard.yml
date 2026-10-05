@@ -56,6 +56,7 @@ jobs:
           python scripts/rule_refresh.py
           python scripts/track_record.py
           python scripts/audit_display.py
+          python scripts/naming.py
           python scripts/render_jev_ranking.py
           python scripts/design_system.py
       - name: Verify all tabs, mobile overflow and Jev freshness

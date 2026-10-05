@@ -20,7 +20,26 @@ def axis_html(dates: list[pd.Timestamp]) -> str:
     ) + '</div>'
 
 
-def svg_line(values: list[float], color: str, *, zero: bool = False) -> str:
+def nice_ticks(lo: float, hi: float, count: int = 3) -> list[float]:
+    """Round gridline values strictly inside (lo, hi), about ``count`` of them."""
+    span = hi - lo
+    if span <= 0:
+        return []
+    raw = span / (count + 1)
+    mag = 10 ** np.floor(np.log10(raw))
+    step = next(m * mag for m in (1, 2, 2.5, 5, 10) if m * mag >= raw)
+    first = np.ceil(lo / step) * step
+    ticks, t = [], first
+    while t < hi - step * .12:
+        if t > lo + step * .12:
+            ticks.append(float(round(t, 10)))
+        t += step
+    return ticks
+
+
+def svg_line(values: list[float], color: str, *, zero: bool = False, unit: str = "") -> str:
+    """Same chart format as the dashboard's other history cards: gridlines with
+    right-aligned value labels, one 2px series and an end dot."""
     width, height, pad = 680, 180, 7
     good = [float(v) for v in values if np.isfinite(v)]
     lo, hi = min(good), max(good)
@@ -32,11 +51,21 @@ def svg_line(values: list[float], color: str, *, zero: bool = False) -> str:
     x = lambda i: pad + i * (width - 2 * pad) / max(1, len(values) - 1)
     y = lambda v: pad + (1 - (v - lo) / span) * (height - 2 * pad)
     pts = ' '.join(f'{x(i):.1f},{y(float(v)):.1f}' for i, v in enumerate(values))
+    grid = ''
+    for t in nice_ticks(lo, hi):
+        if zero and abs(t) < 1e-9:
+            continue
+        label = f'{t:.0f}{unit}' if unit else (f'{t:+.0f}' if zero else f'{t:g}')
+        grid += (f'<line x1="{pad}" x2="{width-pad}" y1="{y(t):.1f}" y2="{y(t):.1f}" stroke="#e3e1db" stroke-width="1"/>'
+                 f'<text x="{width-pad}" y="{y(t)-2:.1f}" fill="#aaa591" font-size="20" font-weight="600" '
+                 f'text-anchor="end">{label.replace("-", "−")}</text>')
     zero_line = ''
     if zero and lo <= 0 <= hi:
         zero_line = (f'<line x1="{pad}" y1="{y(0):.1f}" x2="{width-pad}" y2="{y(0):.1f}" '
-                     'stroke="#817e73" stroke-width="1" stroke-dasharray="4 3"/>')
-    return (f'<svg viewBox="0 0 {width} {height}" preserveAspectRatio="none">{zero_line}'
+                     'stroke="#817e73" stroke-width="1" stroke-dasharray="4 3"/>'
+                     f'<text x="{width-pad}" y="{y(0)-2:.1f}" fill="#aaa591" font-size="20" font-weight="600" '
+                     'text-anchor="end">0</text>')
+    return (f'<svg viewBox="0 0 {width} {height}" preserveAspectRatio="none">{grid}{zero_line}'
             f'<polyline points="{pts}" fill="none" stroke="{color}" stroke-width="2"/>'
             f'<circle cx="{x(len(values)-1):.1f}" cy="{y(values[-1]):.1f}" r="3.5" fill="{color}"/>'
             '</svg>')
@@ -66,14 +95,14 @@ def breadth_cards(frame: pd.DataFrame) -> str:
         f'<div class="chd-now" style="color:#7ff0a8"><b>{pct50.iloc[-1]:.0f}%</b><span>50日線上</span></div></div>'
         '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
         '全銘柄のうち終値が50日移動平均線を上回る割合。短中期の買い参加の広がり。</div></details>'
-        f'<div class="chart">{svg_line(pct50.tolist(), "#37b56c")}{axis_html(dates50)}</div></div>'
+        f'<div class="chart">{svg_line(pct50.tolist(), "#1f4b8f", unit="%")}{axis_html(dates50)}</div></div>'
         '<div class="card" data-source-improvement="52week-high-low">'
         '<div class="chd"><h2>52週 新高値 − 新安値</h2>'
         f'<div class="chd-now" style="color:{"#37b56c" if net.iloc[-1] >= 0 else "#d95b5b"}">'
         f'<b>{int(net.iloc[-1]):+d}</b><span>新高値 {int(nh.loc[net.index[-1]])} / 新安値 {int(nl.loc[net.index[-1]])}</span></div></div>'
         '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
         '当日の52週新高値銘柄数から新安値銘柄数を引いた値。0より上は内部拡大、下は内部悪化。</div></details>'
-        f'<div class="chart">{svg_line(net.astype(float).tolist(), "#c65b55", zero=True)}{axis_html(dates_net)}</div></div>'
+        f'<div class="chart">{svg_line(net.astype(float).tolist(), "#1f4b8f", zero=True)}{axis_html(dates_net)}</div></div>'
     )
 
 def write_candle_shards(frame: pd.DataFrame, out_dir: Path, session: str) -> dict:
@@ -264,6 +293,8 @@ def main() -> int:
     from rotation_split import apply as apply_rotation_split
     text = apply_rotation_split(text)  # Rotation -> Rotation (資金の流れ) + Themes (display only)
     text = substitute_badge(text, html_path.resolve().parent / "latest-manifest.json")
+    import naming
+    text = naming.apply(text)  # reader-facing names (MC57 -> マーケットパルス etc.), text only
     import design_system
     text = design_system.apply(text)  # one visual system, CSS only (last stylesheet)
     html_path.write_text(text, encoding="utf-8")
