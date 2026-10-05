@@ -187,6 +187,9 @@ def card_html(res: dict) -> str:
     )
 
 
+LAST: dict | None = None  # the last computed result (same process only)
+
+
 def apply(text: str, frame: pd.DataFrame, regime: dict | None = None) -> str:
     """Insert at the top of the Positions tab (the swing card is inserted above it afterwards)."""
     if f'id="{CARD_ID}"' in text or SECTION not in text:
@@ -197,6 +200,8 @@ def apply(text: str, frame: pd.DataFrame, regime: dict | None = None) -> str:
     except Exception as exc:  # display-only
         print(f"pickup watch skipped: {exc!r}", flush=True)
         return text
+    global LAST
+    LAST = res  # read by option_layout (Setups) in the same run
     print(f"pickup watch: {len(res['rows'])} names ({sum(r['ready'] for r in res['rows'])} ready)", flush=True)
     text = text.replace(SECTION, SECTION + card, 1)
     return text.replace("</head>", STYLE + "</head>", 1)

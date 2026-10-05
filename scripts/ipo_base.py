@@ -269,7 +269,7 @@ def apply(text: str, res: dict, regime: dict | None, summary: dict | None) -> st
              '<span class="msec-en">IPO Base</span></div><div class="msec-q">今のルールが拾えない若い銘柄の別枠。監視のみ</div></div>'
              + card_html(res, regime, summary))
     anchor = None
-    for key in ("支えへの接触", "リーダー監視", "リーダー母集団"):
+    for key in ("RSライン先行", "オプション配置", "支えへの接触", "リーダー監視", "リーダー母集団"):
         m = re.search(r'<div class="msec[^"]*"[^>]*><div class="msec-l">[^<]*' + key, text[sec:end])
         if m:
             anchor = sec + m.start()

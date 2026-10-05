@@ -444,6 +444,8 @@ jobs:
           if test -n "$HASH_RECORD_PATH"; then git add -- "$HASH_RECORD_PATH"; fi
           if test -f track-record/signals.json; then git add -- track-record/signals.json; fi
           if test -f track-record/ipo-signals.json; then git add -- track-record/ipo-signals.json; fi
+          if test -f track-record/rsline-signals.json; then git add -- track-record/rsline-signals.json; fi
+          if test -f track-record/option-layout.json; then git add -- track-record/option-layout.json; fi
           git add -f -- data/listing-dates.json
           if test -n "$FULL_MARKER_PATH"; then git add -- "$FULL_MARKER_PATH"; fi
           if git diff --cached --quiet; then echo "No publication change"; exit 0; fi

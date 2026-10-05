@@ -13,7 +13,10 @@ Patterns add nothing outside the rule's selection and do not improve it inside
 (that is what Positions 「次の候補」 already shows).  So Setups keeps only:
 
   IPOベース       young listings the rule cannot see (evidence above)
-  支えへの接触     option put-wall touches - no history, weekly forward validation
+  RSライン先行     leaders outside the selection whose RS line leads the price
+                  (PF 2.04, 2.48 with adds; scripts/rsline_lead.py)
+  オプション配置   candidates with room above / support below in the option walls -
+                  no history, validated forward (scripts/option_layout.py)
 
 Everything else (発火前, コンフルエンス, 発火トリガー, セットアップ評価, 底打ち,
 リーダー監視) moves unchanged into アーカイブ 「旧セットアップ（参考）」; their
@@ -30,14 +33,14 @@ from pathlib import Path
 from bs4 import BeautifulSoup, NavigableString, Tag
 
 MARK_ID = "setups-archive-msec"
-KEEP = ("IPOベース", "支えへの接触")
+KEEP = ("IPOベース", "RSライン先行", "オプション配置", "支えへの接触")
 NUMS = "①②③④⑤⑥⑦⑧⑨⑩"
 INTRO_ID = "setups-intro"
 INTRO = (
     f'<div class="card setups-intro" id="{INTRO_ID}"><div class="sub">検証で残ったものだけを表示しています。'
     '旧セットアップ（発火前・ポケットピボット・VCP・21EMAタッチ・VWAP・底打ち・リーダー監視）は、2015〜2026年の検証で'
     'どれも「流動性のある銘柄を適当に買う」と同程度（PF 1.0〜1.2、2021年以降は1未満）だったため、アーカイブタブに移しました。'
-    '形の良い候補はPositionsタブ「次の候補」を見てください。</div></div>'
+    'リーダーは「RSライン先行」に絞っています。形の良い候補はPositionsタブ「次の候補」を見てください。</div></div>'
 )
 RENAME = {"支えへの接触（オプション）": "支えへの接触（オプション・検証中）"}
 
@@ -96,7 +99,7 @@ def apply(text: str) -> str:
         if current is not None:
             current.append(child)
     old_intro = setups.find(id=INTRO_ID)
-    intro_ok = old_intro is not None and "検証で残ったもの" in old_intro.get_text()
+    intro_ok = old_intro is not None and "RSライン先行" in old_intro.get_text()
     liq = setups.select("div.liqstick")
     if not groups and intro_ok and not liq:
         return text

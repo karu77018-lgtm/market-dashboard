@@ -277,8 +277,11 @@ def main() -> int:
     from pickup_watch import apply as apply_pickup_watch
     text = apply_pickup_watch(text, frame, regime=regime)  # separate watch card, below the swing card
     text = apply_swing_screener(text, frame, walls_fn=fetch_walls, regime=regime, health=health)
-    import putwall_touch
-    text = putwall_touch.apply(text, frame)  # Setups card fed by the walls fetched above
+    import option_layout
+    try:  # Setups card fed by the walls fetched above; display + ledger only
+        text = option_layout.run(text, frame, args.session, html_path.resolve().parent, walls_fn=fetch_walls)
+    except Exception as exc:
+        print(f"option layout skipped: {exc!r}", flush=True)
     from rules_tab import apply as apply_rules_tab
     text = apply_rules_tab(text, regime=regime, health=health)
     import track_record
@@ -297,6 +300,11 @@ def main() -> int:
         text = ipo_base.apply(text, ipo_res, regime, ipo_base.ledger_summary(ipo_led))
     except Exception as exc:
         print(f"IPO watch skipped: {exc!r}", flush=True)
+    import rsline_lead
+    try:  # watch only; never blocks publication
+        text = rsline_lead.run(text, frame, args.session, html_path.resolve().parent, regime)
+    except Exception as exc:
+        print(f"RS line leaders skipped: {exc!r}", flush=True)
     import audit_display
     text = audit_display.apply(text, html_path.resolve().parent, args.session)
     from archive_tab import apply as apply_archive_tab
