@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import verify_release  # noqa: E402
+from rules_tab import RULE_ID  # noqa: E402
 
 FILES = ("source-mc57.html", "latest-manifest.json", "data/mc57.json", "chart-data/index.json",
          "market-history/index.json")
@@ -31,7 +32,8 @@ def test_gate_blocks_mismatched_session_and_old_rule(tmp_path: Path):
     mc["session_date"] = "1999-01-01"
     (root / "data/mc57.json").write_text(json.dumps(mc))
     html = (root / "source-mc57.html").read_text()
-    (root / "source-mc57.html").write_text(html.replace('id="rules-card" data-rule="', 'id="rules-card" data-rule="old-', 1))
+    (root / "source-mc57.html").write_text(html.replace(f'data-rule="{RULE_ID}"',
+                                                        'data-rule="old-rule"'))
     found = verify_release.problems(root)
     assert any("session mismatch" in p for p in found) and any(p.startswith("rule:") for p in found)
     (root / "latest-manifest.json").write_text("{")
