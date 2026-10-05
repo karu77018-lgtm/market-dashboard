@@ -52,7 +52,7 @@ def svg_line(values: list[float], color: str, *, zero: bool = False, unit: str =
     y = lambda v: pad + (1 - (v - lo) / span) * (height - 2 * pad)
     pts = ' '.join(f'{x(i):.1f},{y(float(v)):.1f}' for i, v in enumerate(values))
     grid = ''
-    for t in nice_ticks(lo, hi):
+    for t in nice_ticks(lo, hi, 4 if zero else 3):
         if zero and abs(t) < 1e-9:
             continue
         label = f'{t:.0f}{unit}' if unit else (f'{t:+.0f}' if zero else f'{t:g}')
