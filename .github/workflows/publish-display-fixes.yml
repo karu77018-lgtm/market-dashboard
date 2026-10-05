@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/publish-display-fixes.yml', 'scripts/dashboard_fixes.py', 'scripts/archive_tab.py', 'scripts/rotation_split.py', 'scripts/track_record.py', 'scripts/rule_refresh.py', 'scripts/audit_display.py', 'scripts/rules_tab.py', 'scripts/swing_screener.py', 'scripts/pickup_watch.py', 'scripts/breakout_health.py', 'scripts/render_jev_ranking.py', 'assets/jev-ranking.js']
+    paths: ['.github/workflows/publish-display-fixes.yml', 'scripts/dashboard_fixes.py', 'scripts/archive_tab.py', 'scripts/rotation_split.py', 'scripts/track_record.py', 'scripts/track_portfolio.py', 'scripts/rule_refresh.py', 'scripts/audit_display.py', 'scripts/rules_tab.py', 'scripts/swing_screener.py', 'scripts/pickup_watch.py', 'scripts/breakout_health.py', 'scripts/render_jev_ranking.py', 'assets/jev-ranking.js']
 permissions:
   contents: write
 concurrency:
