@@ -481,7 +481,73 @@ def apply(text: str, ledger: dict | None, trades: list[dict], error: str | None 
             text = text[:m.end()] + link + text[m.end():]
     text = re.sub(r'<style id="track-record-style">.*?</style>', '', text, count=1, flags=re.S)
     text = text.replace("</head>", STYLE + "</head>", 1)
-    return text
+    return apply_rules(text, ledger, error)
+
+
+RULES_BLOCK_ID = "rules-live-record"
+RULES_ANCHOR = '<div class="rh">成績（単年）</div>'
+
+
+def monthly(equity: list) -> list[tuple[str, float | None, float | None]]:
+    """(YYYY-MM, rule return, QQQ return) per calendar month, from month-end marks."""
+    pts = [(d, v, q) for d, v, q in equity if v is not None]
+    if len(pts) < 2:
+        return []
+    ends: dict[str, tuple[float, float | None]] = {}
+    for d, v, q in pts[1:]:
+        ends[d[:7]] = (v, q)
+    out, prev_v, prev_q = [], pts[0][1], pts[0][2]
+    for month, (v, q) in ends.items():
+        out.append((month, v / prev_v - 1, (q / prev_q - 1) if q and prev_q else None))
+        prev_v, prev_q = v, q
+    return out
+
+
+def rules_block(ledger: dict | None, error: str | None = None) -> str:
+    link = ('<a href="#t-record" onclick="var a=document.querySelector(\'nav a[href=&quot;#t-record&quot;]\');'
+            'if(a){a.click();return false;}">成績タブ</a>')
+    head = f'<div id="{RULES_BLOCK_ID}"><div class="rh">リターン実績（公開後の前向き記録）</div>'
+    if error or ledger is None:
+        return head + f'<div class="rnote">記録ファイルを読めなかったため表示していません。詳細は{link}。</div></div>'
+    pf = ledger.get("portfolio")
+    if not pf or len(pf.get("equity", [])) < 2:
+        start = (ledger.get("start") or "次の更新")
+        return (head + f'<div class="rnote">毎日公開した本命を、このルールどおりに売買した場合の実績を記録しています。'
+                f'{html.escape(start)}の本命を翌営業日の始値で買うところから集計が始まります。詳細は{link}。</div></div>')
+    st = tp.stats(pf)
+    eq = pf["equity"]
+    rel = _p(st["ret"] - st["qqq"]) if "qqq" in st else "—"
+    pairs = [("期間", f"{html.escape(eq[0][0])} 〜 {html.escape(eq[-1][0])}"), ("ルール運用", _p(st.get("ret"))),
+             ("QQQ（同期間）", _p(st.get("qqq"))), ("QQQとの差", rel), ("最大DD", _p(st.get("dd"))),
+             ("確定した売買", f'{st["closed"]}件' + (f'（勝率{st["win"]:.0%}）' if st.get("win") is not None else ""))]
+    summary = ('<table class="rtb">' + "".join(f'<tr><td>{k}</td><td class="n">{v}</td></tr>' for k, v in pairs)
+               + '</table>')
+    months = monthly(eq)[-12:]
+    mtable = ""
+    if months:
+        mrows = "".join(f'<tr><td>{m[:4]}/{m[5:]}</td><td class="n">{_p(a)}</td><td class="n">{_p(b)}</td>'
+                        f'<td class="n">{_p(a - b) if b is not None else "—"}</td></tr>' for m, a, b in reversed(months))
+        mtable = ('<table class="rtb"><tr><th>月</th><th>ルール運用</th><th>QQQ</th><th>差</th></tr>' + mrows + '</table>')
+    return (head + summary + mtable
+            + '<div class="rnote">毎日公開した本命を、このルールどおり（最大6銘柄・1/6・+10%と+20%で同額買い増し・40%上限・'
+            f'余剰資金はQQQ）に売買した場合。約定は翌営業日の始値、手数料・税金なし。下の「成績（単年）」は過去データでの検証。詳細は{link}。</div></div>')
+
+
+def apply_rules(text: str, ledger: dict | None, error: str | None = None) -> str:
+    """Put the forward record into the Rules tab, just above the backtest's yearly table."""
+    m = re.search(rf'<div id="{RULES_BLOCK_ID}">', text)
+    if m:                                   # balanced removal of the previous block
+        depth = 0
+        for tag in re.finditer(r"<(/?)div\b[^>]*>", text[m.start():]):
+            depth += -1 if tag.group(1) else 1
+            if depth == 0:
+                text = text[:m.start()] + text[m.start() + tag.end():]
+                break
+    start = text.find('id="rules-card"')
+    i = text.find(RULES_ANCHOR, start) if start >= 0 else -1
+    if i < 0:
+        return text
+    return text[:i] + rules_block(ledger, error) + text[i:]
 
 
 def run(text: str, frame: pd.DataFrame, session: str, root: Path, qqq_path: Path | None = None) -> str:

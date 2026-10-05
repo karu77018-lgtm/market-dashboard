@@ -140,3 +140,34 @@ def test_run_records_portfolio_and_renders_tab(tmp_path: Path):
     assert list(led["portfolio"]["positions"]) == ["AAA"] and led["portfolio"]["equity"][-1][0] == D[30]
     assert "保有中" in out and "ルール運用" in out and 'class="tr-spark"' in out
     assert tr.render_only(out, tmp_path) == tr.render_only(tr.render_only(out, tmp_path), tmp_path)
+
+
+def test_rules_tab_shows_forward_record_above_backtest(tmp_path: Path):
+    import rules_tab
+    page = ('<html><head></head><body><nav><a class="tabx" href="#t-alloc">Positions</a></nav>'
+            '<section id="t-alloc"></section><section id="t-rules"></section></body></html>')
+    page = rules_tab.apply(page)
+    out = tr.apply(page, None, [], error="broken")
+    assert "記録ファイルを読めなかった" in out
+    led = tr.new_ledger()
+    led["start"] = S
+    out = tr.apply(out, led, [])
+    assert out.count(f'id="{tr.RULES_BLOCK_ID}"') == 1 and "読めなかった" not in out
+    assert out.index(tr.RULES_BLOCK_ID) < out.index("成績（単年）")
+    paths = {"AAA": [(100, 99.9, 104), (105, 103, 111)]}
+    led["sessions"] = sessions(["AAA"])
+    led["portfolio"] = tp.advance(tp.new_portfolio(S), led["sessions"], frame(paths), qqq(32, 100), D[31])
+    out = tr.apply(out, led, [])
+    block = out[out.index(tr.RULES_BLOCK_ID):out.index("成績（単年）")]
+    assert "ルール運用" in block and "2026/02" in block and out.count(f'id="{tr.RULES_BLOCK_ID}"') == 1
+    assert tr.apply(out, led, []) == out
+    assert rules_tab.rule_problems(out, required=("rules-card",)) == []
+
+
+def test_monthly_returns_chain_month_ends():
+    eq = [["2026-01-30", 1.0, 100.0], ["2026-02-10", 1.05, 101.0], ["2026-02-27", 1.10, 102.0],
+          ["2026-03-31", 0.99, 99.96]]
+    m = tr.monthly(eq)
+    assert [x[0] for x in m] == ["2026-02", "2026-03"]
+    assert abs(m[0][1] - 0.10) < 1e-12 and abs(m[1][1] - (0.99 / 1.10 - 1)) < 1e-12
+    assert abs(m[1][2] - (99.96 / 102 - 1)) < 1e-12

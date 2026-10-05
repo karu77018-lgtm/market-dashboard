@@ -9,8 +9,9 @@ For every event in research/jev-backfill-events-v1.json:
      validationEligible=false) twice: with the company identity masked and as is.
      The masked run limits the model's chance of recognising a company it may
      know the future of; the gap between the two is a look-ahead check.
-Only derived numbers are written (to an Actions artifact).  No outcome labels are
-sent anywhere: the events file contains inputs only.
+Only derived numbers are written.  No outcome labels are sent anywhere: the
+events file contains inputs only.  Research runs locally, never on GitHub Actions
+(the former jev-backfill workflow was removed).
 """
 from __future__ import annotations
 
