@@ -149,23 +149,40 @@ def fetch_walls(targets: dict[str, float], session: str,
     """targets: ticker -> session close."""
     out: dict[str, dict[str, Any]] = {}
     failures = 0
-    for ticker, spot in targets.items():
+    retry: list[str] = []
+    for ticker, spot in list(targets.items()) + [(None, None)]:
+        if ticker is None:  # one more try for transient misses (Cboe drops some requests)
+            if not retry or failures >= max_failures:
+                break
+            time.sleep(1.0)
+            items, retry = [(t, targets[t]) for t in retry], []
+            for t, s in items:
+                got = fetch_chain_with_time(t)
+                if got is not None:
+                    _store(out, t, s, session, got)
+                time.sleep(pause)
+            break
         if failures >= max_failures:
             break
         got = fetch_chain_with_time(ticker)
         if got is None:
             failures += 1
+            retry.append(ticker)
             continue
         failures = 0
-        chain, stamp = got
-        result = walls(chain, ticker=ticker, spot=spot, session=session)
-        if result:
-            result["asof"] = stamp
-            result["age"] = quote_age(stamp, session)
-            out[ticker] = result
+        _store(out, ticker, spot, session, got)
         time.sleep(pause)
     print(f"option walls: {len(out)}/{len(targets)} tickers", flush=True)
     return out
+
+
+def _store(out: dict, ticker: str, spot: float, session: str, got: tuple) -> None:
+    chain, stamp = got
+    result = walls(chain, ticker=ticker, spot=spot, session=session)
+    if result:
+        result["asof"] = stamp
+        result["age"] = quote_age(stamp, session)
+        out[ticker] = result
 
 
 def update_det(text: str, found: dict[str, dict[str, Any]]) -> str:

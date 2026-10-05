@@ -98,3 +98,18 @@ def test_display_run_rerenders_latest_recorded_day(tmp_path, monkeypatch):
     out = (tmp_path / "source-mc57.html").read_text(encoding="utf-8")
     assert "MRVL" in out and "② オプション配置（検証中）" in out
     assert json.loads((tmp_path / ol.LEDGER).read_text())["days"]["2026-10-02"]["rows"][0]["t"] == "MRVL"
+
+
+def test_fetch_walls_retries_transient_misses(monkeypatch):
+    import options_walls as ow
+    calls = []
+
+    def fake(t, timeout=20.0):
+        calls.append(t)
+        return None if calls.count(t) == 1 and t == "B" else ([], "2026-10-02 20:00:00")
+
+    monkeypatch.setattr(ow, "fetch_chain_with_time", fake)
+    monkeypatch.setattr(ow, "walls", lambda chain, **k: {"cw": 1.0})
+    monkeypatch.setattr(ow.time, "sleep", lambda s: None)
+    got = ow.fetch_walls({"A": 10.0, "B": 20.0, "C": 30.0}, "2026-10-02")
+    assert sorted(got) == ["A", "B", "C"] and calls == ["A", "B", "C", "B"]
