@@ -9,6 +9,16 @@ from pathlib import Path
 
 MAX_MEDIAN_VENDOR_GAP = 0.02
 
+REQUIRED_MARKERS = (
+    "マーケットステータス（MC57・市場内部）", "MC57内訳（12指標 / 4グループ）",
+    "market-history-script", "NQ運用判定",
+    "Daily", "Positions", "アーカイブ", 'id="archive-intro"', "Setups", "Rotation", 'id="t-themes"', "Movers",
+    "Weekly", "Publish", "Rules", "Jev期待値", "mc57-candle-script",
+    "jev-ranking-section", "ブレッドス推移（50日線上の割合）",
+    "52週 新高値 − 新安値", 'data-source-improvement="50ma-participation"',
+    'data-source-improvement="52week-high-low"',
+)
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -23,16 +33,7 @@ def main() -> int:
     rs = json.loads((root / "data" / "rs.json").read_text(encoding="utf-8"))
     providers = json.loads((root / "data" / "provider_inputs.json").read_text(encoding="utf-8"))
 
-    required = [
-        "マーケットステータス（MC57・市場内部）", "MC57内訳（12指標 / 4グループ）",
-        "market-history-script", "NQ運用判定",
-        "Daily", "Positions", "アーカイブ", 'id="archive-intro"', "Setups", "Rotation", 'id="t-themes"', "Movers",
-        "Weekly", "Publish", "Rules", "Jev期待値", "mc57-candle-script",
-        "jev-ranking-section", "ブレッドス推移（50日線上の割合）",
-        "52週 新高値 − 新安値", 'data-source-improvement="50ma-participation"',
-        'data-source-improvement="52week-high-low"',
-    ]
-    missing = [marker for marker in required if marker not in html]
+    missing = [marker for marker in REQUIRED_MARKERS if marker not in html]
     if missing:
         raise SystemExit("HTML markers missing: " + ", ".join(missing))
     # Every output must describe the same completed session.
