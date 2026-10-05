@@ -34,22 +34,39 @@ def titles(soup, sec):
             if n.find("h2") else n.get("id") for n in s.find_all(recursive=False)]
 
 
-def test_setups_keep_three_sections_and_archive_the_rest():
-    out = sc.apply(PAGE)
+def test_setups_keep_validated_sections_and_archive_the_rest():
+    page = PAGE.replace('<section id="t-today">' + card("銘柄検索"),
+                        '<section id="t-today">' + card("銘柄検索") + '<div class="card liqstick">filter</div>')
+    page = page.replace(msec("② 支えへの接触（オプション）"),
+                        '<div class="msec" id="ipo-base-msec"><div class="msec-l">IPOベース<span class="msec-en">X</span></div></div>'
+                        + card("IPOベース監視") + msec("② 支えへの接触（オプション）"))
+    out = sc.apply(page)
     soup = BeautifulSoup(out, "html.parser")
-    assert titles(soup, "t-today") == ["銘柄検索", "setups-intro", "① 発火前（構造） X", "発火前",
-                                       "② 支えへの接触（オプション） X", "支えへの接触",
-                                       "③ リーダー監視（RS≥85・200MA上） X", "リーダー監視"]
+    assert titles(soup, "t-today") == ["銘柄検索", "setups-intro", "① IPOベース X", "IPOベース監視",
+                                       "② 支えへの接触（オプション・検証中） X", "支えへの接触"]
     port = titles(soup, "t-port")
     assert port[:2] == ["archive-intro", "旧セットアップ（参考） Former setups"]
-    assert port[2:] == ["コンフルエンス X", "エントリー候補ボード", "発火トリガー X", "PP", "本日のピックアップ", "底打ち X", "底打ち"]
+    assert port[2:] == ["発火前（構造） X", "発火前", "コンフルエンス X", "エントリー候補ボード", "発火トリガー X", "PP",
+                        "本日のピックアップ", "底打ち X", "底打ち", "リーダー母集団 X", "リーダー監視"]
+    assert sc.apply(out) == out and "liqstick" not in str(soup.find("section", id="t-today"))
+    assert out.count('class="card ds-merged"') == 2 and out.count("<footer class='disc'>") == 1
+
+
+def test_older_curation_is_migrated():
+    old = PAGE.replace('<section id="t-port"><div class="card" id="archive-intro">a</div>',
+                       '<section id="t-port"><div class="card" id="archive-intro">a</div>'
+                       f'<div class="msec archive-msec" id="{sc.MARK_ID}"><div class="msec-l">旧セットアップ（参考）</div>'
+                       '<div class="msec-q">old</div></div>')
+    out = sc.apply(old)
+    soup = BeautifulSoup(out, "html.parser")
+    assert [t for t in titles(soup, "t-today") if "発火前" in t or "リーダー" in t] == []
+    assert out.count(f'id="{sc.MARK_ID}"') == 1 and "優位性が確認できなかった" in out
     assert sc.apply(out) == out
-    assert out.count('class="card ds-merged"') == 3 and out.count("<footer class='disc'>") == 1
 
 
-def test_nothing_to_curate_is_a_no_op():
-    page = '<html><body><section id="t-today">' + msec("① 発火前") + card("発火前") + '</section><section id="t-port"></section></body></html>'
-    assert sc.apply(page) == page
+def test_curated_page_is_a_no_op():
+    out = sc.apply(PAGE)
+    assert sc.apply(out) == out
 
 
 def test_breadth_chart_ticks_and_card_replacement():
