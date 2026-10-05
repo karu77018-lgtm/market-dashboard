@@ -57,6 +57,7 @@ jobs:
           python scripts/track_record.py
           python scripts/audit_display.py
           python scripts/render_jev_ranking.py
+          python scripts/design_system.py
       - name: Verify all tabs, mobile overflow and Jev freshness
         run: node tests/market_history_ui.cjs
       - name: Verify public outputs contain no credentials
