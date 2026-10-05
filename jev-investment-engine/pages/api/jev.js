@@ -312,9 +312,19 @@ function buildIdentity({ state, asofIso, questionSetVersion, sourceDocumentId, t
   return { statePayload, stateTextHash, dedupeKey };
 }
 
+function parseStoredAggregate(value) {
+  if (!value) return undefined;
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
 async function findExistingEvaluation(dedupeKey) {
   const result = await getPool().query(
-    `SELECT id, ticker, asof_timestamp, evaluation_kind, validation_eligible, run_count, status
+    `SELECT id, ticker, asof_timestamp, evaluation_kind, validation_eligible, run_count, status, aggregate_json
      FROM jev_evaluations
      WHERE dedupe_key = $1
      LIMIT 1`,
@@ -906,7 +916,8 @@ export default async function handler(req, res) {
         evaluationId: String(existing.id),
         durationMs: 0,
         gatewayCostUsd: 0,
-        attemptId: String(attempt.id)
+        attemptId: String(attempt.id),
+        aggregate: parseStoredAggregate(existing.aggregate_json)
       };
 
       if (responseMode === "summary") {
