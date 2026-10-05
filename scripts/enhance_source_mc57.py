@@ -286,12 +286,23 @@ def main() -> int:
         text = track_record.run(text, frame, args.session, html_path.resolve().parent)
     except Exception as exc:
         print(f"track record skipped: {exc!r}", flush=True)
+    import ipo_base
+    try:  # watch only; never blocks publication
+        root = html_path.resolve().parent
+        ipo_base.update_listings(frame, root)
+        ipo_res = ipo_base.scan(frame, ipo_base.load_listings(root), args.session)
+        ipo_led = ipo_base.record_and_advance(ipo_base.load_ledger(root), ipo_res, frame, args.session,
+                                              track_record.qqq_bars(root / "data" / "market_inputs.json"))
+        ipo_base.save_ledger(ipo_led, root)
+        text = ipo_base.apply(text, ipo_res, regime, ipo_base.ledger_summary(ipo_led))
+    except Exception as exc:
+        print(f"IPO watch skipped: {exc!r}", flush=True)
     import audit_display
     text = audit_display.apply(text, html_path.resolve().parent, args.session)
     from archive_tab import apply as apply_archive_tab
     text = apply_archive_tab(text)  # Core 12 / old W30 rule -> アーカイブ tab (display only)
     from setups_curate import apply as curate_setups
-    text = curate_setups(text)  # Setups keeps 発火前・支えへの接触・リーダー監視; the rest -> アーカイブ
+    text = curate_setups(text)  # Setups keeps the validated sections; the rest -> アーカイブ
     from rotation_split import apply as apply_rotation_split
     text = apply_rotation_split(text)  # Rotation -> Rotation (資金の流れ) + Themes (display only)
     text = substitute_badge(text, html_path.resolve().parent / "latest-manifest.json")
