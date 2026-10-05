@@ -165,6 +165,8 @@ function chart(tk,n){var el=document.getElementById('mc57-candle');if(!el)return
 var s=(ST||{})[tk];var W=Math.max(300,Math.round((el.clientWidth||656)-16)),H=Math.round(Math.min(340,Math.max(240,W*.62))),L=6,R=58,T=10,B=18;
 var hi=Math.max.apply(null,a.map(function(x){return x[2]})),lo=Math.min.apply(null,a.map(function(x){return x[3]}));
 if(s){hi=Math.max(hi,s.line);lo=Math.min(lo,s.hl)}
+var last0=a[a.length-1][4],opt=((window.DET||{})[tk]||{}).opt,ol=[],ofar=[];
+if(opt){[['cw','OP上値の壁','#7b3fb3'],['pw','OP下値の支え','#0f7d7d'],['gf','OP境目','#8a8577']].forEach(function(k){var v=+opt[k[0]];if(!(v>0))return;var d=v/last0-1;if(Math.abs(d)<=.25){ol.push([v,k[1],k[2],d]);hi=Math.max(hi,v);lo=Math.min(lo,v)}else ofar.push(k[1]+' '+money(v))})}
 var span=(hi-lo)||1,bw=(W-L-R)/a.length,cw=Math.max(1,Math.min(7,bw*.66)),z=[],tags=[];
 function y(v){return T+(hi-v)/span*(H-T-B)}
 function xi(d){if(d<a[0][0])return -1;for(var i=0;i<a.length;i++){if(a[i][0]>=d)return i}return -1}
@@ -178,6 +180,7 @@ z.push('<line x1="'+xh.toFixed(1)+'" y1="'+y(s.hl).toFixed(1)+'" x2="'+xe+'" y2=
 tags.push([y(s.hl),money(s.hl),'#c0761a',400]);
 if(lx>=0)z.push('<text x="'+(L+(lx+.5)*bw).toFixed(1)+'" y="'+Math.min(H-B+11,y(s.ll)+12).toFixed(1)+'" text-anchor="middle" font-size="9.5" font-weight="700" fill="#6f6c62">LL</text>');
 if(hx>=0)z.push('<text x="'+(L+(hx+.5)*bw).toFixed(1)+'" y="'+Math.min(H-B+11,y(s.hl)+12).toFixed(1)+'" text-anchor="middle" font-size="9.5" font-weight="700" fill="#c0761a">HL</text>')}
+for(var m=0;m<ol.length;m++){z.push('<line x1="'+L+'" y1="'+y(ol[m][0]).toFixed(1)+'" x2="'+(W-R)+'" y2="'+y(ol[m][0]).toFixed(1)+'" stroke="'+ol[m][2]+'" stroke-width="1.3" stroke-dasharray="2 3"/>');tags.push([y(ol[m][0]),money(ol[m][0]),ol[m][2],400])}
 for(var i=0;i<a.length;i++){var x=L+(i+.5)*bw,o=y(a[i][1]),h=y(a[i][2]),l=y(a[i][3]),c=y(a[i][4]),up=a[i][4]>=a[i][1],col=up?'#239a55':'#c64e4e';z.push('<line x1="'+x.toFixed(1)+'" y1="'+h.toFixed(1)+'" x2="'+x.toFixed(1)+'" y2="'+l.toFixed(1)+'" stroke="'+col+'"/>');z.push('<rect x="'+(x-cw/2).toFixed(1)+'" y="'+Math.min(o,c).toFixed(1)+'" width="'+cw.toFixed(1)+'" height="'+Math.max(1,Math.abs(c-o)).toFixed(1)+'" fill="'+col+'"/>')}
 var last=a[a.length-1][4];tags.push([y(last),money(last),'#1c1b19',700]);
 tags.sort(function(p,q){return p[0]-q[0]});for(var k=1;k<tags.length;k++){if(tags[k][0]-tags[k-1][0]<11)tags[k][0]=tags[k-1][0]+11}
@@ -185,6 +188,7 @@ for(var k2=0;k2<tags.length;k2++){z.push('<text x="'+(W-R+3)+'" y="'+(tags[k2][0
 var d0=a[0][0].slice(2,7).replace('-','/'),d1=a[a.length-1][0].slice(2,7).replace('-','/');
 var lg='';if(s){var pos=(last-s.hl)/(s.line-s.hl);var ptxt=(last>s.line)?'ライン上抜け':(last<s.hl?'HL割れ':'位置 '+Math.round(pos*100)+'%'+((pos>=.5&&pos<=.75)?' <b>好位置</b>':''));lg='<div class="mc57-candle-lg"><span><i></i>ライン</span><span><i class="hl"></i>HL（割れたら崩れ）</span><span><i class="z"></i>好位置 50〜75%</span><span>'+ptxt+'</span></div>'}
 else{lg='<div class="mc57-candle-lg"><span>HL構造なし（安値の切り上げ未確認）</span></div>'}
+if(ol.length||ofar.length){var pc=function(d){return (d>=0?'+':'−')+Math.abs(d*100).toFixed(1)+'%'};lg+='<div class="mc57-candle-lg mc57-candle-op">'+ol.map(function(q){return '<span><i style="border-top:2px dotted '+q[2]+'"></i>'+q[1]+' '+money(q[0])+'（'+pc(q[3])+'）</span>'}).join('')+(ofar.length?'<span>範囲外：'+esc(ofar.join('・'))+'</span>':'')+'<span>建玉は前営業日・45日以内の満期</span></div>'}
 el.innerHTML='<div class="mc57-candle-h"><b>'+esc(tk)+' ローソク足</b><span class="mc57-candle-btns"><button data-n="65">3M</button><button data-n="130">6M</button><button data-n="260">1Y</button></span></div><svg viewBox="0 0 '+W+' '+H+'">'+z.join('')+'<text x="'+L+'" y="'+(H-3)+'" font-size="9.5" fill="#747167">'+d0+'</text><text x="'+(W-R)+'" y="'+(H-3)+'" text-anchor="end" font-size="9.5" fill="#747167">'+d1+'</text></svg>'+lg;var bs=el.querySelectorAll('button');for(var j=0;j<bs.length;j++){if(+bs[j].getAttribute('data-n')===n)bs[j].classList.add('on');bs[j].onclick=function(){RANGE=+this.getAttribute('data-n');chart(tk,RANGE)}}}
 function load(tk){CUR=tk;var el=document.getElementById('mc57-candle');if(!el)return;el.innerHTML='<div class="mc57-candle-msg">ローソク足を読み込み中…</div>';var p=IDX?Promise.resolve(IDX):fetch('chart-data/index.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error(r.status);return r.json()}).then(function(x){IDX=x;return x});Promise.all([p.then(function(x){var s=x.ticker_to_shard[tk];if(s===undefined)throw Error('ticker');if(SH[s])return SH[s];return fetch('chart-data/shard-'+String(s).padStart(2,'0')+'.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw Error(r.status);return r.json()}).then(function(q){SH[s]=q;return q})}),stLoad()]).then(function(r){BARS[tk]=r[0][tk]||[];if(CUR===tk)chart(tk,RANGE)}).catch(function(){el.innerHTML='<div class="mc57-candle-msg">ローソク足を取得できませんでした。再度開いてください。</div>'})}
 function sparkPref(){try{return localStorage.getItem('mc57_spark_open')==='1'}catch(e){return false}}
