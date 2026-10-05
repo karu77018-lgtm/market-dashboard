@@ -290,13 +290,15 @@ def main() -> int:
     text = audit_display.apply(text, html_path.resolve().parent, args.session)
     from archive_tab import apply as apply_archive_tab
     text = apply_archive_tab(text)  # Core 12 / old W30 rule -> アーカイブ tab (display only)
+    from setups_curate import apply as curate_setups
+    text = curate_setups(text)  # Setups keeps 発火前・支えへの接触・リーダー監視; the rest -> アーカイブ
     from rotation_split import apply as apply_rotation_split
     text = apply_rotation_split(text)  # Rotation -> Rotation (資金の流れ) + Themes (display only)
     text = substitute_badge(text, html_path.resolve().parent / "latest-manifest.json")
     import naming
     text = naming.apply(text)  # reader-facing names (MC57 -> マーケットパルス etc.), text only
     import design_system
-    text = design_system.apply(text)  # one visual system, CSS only (last stylesheet)
+    text = design_system.apply(text, html_path.resolve().parent)  # one visual system (last stylesheet)
     html_path.write_text(text, encoding="utf-8")
     print(json.dumps({"session_date": args.session, "ticker_count": meta["ticker_count"],
                       "cards": ["50MA participation", "52-week new highs minus new lows"],

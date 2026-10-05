@@ -99,6 +99,22 @@ section>.msec:first-child{border-top:none;padding-top:4px;margin-top:8px}
 .rsx-hflow>div>.chips{grid-column:2;grid-row:1;display:flex;flex-wrap:wrap;gap:4px}
 .rsx-hflow>div>.cp{grid-column:3;grid-row:1;width:auto;white-space:nowrap}
 .rsx-hflow .chip{margin:0}
+.mh-legend{display:flex;flex-wrap:wrap;gap:5px 6px;align-items:center;margin:2px 0 6px}
+.mh-legend button,.mh-legend>span:not(.mh-unit){display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:700;color:var(--ds-ink-2);background:var(--ds-inset);border:1px solid var(--ds-line);border-radius:999px;padding:3px 9px;cursor:pointer;font-variant-numeric:tabular-nums}
+.mh-legend>span:not(.mh-unit){cursor:default}
+.mh-legend button b{font-weight:800;color:var(--ds-ink)}
+.mh-legend button[aria-pressed="false"]{opacity:.42;background:transparent}
+.mh-legend i{display:inline-block;width:12px;height:3px;border-radius:2px}
+.mh-unit{font-size:10.5px;color:var(--ds-muted);margin-left:2px}
+.ds-merged>.chd>h2,.ds-merged>.hdr>h2,.ds-merged-head>.msec-q{display:none}
+.ds-merged>.chd:not(:has(button,.cp,.chd-now)),.ds-merged>.hdr:not(:has(button,.cp,.chd-now)){display:none}
+.ds-merged>.chd,.ds-merged>.hdr{justify-content:flex-end}
+.setups-intro{background:transparent;border:1px dashed var(--ds-line-strong)}
+.setups-intro .sub{margin:0}
+.pretail{white-space:normal;overflow:visible;text-overflow:clip;line-height:1.5}
+.prenums div i{color:var(--ds-muted)}
+.chip{padding:5px 10px;border-radius:8px;font-size:12px}
+.chip.s-shape{border-color:var(--ds-line-strong);background:var(--ds-inset)}
 a:focus-visible,button:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--ds-accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 [style*="font-size:8px"]:not(svg *),[style*="font-size: 8px"]:not(svg *),
@@ -236,7 +252,24 @@ def stylesheet(text: str) -> str:
     return f'<style id="{STYLE_ID}">{css}</style>'
 
 
-def apply(text: str) -> str:
+ASSET_RE = re.compile(r"assets/market-history\.(js|css)\?v=[0-9a-f]+")
+
+
+def bump_asset_revision(text: str, root: Path | None) -> str:
+    """Point the page at the current market-history assets (same hash rule as
+    market_internals_ui), so a display-only publish never serves a stale cached script."""
+    if root is None:
+        return text
+    assets = [root / "assets/market-history.js", root / "assets/market-history.css"]
+    if not all(p.is_file() for p in assets):
+        return text
+    import hashlib
+    rev = hashlib.sha256(b"".join(p.read_bytes() for p in assets)).hexdigest()[:12]
+    return ASSET_RE.sub(lambda m: f"assets/market-history.{m.group(1)}?v={rev}", text)
+
+
+def apply(text: str, root: Path | None = None) -> str:
+    text = bump_asset_revision(text, root)
     text = SCRIPT_RE.sub("", STYLE_RE.sub("", text))
     if "</head>" not in text:
         return text
@@ -250,7 +283,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--html", default="source-mc57.html")
     page = Path(ap.parse_args().html)
-    page.write_text(apply(page.read_text(encoding="utf-8")), encoding="utf-8")
+    page.write_text(apply(page.read_text(encoding="utf-8"), page.resolve().parent), encoding="utf-8")
     print("design system applied", flush=True)
     return 0
 
