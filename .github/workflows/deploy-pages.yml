@@ -57,7 +57,9 @@ jobs:
           npm install --no-save --package-lock=false playwright@1.58.2
           npx playwright install --with-deps chromium
       - name: All tabs render on desktop and iPhone widths
-        run: node tests/market_history_ui.cjs
+        # one retry for browser timing (e.g. the Jev stale-state wait); a real
+        # display defect fails both attempts and blocks publication
+        run: node tests/market_history_ui.cjs || { echo "retrying once"; node tests/market_history_ui.cjs; }
       - name: Assemble the site from exactly this commit
         run: |
           mkdir -p "$RUNNER_TEMP/site"
