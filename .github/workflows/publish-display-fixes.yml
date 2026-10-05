@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/publish-display-fixes.yml', 'scripts/dashboard_fixes.py', 'scripts/archive_tab.py', 'scripts/rotation_split.py', 'scripts/track_record.py', 'scripts/track_portfolio.py', 'scripts/rule_refresh.py', 'scripts/audit_display.py', 'scripts/rules_tab.py', 'scripts/swing_screener.py', 'scripts/pickup_watch.py', 'scripts/breakout_health.py', 'scripts/render_jev_ranking.py', 'scripts/design_system.py', 'scripts/naming.py', 'assets/jev-ranking.js']
+    paths: ['.github/workflows/publish-display-fixes.yml', 'scripts/dashboard_fixes.py', 'scripts/archive_tab.py', 'scripts/rotation_split.py', 'scripts/track_record.py', 'scripts/track_portfolio.py', 'scripts/rule_refresh.py', 'scripts/audit_display.py', 'scripts/rules_tab.py', 'scripts/swing_screener.py', 'scripts/pickup_watch.py', 'scripts/breakout_health.py', 'scripts/render_jev_ranking.py', 'scripts/design_system.py', 'scripts/naming.py', 'scripts/setups_curate.py', 'scripts/breadth_refresh.py', 'assets/market-history.js', 'assets/jev-ranking.js']
 permissions:
   contents: write
 concurrency:
@@ -49,8 +49,10 @@ jobs:
         run: |
           python scripts/dashboard_fixes.py
           python scripts/archive_tab.py --html source-mc57.html
+          python scripts/setups_curate.py --html source-mc57.html
           python scripts/rotation_split.py --html source-mc57.html
           python scripts/rule_refresh.py
+          python scripts/breadth_refresh.py
           python scripts/track_record.py
           python scripts/audit_display.py
           python scripts/naming.py

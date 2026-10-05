@@ -5,6 +5,7 @@ only visible text changes:
 
 * MC57 (market-internals composite, 0-100)   -> マーケットパルス
 * NQ運用判定 (NQ trend regime for the leverage sleeve) -> NQトレンド信号
+* English / index-based chart titles and notes -> plain Japanese, % change wording
 
 Only text between tags is rewritten; <script>, <style> and attribute values are
 left alone, so nothing that code reads can change.  Idempotent.
@@ -29,6 +30,18 @@ NAMES: tuple[tuple[str, str], ...] = (
     ("補助リスク（MC57外）", "補助リスク（パルス外）"),
     ("最終MC57", "最終スコア"),
     ("MC57", PULSE),
+    # comparison charts: plain Japanese titles and % change wording
+    ("時価総額別の強さ推移 / Market Leadership", "サイズ別の強さ（小型株〜MAG7）"),
+    ("サイズ別相対推移 / Market Leadership", "サイズ別の強さ（小型株〜MAG7）"),
+    ("Cap Weight vs Equal Weight", "時価総額加重と等ウェイトの比較"),
+    ("時価総額加重 / 等ウェイト 相対強度", "大型株への集中度（加重÷等ウェイト）"),
+    ("Index / Internals Divergence", "指数と広がりの乖離"),
+    ("QQQ / SPY / TQQQ / SOXX / SOXL / VIX。選択期間開始=100。",
+     "QQQ / SPY / SOXX（TQQQ・SOXL・VIXは凡例をタップで表示）。期間初日を0%とした騰落率。"),
+    ("選択期間開始=100、上昇=時価総額加重優位、低下=等ウェイト優位。",
+     "期間初日を0%とした比。上昇＝大型株（時価総額加重）が優位、低下＝等ウェイト（広がり）が優位。"),
+    ("選択期間開始=100", "期間初日を0%とした騰落率"),
+    ("期間開始=100", "期間初日を0%とした騰落率"),
     ("NQ運用判定", NQ_SIGNAL),
 )
 
