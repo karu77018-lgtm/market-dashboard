@@ -23,8 +23,11 @@ after the close):
   as the first purchase at the next open (unless that open exits)
 * QQQ is measured over exactly the same execution timestamps (open->open,
   open->stop-day close, or open->latest close)
-No fees, slippage or taxes.  Each 本命 is one independent signal; capital, the
-6-slot cap, the 40% cap and repeated signals of one ticker are NOT modelled.
+No fees, slippage or taxes.  Each 本命 is one independent signal here.
+
+The headline record is the rule run as the actual portfolio (track_portfolio.py:
+6 slots, 1/6 sizing, same-amount adds up to 40%, idle money in QQQ at the
+published share), stored under ledger["portfolio"] and advanced the same way.
 """
 from __future__ import annotations
 
@@ -40,6 +43,7 @@ from typing import Any
 
 import pandas as pd
 
+import track_portfolio as tp
 from rules_tab import RULE_ID
 
 LEDGER = Path("track-record/signals.json")
@@ -114,7 +118,8 @@ def save(ledger: dict, path: Path) -> None:
     os.replace(tmp, path)
 
 
-def record(ledger: dict, text: str, session: str, closes: dict[str, float], now: str | None = None) -> dict:
+def record(ledger: dict, text: str, session: str, closes: dict[str, float], now: str | None = None,
+           r189: dict[str, float] | None = None) -> dict:
     """Freeze (or revise) the session's 本命 in ``ledger`` (in place)."""
     now = now or now_utc()
     status, best = published_best(text)
@@ -123,10 +128,10 @@ def record(ledger: dict, text: str, session: str, closes: dict[str, float], now:
         ledger["failures"].append({"session": session, "at": now, "reason": status})
         ledger["failures"] = ledger["failures"][-200:]
         return ledger
-    rows = [{"t": t, "close": closes.get(t)} for t in best]
+    rows = [{"t": t, "close": closes.get(t), "r189": (r189 or {}).get(t)} for t in best]
     if entry is None:
         ledger["sessions"][session] = {"recorded_at": now, "best": rows, "regime": card_regime(text),
-                                       "rule": RULE_ID, "revisions": 0}
+                                       "qqq_pct": tp.published_qqq_pct(text), "rule": RULE_ID, "revisions": 0}
     elif [r["t"] for r in entry.get("latest", entry["best"])] != best:
         entry["latest"] = rows
         entry["revisions"] = int(entry.get("revisions", 0)) + 1
@@ -244,6 +249,17 @@ def advance_all(ledger: dict, frame: pd.DataFrame, qqq: dict[str, dict]) -> None
             ledger["trades"][key] = state
 
 
+def returns_189(frame: pd.DataFrame, session: str) -> dict[str, float]:
+    """189-session return at ``session`` (the RS189 order used when slots are short)."""
+    out: dict[str, float] = {}
+    sub = frame[frame["date"] <= pd.Timestamp(session)].sort_values("date")
+    for t, g in sub.groupby("ticker"):
+        c = g["close"].astype(float).dropna()
+        if len(c) > 189 and g["date"].iloc[-1] == pd.Timestamp(session) and c.iloc[-190] > 0:
+            out[str(t)] = round(float(c.iloc[-1] / c.iloc[-190] - 1), 6)
+    return out
+
+
 def qqq_bars(path: Path) -> dict[str, dict]:
     try:
         rows = json.loads(path.read_text(encoding="utf-8"))["series"]["QQQ"]
@@ -293,10 +309,92 @@ STYLE = ('<style id="track-record-style">'
          f'#{TAB_ID} th,#{TAB_ID} td{{border-bottom:1px solid #e0ddd5;padding:5px 6px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}}'
          f'#{TAB_ID} th{{font-size:10.5px;color:#706e64}}#{TAB_ID} td:first-child,#{TAB_ID} th:first-child{{text-align:left}}'
          f'#{TAB_ID} .tr-note{{font-size:11px;color:#706e64;line-height:1.6;margin-top:8px}}'
+         f'#{TAB_ID} .tr-h{{font-size:12.5px;font-weight:800;margin:12px 0 4px}}'
+         f'#{TAB_ID} .tr-none{{text-align:center !important;color:#706e64}}'
+         f'#{TAB_ID} .tr-empty{{font-size:12px;background:#f2f1ee;border:1px dashed #d6d3ca;border-radius:10px;padding:10px;margin:8px 0;color:#565243}}'
+         f'#{TAB_ID} .tr-spark{{width:100%;height:80px;display:block;margin-top:6px}}'
+         f'#{TAB_ID} .tr-legend{{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:11px;color:#706e64}}'
+         f'#{TAB_ID} .tr-range{{flex-basis:100%}}'
+         f'#{TAB_ID} .tr-pf table{{min-width:0;font-size:11.5px}}#{TAB_ID} .tr-pf td,#{TAB_ID} .tr-pf th{{padding:5px 4px}}'
+         f'#{TAB_ID} .tr-more{{margin-top:12px}}#{TAB_ID} .tr-more summary{{font-size:12.5px;font-weight:700;cursor:pointer}}'
          f'#{TAB_ID} .tr-warn{{font-size:11.5px;background:#f6e3dc;color:#8a2f1d;border:1px solid #e3b4a3;border-radius:8px;padding:6px 9px;margin:6px 0}}'
          f'body:has(#{TAB_ID}:target) nav a.tabx{{background:#ebeae5;color:#5a5850;border-color:#575342}}'
          f'body:has(#{TAB_ID}:target) nav a[href="#{TAB_ID}"]{{background:#3774d3;color:#f1f0ef;border-color:#eef3fb}}'
          '</style>')
+
+
+def _spark(equity: list) -> str:
+    pts = [(d, v, q) for d, v, q in equity if v is not None]
+    if len(pts) < 2:
+        return ""
+    q0 = pts[0][2]
+    qs = [q / q0 if q0 and q else None for _, _, q in pts]
+    vals = [v for _, v, _ in pts] + [q for q in qs if q is not None]
+    lo, hi = min(vals), max(vals)
+    span = (hi - lo) or 0.01
+    w, h = 320, 70
+    xy = lambda i, v: f"{i * w / (len(pts) - 1):.1f},{h - (v - lo) / span * (h - 6) - 3:.1f}"
+    line = lambda seq: " ".join(xy(i, v) for i, v in enumerate(seq) if v is not None)
+    return (f'<svg class="tr-spark" viewBox="0 0 {w} {h}" preserveAspectRatio="none" role="img" '
+            f'aria-label="ルール運用とQQQの推移"><polyline fill="none" stroke="#9a978c" stroke-width="1.5" '
+            f'points="{line(qs)}"/><polyline fill="none" stroke="#3774d3" stroke-width="2" '
+            f'points="{line([v for _, v, _ in pts])}"/></svg>'
+            f'<div class="tr-legend"><span style="color:#3774d3">━ ルール運用</span>'
+            f'<span style="color:#9a978c">━ QQQ（持ちっぱなし）</span>'
+            f'<span class="tr-range">{e_(pts[0][0])} 〜 {e_(pts[-1][0])}</span></div>')
+
+
+def e_(v: Any) -> str:
+    return html.escape(str(v))
+
+
+SHORT_REASON = {"安値21EMA割れ（翌始値）": "21EMA割れ", "損切り（窓）": "損切り（窓）", "損切り −8%": "損切り"}
+
+
+def portfolio_html(pf: dict | None) -> str:
+    if not pf or len(pf.get("equity", [])) < 2:
+        start = (pf or {}).get("start")
+        when = f"{e_(start)}の本命を" if start else "最初に記録した本命を"
+        return (f'<div class="tr-empty">{when}翌営業日の始値で買うところから始まります。'
+                '次の更新から資産の推移・保有・売買が表示されます。</div>')
+    st = tp.stats(pf)
+    eq_last = pf["equity"][-1][1]
+    fmt = lambda v, f: "—" if v is None else f(v)
+    grid = "".join(f"<div><i>{k}</i><b>{v}</b></div>" for k, v in (
+        ("ルール運用", _p(st.get("ret"))), ("QQQ（同期間）", _p(st.get("qqq"))),
+        ("QQQとの差", _p(st["ret"] - st["qqq"]) if "qqq" in st and "ret" in st else "—"),
+        ("最大DD", _p(st.get("dd"))), ("保有（最大6）", f"{st['names']}銘柄"),
+        ("株の比率", fmt(st.get("stock_share"), lambda v: f"{v:.0%}")),
+        ("確定した売買", f"{st['closed']}件"), ("勝率（確定）", fmt(st.get("win"), lambda v: f"{v:.0%}")),
+        ("余剰資金のQQQ", f"{pf.get('qqq_pct', tp.DEFAULT_QQQ_PCT)}%"),
+    ))
+    hold = sorted(pf.get("positions", {}).items(), key=lambda kv: -kv[1]["shares"] * kv[1]["last"])
+    hrows = "".join(
+        f'<tr><td><b data-tkone="{e_(t)}">{e_(t)}</b></td><td>{e_(p["entry_day"][5:].replace("-", "/"))}</td>'
+        f'<td>{_p(p["shares"] * p["last"] / p["invested"] - 1)}</td><td>{p["adds"]}</td>'
+        f'<td>{p["shares"] * p["last"] / eq_last:.0%}</td>'
+        f'<td>{"売り待ち" if p.get("pending_exit") else "買い増し待ち" if p.get("pending_add") else "保有中"}'
+        f'{"（データ途絶）" if p.get("stale") else ""}</td></tr>' for t, p in hold
+    ) or '<tr><td colspan="6" class="tr-none">保有なし</td></tr>'
+    crows = "".join(
+        f'<tr><td><b data-tkone="{e_(c["t"])}">{e_(c["t"])}</b></td><td>{e_(c["entry_day"][5:].replace("-", "/"))}</td>'
+        f'<td>{e_(c["exit_day"][5:].replace("-", "/"))}</td><td>{_p(c["ret"])}</td>'
+        f'<td>{c["days"]}</td><td>{e_(SHORT_REASON.get(c["reason"], c["reason"]))}</td></tr>'
+        for c in reversed(pf.get("closed", [])[-40:])
+    ) or '<tr><td colspan="6" class="tr-none">まだありません</td></tr>'
+    skipped = pf.get("skipped", [])
+    skip = ""
+    if skipped:
+        recent = "、".join(f'{e_(x["t"])}（{e_(x["why"])}）' for x in skipped[-8:])
+        skip = f'<div class="tr-note">買えなかった本命 {len(skipped)}件。直近：{recent}</div>'
+    return (
+        f'<div class="tr-grid">{grid}</div>' + _spark(pf["equity"])
+        + '<div class="tr-h">保有中</div><div class="tr-wrap tr-pf"><table><tr><th>銘柄</th><th>買った日</th>'
+        f'<th>損益</th><th>増し</th><th>資金比</th><th>状態</th></tr>{hrows}</table></div>'
+        '<div class="tr-h">確定した売買</div><div class="tr-wrap tr-pf"><table><tr><th>銘柄</th><th>買い</th><th>売り</th>'
+        f'<th>損益</th><th>日数</th><th>理由</th></tr>{crows}</table></div>'
+        '<div class="tr-note">損益は買い増し込み。増し＝買い増し回数、資金比＝資産全体に占める割合。</div>' + skip
+    )
 
 
 def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) -> str:
@@ -322,7 +420,7 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
         f'<td>{_p(t["ret"] - t["qqq"]) if "qqq" in t else "—"}</td>'
         f'<td>{t["days"] if t.get("days") else "—"}</td>'
         f'<td>{e(t["status"])}{"（データ途絶）" if t.get("stale") else ""}{"＊" if t.get("revised") else ""}</td></tr>'
-        for t in order) or '<tr><td colspan="9" style="text-align:center;color:#706e64">まだ記録がありません。次の更新から記録します。</td></tr>'
+        for t in order) or '<tr><td colspan="9" class="tr-none">まだ記録がありません。次の更新から記録します。</td></tr>'
     fails = [f for f in ledger.get("failures", []) if f.get("session") not in ledger.get("sessions", {})]
     warn = ""
     if error:
@@ -332,22 +430,24 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
                  f'{e("、".join(sorted({f["session"] for f in fails})))}（0件とは扱っていません）</div>')
     return (
         f'<section id="{TAB_ID}"><div class="card" id="track-record-card" data-rule="{RULE_ID}">'
-        '<div class="chd"><h2>公開成績（新ルール・前向き記録）<span class="h2en">Track Record</span></h2></div>'
-        f'<div class="sub">毎日の「本命」を公開した時点で記録し、<b>実際に取れる価格</b>で追跡。'
-        f'記録開始 {e(start)}（{days}営業日分）。ルール版 {e(RULE_ID)}。</div>'
-        + warn +
+        '<div class="chd"><h2>運用成績（ルールどおりの売買・前向き記録）<span class="h2en">Track Record</span></h2></div>'
+        f'<div class="sub">毎日公開した「本命」を、Rulesタブの資金管理（最大6銘柄・最初は資金の1/6・+10%と+20%で同額買い増し・'
+        f'1銘柄40%まで・余剰資金はQQQ）どおりに売買した場合の成績。記録開始 {e(start)}（{days}営業日分）。ルール版 {e(RULE_ID)}。</div>'
+        + warn + portfolio_html(ledger.get("portfolio"))
+        + '<details class="tr-more"><summary>本命1件ごとのシグナル成績</summary>'
         f'<div class="tr-grid">{grid}</div>'
         '<div class="tr-wrap"><table><tr><th>銘柄</th><th>本命の日</th><th>買値（翌始値）</th><th>現在/売値</th>'
         f'<th>損益</th><th>買い増し込み</th><th>QQQとの差</th><th>日数</th><th>状態</th></tr>{rows}</table></div>'
-        '<div class="tr-note"><b>何の成績か</b>：本命1件ごとの<b>シグナル成績</b>です。資金残高・最大6銘柄・1銘柄40%上限・'
-        '同じ銘柄の重複シグナルは考慮していないため、6銘柄ポートフォリオの実績や、Rulesタブの検証年率とは直接比べられません。<br/>'
-        '<b>約定</b>：本命は引け後に公開するので<b>翌営業日の始値</b>で買い。損切りは買値−8%（窓で下回ればその始値）。'
-        '安値21EMA割れは引けで確定するため<b>翌営業日の始値</b>で売り（それまで「売り待ち」）。'
-        '買い増し込みは、終値が買値+10%・+20%に届いた翌営業日の始値で<b>最初と同じ金額</b>を追加した場合。<br/>'
-        '<b>QQQとの差</b>：同じ約定時点（始値→始値、始値→損切り日の終値、保有中は直近終値）のQQQとの差。取れない分は「—」。<br/>'
-        '<b>記録のしかた</b>：本命はその日の最初の公開内容で確定し、約定・確定の結果とともに '
+        '<div class="tr-note">資金や6銘柄の枠を考えず、本命を1件ずつ追った成績（銘柄選びそのものの強さを見る用）。</div></details>'
+        '<div class="tr-note"><b>約定</b>：本命は引け後に公開するので<b>翌営業日の始値</b>で買う（Rulesタブの検証は本命の日の終値）。'
+        '枠が足りない日は189日リターンの高い順、保有中の銘柄は重ねて買わない。損切りは買値−8%（窓で下回ればその始値）。'
+        '安値21EMA割れは引けで確定し<b>翌営業日の始値</b>で売り。買い増しは終値が買値+10%・+20%に届いた翌営業日の始値で最初と同じ金額、'
+        'ただし1銘柄が資金の40%を超えない範囲。<br/>'
+        '<b>余剰資金</b>：毎朝、現金とQQQの合計を、前日に公開した比率（Rulesタブ7：通常50%、ブレイク成功度が不調でQQQが200日線より上なら100%）でQQQに置く。'
+        '残りの現金は金利0%。地合い停止の日は新規で買わない。<br/>'
+        '<b>記録のしかた</b>：本命はその日の最初の公開内容で確定し、売買の結果とともに '
         '<code>track-record/signals.json</code> に保存（Gitの履歴と毎日のスナップショットに残る）。'
-        'あとで再計算して本命が変わった日は＊印（成績は最初の公開内容で計算）。手数料・スリッページ・税金は含みません。<br/>'
+        'あとで再計算して本命が変わった日は＊印（成績は最初の公開内容で計算）。手数料・スリッページ・税金・テーマ枠は含みません。<br/>'
         '過去の成績は将来の成績を保証しません。売買の推奨ではなく、ルールの検証記録です。</div>'
         '</div></section>'
     )
@@ -379,8 +479,8 @@ def apply(text: str, ledger: dict | None, trades: list[dict], error: str | None 
         m = re.search(r'<a class="tabx"[^>]*href="#t-alloc"[^>]*>.*?</a>', text)
         if m:
             text = text[:m.end()] + link + text[m.end():]
-    if 'id="track-record-style"' not in text:
-        text = text.replace("</head>", STYLE + "</head>", 1)
+    text = re.sub(r'<style id="track-record-style">.*?</style>', '', text, count=1, flags=re.S)
+    text = text.replace("</head>", STYLE + "</head>", 1)
     return text
 
 
@@ -393,8 +493,14 @@ def run(text: str, frame: pd.DataFrame, session: str, root: Path, qqq_path: Path
         print(f"track record ledger not updated: {exc}", flush=True)
         return apply(text, None, [], error=str(exc))
     last = frame[frame["date"] == pd.Timestamp(session)].set_index("ticker")["close"].to_dict()
-    record(ledger, text, session, {k: float(v) for k, v in last.items()})
-    advance_all(ledger, frame, qqq_bars(qqq_path or root / "data" / "market_inputs.json"))
+    _, best = published_best(text)
+    r189 = returns_189(frame[frame["ticker"].isin(best)], session) if best else {}
+    record(ledger, text, session, {k: float(v) for k, v in last.items()}, r189=r189)
+    qqq = qqq_bars(qqq_path or root / "data" / "market_inputs.json")
+    advance_all(ledger, frame, qqq)
+    if ledger.get("start"):
+        pf = ledger.get("portfolio") or tp.new_portfolio(ledger["start"])
+        ledger["portfolio"] = tp.advance(pf, ledger["sessions"], frame, qqq, session)
     save(ledger, path)
     return apply(text, ledger, trades_for_display(ledger))
 

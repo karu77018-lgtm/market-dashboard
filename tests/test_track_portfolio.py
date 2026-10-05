@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+import copy
+import json
+import sys
+from pathlib import Path
+
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
+import track_portfolio as tp  # noqa: E402
+import track_record as tr  # noqa: E402
+
+D = [d.date().isoformat() for d in pd.bdate_range("2026-01-01", periods=60)]
+S = D[29]                       # signal session; history before it is flat at 100
+
+
+def frame(paths: dict[str, list[tuple]]) -> pd.DataFrame:
+    """paths: ticker -> bars (open, low, close) for D[30], D[31], ...; flat 100 before."""
+    rows = []
+    for t, bars in paths.items():
+        for k in range(30):
+            rows.append((t, D[k], 100.0, 100.5, 99.5, 100.0))
+        for k, (o, lo, c) in enumerate(bars):
+            rows.append((t, D[30 + k], o, max(o, c), lo, c))
+    f = pd.DataFrame(rows, columns=["ticker", "date", "open", "high", "low", "close"])
+    f["date"] = pd.to_datetime(f["date"])
+    return f
+
+
+def qqq(n: int, price: float = 100.0) -> dict:
+    return {D[k]: {"open": price, "close": price} for k in range(n)}
+
+
+def sessions(names: list[str], regime: str = "on", pct: int | None = 50, r189: dict | None = None) -> dict:
+    return {S: {"best": [{"t": t, "r189": (r189 or {}).get(t)} for t in names], "regime": regime, "qqq_pct": pct}}
+
+
+def run(names, paths, n_days, **kw):
+    pf = tp.new_portfolio(S)
+    return tp.advance(pf, sessions(names, **{k: v for k, v in kw.items() if k in ("regime", "pct", "r189")}),
+                      frame(paths), qqq(30 + n_days), D[29 + n_days])
+
+
+def test_entry_next_open_one_sixth_and_idle_money_in_qqq():
+    pf = run(["AAA"], {"AAA": [(100, 99.9, 110)]}, 1)
+    p = pf["positions"]["AAA"]
+    assert p["entry_day"] == D[30] and p["entry"] == 100 and abs(p["invested"] - 1 / 6) < 1e-12
+    idle = 1 - 1 / 6
+    assert abs(pf["qqq_sh"] * 100 - idle / 2) < 1e-12 and abs(pf["cash"] - idle / 2) < 1e-12
+    assert abs(pf["equity"][-1][1] - (1 + (1 / 6) * 0.10)) < 1e-12       # AAA +10%, QQQ flat
+    assert p["triggered"] == [0] and p["pending_add"] == 1
+
+
+def test_six_slots_ranked_by_189_day_return():
+    names = [f"T{k}" for k in range(7)]
+    r189 = {t: k / 10 for k, t in enumerate(names)}                        # T6 strongest, T0 weakest
+    pf = run(names, {t: [(100, 99.9, 100)] for t in names}, 1, r189=r189)
+    assert set(pf["positions"]) == {f"T{k}" for k in range(1, 7)}
+    assert pf["skipped"] == [{"t": "T0", "signal": S, "day": D[30], "why": "6銘柄で満杯"}]
+    assert abs(pf["cash"] + pf["qqq_sh"] * 100) < 1e-12                   # 6 x 1/6 = fully invested
+
+
+def test_regime_off_buys_nothing_and_unknown_pct_keeps_last():
+    pf = run(["AAA"], {"AAA": [(100, 99.9, 100)]}, 1, regime="off", pct=None)
+    assert pf["positions"] == {} and abs(pf["qqq_sh"] * 100 - 0.5) < 1e-12
+
+
+def test_same_amount_adds_never_exceed_forty_percent():
+    up = [(100, 99.9, 110), (111, 110.5, 125), (126, 125, 160), (160, 159, 170)]
+    pf = run(["AAA"], {"AAA": up}, 4, pct=0)
+    p = pf["positions"]["AAA"]
+    assert p["adds"] == 2
+    first = (1 / 6) / 100 + (1 / 6) / 111                                 # full same-amount add at 111
+    eq_open = (1 - 2 / 6) + first * 126
+    second = min(1 / 6, 0.40 * eq_open - first * 126)                      # the 40% cap binds at 126
+    assert second < 1 / 6 and abs(p["shares"] - (first + second / 126)) < 1e-12
+    big = run(["AAA"], {"AAA": [(100, 99.9, 110), (300, 299, 300)]}, 2, pct=0)
+    q = big["positions"]["AAA"]
+    eq_open = (1 - 1 / 6) + (1 / 6) / 100 * 300                            # cash + position at the open
+    room = 0.40 * eq_open - (1 / 6) / 100 * 300                            # < 1/6: only up to 40%
+    assert q["adds"] == 1 and abs(q["invested"] - (1 / 6 + room)) < 1e-12
+    assert abs(q["shares"] * 300 / eq_open - 0.40) < 1e-12
+
+
+def test_exits_gap_and_ema_break_next_open():
+    gap = run(["AAA"], {"AAA": [(100, 99.9, 100), (90, 89, 90)]}, 2)
+    assert gap["positions"] == {} and gap["closed"][0]["reason"] == "損切り（窓）" and gap["closed"][0]["exit"] == 90
+    ema = run(["AAA"], {"AAA": [(100, 99.9, 100), (99.9, 99.4, 99.5), (80, 79, 79)]}, 3)
+    c = ema["closed"][0]
+    assert c["reason"] == "安値21EMA割れ（翌始値）" and c["exit"] == 80 and c["exit_day"] == D[32]
+    stop = run(["AAA"], {"AAA": [(100, 99.9, 100), (99, 91, 95)]}, 2)
+    assert abs(stop["closed"][0]["exit"] - 92) < 1e-9 and stop["closed"][0]["reason"] == "損切り −8%"
+
+
+def test_incremental_equals_one_shot_and_reruns_are_idempotent():
+    paths = {"AAA": [(100, 99.9, 104), (105, 103, 111), (112, 108, 109), (109, 100, 101)],
+             "BBB": [(50, 49.9, 51), (51, 50, 52), (52, 40, 41), (41, 40, 40)]}
+    f, q, ses = frame(paths), qqq(34, 100), sessions(["AAA", "BBB"])
+    once = tp.advance(tp.new_portfolio(S), ses, f, q, D[33])
+    step = tp.new_portfolio(S)
+    for k in range(30, 34):
+        step = tp.advance(step, ses, f, q, D[k])
+    assert json.dumps(step, sort_keys=True) == json.dumps(once, sort_keys=True)
+    again = tp.advance(copy.deepcopy(once), ses, f, q, D[33])
+    assert again == once
+    assert tp.advance(copy.deepcopy(once), ses, f[f["date"] > pd.Timestamp(D[31])], q, D[33]) == once
+
+
+def test_waits_for_missing_qqq_instead_of_skipping_a_session():
+    q = qqq(32)
+    q[D[30]] = {"open": None, "close": 100}
+    pf = tp.advance(tp.new_portfolio(S), sessions(["AAA"]), frame({"AAA": [(100, 99, 100), (100, 99, 100)]}), q, D[31])
+    assert pf["last_day"] == S and pf["waiting"] == D[30] and pf["positions"] == {}
+
+
+def test_published_qqq_pct_comes_from_the_rules_card():
+    page = '<div class="card" id="rules-card" data-rule="x"><div class="rreg off">… → 余剰資金のQQQ 100%</div></div>'
+    assert tp.published_qqq_pct(page) == 100
+    assert tp.published_qqq_pct("<div>余剰資金のQQQ 100%</div>") is None
+
+
+def test_run_records_portfolio_and_renders_tab(tmp_path: Path):
+    page = ('<html><head></head><body><nav><a class="tabx" href="#t-alloc">Positions</a></nav>'
+            '<section id="t-alloc"><div class="card" id="mc57-swing-screener" data-regime="on">'
+            '<div class="sw-sec"><span>本命<small>n</small></span><button class="cp" data-tk="AAA">c</button></div>'
+            '</div></section><section id="t-rules"><div class="card" id="rules-card" data-rule="r">余剰資金のQQQ 50%</div>'
+            '</section></body></html>')
+    f = frame({"AAA": [(100, 99.9, 110)]})
+    market = tmp_path / "data" / "market_inputs.json"
+    market.parent.mkdir(parents=True)
+    market.write_text(json.dumps({"series": {"QQQ": [{"date": d, **v} for d, v in qqq(31).items()]}}))
+    out = tr.run(page, f[f["date"] <= pd.Timestamp(S)], S, tmp_path)
+    led = json.loads((tmp_path / tr.LEDGER).read_text())
+    assert led["sessions"][S]["qqq_pct"] == 50 and led["portfolio"]["last_day"] == S
+    assert "翌営業日の始値で買うところから始まります" in out
+    out = tr.run(out, f, D[30], tmp_path)
+    led = json.loads((tmp_path / tr.LEDGER).read_text())
+    assert list(led["portfolio"]["positions"]) == ["AAA"] and led["portfolio"]["equity"][-1][0] == D[30]
+    assert "保有中" in out and "ルール運用" in out and 'class="tr-spark"' in out
+    assert tr.render_only(out, tmp_path) == tr.render_only(tr.render_only(out, tmp_path), tmp_path)
