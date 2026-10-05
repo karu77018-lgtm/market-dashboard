@@ -27,7 +27,7 @@ def test_one_stylesheet_last_in_head_and_idempotent():
     assert out.count('id="ds-style"') == 1 and ds.apply(out) == out
     head = out[:out.index("</head>")]
     assert head.rindex("<style") == head.index('<style id="ds-style">')
-    assert ds.STYLE_RE.sub("", out) == PAGE                     # nothing but the stylesheet changes
+    assert ds.SCRIPT_RE.sub("", ds.STYLE_RE.sub("", out)) == PAGE  # only the stylesheet and chart script are added
 
 
 def test_dark_badges_become_light_tints_of_their_hue():
@@ -67,3 +67,23 @@ def test_published_page_has_no_dark_badges_left():
                  and "::" not in sel and ":before" not in sel and ":after" not in sel
                  and f"{' '.join(sel.split())}{{background:" not in css]
     assert leftovers == []
+
+
+def test_chart_normalizer_script_is_added_once_and_outside_the_jev_hash():
+    out = ds.apply(PAGE)
+    assert out.count('<script id="ds-script">') == 1 and ds.apply(out) == out
+    assert out.index('<script id="ds-script">') > out.index("<body>")
+    assert rj.source_hash(out) == rj.source_hash(PAGE)
+    assert "non-scaling-stroke" in ds.CHART_JS and "ResizeObserver" in ds.CHART_JS
+
+
+def test_reader_facing_names_change_text_only():
+    import naming
+    page = ('<html><head><script>var MC57=1;</script><style>.x{}</style></head><body>'
+            '<div class="lab">マーケットステータス（MC57・市場内部）</div><b data-k="MC57">MC57 26。</b>'
+            '<div>NQ運用判定 青</div><div class="mbd-h">MC57内訳（12指標 / 4グループ）</div></body></html>')
+    out = naming.apply(page)
+    assert "var MC57=1;" in out and 'data-k="MC57"' in out
+    assert "マーケットパルス（市場内部スコア）" in out and "マーケットパルス 26。" in out
+    assert "NQトレンド信号 青" in out and "マーケットパルスの内訳（12指標 / 4グループ）" in out
+    assert naming.apply(out) == out

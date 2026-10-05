@@ -38,7 +38,7 @@ def test_render_adds_one_isolated_tab_and_is_idempotent(tmp_path: Path):
     render(html_path, ranking_path)
     render(html_path, ranking_path)
     rendered = html_path.read_text(encoding="utf-8")
-    assert rendered.count("Jev期待値</a>") == 1
+    assert rendered.count("ニュース期待値</a>") == 1
     assert rendered.count("jev-ranking-section") == 1
     assert "original" in rendered
     assert 'src="assets/jev-ranking.js"' in rendered

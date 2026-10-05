@@ -111,7 +111,7 @@ def render_section(payload: dict[str, Any]) -> str:
         status = "評価待ち"
     return (
         f"{SECTION_START}<section id='t-jev' class='jev-ranking-section'>"
-        "<div class='msec'><div class='msec-l'>Jev期待値ランキング"
+        "<div class='msec'><div class='msec-l'>ニュース期待値ランキング"
         "<span class='msec-en'>Jev Evidence Ranking</span></div>"
         f"<div class='msec-q'>{esc(status)}</div></div>"
         "<div class='card jev-explain'><h2>ニュース材料の期待値"
@@ -140,6 +140,7 @@ def source_hash(text: str) -> str:
     text = re.sub(r'<script id="jev-ranking-loader"[^>]*></script>', '', text)
     # Presentation-only stylesheet (design_system.py) is not evidence either.
     text = re.sub(r'<style id="ds-style">.*?</style>', '', text, flags=re.S)
+    text = re.sub(r'<script id="ds-script">.*?</script>', '', text, flags=re.S)
     # Jev's section is independent of source evidence.
     text = remove_between(text, SECTION_START, SECTION_END)
     return hashlib.sha256(text.encode()).hexdigest()
@@ -164,7 +165,7 @@ def render(html_path: Path, ranking_path: Path) -> None:
         raise RuntimeError("dashboard navigation anchor not found")
     nav = (
         f"{NAV_START}<a class=\"tabx\" href=\"#t-jev\" "
-        "onclick=\"tab('t-jev',this);return false;\">Jev期待値</a>"
+        "onclick=\"tab('t-jev',this);return false;\">ニュース期待値</a>"
         f"{NAV_END}"
     )
     text = text.replace(nav_anchor, nav + nav_anchor, 1)
@@ -192,7 +193,7 @@ def main() -> int:
         bind_ranking(Path(args.html), Path(args.ranking))
         return 0
     render(Path(args.html), Path(args.ranking))
-    print(json.dumps({"status": "rendered", "tab": "Jev期待値"}, ensure_ascii=False))
+    print(json.dumps({"status": "rendered", "tab": "ニュース期待値"}, ensure_ascii=False))
     return 0
 
 

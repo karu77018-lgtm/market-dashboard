@@ -28,6 +28,8 @@ import re
 from pathlib import Path
 
 STYLE_ID = "ds-style"
+SCRIPT_ID = "ds-script"
+SCRIPT_RE = re.compile(rf'<script id="{SCRIPT_ID}">.*?</script>', re.S)
 STYLE_RE = re.compile(rf'<style id="{STYLE_ID}">.*?</style>', re.S)
 
 TOKENS = {
@@ -91,12 +93,68 @@ section>.msec:first-child{border-top:none;padding-top:4px;margin-top:8px}
 .card table th{font-size:11px;font-weight:700;color:var(--ds-muted)}
 .card table td{border-color:var(--ds-line)}
 .dax,.mc57-breadth-axis{font-size:10px;font-weight:500;color:var(--ds-muted)}
+.dax,.mc57-breadth-axis{display:flex;justify-content:space-between;border-top:1px solid var(--ds-line);margin-top:2px;padding:6px 2px 0;line-height:1;font-variant-numeric:tabular-nums}
+.rsx-hflow>div{grid-template-columns:52px minmax(0,1fr) auto;align-items:start}
+.rsx-hflow>div>strong{grid-column:1;grid-row:1}
+.rsx-hflow>div>.chips{grid-column:2;grid-row:1;display:flex;flex-wrap:wrap;gap:4px}
+.rsx-hflow>div>.cp{grid-column:3;grid-row:1;width:auto;white-space:nowrap}
+.rsx-hflow .chip{margin:0}
 a:focus-visible,button:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--ds-accent);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 [style*="font-size:8px"]:not(svg *),[style*="font-size: 8px"]:not(svg *),
 [style*="font-size:8.5px"]:not(svg *),[style*="font-size:9px"]:not(svg *),
 [style*="font-size: 9px"]:not(svg *),[style*="font-size:9.5px"]:not(svg *){font-size:10px!important}
 """
+
+
+# One chart format at runtime (also for charts drawn later by JS): history charts are
+# SVGs stretched with preserveAspectRatio="none", which squashes their value labels
+# and turns end dots into ellipses.  Counter-scale labels to 10px with a paper halo,
+# keep strokes 1-2px (non-scaling), draw the end dot round, and give every
+# single-series history chart the same ink line (the market-history charts keep
+# their own score colours).  DOM order is untouched.
+CHART_JS = r"""(function(){
+var INK='#1f4b8f',GRID='#e2dfd7',REF='#a9a598',LAB='#7a776c',HALO='#f7f6f2';
+function stroked(e){var s=e.getAttribute('stroke');return s&&s!=='none'}
+function prep(svg){
+ if(svg.__ds)return true;
+ if((svg.getAttribute('preserveAspectRatio')||'')!=='none')return false;
+ var vb=svg.viewBox&&svg.viewBox.baseVal;if(!vb||!vb.width||!vb.height)return false;
+ svg.__ds={w:vb.width,h:vb.height};
+ var spark=svg.classList.contains('spark');
+ svg.querySelectorAll('polyline,path,line,rect').forEach(function(e){if(stroked(e))e.setAttribute('vector-effect','non-scaling-stroke')});
+ svg.querySelectorAll('line').forEach(function(l){if(l.getAttribute('stroke-dasharray'))l.setAttribute('stroke',REF);else if(!spark)l.setAttribute('stroke',GRID)});
+ svg.querySelectorAll('text').forEach(function(t){t.setAttribute('fill',LAB);t.setAttribute('font-weight','600');
+  t.setAttribute('stroke',HALO);t.setAttribute('paint-order','stroke');t.setAttribute('stroke-linejoin','round');
+  t.__x=+(t.getAttribute('x')||0);t.__y=+(t.getAttribute('y')||0)});
+ var series=[].filter.call(svg.querySelectorAll('polyline,path'),function(e){var f=e.getAttribute('fill');return stroked(e)&&(!f||f==='none')});
+ if(series.length===1&&!spark&&!svg.closest('.mc57-candle,.mh-plot')){var col=series[0].getAttribute('stroke');series[0].setAttribute('stroke',INK);series[0].setAttribute('stroke-width','2');
+  svg.querySelectorAll('stop').forEach(function(st){if(st.getAttribute('stop-color')===col)st.setAttribute('stop-color',INK)});
+  svg.querySelectorAll('circle').forEach(function(c){if(c.getAttribute('fill')===col)c.setAttribute('fill',INK)})}
+ svg.querySelectorAll('circle').forEach(function(c){var e=document.createElementNS('http://www.w3.org/2000/svg','ellipse');
+  ['cx','cy','fill','stroke','class'].forEach(function(a){if(c.hasAttribute(a))e.setAttribute(a,c.getAttribute(a))});
+  e.__r=+(c.getAttribute('r')||3);c.replaceWith(e)});
+ var w=vb.width,right=[].filter.call(svg.querySelectorAll('text'),function(t){return t.__x>=w*0.9});
+ if(right.length&&!spark&&!svg.closest('.mc57-candle')){
+  // value labels get their own gutter on the right instead of sitting on the line
+  var g=document.createElementNS('http://www.w3.org/2000/svg','g');
+  [].slice.call(svg.childNodes).forEach(function(n){if(n.nodeName.toLowerCase()!=='defs'&&right.indexOf(n)<0)g.appendChild(n)});
+  svg.insertBefore(g,right[0]);right.forEach(function(t){t.__x=w-1;t.setAttribute('x',w-1);t.setAttribute('text-anchor','end')});
+  svg.__ds.g=g}
+ return true}
+function fit(svg){if(!prep(svg))return;var r=svg.getBoundingClientRect();if(!r.width||!r.height)return;
+ var sx=r.width/svg.__ds.w,sy=r.height/svg.__ds.h;
+ svg.querySelectorAll('text').forEach(function(t){var x=t.__x,y=t.__y;t.setAttribute('font-size',(10/sy).toFixed(2));
+  t.setAttribute('stroke-width',(3/sy).toFixed(2));
+  t.setAttribute('transform','translate('+x+' '+y+') scale('+(sy/sx).toFixed(4)+' 1) translate('+(-x)+' '+(-y)+')')});
+ var k=1,g=svg.__ds.g;if(g){k=Math.max(.6,(svg.__ds.w-38/sx)/svg.__ds.w);g.setAttribute('transform','scale('+k.toFixed(4)+' 1)');var ax=svg.nextElementSibling;if(ax&&ax.classList.contains('dax'))ax.style.paddingRight=Math.round(svg.__ds.w*(1-k)*sx)+'px'}
+ svg.querySelectorAll('ellipse').forEach(function(e){if(e.__r){var kk=g&&g.contains(e)?k:1;e.setAttribute('rx',(e.__r/(sx*kk)).toFixed(2));e.setAttribute('ry',(e.__r/sy).toFixed(2))}})}
+var ro=window.ResizeObserver?new ResizeObserver(function(es){es.forEach(function(e){fit(e.target)})}):null;
+function scan(root){(root.querySelectorAll?root.querySelectorAll('svg'):[]).forEach(function(svg){if(prep(svg)){if(ro)ro.observe(svg);fit(svg)}})}
+function start(){scan(document);new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType!==1)return;if(n.tagName&&n.tagName.toLowerCase()==='svg'){if(prep(n)){if(ro)ro.observe(n);fit(n)}}else scan(n)})})}).observe(document.body,{childList:true,subtree:true});
+ if(!ro)window.addEventListener('resize',function(){scan(document);document.querySelectorAll('svg').forEach(fit)})}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+})();"""
 
 
 def _hex(c: str) -> tuple[float, float, float]:
@@ -179,11 +237,13 @@ def stylesheet(text: str) -> str:
 
 
 def apply(text: str) -> str:
-    text = STYLE_RE.sub("", text)
+    text = SCRIPT_RE.sub("", STYLE_RE.sub("", text))
     if "</head>" not in text:
         return text
     i = text.rfind("</head>")
-    return text[:i] + stylesheet(text) + text[i:]
+    text = text[:i] + stylesheet(text) + text[i:]
+    j = text.rfind("</body>")
+    return text if j < 0 else text[:j] + f'<script id="{SCRIPT_ID}">{CHART_JS}</script>' + text[j:]
 
 
 def main() -> int:

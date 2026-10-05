@@ -10,10 +10,10 @@ from pathlib import Path
 MAX_MEDIAN_VENDOR_GAP = 0.02
 
 REQUIRED_MARKERS = (
-    "マーケットステータス（MC57・市場内部）", "MC57内訳（12指標 / 4グループ）",
-    "market-history-script", "NQ運用判定",
+    "マーケットパルス（市場内部スコア）", "マーケットパルスの内訳（12指標 / 4グループ）",
+    "market-history-script", "NQトレンド信号",
     "Daily", "Positions", "アーカイブ", 'id="archive-intro"', "Setups", "Rotation", 'id="t-themes"', "Movers",
-    "Weekly", "Publish", "Rules", "Jev期待値", "mc57-candle-script",
+    "Weekly", "Publish", "Rules", "ニュース期待値", "mc57-candle-script",
     "jev-ranking-section", "ブレッドス推移（50日線上の割合）",
     "52週 新高値 − 新安値", 'data-source-improvement="50ma-participation"',
     'data-source-improvement="52week-high-low"',
