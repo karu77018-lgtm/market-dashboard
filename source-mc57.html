@@ -1209,7 +1209,228 @@ td.hl{background:rgba(56,80,140,.20);font-weight:800}
 .jev-click{cursor:pointer}.jev-click:hover td{background:rgba(44,105,201,.06)}
 .jev-click:focus{outline:2px solid #2c69c9;outline-offset:-2px}.jev-click:active td{background:rgba(44,105,201,.12)}
 .jev-empty{padding:24px 8px;text-align:center;color:#777268;line-height:1.7}
-</style><!-- JEV_RANKING_STYLE_END --><meta name="dashboard-source-sha256" content="c035084511a58ba3fcea1b329dac8394f726dc61524921ab06760f1bc80b69a7"/></head><body><div class="wrap"><header><h1>Command Center</h1><div class="asof">分析基準日 2026-10-02</div></header><div class="todayact ta-blue" data-srv="Blue" id="taCard"><div class="ta-top"><span class="ta-h">NQ運用判定</span><span class="ta-col" id="taCol">青</span><span class="ta-expo" id="taExpo"><span class="mut" style="font-weight:600">目標露出（上限）：</span>個別 100% ／ レバ 100%</span><span id="taEst"><span class="sar-badge est">推定・TradingViewで色を確認</span></span><span id="taManual"></span><span class="ta-tog" id="taTog" onclick="taToggle()">▾</span></div><div class="ta-more" id="taMore" style="display:none"><div class="ta-act ta-normal" id="taAct">色変化なし → 新規アクションなし（保有維持。トレール・ストップのみ対応）</div><div class="ta-rebal" id="taRebal" style="display:none"></div><div class="ta-rec"><span class="ta-reclab">記録</span><button class="nqb b-blue" onclick="setNQ('Blue')">青</button><button class="nqb b-green" onclick="setNQ('Green')">緑</button><button class="nqb b-yellow" onclick="setNQ('Yellow')">黄</button><button class="nqb b-red" onclick="setNQ('Red')">赤</button><button class="nqb b-clear" onclick="clearNQ()">推定に戻す</button><span class="ta-go" onclick="goTab('t-alloc')">Positionsで点検 ›</span><span class="ta-recst" id="nqRecSt"></span></div></div></div><nav><a class="tabx on" href="#t-market" onclick="tab('t-market',this);return false;">Daily</a><a class="tabx" href="#t-alloc" onclick="tab('t-alloc',this);return false;">Positions</a><a class="tabx" href="#t-record" onclick="tab('t-record',this);return false;">成績</a><a class="tabx" href="#t-today" onclick="tab('t-today',this);return false;">Setups</a><a class="tabx" href="#t-rotation" onclick="tab('t-rotation',this);return false;">Rotation</a><a class="tabx" href="#t-themes" onclick="tab('t-themes',this);return false;">Themes</a><a class="tabx" href="#t-movers" onclick="tab('t-movers',this);return false;">Movers</a><a class="tabx" href="#t-rs" onclick="tab('t-rs',this);return false;">RS</a><a class="tabx" href="#t-weekly" onclick="tab('t-weekly',this);return false;">Weekly</a><a class="tabx" href="#t-post1" onclick="tab('t-post1',this);return false;">Publish</a><a class="tabx" href="#t-rules" onclick="tab('t-rules',this);return false;">Rules</a><a class="tabx" href="#t-port" onclick="tab('t-port',this);return false;">アーカイブ</a><!-- JEV_RANKING_NAV_START --><a class="tabx" href="#t-jev" onclick="tab('t-jev',this);return false;">Jev期待値</a><!-- JEV_RANKING_NAV_END --></nav><section class="on" id="t-market"><div class="msec"><div class="msec-l">① 結論と行動<span class="msec-en">Verdict &amp; Action</span></div><div class="msec-q">今日・1週間・1カ月・ローテを一画面</div></div>
+</style><!-- JEV_RANKING_STYLE_END --><meta name="dashboard-source-sha256" content="c035084511a58ba3fcea1b329dac8394f726dc61524921ab06760f1bc80b69a7"/><style id="ds-style">:root{--ds-paper:#ebe9e3;--ds-card:#f7f6f2;--ds-inset:#efede7;--ds-line:#dedbd2;--ds-line-strong:#cfcbc0;--ds-ink:#1c1b19;--ds-ink-2:#46443d;--ds-muted:#6b685e;--ds-accent:#2659ab;--ds-up:#17703f;--ds-down:#b3362c;--ds-warn:#8a5a12}
+body{background:var(--ds-paper);color:var(--ds-ink);line-height:1.5;
+font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Helvetica Neue",sans-serif}
+nav{background:rgba(235,233,227,.92)}
+header h1{letter-spacing:.01em}
+.card{background:var(--ds-card);border:1px solid var(--ds-line);border-radius:14px}
+.card h2{font-size:15.5px;font-weight:800;letter-spacing:.01em;color:var(--ds-ink);font-feature-settings:"palt" 1;line-height:1.35}
+.h2en,.msec-en,.cchd-en,.lab-en{display:none!important}
+.card h2,.msec-l,.chd h2{text-wrap:balance;word-break:auto-phrase}
+.msec{margin:28px 0 10px;padding-top:16px;border-top:1px solid var(--ds-line-strong)}
+section>.msec:first-child{border-top:none;padding-top:4px;margin-top:8px}
+.msec-l{font-size:18px;font-weight:800;letter-spacing:.01em;color:var(--ds-ink);font-feature-settings:"palt" 1;line-height:1.35}
+.msec-q{font-size:12px;color:var(--ds-muted);margin-top:3px;line-height:1.5}
+.card .sub{font-size:12px;color:var(--ds-ink-2);line-height:1.65}
+.note,.lbnote,.cxpl-b,#t-rules .rnote,.tr-note,.jev-asof{font-size:11.5px;color:var(--ds-muted);line-height:1.65}
+.cxpl>summary,.calcfold>summary{font-size:11px;color:var(--ds-accent)}
+.disc{font-size:11px;color:var(--ds-muted)}
+.chd{align-items:flex-start}
+.chd-now b{font-size:24px;font-weight:800;letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1.05}
+.vixcy .chd-now b{font-size:16px}
+.chd-now span{font-size:10.5px;color:var(--ds-muted);font-weight:600}
+.chd-now[style*="#7ff0a8"],.chd-now[style*="#20a751"],.chd-now[style*="#23824d"]{color:var(--ds-up)!important}
+.chd-now[style*="#d95b5b"]{color:var(--ds-down)!important}
+.chd-now[style*="#806819"]{color:var(--ds-warn)!important}
+.pos,.up,.rsd.up{color:var(--ds-up)}
+.neg,.dn,.rsd.dn{color:var(--ds-down)}
+.rh{color:var(--ds-accent)}
+.sar-blue,.sar-green,.sar-yellow,.sar-red{color:#fff}
+.sar-blue .lab,.sar-green .lab,.sar-yellow .lab,.sar-red .lab,.sar-blue .lot,.sar-green .lot,.sar-yellow .lot,.sar-red .lot{color:rgba(255,255,255,.82)}
+.lqf-b.active .lqf-tag{color:#dff3e6}
+.kv{border-bottom-color:var(--ds-line)}
+.card table th{font-size:11px;font-weight:700;color:var(--ds-muted)}
+.card table td{border-color:var(--ds-line)}
+.dax,.mc57-breadth-axis{font-size:10px;font-weight:500;color:var(--ds-muted)}
+a:focus-visible,button:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--ds-accent);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+[style*="font-size:8px"]:not(svg *),[style*="font-size: 8px"]:not(svg *),
+[style*="font-size:8.5px"]:not(svg *),[style*="font-size:9px"]:not(svg *),
+[style*="font-size: 9px"]:not(svg *),[style*="font-size:9.5px"]:not(svg *){font-size:10px!important}
+.mvr-3w{font-size:10px}
+.w30b-part{background:#f4ead2;color:#7a5512;box-shadow:none}
+.w30b-weak{background:#f6e1de;color:#a3322a;box-shadow:none}
+.w30s-new{background:#e3eaf6;color:#23508f;box-shadow:none}
+.w30s-pb{background:#f4ead2;color:#7a5512;box-shadow:none}
+.w30s-dead{background:#f6e1de;color:#a3322a;box-shadow:none}
+.w30new{font-size:10px}
+.albadge{font-size:10px}
+.cchd-en{font-size:10px}
+.cctf{font-size:10px}
+.mkt20-score>em{font-size:10px}
+.mkt20-label{font-size:10px}
+.mkt-post-tools{font-size:10px}
+.mkt20-row small{font-size:10px}
+.mkt20-deep>span{font-size:10px}
+.gauge .mk{box-shadow:0 4px 12px rgba(28,27,25,.12)}
+.sar .dot{box-shadow:0 4px 12px rgba(28,27,25,.12)}
+.st-bad{background:#f6e1de;color:#a3322a;box-shadow:none}
+.chip.ov{background:#f4ead2;color:#7a5512;border-color:#e0c98f;box-shadow:none}
+.chip.s-buy{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.chip.s-go{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.chip.s-wait{background:#f4ead2;color:#7a5512;border-color:#e0c98f;box-shadow:none}
+.chip.s-deep{background:#f4ead2;color:#7a5512;border-color:#e0c98f;box-shadow:none}
+.chip.s-break{background:#f6e1de;color:#a3322a;border-color:#e8b8b1;box-shadow:none}
+.qb{font-size:10px}
+.qb-go{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.buy-g .k{font-size:10px}
+.vixvals span{font-size:10px}
+.vixleg{font-size:10px}
+.zoomhint{font-size:10px}
+.hth{font-size:10px}
+.hthg-n{font-size:10px}
+.hthg-m{font-size:10px}
+.hthg-x{font-size:10px}
+.prenums div i{font-size:10px}
+.rsoff{font-size:10px}
+.vixhr{font-size:10px}
+.vixhr.vixhh{font-size:10px}
+.pendb{font-size:10px}
+.waitb{font-size:10px}
+.reg-v{font-family:inherit;font-variant-numeric:tabular-nums}
+.reg-sub{font-size:10px}
+.rgchip{font-family:inherit;font-variant-numeric:tabular-nums}
+.rgchip{font-size:10px}
+.pqb{font-size:10px}
+.pqtag{font-size:10px}
+.pqbadge{font-size:10px}
+.pqnum{font-family:inherit;font-variant-numeric:tabular-nums}
+.cp-one{font-size:10px}
+.cp.cp-done{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.chaseb{font-size:10px}
+.inb{font-size:10px}
+.newb{font-size:10px}
+.ppb{font-size:10px}
+.cfnums span{font-size:10px}
+.ppd{font-size:10px}
+.entb2{font-size:10px}
+.bdry td{font-size:10px}
+.reg-role{font-size:10px}
+.reg-kind{font-size:10px}
+.onset{font-size:10px}
+.tbbadge{font-size:10px}
+.tbmeta{font-family:inherit;font-variant-numeric:tabular-nums}
+.tbmeta{font-size:10px}
+.def-badge{font-size:10px}
+.mrph{font-size:10px}
+.mrtr{font-family:inherit;font-variant-numeric:tabular-nums}
+.mrtr{font-size:10px}
+.okb{font-size:10px}
+.adrb{font-size:10px}
+.r3b{font-size:10px}
+.shallow{font-size:10px}
+.entb{font-size:10px}
+.fadeb{font-size:10px}
+.rflag{font-size:10px}
+.rf-crit{background:#f6e1de;color:#a3322a;border-color:#e8b8b1;box-shadow:none}
+.carryb{font-size:10px}
+.hsub-q{font-size:10px}
+.copybtn.done{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.exq{font-size:10px}
+.lagb{font-size:10px}
+.cp.done{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.dhbanner{background:#f4ead2;color:#7a5512;border-color:#e0c98f;box-shadow:none}
+.tbl td:first-child .rsx-badge{font-size:10px}
+.bfl.on{background:#f6e1de;color:#a3322a;border-color:#e8b8b1;box-shadow:none}
+.st-turn{background:#ece5f6;color:#5b3a96;box-shadow:none}
+.st-fail{background:#f6e1de;color:#a3322a;box-shadow:none}
+.scr-core{background:#e3eaf6;color:#23508f;border-color:#b8c9e6;box-shadow:none}
+.scr-core{font-size:10px}
+.bt-held{font-size:10px}
+.rt-act{background:#e2f0e6;color:#17683f;box-shadow:none}
+.bt-good{background:#e2f0e6;color:#17683f;box-shadow:none}
+.bt-warn{background:#f4ead2;color:#7a5512;box-shadow:none}
+.bt-bad{background:#f4ead2;color:#7a5512;box-shadow:none}
+.bt-g .k{font-size:10px}
+.dov{box-shadow:0 4px 12px rgba(28,27,25,.12)}
+.dov-spark .lbl{font-size:10px}
+.sn-ref{font-size:10px}
+.atsub{font-size:10px}
+.hm-tk{font-size:10px}
+.erb{font-size:10px}
+.tday{font-size:10px}
+.dov-stage.stg2{background:#e3eaf6;color:#23508f;border-color:#b8c9e6;box-shadow:none}
+.dov-stage.stg3{background:#f4ead2;color:#7a5512;border-color:#e0c98f;box-shadow:none}
+.dov-stage.stg4{background:#f6e1de;color:#a3322a;border-color:#e8b8b1;box-shadow:none}
+.secparent{font-size:10px}
+.tkbtn.on{background:#f4ead2;color:#7a5512;border-color:#e0c98f;box-shadow:none}
+.ta-h{font-size:10px}
+.ta-act.ta-change-dn{background:#f4ead2;color:#7a5512;box-shadow:none}
+.ta-manual{background:#e4e2db;color:#35332e;border-color:#cfccc2;box-shadow:none}
+.secrs th .so{font-size:10px}
+.loc-p{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.loc-d{background:#ddefec;color:#146457;border-color:#b0d8d1;box-shadow:none}
+.loc-k{background:#f4ead2;color:#7a5512;border-color:#e0c98f;box-shadow:none}
+.loc-h{background:#e3eaf6;color:#23508f;border-color:#b8c9e6;box-shadow:none}
+.dov-st-nu.pos{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.dov-st-nu.neg{background:#f6e1de;color:#a3322a;border-color:#e8b8b1;box-shadow:none}
+.secx{font-size:10px}
+.rowsec{font-size:10px}
+.capb{font-size:10px}
+.cap-micro{background:#f6e1de;color:#a3322a;border-color:#e8b8b1;box-shadow:none}
+.cap-small{background:#f4ead2;color:#7a5512;border-color:#e0c98f;box-shadow:none}
+.cap-large{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.cap-mega{background:#ddefec;color:#146457;border-color:#b0d8d1;box-shadow:none}
+.stb{font-size:10px}
+.liqstick{box-shadow:0 4px 12px rgba(28,27,25,.12)}
+.lqf-tag{font-size:10px}
+.subgrp-n{font-size:10px}
+.kflag{font-size:10px}
+.dax{font-size:10px}
+.lt-hk{font-size:10px}
+.lt-hu{font-size:10px}
+.em-on .em-mult{background:#f6e1de;color:#a3322a;box-shadow:none}
+.em-grid small{font-size:10px}
+.rscg .chip{font-size:10px}
+.rsc-tag{font-size:10px}
+.rsc-tag.stable{background:#e2f0e6;color:#17683f;box-shadow:none}
+.rsc-tag.fade{background:#f6e1de;color:#a3322a;box-shadow:none}
+.rsc-tag.spike{background:#f4ead2;color:#7a5512;box-shadow:none}
+.rsc-metrics{font-size:10px}
+.rsc-slopes{font-size:10px}
+.stratbtn.on{background:#e3eaf6;color:#23508f;box-shadow:none}
+.stratbadge{font-size:10px}
+.stratbadge.strat-core{background:#e3eaf6;color:#23508f;border-color:#b8c9e6;box-shadow:none}
+.stratbadge.strat-lev{background:#ece5f6;color:#5b3a96;border-color:#cfc0e8;box-shadow:none}
+.stratbadge.strat-swing{background:#f4ead2;color:#7a5512;border-color:#e0c98f;box-shadow:none}
+.hld-exit{font-size:10px}
+.hld-plan{font-size:10px}
+.hld-pt{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.hld-note{font-size:10px}
+.hld-close{background:#f6e1de;color:#a3322a;border-color:#e8b8b1;box-shadow:none}
+.hld-leg{font-size:10px}
+.hld-legb{background:#f4ead2;color:#7a5512;border-color:#e0c98f;box-shadow:none}
+.stratbadge.sp-entry{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.stratbadge.sp-hl{background:#f4ead2;color:#7a5512;border-color:#e0c98f;box-shadow:none}
+.stratbadge.sp-confirm{background:#e3eaf6;color:#23508f;border-color:#b8c9e6;box-shadow:none}
+.sp-impr{font-size:10px}
+.sp-vdry{font-size:10px}
+.sp-lvls{font-size:10px}
+.tksug-k{background:#ece5f6;color:#5b3a96;border-color:#cfc0e8;box-shadow:none}
+.tksug-k{font-size:10px}
+.rsx-name small{font-size:10px}
+.rsx-badge{font-size:10px}
+.rsx-badge.sel{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.rsx-badge.ex{background:#f6e1de;color:#a3322a;border-color:#e8b8b1;box-shadow:none}
+.rsx-new{background:#f4ead2;color:#7a5512;border-color:#e0c98f;box-shadow:none}
+.rsx-new{font-size:10px}
+.rsx-sub{font-size:10px}
+.rsx-hhead>span{font-size:10px}
+.rsx-hwhen small{font-size:10px}
+.rsx-hwhen em{font-size:10px}
+.rsx-hflow strong{font-size:10px}
+.rsx-hflow .hin{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.rsx-hflow .hout{background:#f6e1de;color:#a3322a;border-color:#e8b8b1;box-shadow:none}
+.rsx-hflow .chip{font-size:10px}
+.rsx-hflow .chip.in{background:#e2f0e6;color:#17683f;border-color:#b5d8c1;box-shadow:none}
+.rsx-hflow .chip.out{background:#f6e1de;color:#a3322a;border-color:#e8b8b1;box-shadow:none}
+.vwtbl{font-size:10px}
+.vwtbl .mut{font-size:10px}
+#mc57-swing-screener .sw-rs span{font-size:10px}
+#mc57-swing-screener .sw-lv i{font-size:10px}
+#mc57-swing-screener .sw-opt i{font-size:10px}
+.jev-ticker span,.jev-driver span{font-size:10px}</style></head><body><div class="wrap"><header><h1>Command Center</h1><div class="asof">分析基準日 2026-10-02</div></header><div class="todayact ta-blue" data-srv="Blue" id="taCard"><div class="ta-top"><span class="ta-h">NQ運用判定</span><span class="ta-col" id="taCol">青</span><span class="ta-expo" id="taExpo"><span class="mut" style="font-weight:600">目標露出（上限）：</span>個別 100% ／ レバ 100%</span><span id="taEst"><span class="sar-badge est">推定・TradingViewで色を確認</span></span><span id="taManual"></span><span class="ta-tog" id="taTog" onclick="taToggle()">▾</span></div><div class="ta-more" id="taMore" style="display:none"><div class="ta-act ta-normal" id="taAct">色変化なし → 新規アクションなし（保有維持。トレール・ストップのみ対応）</div><div class="ta-rebal" id="taRebal" style="display:none"></div><div class="ta-rec"><span class="ta-reclab">記録</span><button class="nqb b-blue" onclick="setNQ('Blue')">青</button><button class="nqb b-green" onclick="setNQ('Green')">緑</button><button class="nqb b-yellow" onclick="setNQ('Yellow')">黄</button><button class="nqb b-red" onclick="setNQ('Red')">赤</button><button class="nqb b-clear" onclick="clearNQ()">推定に戻す</button><span class="ta-go" onclick="goTab('t-alloc')">Positionsで点検 ›</span><span class="ta-recst" id="nqRecSt"></span></div></div></div><nav><a class="tabx on" href="#t-market" onclick="tab('t-market',this);return false;">Daily</a><a class="tabx" href="#t-alloc" onclick="tab('t-alloc',this);return false;">Positions</a><a class="tabx" href="#t-record" onclick="tab('t-record',this);return false;">成績</a><a class="tabx" href="#t-today" onclick="tab('t-today',this);return false;">Setups</a><a class="tabx" href="#t-rotation" onclick="tab('t-rotation',this);return false;">Rotation</a><a class="tabx" href="#t-themes" onclick="tab('t-themes',this);return false;">Themes</a><a class="tabx" href="#t-movers" onclick="tab('t-movers',this);return false;">Movers</a><a class="tabx" href="#t-rs" onclick="tab('t-rs',this);return false;">RS</a><a class="tabx" href="#t-weekly" onclick="tab('t-weekly',this);return false;">Weekly</a><a class="tabx" href="#t-post1" onclick="tab('t-post1',this);return false;">Publish</a><a class="tabx" href="#t-rules" onclick="tab('t-rules',this);return false;">Rules</a><a class="tabx" href="#t-port" onclick="tab('t-port',this);return false;">アーカイブ</a><!-- JEV_RANKING_NAV_START --><a class="tabx" href="#t-jev" onclick="tab('t-jev',this);return false;">Jev期待値</a><!-- JEV_RANKING_NAV_END --></nav><section class="on" id="t-market"><div class="msec"><div class="msec-l">① 結論と行動<span class="msec-en">Verdict &amp; Action</span></div><div class="msec-q">今日・1週間・1カ月・ローテを一画面</div></div>
 <div class="sar sar-blue" id="sarPill">
 <div class="lhs">
 <span class="dot"></span>
