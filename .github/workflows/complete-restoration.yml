@@ -4,7 +4,6 @@ on:
 permissions:
   contents: write
   actions: read
-  pages: write
 concurrency:
   group: source-mc57-refresh
   cancel-in-progress: false
@@ -62,11 +61,7 @@ jobs:
           if git diff --cached --quiet; then exit 0; fi
           git commit -m 'Restore original dashboard and publish real Jev ranking [skip refresh]'
           git push origin HEAD:main
-      - name: Request GitHub Pages rebuild
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh api --method POST 'repos/${{ github.repository }}/pages/builds' --jq '.status'
+      # Pages is deployed by deploy-pages.yml after its release gate passes.
       - name: Preserve completion evidence
         if: always()
         uses: actions/upload-artifact@v4
