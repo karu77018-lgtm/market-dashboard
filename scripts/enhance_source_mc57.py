@@ -264,6 +264,8 @@ def main() -> int:
     from rotation_split import apply as apply_rotation_split
     text = apply_rotation_split(text)  # Rotation -> Rotation (資金の流れ) + Themes (display only)
     text = substitute_badge(text, html_path.resolve().parent / "latest-manifest.json")
+    import design_system
+    text = design_system.apply(text)  # one visual system, CSS only (last stylesheet)
     html_path.write_text(text, encoding="utf-8")
     print(json.dumps({"session_date": args.session, "ticker_count": meta["ticker_count"],
                       "cards": ["50MA participation", "52-week new highs minus new lows"],

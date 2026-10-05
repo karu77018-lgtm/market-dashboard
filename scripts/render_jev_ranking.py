@@ -138,6 +138,8 @@ STYLE = """<!-- JEV_RANKING_STYLE_START --><style id="jev-ranking-style">
 def source_hash(text: str) -> str:
     text = re.sub(r'<meta\b(?=[^>]*\bname="dashboard-source-sha256")[^>]*>', '', text)
     text = re.sub(r'<script id="jev-ranking-loader"[^>]*></script>', '', text)
+    # Presentation-only stylesheet (design_system.py) is not evidence either.
+    text = re.sub(r'<style id="ds-style">.*?</style>', '', text, flags=re.S)
     # Jev's section is independent of source evidence.
     text = remove_between(text, SECTION_START, SECTION_END)
     return hashlib.sha256(text.encode()).hexdigest()
