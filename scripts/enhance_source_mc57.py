@@ -310,6 +310,11 @@ def main() -> int:
         text = rsline_lead.run(text, frame, args.session, html_path.resolve().parent, regime)
     except Exception as exc:
         print(f"RS line leaders skipped: {exc!r}", flush=True)
+    import bagger_watch
+    try:  # watch only; never blocks publication
+        text = bagger_watch.run(text, frame, args.session, html_path.resolve().parent, regime)
+    except Exception as exc:
+        print(f"bagger watch skipped: {exc!r}", flush=True)
     import audit_display
     text = audit_display.apply(text, html_path.resolve().parent, args.session)
     from archive_tab import apply as apply_archive_tab
