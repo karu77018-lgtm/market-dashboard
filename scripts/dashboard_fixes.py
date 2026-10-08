@@ -6,9 +6,32 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 
 
+_TICKER_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-")
+
+
+def rs_tab_taps(soup: BeautifulSoup) -> int:
+    """Make each row of the RS tab's Top10 lists open the ticker detail on tap.
+
+    The RS63 / RS126 / RS189 Top10 rows (.rsx-item) carry the ticker only as
+    text, so the page-wide [data-tkone] tap handler never sees them. The ticker
+    is the first <b> inside .rsx-name. Returns the number of rows fixed.
+    """
+    fixed = 0
+    for item in soup.select('#t-rs .rsx-item'):
+        if item.get('data-tkone'):
+            continue
+        name = item.select_one('.rsx-name b')
+        ticker = name.get_text(strip=True).upper() if name else ''
+        if ticker and len(ticker) <= 15 and set(ticker) <= _TICKER_CHARS:
+            item['data-tkone'] = ticker
+            fixed += 1
+    return fixed
+
+
 def apply(text: str, root: Path) -> str:
     text = text.replace("NQ運用判定（専用）", "NQ露出上限")
     soup = BeautifulSoup(text, "html.parser")
+    rs_tab_taps(soup)
     # Only the two legacy Core 12 tables need containment; table styling stays.
     for table in soup.select('#t-port table'):
         if 'core-table-wrap' not in table.parent.get('class', []):
