@@ -26,7 +26,7 @@ after the close):
 No fees, slippage or taxes.  Each 本命 is one independent signal here.
 
 The headline record is the rule run as the actual portfolio (track_portfolio.py:
-6 slots, 1/6 sizing, same-amount adds up to 40%, idle money in QQQ at the
+6 slots, 1/6 sizing, same-amount adds up to 40%, idle money in the TQQQ-rule sleeve at the
 published share), stored under ledger["portfolio"] and advanced the same way.
 """
 from __future__ import annotations
@@ -44,6 +44,7 @@ from typing import Any
 import pandas as pd
 
 import track_portfolio as tp
+import tqqq_rule
 from rules_tab import RULE_ID
 
 LEDGER = Path("track-record/signals.json")
@@ -348,6 +349,10 @@ def e_(v: Any) -> str:
     return html.escape(str(v))
 
 
+def sleeve_label(pf: dict) -> str:
+    return "余剰資金のTQQQルール枠" if pf.get("sleeve") == tp.SLEEVE else "余剰資金のQQQ"
+
+
 SHORT_REASON = {"安値21EMA割れ（翌始値）": "21EMA割れ", "損切り（窓）": "損切り（窓）", "損切り −8%": "損切り"}
 
 
@@ -366,7 +371,7 @@ def portfolio_html(pf: dict | None) -> str:
         ("最大DD", _p(st.get("dd"))), ("保有（最大6）", f"{st['names']}銘柄"),
         ("株の比率", fmt(st.get("stock_share"), lambda v: f"{v:.0%}")),
         ("確定した売買", f"{st['closed']}件"), ("勝率（確定）", fmt(st.get("win"), lambda v: f"{v:.0%}")),
-        ("余剰資金のQQQ", f"{pf.get('qqq_pct', tp.DEFAULT_QQQ_PCT)}%"),
+        (sleeve_label(pf), f"{pf.get('qqq_pct', tp.DEFAULT_QQQ_PCT)}%"),
     ))
     hold = sorted(pf.get("positions", {}).items(), key=lambda kv: -kv[1]["shares"] * kv[1]["last"])
     hrows = "".join(
@@ -432,7 +437,7 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
         f'<section id="{TAB_ID}"><div class="card" id="track-record-card" data-rule="{RULE_ID}">'
         '<div class="chd"><h2>運用成績（ルールどおりの売買・前向き記録）<span class="h2en">Track Record</span></h2></div>'
         f'<div class="sub">毎日公開した「本命」を、Rulesタブの資金管理（最大6銘柄・最初は資金の1/6・+10%と+20%で同額買い増し・'
-        f'1銘柄40%まで・余剰資金はQQQ）どおりに売買した場合の成績。記録開始 {e(start)}（{days}営業日分）。ルール版 {e(RULE_ID)}。</div>'
+        f'1銘柄40%まで・余剰資金はTQQQルール枠）どおりに売買した場合の成績。記録開始 {e(start)}（{days}営業日分）。ルール版 {e(RULE_ID)}。</div>'
         + warn + portfolio_html(ledger.get("portfolio"))
         + '<details class="tr-more"><summary>本命1件ごとのシグナル成績</summary>'
         f'<div class="tr-grid">{grid}</div>'
@@ -443,8 +448,10 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
         '枠が足りない日は189日リターンの高い順、保有中の銘柄は重ねて買わない。損切りは買値−8%（窓で下回ればその始値）。'
         '安値21EMA割れは引けで確定し<b>翌営業日の始値</b>で売り。買い増しは終値が買値+10%・+20%に届いた翌営業日の始値で最初と同じ金額、'
         'ただし1銘柄が資金の40%を超えない範囲。<br/>'
-        '<b>余剰資金</b>：毎朝、現金とQQQの合計を、前日に公開した比率（Rulesタブ7：通常50%、ブレイク成功度が不調でQQQが200日線より上なら100%）でQQQに置く。'
-        '残りの現金は金利0%。地合い停止の日は新規で買わない。<br/>'
+        '<b>余剰資金</b>：毎朝、現金とTQQQルール枠の合計を、前日に公開した比率（Rulesタブ7：通常50%、ブレイク成功度が不調でQQQが200日線より上なら100%）でTQQQルール枠に置く。'
+        '枠の中身はRulesタブ9の目標（TQQQ・金・短期国債）を終値で判定し翌営業日の始値で執行。残りの現金は金利0%。'
+        '比較用の「QQQ（同期間）」はQQQの持ちっぱなし。'
+        '（2026年10月に余剰資金の置き先をQQQからTQQQルール枠に変更し、記録開始日から計算し直しています。）地合い停止の日は新規で買わない。<br/>'
         '<b>記録のしかた</b>：本命はその日の最初の公開内容で確定し、売買の結果とともに '
         '<code>track-record/signals.json</code> に保存（Gitの履歴と毎日のスナップショットに残る）。'
         'あとで再計算して本命が変わった日は＊印（成績は最初の公開内容で計算）。手数料・スリッページ・税金・テーマ枠は含みません。<br/>'
@@ -530,7 +537,7 @@ def rules_block(ledger: dict | None, error: str | None = None) -> str:
         mtable = ('<table class="rtb"><tr><th>月</th><th>ルール運用</th><th>QQQ</th><th>差</th></tr>' + mrows + '</table>')
     return (head + summary + mtable
             + '<div class="rnote">毎日公開した本命を、このルールどおり（最大6銘柄・1/6・+10%と+20%で同額買い増し・40%上限・'
-            f'余剰資金はQQQ）に売買した場合。約定は翌営業日の始値、手数料・税金なし。下の「成績（単年）」は過去データでの検証。詳細は{link}。</div></div>')
+            f'余剰資金はTQQQルール枠）に売買した場合。約定は翌営業日の始値、手数料・税金なし。下の「成績（単年）」は過去データでの検証。詳細は{link}。</div></div>')
 
 
 def apply_rules(text: str, ledger: dict | None, error: str | None = None) -> str:
@@ -565,8 +572,11 @@ def run(text: str, frame: pd.DataFrame, session: str, root: Path, qqq_path: Path
     qqq = qqq_bars(qqq_path or root / "data" / "market_inputs.json")
     advance_all(ledger, frame, qqq)
     if ledger.get("start"):
-        pf = ledger.get("portfolio") or tp.new_portfolio(ledger["start"])
-        ledger["portfolio"] = tp.advance(pf, ledger["sessions"], frame, qqq, session)
+        pf = ledger.get("portfolio")
+        if not pf or pf.get("sleeve") != tp.SLEEVE:   # idle money moved from QQQ to the TQQQ rule
+            pf = tp.new_portfolio(ledger["start"])
+        fund = tqqq_rule.fund_bars(tqqq_rule.load(root / tqqq_rule.LEDGER))
+        ledger["portfolio"] = tp.advance(pf, ledger["sessions"], frame, qqq, session, fund=fund)
     save(ledger, path)
     return apply(text, ledger, trades_for_display(ledger))
 

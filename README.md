@@ -1,9 +1,11 @@
 # market-dashboard / source-mc57
 
 The existing dashboard, colors, typography, tabs and trading calculations are
-preserved. NQ sets individual-stock/leverage exposure **upper limits**; the
-visible color is estimated until confirmed manually against TradingView. F2
-execution cautions do not change the underlying trade rules.
+preserved. Operation is the swing rule (Rules tab) with idle money in the TQQQ
+rule (Rules tab 9, `scripts/tqqq_rule.py`, ledger `track-record/tqqq-rule.json`):
+signals on QQQ, execution in TQQQ, today's target in the card at the top of the
+page. The NQ trend signal, SOXL leverage card and emergency brake are archived
+(アーカイブ tab, `scripts/legacy_archive.py`) and no longer set exposure.
 
 ## Acquisition and session identity
 

@@ -44,6 +44,10 @@ async function verify(page,width){
   assert.equal(await page.locator('#t-themes #mc57-theme-gate').count(),1,'theme gate lives on Themes');
   assert.equal(await page.locator('#t-record #track-record-card').count(),1,'track record tab present');
   assert.equal(await page.locator('#t-rotation #mc57-theme-gate, #t-rotation #index-internals-divergence').count(),0,'Rotation keeps money-flow cards only');
+  assert(await page.locator('#tqqq-rule-card').isVisible(),'TQQQ rule card at the top');
+  assert.equal(await page.locator('#t-port #taCard, #t-port #sarPill').count(),2,'NQ signal cards live in the archive');
+  assert.equal(await page.locator('#t-market #sarPill, #t-weekly .card:has-text("レバレッジ・コンディション")').count(),0,'NQ/leverage cards left Daily/Weekly');
+  await page.locator('nav a[href="#t-port"]').click();
   assert((await page.locator('#taExpo').innerText()).includes('目標露出（上限）'));
   assert(!(await page.locator('#taExpo').innerText()).includes('フル投資'));
   assert(await page.locator('#taEst').isVisible(),'estimated NQ explicitly visible');

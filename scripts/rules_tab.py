@@ -2,7 +2,8 @@
 
 Display only.  The numbers quoted here come from the offline backtests
 (2015-01 to 2026-08, current listings, QQQ 200-day regime filter, 6-position
-sizing with adds at +10% and +20%).
+sizing with adds at +10% and +20%).  Since October 2026 the idle money goes to
+the TQQQ rule (section 9, tqqq_rule.py) instead of QQQ.
 """
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ from typing import Any
 
 # Single source of the adopted rule version.  Every rule-dependent card carries
 # it as data-rule so publication can refuse a page that mixes versions.
-RULE_ID = "swing-v2-max6"
+RULE_ID = "swing-v3-tqqq-sleeve"
 RULE_CARDS = ("rules-card", "mc57-swing-screener", "mc57-breakout-health", "mc57-pickup-watch", "track-record-card")
 _RULE_ATTR = re.compile(r'<div[^>]*\bid="([^"]+)"[^>]*\bdata-rule="([^"]*)"|<div[^>]*\bdata-rule="([^"]*)"[^>]*\bid="([^"]+)"')
 
@@ -46,7 +47,8 @@ STYLE = ('<style>#t-rules .rtb{width:100%;border-collapse:collapse;font-size:12p
          '#t-rules .rreg span{font-weight:500;color:#565243;font-size:11px}'
          '#t-rules .rnote{font-size:11px;color:#706e64;line-height:1.55;margin:2px 0 4px}'
          '#t-rules .rwarn{font-size:11px;line-height:1.6;color:#565243;background:#e9e7e0;border-radius:8px;'
-         'padding:8px 10px;margin-top:12px}</style>')
+         'padding:8px 10px;margin-top:12px}'
+         '#t-rules .rtb.rtb-tight th,#t-rules .rtb.rtb-tight td{padding:5px 3px}#t-rules .rtb.rtb-tight td{font-size:11.5px}</style>')
 
 
 def _table(head: list[str], rows: list[list[str]], num_cols: tuple[int, ...] = ()) -> str:
@@ -57,16 +59,20 @@ def _table(head: list[str], rows: list[list[str]], num_cols: tuple[int, ...] = (
     return f'<table class="rtb"><tr>{th}</tr>{body}</table>'
 
 
-# 6-position rule: (year, stock-only %, idle cash QQQ 50% %, QQQ price %, stock-only intra-year max DD %, trades, win %)
-# The "QQQ込" column shown on the page is the breakout-health switch (breakout_health.YEARLY).
+# 6-position rule, re-run in October 2026 on one data set:
+# (year, stock-only %, idle money QQQ (section 7 switch) %, idle money TQQQ rule (section 7 switch) %,
+#  QQQ price %, stock-only intra-year max DD %)
 YEARLY = [
-    (2015, 2.1, 7.8, 8.7, -6.4, 16, 38), (2016, -7.6, -2.4, 5.9, -7.8, 18, 28),
-    (2017, 11.5, 19.5, 31.5, -11.0, 34, 29), (2018, 13.1, 11.6, -1.0, -13.0, 23, 35),
-    (2019, 5.9, 17.6, 37.8, -6.9, 24, 29), (2020, 145.2, 154.6, 47.6, -20.7, 39, 46),
-    (2021, 38.7, 51.1, 26.8, -16.3, 36, 22), (2022, -6.9, -16.1, -33.1, -9.3, 12, 17),
-    (2023, 11.2, 28.3, 53.8, -21.4, 46, 20), (2024, 136.4, 141.6, 24.8, -22.2, 57, 30),
-    (2025, 36.1, 43.6, 20.2, -31.2, 34, 38), (2026, 79.0, 86.8, 16.7, -19.0, 18, 44),
+    (2015, 2.8, 9.4, 30.4, 8.7, -6.1), (2016, -7.1, 0.6, 11.5, 5.9, -7.1),
+    (2017, 2.2, 14.9, 42.7, 31.5, -7.2), (2018, 19.8, 19.7, 23.4, -1.0, -12.9),
+    (2019, 4.4, 19.4, 36.8, 37.8, -6.8), (2020, 87.9, 97.8, 126.2, 47.6, -21.4),
+    (2021, 49.5, 72.3, 123.1, 26.8, -16.0), (2022, -6.6, -17.2, -13.1, -33.1, -9.1),
+    (2023, 14.2, 41.9, 57.0, 53.8, -19.1), (2024, 140.0, 150.9, 170.8, 24.8, -20.5),
+    (2025, 51.2, 62.2, 89.8, 20.2, -31.4), (2026, 75.8, 79.8, 96.5, 16.7, -19.2),
 ]
+# (label, CAGR %, max DD %, multiple) for the same run, 2015-01 .. 2026-08
+TOTALS = [("なし（個別株だけ）", 31.0, -31.4, 23), ("QQQ（旧）", 40.6, -31.6, 53),
+          ("TQQQルール枠（現行）", 60.2, -33.8, 244)]
 
 
 def _pct(v: float) -> str:
@@ -75,11 +81,16 @@ def _pct(v: float) -> str:
 
 
 def _yearly() -> str:
-    from breakout_health import YEARLY as SWITCH
-    sw = {y: b for y, _, b in SWITCH}
-    rows = [[str(y) if y < 2026 else "2026*", _pct(a), _pct(sw.get(y, b)), _pct(q), f"{d:.1f}%".replace("-", "−")]
-            for y, a, b, q, d, n, w in YEARLY]
-    return _table(["年", "個別株", "QQQ込", "QQQ", "年内DD"], rows, num_cols=(1, 2, 3, 4))
+    rows = [[str(y) if y < 2026 else "2026*", _pct(a), _pct(b), _pct(t), _pct(q), f"{d:.1f}%".replace("-", "−")]
+            for y, a, b, t, q, d in YEARLY]
+    table = _table(["年", "個別株", "QQQ込（旧）", "TQQQ枠込", "QQQ", "年内DD"], rows,
+                   num_cols=(1, 2, 3, 4, 5)).replace('class="rtb"', 'class="rtb rtb-tight"', 1)
+    return f'<div style="max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch">{table}</div>'
+
+
+def _totals() -> str:
+    rows = [[k, f"{c:.1f}%", f"{d:.1f}%".replace("-", "−"), f"{m}倍"] for k, c, d, m in TOTALS]
+    return _table(["余剰資金", "年率", "最大DD", "約11.7年"], rows, num_cols=(1, 2, 3))
 
 
 def _health_line(health: dict[str, Any] | None, regime: dict[str, Any] | None) -> str:
@@ -92,7 +103,7 @@ def _health_line(health: dict[str, Any] | None, regime: dict[str, Any] | None) -
     pct, why = allocation(health, regime)
     word = "好調" if health["on"] else "不調"
     return (f'<div class="rreg {"on" if health["on"] else "off"}">今日のブレイク成功度：{_fmt(health["value"])}（{word}）'
-            f' <span>→ 余剰資金のQQQ {pct}%{"" if health["on"] else f"（{why}）"}</span></div>')
+            f' <span>→ 余剰資金のTQQQルール枠 {pct}%{"" if health["on"] else f"（{why}）"}</span></div>')
 
 
 def _regime_line(regime: dict[str, Any] | None) -> str:
@@ -128,7 +139,7 @@ def rules_html(regime: dict[str, Any] | None = None, health: dict[str, Any] | No
         ["損切り", "買値−8%（窓を開けて下回ったら始値）"],
         ["買い増し", "終値が買値+10%で同額、+20%でもう一度同額。1銘柄の上限は資金の40%"],
         ["手仕舞い", "安値21EMAを割って引けたら。日数制限なし"],
-        ["余剰資金", "50%をQQQ。ブレイク成功度が不調かつQQQが200日線より上の日は100%（下の7）"],
+        ["余剰資金", "50%をTQQQルール枠（下の9）。ブレイク成功度が不調かつQQQが200日線より上の日は100%（下の7）。残りは現金"],
     ])
     card = [
         "<b>本命</b>：今日買うもの",
@@ -170,7 +181,7 @@ def rules_html(regime: dict[str, Any] | None = None, health: dict[str, Any] | No
         '<div class="rnote">優先度は並び順とバッジだけに使う。週足SARは0.02・0.02・0.08、金曜終値で確定した週のみ。</div>'
         + tiers
         + '<div class="rh">4. 売買</div>' + trade
-        + '<div class="rnote">集中度の比較（余剰資金のQQQ切替込み）：最大10銘柄・+10%で半分買い増し＝年率32.4%・DD−23.5%／'
+        + '<div class="rnote">集中度の比較（余剰資金をQQQ切替で置いた当時の検証）：最大10銘柄・+10%で半分買い増し＝年率32.4%・DD−23.5%／'
         '<b>最大6銘柄・+10%と+20%で同額買い増し＝年率42.4%・DD−30.3%</b>。買う銘柄の優先順位をランダムにしても年率31〜38%（中央36%）。'
         '選び方はRS189順が最良（RS63順・RS21順・値幅順より上）。集中の効果は2021年以降の強いリーダー相場で大きく、'
         '下落の幅が耐えにくくなったら銘柄数を8〜10に戻す。</div>'
@@ -180,12 +191,13 @@ def rules_html(regime: dict[str, Any] | None = None, health: dict[str, Any] | No
         '<div class="rh">6. カードの見方</div>' + li(card)
         + '<div class="rh">7. 余剰資金の配分（ブレイク成功度）</div>'
         '<div class="sub"><b>ブレイク成功度</b>＝直近63営業日の本命シグナル（地合いは問わない）が10日後に平均何%動いたか。'
-        '0%以上＝好調、マイナス＝不調。<b>不調かつQQQが200日線より上の日は余剰資金を100%QQQ</b>、それ以外は50%。'
-        '個別株の売買は変えない。DailyタブとPositionsタブに今日の値を表示。</div>'
-        + li(["指数は上がるのに勢い株が伸びない年（2016・2021・2023年）を不調と判定し、その年をQQQで埋める",
+        '0%以上＝好調、マイナス＝不調。<b>不調かつQQQが200日線より上の日は余剰資金を100%TQQQルール枠</b>、それ以外は50%（残りは現金）。'
+        '個別株の売買は変えない。DailyタブとPositionsタブに今日の値を表示。枠の中身（TQQQ・金・短期国債の比率）は9のルールで決まる。</div>'
+        + li(["指数は上がるのに勢い株が伸びない年（2016・2021・2023年）を不調と判定し、その年を指数側（TQQQルール枠）で埋める",
               "未来のデータは使わない（10日後の結果が出たシグナルだけで計算）。ただし63日平均を10日遅れで見るので、判定の切り替わりは数週間遅れる（好調・不調は平均54日続く）",
-              "年率38.5%→42.4%、最大DD−30.3%のまま。ただし平均QQQ比率は約63%で、63%固定でも40.0%。判定そのものの上乗せは年+1〜2pt程度（日数・基準を変えた36通り中35通りでプラス）",
-              "QQQが200日線より下ではQQQを増やさない（2022年のような下げで傷を深くしない）",
+              "QQQで検証した当初：年率38.5%→42.4%、最大DD−30.3%のまま。ただし平均QQQ比率は約63%で、63%固定でも40.0%。判定そのものの上乗せは年+1〜2pt程度（日数・基準を変えた36通り中35通りでプラス）",
+              "置き先をTQQQルール枠にした再計算：年率60.2%・最大DD−33.8%（QQQのままなら40.6%・−31.6%）。資産全体に占めるTQQQは平均約30%",
+              "QQQが200日線より下では枠を増やさない（2022年のような下げで傷を深くしない）",
               "不調でも新規エントリーは止めない・リスクも減らさない（止めると年率が下がる）",
               "サイトのF1〜F3・MC57・リーダーの強さは「崩れるか」の計器で、この切り替えには効かない"])
         + '<div class="rh">8. 拾う枠（監視・参考）</div>'
@@ -194,15 +206,50 @@ def rules_html(regime: dict[str, Any] | None = None, health: dict[str, Any] | No
               "入るなら本体と同じ形がそろった日（形OK）。手仕舞いは50日線割れ、損切り−10%",
               "形OKのPF 1.92（2015〜18年 1.85／2019〜22年 1.98／2023〜26年 1.89）。ただし単独運用は年率約14%・最大DD−45%で、本体に足すと全体の伸びは下がる",
               "業績（EPS・売上の伸びや加速）は成績をほとんど改善しなかった。値動きに出る特徴（3期間RS・SAR転換直後・2倍後のベース・高ボラ・強い業種）が効く"])
+        + _tqqq_section()
         + '<div class="rh">やらないこと</div>' + li(dont)
         + '<div class="rh">成績（単年）</div>'
-        '<div class="rnote">個別株＝個別株だけ、QQQ込＝余剰資金を7のルールでQQQに置いた場合。年内DD＝個別株だけの年内最大下落。2026年は1〜8月。</div>'
-        + _yearly()
-        + '<div class="rwarn"><b>成績</b>（2015年1月〜2026年8月、地合い込み・最大6銘柄ルール）：個別株だけで年率32.1%・最大DD−31.2%（約26倍）。'
-        '余剰資金を7のルールでQQQに置くと年率42.4%・DD−30.3%（約61倍、50%固定なら38.5%）。負けた年は2016年（個別株のみ）と2022年。<br>'
-        '現存銘柄だけで検証（上場廃止銘柄は未検証）、税金・テーマ枠は含まない。'
-        '集中の上乗せは2021年以降が大きく（2015〜20年は年率21%→27%）、今後も同じとは限らない。売買の推奨ではなく検証結果のまとめ。</div></div>'
+        '<div class="rnote">個別株＝個別株だけ、QQQ込（旧）＝余剰資金を7のルールでQQQに置いた場合、TQQQ枠込＝7のルールでTQQQルール枠（9）に置いた場合（現行）。'
+        '年内DD＝個別株だけの年内最大下落。2026年は1〜8月。2026年10月に同じデータで計算し直した値（以前の表示より個別株の年ごとの値が少し違う）。</div>'
+        + _yearly() + _totals()
+        + '<div class="rwarn"><b>成績</b>（2015年1月〜2026年8月、地合い込み・最大6銘柄ルール）：個別株だけで年率31.0%・最大DD−31.4%（約23倍）。'
+        '余剰資金を7のルールでTQQQルール枠に置くと<b>年率60.2%・最大DD−33.8%（約244倍）</b>。QQQのままなら40.6%・−31.6%（約53倍）。'
+        '2015〜20年は年率41.2%（QQQなら23.7%）、2021〜26年は83.1%（同61.0%）。負けた年は2022年（−13.1%、QQQなら−17.2%）。<br>'
+        '現存銘柄だけで検証（上場廃止銘柄は未検証）、税金・テーマ枠は含まない。TQQQは3倍レバレッジETFで、2000年や2008年のような長い下げでは'
+        'ルール単体で−50%前後まで下がりうる（9を参照）。集中の上乗せは2021年以降が大きく、今後も同じとは限らない。売買の推奨ではなく検証結果のまとめ。</div></div>'
     )
+
+
+def _tqqq_section() -> str:
+    li = lambda items: '<ul class="rules">' + "".join(f"<li>{x}</li>" for x in items) + "</ul>"
+    rule = _table(["部分", "中身"], [
+        ["合成", "切替型×0.625＋改良案×0.375。25%刻み（目標との差が0.75刻み以上で動かす）"],
+        ["切替型", "QQQが200日線より上、またはQQQが21EMAより上で21EMAが5日前より上なら保有。トレンド外でも投げ売り後の反発"
+                   "（10日以内にVIX28以上→VIXが5日平均を下回りQQQ上昇／出来高が20日平均の1.5倍・上半分引け・QQQが20日高値から−8%超）は最大15日・TQQQ−15%まで持つ"],
+        ["改良案", "常に保有"],
+        ["サイズ", "両方とも min(1, 100%÷TQQQの20日ボラ)"],
+        ["緊急モード", "切替型：QQQが52週高値から−15%以下か10日で−10%。改良案：−25%以下。"
+                       "比率＝トレンド内×min(1, 1＋下落率÷30%)×min(1, 70%÷ボラ)。解除はゴールデンクロス・高値圏回復（切替型−5%、改良案−10%以内）・①"],
+        ["①早期再エントリー", "<b>採用</b>。緊急モード中でも、HY OAS（FRED BAMLH0A0HYM2）が40日平均未満かつ直近10日最高値×0.9未満なら緊急解除"],
+        ["過熱警報", "QQQが200日線+35%超でTQQQ 0%、+10%未満に冷えたら解除"],
+        ["信用スプレッド", "HY OASが40日平均×1.1超の日はTQQQ最大25%"],
+        ["TQQQ以外", "金の6か月（126日）リターンがプラスなら金、そうでなければ短期国債"],
+        ["執行", "QQQの終値で判定→翌営業日にTQQQを売買（楽天証券）。サイト上部のカードに今日の目標"],
+    ])
+    perf = _table(["期間", "年率", "最大DD"], [
+        ["2015〜2026/8", "56.9%", "−44.3%"],
+        ["2000〜2026", "38.7%", "−51.5%"],
+    ], num_cols=(1, 2))
+    return ('<div class="rh">9. TQQQルール（余剰資金の置き先）</div>'
+            '<div class="sub">シグナルはQQQ、売買はTQQQ。平時は攻め、長い下げ（緊急時）だけ守る切り替え型。7の比率（50%か100%）のうち、'
+            'このルールの目標比率をTQQQに、残りを金か短期国債に置く（例：枠50%・目標75%なら余剰資金の37.5%がTQQQ）。</div>'
+            + rule + '<div class="rnote">ルール単体の成績（余剰資金の100%をこの枠に置いた場合）。2000〜2026年はITバブル崩壊と金融危機を含む。</div>' + perf
+            + li(["①（早期再エントリー）入りで2016〜2026年は約147倍（なしなら112倍）、2000〜2026年の年率は36.5%→38.7%",
+                  "長い下げの途中の反発を取りにいく追加ルールは60通り試してすべて悪化 → 入れない",
+                  "だまし検出やDDを浅くする代わりに年率を大きく落とす版は採用しない（リターン優先）",
+                  "<b>②信用125%（参考・未採用）</b>：目標100%・HY OASが40日平均未満・TQQQの20日ボラ60%未満の日だけ信用で125%。"
+                  "使う場合は楽天証券でTQQQが信用取引の対象か要確認"])
+            + '<div class="rnote">NQトレンド信号（NQ-SAR）・SOXLのレバ枠・非常口は運用停止（アーカイブタブ）。</div>')
 
 
 SECTION = re.compile(r'(<section id="t-rules">)(.*?)(</section>)', re.S)
@@ -215,5 +262,6 @@ def apply(text: str, regime: dict[str, Any] | None = None, health: dict[str, Any
         return text
     out = text[:m.start(2)] + rules_html(regime, health) + text[m.end(2):]
     if STYLE not in out:
+        out = re.sub(r"<style>#t-rules \.rtb\{.*?</style>", "", out, flags=re.S)  # an older version of STYLE
         out = out.replace("</head>", STYLE + "</head>", 1)
     return out

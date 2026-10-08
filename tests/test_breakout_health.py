@@ -44,7 +44,7 @@ def test_daily_card_and_positions_line():
     page = '<section id="t-market"><div class="card"><div class="chd"><h2>リーダーの強さ<span>x</span></h2></div></div></section>'
     out = bh.apply_daily(page, health, {"on": True})
     assert out.index(bh.CARD_ID) < out.index("リーダーの強さ")
-    assert "−2.8%" in out and "不調" in out and "余剰資金のQQQ：100%" in out
+    assert "−2.8%" in out and "不調" in out and "余剰資金のTQQQルール枠：100%" in out
     assert bh.apply_daily(out, health, {"on": True}) == out
     assert bh.apply_daily("<html></html>", health, None) == "<html></html>"
     line = bh.positions_line(health, {"on": False})

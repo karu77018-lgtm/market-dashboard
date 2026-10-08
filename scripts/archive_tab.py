@@ -1,4 +1,4 @@
-"""Archive tab: Core 12 and the old 30-week-line rule, kept for reference only.
+"""Archive tab: Core 12, the old 30-week-line rule and (legacy_archive.py) the NQ / leverage cards, kept for reference only.
 
 Display only.  Operation is the new swing rule alone (Rules tab).  Core 12 and
 the old weekly 30WMA breakout rule are not run in parallel, so their cards are
@@ -35,9 +35,11 @@ INTRO = (
     f'<div class="card" id="{INTRO_ID}">'
     '<div class="chd"><h2>アーカイブ（運用停止）<span class="h2en">Archive</span></h2></div>'
     '<div class="sub" style="color:#467ed6">運用は<b>新ルールだけ</b>（Rulesタブ・Positionsタブ「スイング候補」）。'
-    'Core 12と旧ルール（30週線ブレイク）は並行運用しません。振り返り・比較用に表示だけ残しています。売買には使いません。</div>'
+    'Core 12・旧ルール（30週線ブレイク）・NQトレンド信号とレバ枠（SOXL・非常口）は並行運用しません。'
+    'TQQQはRulesタブ9の「TQQQルール」（余剰資金の置き先）に移行。振り返り・比較用に表示だけ残しています。売買には使いません。</div>'
     '<details class="cxpl"><summary>停止の根拠（2015〜2026年の再検証）</summary><div class="cxpl-b">'
-    '<b>新ルール</b>（最大6銘柄・余剰資金はQQQ切替）：年率42.4%・最大下落−30.3%・シャープ1.26<br/>'
+    '<b>現行</b>（最大6銘柄・余剰資金はTQQQルール枠）：年率60.2%・最大下落−33.8%（2015年1月〜2026年8月の再計算。同じ計算でQQQ切替は40.6%）<br/>'
+    '<b>旧・新ルール</b>（最大6銘柄・余剰資金はQQQ切替）：年率42.4%・最大下落−30.3%・シャープ1.26<br/>'
     '<b>Core 12</b>（売買代金上位10%から選定、個別70%＋TQQQ30%）：年率23.1%・最大下落−40.8%・シャープ0.82<br/>'
     '<b>Core 12の個別株部分だけ</b>：年率15.9%・最大下落−42.2%（QQQを持ち続ける18.2%に届かない）。'
     '候補に小さい銘柄まで含めるとさらに悪化（年率7〜12%・最大下落−52〜−63%）<br/>'

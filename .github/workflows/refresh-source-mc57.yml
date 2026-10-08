@@ -449,6 +449,7 @@ jobs:
           if test -f track-record/rsline-signals.json; then git add -- track-record/rsline-signals.json; fi
           if test -f track-record/bagger-signals.json; then git add -- track-record/bagger-signals.json; fi
           if test -f track-record/option-layout.json; then git add -- track-record/option-layout.json; fi
+          if test -f track-record/tqqq-rule.json; then git add -- track-record/tqqq-rule.json; fi
           git add -f -- data/listing-dates.json
           if test -n "$FULL_MARKER_PATH"; then git add -- "$FULL_MARKER_PATH"; fi
           if git diff --cached --quiet; then echo "No publication change"; exit 0; fi

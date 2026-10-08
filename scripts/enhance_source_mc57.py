@@ -289,6 +289,12 @@ def main() -> int:
         print(f"option layout skipped: {exc!r}", flush=True)
     from rules_tab import apply as apply_rules_tab
     text = apply_rules_tab(text, regime=regime, health=health)
+    import tqqq_rule
+    try:  # idle-money TQQQ rule: display + ledger only; before track_record (its sleeve NAV)
+        text = tqqq_rule.run_refresh(text, html_path.resolve().parent, args.session,
+                                     breakout_health.allocation(health, regime)[0])
+    except Exception as exc:
+        print(f"TQQQ rule skipped: {exc!r}", flush=True)
     import track_record
     try:  # display + ledger only; never blocks publication
         text = track_record.run(text, frame, args.session, html_path.resolve().parent)
@@ -323,6 +329,8 @@ def main() -> int:
     text = curate_setups(text)  # Setups keeps the validated sections; the rest -> アーカイブ
     from rotation_split import apply as apply_rotation_split
     text = apply_rotation_split(text)  # Rotation -> Rotation (資金の流れ) + Themes (display only)
+    import legacy_archive
+    text = legacy_archive.run(text, html_path.resolve().parent)  # NQ signal / SOXL cards -> アーカイブ
     text = substitute_badge(text, html_path.resolve().parent / "latest-manifest.json")
     import naming
     text = naming.apply(text)  # reader-facing names (MC57 -> マーケットパルス etc.), text only

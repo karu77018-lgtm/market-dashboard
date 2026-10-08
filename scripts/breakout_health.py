@@ -10,8 +10,9 @@ Definition (same as the 2015-2026 backtest):
   average its close-to-close return over the next 10 sessions.  >= 0 is 好調,
   < 0 is 不調 (momentum entries are not being rewarded).
 
-Allocation rule: when 不調 and QQQ is above its 200-day average, hold 100% of idle
-cash in QQQ; otherwise 50%.  Backtest with the 6-position rule (stock trades
+Allocation rule: when 不調 and QQQ is above its 200-day average, put 100% of idle
+cash in the TQQQ-rule sleeve (Rules tab 9; QQQ until October 2026); otherwise 50%.
+Original test with QQQ as the sleeve:  Backtest with the 6-position rule (stock trades
 unchanged): CAGR 38.5% -> 42.4%, max DD -30.3% either way.  The switch holds about
 63% of idle cash in QQQ on average and a fixed 63% gives 40.0%, so the timing
 itself adds roughly +1 to +2 points a year (positive in 35 of 36 parameter sets).
@@ -125,7 +126,7 @@ def compute(frame: pd.DataFrame, history: int = HISTORY) -> dict[str, Any] | Non
 
 
 def allocation(health: dict | None, regime: dict | None) -> tuple[int, str]:
-    """Idle-cash QQQ share (%) and the reason."""
+    """Idle-cash share (%) for the TQQQ-rule sleeve and the reason."""
     if not health or health.get("on") is None:
         return 50, "ブレイク成功度が計算できないため通常どおり"
     if regime is None:
@@ -184,12 +185,12 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
         f'<div class="card" id="{CARD_ID}" data-rule="{RULE_ID}"><div class="chd"><h2>ブレイク成功度<span class="h2en">Breakout Health</span></h2>'
         f'<div class="chd-now" style="color:{color}"><b>{html.escape(_fmt(value))}</b><span>{word}</span></div></div>'
         f'<div class="sub">スイングの本命シグナルが10日後に平均何%動いたか（直近63営業日・{n}件{since_txt}）。'
-        f'<b>余剰資金のQQQ：{pct}%</b>（{html.escape(why)}）</div>'
+        f'<b>余剰資金のTQQQルール枠：{pct}%</b>（{html.escape(why)}）</div>'
         '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
         '0%以上＝好調（勢い株が報われている）、マイナス＝不調（指数は上がっても勢い株が伸びない「退屈な年」型）。'
-        '不調かつQQQが200日線より上の日は、余剰資金を100%QQQに置く（それ以外は50%）。個別株の売買ルールは変えない。<br/>'
-        '2015〜2026年の検証（最大6銘柄ルール）で年率38.5%→42.4%、最大DDは−30.3%のまま。ただし平均するとQQQを約63%持つ形になり、63%固定でも40.0%。判定そのものの上乗せは年+1〜2pt程度（日数や基準を変えた36通り中35通りでプラス）。退屈だった2016・2021・2023年は不調判定が約3分の2、'
-        '好調だった2020・2026年は約5%。崩れの警戒（F1〜F3・MC57）とは別の問い＝「買ったシグナルが伸びているか」を測る。'
+        '不調かつQQQが200日線より上の日は、余剰資金を100%TQQQルール枠に置く（それ以外は50%、残りは現金）。枠の中身はRulesタブ9。個別株の売買ルールは変えない。<br/>'
+        '2015〜2026年の検証（最大6銘柄ルール・置き先をQQQとした当初の検証）で年率38.5%→42.4%、最大DDは−30.3%のまま。ただし平均するとQQQを約63%持つ形になり、63%固定でも40.0%。判定そのものの上乗せは年+1〜2pt程度（日数や基準を変えた36通り中35通りでプラス）。退屈だった2016・2021・2023年は不調判定が約3分の2、'
+        '好調だった2020・2026年は約5%。置き先をTQQQルール枠にした再計算では年率60.2%・最大DD−33.8%。崩れの警戒（F1〜F3・MC57）とは別の問い＝「買ったシグナルが伸びているか」を測る。'
         '10日後の結果が出たシグナルだけを使うので先読みはない。地合い停止中もシグナルは数え続ける。</div></details>'
         + (_spark(health["history"]) if health else "")
         + '</div>'
@@ -203,7 +204,7 @@ def positions_line(health: dict | None, regime: dict | None) -> str:
     pct, why = allocation(health, regime)
     cls = "on" if health["on"] else "off"
     return (f'<div class="sw-reg {cls}" style="{"" if health["on"] else "background:#f3ecd6;color:#6b5a1e;border:1px solid #e0cf98"}">'
-            f'ブレイク成功度 <b>{html.escape(_fmt(health["value"]))}</b>：余剰資金のQQQは<b>{pct}%</b>'
+            f'ブレイク成功度 <b>{html.escape(_fmt(health["value"]))}</b>：余剰資金のTQQQルール枠は<b>{pct}%</b>'
             f'<span style="opacity:.85">（{html.escape(why)}）</span></div>')
 
 

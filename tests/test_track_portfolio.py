@@ -37,10 +37,18 @@ def sessions(names: list[str], regime: str = "on", pct: int | None = 50, r189: d
     return {S: {"best": [{"t": t, "r189": (r189 or {}).get(t)} for t in names], "regime": regime, "qqq_pct": pct}}
 
 
+def write_fund(root: Path, n: int) -> None:
+    """A TQQQ-rule ledger whose sleeve NAV stays flat (TQQQ 100% at a flat price)."""
+    import tqqq_rule
+    days = {D[k]: {"target": 1.0, "gold": 0.0, "tqqq": 100.0, "tqqq_open": 100.0, "rf": 0.0} for k in range(n)}
+    tqqq_rule.save({**tqqq_rule.new_ledger(), "days": days, "last_day": D[n - 1]}, root / tqqq_rule.LEDGER)
+
+
 def run(names, paths, n_days, **kw):
     pf = tp.new_portfolio(S)
+    q = qqq(30 + n_days)
     return tp.advance(pf, sessions(names, **{k: v for k, v in kw.items() if k in ("regime", "pct", "r189")}),
-                      frame(paths), qqq(30 + n_days), D[29 + n_days])
+                      frame(paths), q, D[29 + n_days], fund=q)   # sleeve NAV priced like QQQ
 
 
 def test_entry_next_open_one_sixth_and_idle_money_in_qqq():
@@ -98,26 +106,42 @@ def test_incremental_equals_one_shot_and_reruns_are_idempotent():
     paths = {"AAA": [(100, 99.9, 104), (105, 103, 111), (112, 108, 109), (109, 100, 101)],
              "BBB": [(50, 49.9, 51), (51, 50, 52), (52, 40, 41), (41, 40, 40)]}
     f, q, ses = frame(paths), qqq(34, 100), sessions(["AAA", "BBB"])
-    once = tp.advance(tp.new_portfolio(S), ses, f, q, D[33])
+    once = tp.advance(tp.new_portfolio(S), ses, f, q, D[33], fund=q)
     step = tp.new_portfolio(S)
     for k in range(30, 34):
-        step = tp.advance(step, ses, f, q, D[k])
+        step = tp.advance(step, ses, f, q, D[k], fund=q)
     assert json.dumps(step, sort_keys=True) == json.dumps(once, sort_keys=True)
-    again = tp.advance(copy.deepcopy(once), ses, f, q, D[33])
+    again = tp.advance(copy.deepcopy(once), ses, f, q, D[33], fund=q)
     assert again == once
-    assert tp.advance(copy.deepcopy(once), ses, f[f["date"] > pd.Timestamp(D[31])], q, D[33]) == once
+    assert tp.advance(copy.deepcopy(once), ses, f[f["date"] > pd.Timestamp(D[31])], q, D[33], fund=q) == once
 
 
 def test_waits_for_missing_qqq_instead_of_skipping_a_session():
     q = qqq(32)
     q[D[30]] = {"open": None, "close": 100}
-    pf = tp.advance(tp.new_portfolio(S), sessions(["AAA"]), frame({"AAA": [(100, 99, 100), (100, 99, 100)]}), q, D[31])
+    pf = tp.advance(tp.new_portfolio(S), sessions(["AAA"]), frame({"AAA": [(100, 99, 100), (100, 99, 100)]}), q, D[31],
+                    fund=qqq(32))
     assert pf["last_day"] == S and pf["waiting"] == D[30] and pf["positions"] == {}
+
+
+def test_waits_for_missing_sleeve_nav_and_sleeve_moves_with_the_fund():
+    f, q = frame({"AAA": [(100, 99.9, 100), (100, 99.9, 100)]}), qqq(32)
+    fund = qqq(31)                                     # TQQQ-rule NAV not recorded for D[31] yet
+    pf = tp.advance(tp.new_portfolio(S), sessions(["AAA"]), f, q, D[31], fund=fund)
+    assert pf["last_day"] == D[30] and pf["waiting"] == D[31]
+    fund[D[31]] = {"open": 100, "close": 120}         # sleeve +20% while QQQ is flat
+    pf = tp.advance(pf, sessions(["AAA"]), f, q, D[31], fund=fund)
+    idle = 1 - 1 / 6
+    assert pf["last_day"] == D[31] and "waiting" not in pf
+    assert abs(pf["equity"][-1][1] - (1 / 6 + idle / 2 * 1.2 + idle / 2)) < 1e-12
+    assert pf["equity"][-1][2] == 100                  # benchmark column stays QQQ
 
 
 def test_published_qqq_pct_comes_from_the_rules_card():
     page = '<div class="card" id="rules-card" data-rule="x"><div class="rreg off">… → 余剰資金のQQQ 100%</div></div>'
     assert tp.published_qqq_pct(page) == 100
+    page = '<div class="card" id="rules-card" data-rule="x"><div class="rreg off">… → 余剰資金のTQQQルール枠 50%</div></div>'
+    assert tp.published_qqq_pct(page) == 50
     assert tp.published_qqq_pct("<div>余剰資金のQQQ 100%</div>") is None
 
 
@@ -131,6 +155,7 @@ def test_run_records_portfolio_and_renders_tab(tmp_path: Path):
     market = tmp_path / "data" / "market_inputs.json"
     market.parent.mkdir(parents=True)
     market.write_text(json.dumps({"series": {"QQQ": [{"date": d, **v} for d, v in qqq(31).items()]}}))
+    write_fund(tmp_path, 31)
     out = tr.run(page, f[f["date"] <= pd.Timestamp(S)], S, tmp_path)
     led = json.loads((tmp_path / tr.LEDGER).read_text())
     assert led["sessions"][S]["qqq_pct"] == 50 and led["portfolio"]["last_day"] == S
@@ -140,6 +165,31 @@ def test_run_records_portfolio_and_renders_tab(tmp_path: Path):
     assert list(led["portfolio"]["positions"]) == ["AAA"] and led["portfolio"]["equity"][-1][0] == D[30]
     assert "保有中" in out and "ルール運用" in out and 'class="tr-spark"' in out
     assert tr.render_only(out, tmp_path) == tr.render_only(tr.render_only(out, tmp_path), tmp_path)
+    assert "余剰資金のTQQQルール枠" in out
+
+
+def test_run_rebuilds_a_qqq_sleeve_portfolio_from_its_start(tmp_path: Path):
+    page = ('<html><head></head><body><nav><a class="tabx" href="#t-alloc">Positions</a></nav>'
+            '<section id="t-alloc"><div class="card" id="mc57-swing-screener" data-regime="on">'
+            '<div class="sw-sec"><span>本命<small>n</small></span><button class="cp" data-tk="AAA">c</button></div>'
+            '</div></section><section id="t-rules"><div class="card" id="rules-card" data-rule="r">余剰資金のTQQQルール枠 50%</div>'
+            '</section></body></html>')
+    f = frame({"AAA": [(100, 99.9, 110)]})
+    market = tmp_path / "data" / "market_inputs.json"
+    market.parent.mkdir(parents=True)
+    market.write_text(json.dumps({"series": {"QQQ": [{"date": d, **v} for d, v in qqq(31).items()]}}))
+    write_fund(tmp_path, 31)
+    tr.run(page, f[f["date"] <= pd.Timestamp(S)], S, tmp_path)
+    led = json.loads((tmp_path / tr.LEDGER).read_text())
+    old = tp.new_portfolio(S)
+    old.pop("sleeve")
+    old["last_day"], old["equity"] = D[30], [[S, 1.0, 100.0], [D[30], 0.5, 100.0]]   # QQQ-sleeve history
+    led["portfolio"] = old
+    (tmp_path / tr.LEDGER).write_text(json.dumps(led))
+    tr.run(page, f, D[30], tmp_path)
+    pf = json.loads((tmp_path / tr.LEDGER).read_text())["portfolio"]
+    assert pf["sleeve"] == tp.SLEEVE and pf["equity"][0][0] == S and len(pf["equity"]) == 2
+    assert abs(pf["equity"][-1][1] - (1 + (1 / 6) * 0.10)) < 1e-12
 
 
 def test_rules_tab_shows_forward_record_above_backtest(tmp_path: Path):
@@ -156,7 +206,7 @@ def test_rules_tab_shows_forward_record_above_backtest(tmp_path: Path):
     assert out.index(tr.RULES_BLOCK_ID) < out.index("成績（単年）")
     paths = {"AAA": [(100, 99.9, 104), (105, 103, 111)]}
     led["sessions"] = sessions(["AAA"])
-    led["portfolio"] = tp.advance(tp.new_portfolio(S), led["sessions"], frame(paths), qqq(32, 100), D[31])
+    led["portfolio"] = tp.advance(tp.new_portfolio(S), led["sessions"], frame(paths), qqq(32, 100), D[31], fund=qqq(32))
     out = tr.apply(out, led, [])
     block = out[out.index(tr.RULES_BLOCK_ID):out.index("成績（単年）")]
     assert "ルール運用" in block and "2026/02" in block and out.count(f'id="{tr.RULES_BLOCK_ID}"') == 1
