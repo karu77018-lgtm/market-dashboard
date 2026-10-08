@@ -524,7 +524,8 @@ def rules_block(ledger: dict | None, error: str | None = None) -> str:
         return head + f'<div class="rnote">記録ファイルを読めなかったため表示していません。詳細は{link}。</div></div>'
     pf = ledger.get("portfolio")
     if ledger.get("_pending"):
-        return head + f'<div class="rnote">{PENDING_HTML[len('<div class="tr-empty">'):-len("</div>")]}詳細は{link}。</div></div>'
+        note = PENDING_HTML.replace('<div class="tr-empty">', "").replace("</div>", "")
+        return head + f'<div class="rnote">{note}詳細は{link}。</div></div>'
     if not pf or len(pf.get("equity", [])) < 2:
         start = (ledger.get("start") or "次の更新")
         return (head + f'<div class="rnote">毎日公開した本命を、このルールどおりに売買した場合の実績を記録しています。'
