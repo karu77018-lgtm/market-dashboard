@@ -117,7 +117,7 @@ def render_section(payload: dict[str, Any]) -> str:
         "<div class='card jev-explain'><h2>ニュース材料の期待値"
         "<span class='h2en'>Research Shadow</span></h2>"
         "<div class='sub'>Jevの15問を各3回評価し、好材料7項目の平均確率からリスク7項目の平均確率を引いて100倍した順位です。"
-        "株価の期待収益率ではなく、公開時点までのニュース材料を比較する研究スコアです。対象はPositionsタブ「スイング候補」の本命・まだ入れる・次の候補が優先。次にオプションの上値の壁が+5%以内の銘柄（壁近接・最大20、検証用）、残りをピックアップ・新高値圏・RS21・63・189各上位で補います。</div>"
+        "株価の期待収益率ではなく、公開時点までのニュース材料を比較する研究スコアです。対象はPositionsタブとSetupsタブに載っている銘柄だけです（スイング候補の本命・まだ入れる・次の候補が優先、次に拾う枠・IPOベース・大化け候補など）。ニュースは対象銘柄が主役の記事に限り、株価の動きをなぞるだけの記事は除いて、会社自身の発表を優先します。</div>"
         f"<div class='mut jev-asof'>評価時点 {esc(asof)} ／ スイング候補優先・重複除外</div></div>"
         f"<div class='card'>{table}</div></section>{SECTION_END}"
     )

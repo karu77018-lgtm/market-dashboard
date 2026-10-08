@@ -49,39 +49,73 @@ def test_embedded_json_and_swing_candidate_order(tmp_path: Path):
     candidates, calc = load_dashboard(path, 12)
     tickers = [row["ticker"] for row in candidates]
     assert tickers[:3] == ["BBB", "AAA", "CCC"]
-    assert "ZZZ" not in tickers and "THEME" not in tickers  # archived Core 12 / theme slot excluded
+    assert "ZZZ" not in tickers  # archived Core 12 excluded
+    assert tickers[3] == "THEME" and candidates[3]["sources"] == ["テーマ枠"]  # Positions tab list
     assert candidates[0]["sources"] == ["本命"]
     assert candidates[1]["sources"] == ["次の候補"]
     assert candidates[1]["detail"]["sec"] == "Health"
     assert calc["color"] == "Blue"
 
 
-def test_dashboard_candidates_exclude_core12_and_include_each_rs_horizon(tmp_path: Path):
+def test_dashboard_candidates_are_only_positions_and_setups_tabs(tmp_path: Path):
     details = {
         "CORE": {"loc": ["Core 12 #1"], "rs21": 10, "rs": 10, "rs189": 10},
-        "BENCH": {"loc": ["控え #31"], "rs21": 10, "rs": 10, "rs189": 10},
         "PICK": {"loc": ["ピックアップ"], "rs21": 40, "rs": 40, "rs189": 40},
-        "SWING": {"loc": [], "rs21": 50, "rs": 50, "rs189": 50},
         "SHORT": {"loc": [], "rs21": 99, "rs": 20, "rs189": 20},
-        "MID": {"loc": [], "rs21": 20, "rs": 99, "rs189": 20},
-        "LONG": {"loc": [], "rs21": 20, "rs": 20, "rs189": 99},
+        "SWING": {"loc": [], "rs21": 50, "rs": 50, "rs189": 50},
     }
+    setups = (
+        '<section id="t-today"><div class="card"><h2>大化け候補<span class="h2en">Re-Leader</span></h2>'
+        '<button class="cp" data-tk="BAG1,SWING" onclick="copyTk(event,this)">コピー</button></div>'
+        '<div class="card" id="ipo-base-watch"><h2>IPOベース監視</h2>'
+        '<button class="cp" data-tk="IPO1">コピー</button></div></section>'
+    )
+    midcap = (
+        '<div class="card"><h2>拾う枠（監視）<span class="h2en">Mid-cap Leaders</span></h2>'
+        '<button class="cp" data-tk="MID1,MID2">コピー</button></div>'
+    )
+    outside = '<section id="t-rs"><div class="card"><h2>RS</h2><button class="cp" data-tk="RSX"></button></div></section>'
     html = (
         f'<script>window.DET={json.dumps(details)};</script>'
-        + _swing_card([("本命", ""), ("まだ入れる", "SWING"), ("次の候補", "")])
+        + setups
+        + _swing_card([("本命", ""), ("まだ入れる", "SWING"), ("次の候補", "")]).replace(
+            "</section>", midcap + "</section>")
+        + outside
     )
     path = tmp_path / "dashboard.html"
     path.write_text(html, encoding="utf-8")
 
-    candidates, _ = load_dashboard(path, 4)
-    assert [row["ticker"] for row in candidates] == ["SWING", "PICK", "SHORT", "LONG"]
     candidates, _ = load_dashboard(path, 60)
+    assert [row["ticker"] for row in candidates] == ["SWING", "MID1", "MID2", "BAG1", "IPO1"]
     by_ticker = {row["ticker"]: row for row in candidates}
-    assert "RS21上位" in by_ticker["SHORT"]["sources"]
-    assert "RS63上位" in by_ticker["MID"]["sources"]
-    assert "RS189上位" in by_ticker["LONG"]["sources"]
-    assert by_ticker["SWING"]["sources"][0] == "まだ入れる"
-    assert all("Core 12" not in row["sources"] and "控え" not in row["sources"] for row in candidates)
+    assert by_ticker["SWING"]["sources"] == ["まだ入れる", "大化け候補"]
+    assert by_ticker["MID1"]["sources"] == ["拾う枠（監視）"]
+    assert by_ticker["IPO1"]["sources"] == ["IPOベース監視"]
+    for excluded in ("CORE", "PICK", "SHORT", "RSX"):
+        assert excluded not in by_ticker
+    candidates, _ = load_dashboard(path, 2)
+    assert [row["ticker"] for row in candidates] == ["SWING", "MID1"]
+
+
+def test_news_filters_drop_passing_mentions_and_price_recaps_and_prefer_releases():
+    cutoff = datetime(2026, 9, 28, 12, tzinfo=timezone.utc)
+    start = datetime(2026, 8, 29, 12, tzinfo=timezone.utc)
+    rows = [
+        {"published_utc": "2026-09-28T11:00:00Z", "tickers": ["AAA"],
+         "title": "Acme (AAA) Dipped More Than Broader Market Today", "publisher": {"name": "Zacks"}},
+        {"published_utc": "2026-09-28T10:00:00Z", "tickers": ["BB", "CC", "DD", "AAA"],
+         "title": "BlackBerry: Hold or Sell?", "publisher": {"name": "Zacks"}},
+        {"published_utc": "2026-09-28T09:00:00Z", "tickers": ["BB", "CC", "DD", "AAA"],
+         "title": "Acme Robotics wins Navy order", "publisher": {"name": "Reuters"}},
+        {"published_utc": "2026-09-27T09:00:00Z", "tickers": ["AAA"],
+         "title": "Acme raises full-year guidance", "publisher": {"name": "GlobeNewswire Inc."}},
+    ]
+    result = normalize_news(rows, ticker="AAA", start=start, cutoff=cutoff, limit=8,
+                            company_name="Acme Robotics, Inc.")
+    assert [item["title"] for item in result] == [
+        "Acme raises full-year guidance",  # company release first, despite being older
+        "Acme Robotics wins Navy order",   # many tags but the company is named in the title
+    ]
 
 
 def test_fetch_news_bulk_uses_page_calls_not_ticker_calls():
@@ -360,7 +394,7 @@ def test_jev_is_decoupled_and_audit_artifact_is_private():
     assert "cancel-in-progress: true" in jev_workflow
 
 
-def test_wall_near_names_follow_swing_candidates(tmp_path: Path):
+def test_wall_near_is_kept_but_not_a_target(tmp_path: Path):
     details = {
         "FAR": {"opt": {"cw": 120, "cwp": 0.20, "grp": "rs21"}, "rs189": 99},
         "NEARDV": {"opt": {"cw": 104, "cwp": 0.04, "grp": "dv"}, "rs189": 99},
@@ -372,8 +406,8 @@ def test_wall_near_names_follow_swing_candidates(tmp_path: Path):
     path = tmp_path / "dashboard.html"
     path.write_text(html, encoding="utf-8")
     candidates, _ = load_dashboard(path, 3)
-    assert [(c["ticker"], c["sources"][0]) for c in candidates] == [
-        ("FAR", "本命"), ("NEAR21", "壁近接"), ("NEARDV", "壁近接")]
+    # Option-wall names outside the two tabs are no longer Jev targets.
+    assert [(c["ticker"], c["sources"][0]) for c in candidates] == [("FAR", "本命")]
 
 
 def test_unrecoverable_duplicate_is_an_error_and_keeps_same_session_ranking(tmp_path: Path, monkeypatch):

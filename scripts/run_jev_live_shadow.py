@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Run bounded, point-in-time Jev shadow evaluations for the new-rule swing candidates.
+"""Run bounded, point-in-time Jev shadow evaluations for the Positions and Setups tabs.
+
+Targets are every ticker listed in the Positions tab (swing 本命 / まだ入れる /
+次の候補 first, then the other lists) and the Setups tab. News is limited to
+articles mainly about the ticker, price recaps are dropped, and company-issued
+releases are preferred over commentary.
 
 The script deliberately keeps vendor text out of Git and Actions artifacts. It
 fetches Massive news in paginated time-window batches, fans matching articles
@@ -107,6 +112,59 @@ def swing_candidates(html: str) -> list[tuple[str, str]]:
     return sorted(found, key=lambda item: order[item[1]])
 
 
+# Jev targets are limited to the names the user actually trades from: the
+# Positions tab (t-alloc) first, then the Setups tab (t-today).  Every copy
+# list (data-tk) inside those two tabs is a target; anything outside them
+# (RS leaders, pick-ups, option-wall names elsewhere) is not evaluated.
+TARGET_TABS = ("t-alloc", "t-today")
+_TAB_START = re.compile(r'<section id="(t-[a-z0-9_-]+)"')
+_COPY_LIST = re.compile(r'data-tk="([^"]*)"')
+_H2 = re.compile(r"<h2[^>]*>(.*?)</h2>", re.S)
+_H2_EN = re.compile(r'<span class="h2en">.*?</span>', re.S)
+_TAG = re.compile(r"<[^>]+>")
+
+
+def _tab_segments(html: str) -> dict[str, str]:
+    starts = [(m.start(), m.group(1)) for m in _TAB_START.finditer(html)]
+    segments: dict[str, str] = {}
+    for index, (offset, tab) in enumerate(starts):
+        end = starts[index + 1][0] if index + 1 < len(starts) else len(html)
+        segments.setdefault(tab, html[offset:end])
+    return segments
+
+
+def tab_candidates(html: str) -> list[tuple[str, str]]:
+    """(ticker, label) for every copy list in the Positions and Setups tabs.
+
+    The swing card's 本命 / まだ入れる / 次の候補 come first in that order; the
+    other lists follow in display order, labelled by their card heading.
+    """
+    found: list[tuple[str, str]] = list(swing_candidates(html))
+    segments = _tab_segments(html)
+    for tab in TARGET_TABS:
+        segment = segments.get(tab, "")
+        card_start = segment.find(f'id="{SWING_CARD_ID}"')
+        card_end = segment.find('<div class="card"', card_start + 1) if card_start >= 0 else -1
+        if card_start >= 0 and card_end < 0:
+            card_end = len(segment)
+        for match in _COPY_LIST.finditer(segment):
+            before = segment[:match.start()]
+            if card_start <= match.start() < card_end:
+                sections = list(_SWING_SECTION.finditer(segment, card_start, match.start()))
+                label = sections[-1].group(1).strip() if sections else "スイング候補"
+                if label in SWING_SECTIONS:
+                    continue  # already added above, in priority order
+            else:
+                heading = list(_H2.finditer(before))
+                label = _TAG.sub("", _H2_EN.sub("", heading[-1].group(1))).strip() if heading else ""
+            label = label or ("Positions" if tab == "t-alloc" else "Setups")
+            for ticker in match.group(1).split(","):
+                ticker = ticker.strip().upper()
+                if ticker:
+                    found.append((ticker, label[:40]))
+    return found
+
+
 WALL_NEAR_SLOTS = 20
 _GROUP_ORDER = {"cand": 0, "rs21": 1, "rs63": 2, "rs189": 3, "dv": 4}
 
@@ -163,41 +221,11 @@ def load_dashboard(path: Path, limit: int) -> tuple[list[dict[str, Any]], dict[s
         candidates.append(candidate)
         by_ticker[ticker] = candidate
 
-    # Primary targets: the new swing rule's 本命 / まだ入れる / 次の候補.
-    for ticker, section in swing_candidates(html):
-        add(ticker, section)
-
-    # Option-wall study: names just below a call wall (+0..5%), so the weekly
-    # check can ask whether news catalysts help a stock through its wall.
-    for ticker in wall_near(details)[:WALL_NEAR_SLOTS]:
-        add(ticker, "壁近接")
-
-    # Remaining capacity: other dashboard names explicitly surfaced to the user
-    # (Core 12 and its bench are archived and intentionally excluded).
-    named: list[tuple[int, str, str]] = []
-    for ticker, detail in details.items():
-        if not isinstance(detail, dict):
-            continue
-        for label in detail.get("loc") or []:
-            label = str(label)
-            if label == "ピックアップ":
-                named.append((0, ticker, "ピックアップ"))
-            elif label == "新高値圏":
-                named.append((1, ticker, "新高値圏"))
-    for _, ticker, source in sorted(named):
+    # Targets: only the Positions and Setups tabs (swing 本命 / まだ入れる /
+    # 次の候補 first).  RS leaders, pick-ups and option-wall names elsewhere on
+    # the dashboard are intentionally not evaluated.
+    for ticker, source in tab_candidates(html):
         add(ticker, source)
-
-    # Add leaders from each independent RS horizon.  Ten per period keeps the
-    # run bounded while ensuring that short-, medium-, and long-term strength
-    # can enter even when a ticker is absent from the named lists.
-    for field, label in (("rs21", "RS21上位"), ("rs", "RS63上位"), ("rs189", "RS189上位")):
-        leaders = sorted(
-            ((float(detail[field]), ticker) for ticker, detail in details.items()
-             if isinstance(detail, dict) and isinstance(detail.get(field), (int, float))),
-            key=lambda item: (-item[0], item[1]),
-        )[:10]
-        for _, ticker in leaders:
-            add(ticker, label)
     if not candidates:
         raise ShadowRunError("dashboard contains no valid Jev candidates")
     return candidates, calc
@@ -265,6 +293,72 @@ def request_json(
     raise ShadowRunError(f"Massive news request failed (status={last_status})")
 
 
+# Company-issued releases carry the events Jev is asked about (guidance,
+# contracts, offerings, officer changes); they are kept first.
+PRIMARY_PUBLISHERS = (
+    "globenewswire", "business wire", "businesswire", "pr newswire", "prnewswire",
+    "accesswire", "access newswire", "newsfile", "eqs", "cision",
+)
+# Price recaps and listicles contain no company event, only restated prices.
+LOW_SIGNAL_TITLES = re.compile(
+    r"|".join((
+        r"\b(?:outpaces|outperforms|underperforms|lags|trails|dips more than|dipped more than|"
+        r"rises? (?:higher )?than|falls? more (?:steeply )?than|gains? but lags)\b"
+        r".*\b(?:market|s&p|nasdaq|dow)\b",
+        r"\bwhat you (?:should|need to) know\b",
+        r"\bhere'?s what an? \$[\d,]+ investment\b",
+        r"\bshould you (?:buy|sell|hold)\b",
+        r"\b(?:buy|sell),? or hold\b",
+        r"\bhold or sell\b",
+        r"\bstock market (?:today|midday)\b",
+        r"\btop stock reports\b",
+        r"\bstocks? to (?:buy|watch) (?:now|today|this)\b",
+    )),
+    re.I,
+)
+_NAME_SUFFIX = re.compile(
+    r"[,.]?\s+(?:inc|corp|corporation|co|company|ltd|plc|holdings?|group|n\.v|s\.a|ag|se|class [a-z])\.?$",
+    re.I,
+)
+
+
+def short_company_name(name: str | None) -> str:
+    """'Advanced Micro Devices, Inc.' -> 'advanced micro devices' (lowercase)."""
+    text = " ".join(str(name or "").split())
+    for _ in range(3):
+        text = _NAME_SUFFIX.sub("", text).strip()
+    return text.lower() if len(text) >= 3 else ""
+
+
+def is_low_signal(title: str) -> bool:
+    return bool(LOW_SIGNAL_TITLES.search(title))
+
+
+def is_about(row: dict[str, Any], ticker: str, company_name: str | None = None) -> bool:
+    """True when the article is mainly about the ticker, not a passing mention.
+
+    Kept when the ticker is the first tagged ticker, the article tags at most
+    two tickers, or the title names the ticker or the company.
+    """
+    tagged = [str(item).upper() for item in (row.get("tickers") or []) if isinstance(item, str)]
+    if not tagged:
+        return True
+    if ticker not in tagged:
+        return False
+    if tagged[0] == ticker or len(tagged) <= 2:
+        return True
+    title = str(row.get("title") or "")
+    if re.search(rf"(?<![A-Za-z0-9]){re.escape(ticker)}(?![A-Za-z0-9])", title):
+        return True
+    short = short_company_name(company_name)
+    return bool(short) and short in title.lower()
+
+
+def publisher_rank(publisher: str) -> int:
+    name = publisher.lower()
+    return 0 if any(key in name for key in PRIMARY_PUBLISHERS) else 1
+
+
 def normalize_news(
     rows: Any,
     *,
@@ -272,6 +366,7 @@ def normalize_news(
     start: datetime,
     cutoff: datetime,
     limit: int,
+    company_name: str | None = None,
 ) -> list[dict[str, Any]]:
     if not isinstance(rows, list):
         return []
@@ -286,11 +381,10 @@ def normalize_news(
             continue
         if published < start or published > cutoff:
             continue
-        mentioned = {str(item).upper() for item in (row.get("tickers") or []) if isinstance(item, str)}
-        if mentioned and ticker not in mentioned:
+        if not is_about(row, ticker, company_name):
             continue
         title = " ".join(str(row.get("title") or "").split())[:500]
-        if not title:
+        if not title or is_low_signal(title):
             continue
         description = " ".join(str(row.get("description") or "").split())[:2000]
         url = str(row.get("article_url") or "").strip()[:1000]
@@ -308,7 +402,7 @@ def normalize_news(
             "article_url": url,
         }
         documents.append((published, document))
-    documents.sort(key=lambda item: item[0], reverse=True)
+    documents.sort(key=lambda item: (publisher_rank(item[1]["publisher"]), -item[0].timestamp()))
     return [item[1] for item in documents[:limit]]
 
 
@@ -353,6 +447,7 @@ def fetch_news_bulk(
     min_interval: float,
     page_size: int = 1000,
     max_pages: int = 50,
+    company_names: dict[str, str] | None = None,
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, Any]]:
     """Fetch one market-wide news window and fan articles out to candidates.
 
@@ -383,8 +478,12 @@ def fetch_news_bulk(
         "limit": page_size,
         "apiKey": api_key,
     }
+    names = company_names or {}
+    keep = limit * 3  # gather a few extra so company releases can be preferred
     pages = 0
     scanned = 0
+    dropped_mention = 0
+    dropped_low_signal = 0
     last_request_at: float | None = None
 
     while url:
@@ -419,11 +518,18 @@ def fetch_news_bulk(
                 for item in (row.get("tickers") or [])
                 if isinstance(item, str)
             }
-            matches = allowed.intersection(mentioned)
+            tagged = allowed.intersection(mentioned)
+            if not tagged:
+                continue
+            matches = {ticker for ticker in tagged if is_about(row, ticker, names.get(ticker))}
+            dropped_mention += len(tagged) - len(matches)
             if not matches:
                 continue
             title = " ".join(str(row.get("title") or "").split())[:500]
             if not title:
+                continue
+            if is_low_signal(title):
+                dropped_low_signal += 1
                 continue
             description = " ".join(str(row.get("description") or "").split())[:2000]
             article_url = str(row.get("article_url") or "").strip()[:1000]
@@ -438,7 +544,7 @@ def fetch_news_bulk(
             }
             key = (title, article_url)
             for ticker in matches:
-                if len(by_ticker[ticker]) >= limit or key in seen[ticker]:
+                if len(by_ticker[ticker]) >= keep or key in seen[ticker]:
                     continue
                 seen[ticker].add(key)
                 by_ticker[ticker].append((published, document))
@@ -461,7 +567,10 @@ def fetch_news_bulk(
     documents = {
         ticker: [
             document
-            for _, document in sorted(items, key=lambda item: item[0], reverse=True)[:limit]
+            for _, document in sorted(
+                items,
+                key=lambda item: (publisher_rank(item[1]["publisher"]), -item[0].timestamp()),
+            )[:limit]
         ]
         for ticker, items in by_ticker.items()
     }
@@ -475,6 +584,11 @@ def fetch_news_bulk(
         "candidate_tickers": len(allowed),
         "tickers_with_news": with_news,
         "tickers_without_news": len(allowed) - with_news,
+        "dropped_passing_mentions": dropped_mention,
+        "dropped_low_signal": dropped_low_signal,
+        "company_releases": sum(
+            publisher_rank(doc["publisher"]) == 0 for items in documents.values() for doc in items
+        ),
     }
 
 
@@ -860,6 +974,7 @@ def main() -> int:
             min_interval=args.massive_min_interval,
             page_size=args.massive_page_size,
             max_pages=args.massive_max_pages,
+            company_names=company_names,
         )
     except Exception as exc:
         safe_error = exc if isinstance(exc, ShadowRunError) else ShadowRunError(type(exc).__name__)
