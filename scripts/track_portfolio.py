@@ -14,9 +14,12 @@ they were first published (track-record/signals.json):
 * a close at entry x 1.10 / 1.20 buys the SAME amount again at the next open,
   never taking the name above 40% of equity;
 * a close below the 21-EMA of lows sells at the next open;
-* idle money (cash + QQQ) is rebalanced at each open to the published share in
-  QQQ (Rules tab section 7: 50%, or 100% when breakout success is weak and QQQ
-  is above its 200-day line); the rest is cash at 0%;
+* idle money (cash + the TQQQ-rule sleeve) is rebalanced at each open to the
+  published sleeve share (Rules tab section 7: 50%, or 100% when breakout success
+  is weak and QQQ is above its 200-day line); the rest is cash at 0%.  The sleeve
+  is the TQQQ rule (section 9) marked by tqqq_rule.fund_bars (TQQQ / gold /
+  T-bills at the published weights).  Until October 2026 the sleeve was QQQ;
+  a ledger without ``sleeve`` is rebuilt from its start with the new sleeve;
 * equity is marked at each close.  No fees, slippage, taxes or theme slots.
 
 State is persisted and advanced only through sessions after ``last_day``; it is
@@ -36,7 +39,8 @@ ADDS = (0.10, 0.20)
 CAP = 0.40
 ALPHA = 2 / 22
 DEFAULT_QQQ_PCT = 50
-QQQ_PCT_RE = re.compile(r"余剰資金のQQQ\s*(\d+)%")
+SLEEVE = "tqqq-rule"
+QQQ_PCT_RE = re.compile(r"余剰資金の(?:QQQ|TQQQルール枠)\s*(\d+)%")
 
 
 def published_qqq_pct(text: str) -> int | None:
@@ -50,7 +54,7 @@ def published_qqq_pct(text: str) -> int | None:
 
 def new_portfolio(start: str) -> dict[str, Any]:
     return {"start": start, "last_day": start, "cash": 1.0, "qqq_sh": 0.0, "qqq_pct": DEFAULT_QQQ_PCT,
-            "positions": {}, "closed": [], "skipped": [], "equity": [[start, 1.0, None]]}
+            "sleeve": SLEEVE, "positions": {}, "closed": [], "skipped": [], "equity": [[start, 1.0, None]]}
 
 
 def _f(v: Any) -> float | None:
@@ -107,9 +111,16 @@ def _value(pf: dict, px: dict[str, float], q: float) -> float:
     return pf["cash"] + pf["qqq_sh"] * q + sum(p["shares"] * px.get(t, p["last"]) for t, p in pf["positions"].items())
 
 
-def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict[str, pd.DataFrame]) -> None:
-    """Advance the portfolio through one session ``day`` (``prev`` = previous session)."""
-    q_open, q_close = _f(q.get("open")), _f(q.get("close"))
+def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict[str, pd.DataFrame],
+         sleeve: dict | None = None) -> None:
+    """Advance the portfolio through one session ``day`` (``prev`` = previous session).
+
+    ``q`` is QQQ (benchmark).  ``sleeve`` is the idle-money instrument's open/close
+    (the TQQQ-rule NAV); without it the sleeve is QQQ itself (the pre-October-2026 rule).
+    """
+    bench_close = _f(q.get("close"))
+    s = sleeve if sleeve is not None else q
+    q_open, q_close = _f(s.get("open")), _f(s.get("close"))
     today = {t: _bar(bars, t, day) for t in pf["positions"]}
     # 1. at the open: confirmed 21-EMA breaks, then gap stops
     for t, b in list(today.items()):
@@ -187,12 +198,14 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
             if n not in p["triggered"] and round(b[2] / p["entry"] - 1, 9) >= lvl:
                 p["triggered"].append(n)
                 p["pending_add"] = int(p.get("pending_add", 0)) + 1
-    pf["equity"].append([day, _value(pf, closes, q_close), q_close])
+    pf["equity"].append([day, _value(pf, closes, q_close), bench_close])
     pf["last_day"] = day
 
 
-def advance(pf: dict, sessions: dict[str, dict], frame: pd.DataFrame, qqq: dict[str, dict], until: str) -> dict:
-    """Run every session after pf['last_day'] up to ``until`` that has a QQQ open and close."""
+def advance(pf: dict, sessions: dict[str, dict], frame: pd.DataFrame, qqq: dict[str, dict], until: str,
+            fund: dict[str, dict] | None = None) -> dict:
+    """Run every session after pf['last_day'] up to ``until`` that has a QQQ open and close
+    (and, for the TQQQ-rule sleeve, a recorded sleeve NAV)."""
     days = sorted(d for d in qqq if pf["last_day"] < d <= until)
     if not days:
         return pf
@@ -202,11 +215,17 @@ def advance(pf: dict, sessions: dict[str, dict], frame: pd.DataFrame, qqq: dict[
     prev = pf["last_day"]
     for day in days:
         q = qqq.get(day) or {}
+        sv = None
+        if pf.get("sleeve") == SLEEVE:
+            sv = (fund or {}).get(day) or {}
+            if _f(sv.get("open")) is None or _f(sv.get("close")) is None:
+                pf["waiting"] = day
+                break
         if _f(q.get("open")) is None or _f(q.get("close")) is None:
             pf["waiting"] = day      # resume here next run rather than skip a session
             break
         pf.pop("waiting", None)
-        step(pf, day, prev, q, sessions.get(prev), bars)
+        step(pf, day, prev, q, sessions.get(prev), bars, sv)
         prev = day
     return pf
 

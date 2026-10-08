@@ -20,7 +20,7 @@ def test_rules_tab_replaces_core12_with_swing_rules():
     assert "今日の地合い：新規OK" in out and "QQQ 600.00 / 200日線 550.00" in out
     assert '<section id="t-post1">x</section>' in out and '<section id="t-jev">j</section>' in out
     assert out.count(rules_tab.STYLE) == 1
-    assert "成績（単年）" in out and "+145.2%" in out and "−17.4%" in out and "最大6銘柄" in out and "+20%でもう一度同額" in out and "好位置リーダー（検討可）" in out and "7. 余剰資金の配分" in out and "2026*" in out
+    assert "成績（単年）" in out and "+126.2%" in out and "−13.1%" in out and "TQQQ枠込" in out and "9. TQQQルール" in out and "①早期再エントリー" in out and "②信用125%（参考・未採用）" in out and "244倍" in out and "最大6銘柄" in out and "+20%でもう一度同額" in out and "好位置リーダー（検討可）" in out and "7. 余剰資金の配分" in out and "2026*" in out
     assert rules_tab.apply(out, regime={"on": True, "close": 600.0, "ma": 550.0, "date": "2026-10-02"}) == out
 
 

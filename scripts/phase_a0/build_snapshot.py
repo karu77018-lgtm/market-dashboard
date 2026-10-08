@@ -23,13 +23,13 @@ DEFAULT_PATHS = (
     "data/state.json", "data/rs.json", "data/market_inputs.json", "data/mktcap.json",
     "data/theme_membership.json", "data/provider_inputs.json", "work/ohlcv.csv",
     "work/massive-reference.json", "work/massive-grouped.json",
-    "track-record/signals.json", "track-record/ipo-signals.json", "track-record/rsline-signals.json", "track-record/option-layout.json", "data/listing-dates.json",
+    "track-record/signals.json", "track-record/ipo-signals.json", "track-record/rsline-signals.json", "track-record/option-layout.json", "track-record/tqqq-rule.json", "data/listing-dates.json",
     "data/jev-ranking.json",
 )
 
 DELTA_EXTERNAL_PATHS = {"chart-data"}
 # Archived when present; their absence must not block publication.
-OPTIONAL_PATHS = {"track-record/signals.json", "track-record/ipo-signals.json", "track-record/rsline-signals.json", "track-record/option-layout.json", "data/listing-dates.json",
+OPTIONAL_PATHS = {"track-record/signals.json", "track-record/ipo-signals.json", "track-record/rsline-signals.json", "track-record/option-layout.json", "track-record/tqqq-rule.json", "data/listing-dates.json",
                   "data/jev-ranking.json"}
 
 
