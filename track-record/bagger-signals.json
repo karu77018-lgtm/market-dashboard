@@ -1,0 +1,5 @@
+{
+ "schema": "bagger-watch-signals.1",
+ "exit": "signal close, -25% trailing stop on closes, max 504 sessions",
+ "signals": {}
+}
