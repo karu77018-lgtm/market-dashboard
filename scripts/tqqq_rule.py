@@ -72,7 +72,7 @@ def indicators(qo, qh, ql, qc, qv, tqc, vix, hy, gold) -> dict[str, np.ndarray]:
         rfast = (qc > s200) | ((qc > e21) & (e21 > _shift(e21, 5)))
         vol = pd.Series(np.log(tqc)).diff().rolling(20).std().to_numpy() * math.sqrt(252)
         vol = np.nan_to_num(vol, nan=9.9)
-        dd52 = np.nan_to_num(qc / pd.Series(qc).rolling(252, min_periods=1).max().to_numpy() - 1)
+        dd52 = np.nan_to_num(qc / pd.Series(qc).rolling(252).max().to_numpy() - 1)  # full 52 weeks only
         ret10 = np.nan_to_num(qc / _shift(qc, 10) - 1)
         spike = pd.Series(vix >= 28).rolling(10).max().fillna(0).to_numpy().astype(bool)
         cap_vix = spike & (vix < _sma(vix, 5)) & (qc > _shift(qc, 1))
@@ -111,11 +111,13 @@ def run(ind: dict[str, np.ndarray], start: int = 0, state: dict | None = None) -
         if rf:
             st["cap_on"], cap_hold = False, False
         else:
+            ended = False
             if st["cap_on"]:
                 st["cap_d"] += 1
                 if st["cap_d"] > 15 or ind["tqc"][i] < st["cap_ent"] * (1 - 0.15):
-                    st["cap_on"] = False
-            if not st["cap_on"] and bool(ind["cap"][i]):
+                    st["cap_on"], ended = False, True
+            # no new entry on the bar a hold expired or was stopped (keeps the 15-day / -15% limits)
+            if not st["cap_on"] and not ended and bool(ind["cap"][i]):
                 st["cap_on"], st["cap_d"], st["cap_ent"] = True, 0, float(ind["tqc"][i])
             cap_hold = st["cap_on"]
         calm = bool(ind["hy_calm"][i])
@@ -180,14 +182,20 @@ def _fred(market: dict, series_id: str) -> pd.Series:
 
 
 def frame_from_market(market: dict) -> pd.DataFrame | None:
-    """Aligned daily inputs on QQQ sessions, or None when a required input is missing."""
+    """Aligned daily inputs on QQQ sessions, or None when a required input is missing.
+
+    Required on the latest session: QQQ, TQQQ, VIX, HY OAS (FRED may lag a few days and
+    is carried forward) and gold (a gold bar within 4 days and 127 observations for the
+    126-day test).  A missing input keeps the last frozen recommendation instead of
+    publishing a different allocation.
+    """
     q = _rows(market, "QQQ")
     t = _rows(market, "TQQQ")
     v = _rows(market, "^VIX")
     g = _rows(market, "GC=F")
     hy = _fred(market, "BAMLH0A0HYM2")
     rf = _fred(market, "DGS3MO")
-    if q.empty or t.empty or v.empty or hy.empty:
+    if q.empty or t.empty or v.empty or hy.empty or g.empty:
         return None
     idx = q.index
     f = pd.DataFrame({"qo": q["open"], "qh": q["high"], "ql": q["low"], "qc": q["close"], "qv": q["volume"]}, index=idx)
@@ -195,12 +203,18 @@ def frame_from_market(market: dict) -> pd.DataFrame | None:
     f["tc"] = t["close"].reindex(idx)
     f["vix"] = v["close"].reindex(idx).ffill()
     f["hy"] = hy.reindex(idx.union(hy.index)).ffill().reindex(idx)
-    f["gold"] = (g["close"].reindex(idx).ffill() if not g.empty else np.nan)
+    f["gold"] = g["close"].reindex(idx.union(g.index)).ffill().reindex(idx)
+    f["gopen"] = g["open"].reindex(idx) if "open" in g else np.nan
     f["rf"] = (rf.reindex(idx.union(rf.index)).ffill().reindex(idx) / 100.0) if not rf.empty else 0.0
     # FRED history is shorter than the 2-year price window: keep the price rows (200-day
     # line / 52-week high) and only require HY on the latest session.
     f = f[f["tc"].notna() & f["qc"].notna()]
-    return f if len(f) >= 210 and pd.notna(f["hy"].iloc[-1]) else None
+    if len(f) < 260 or pd.isna(f["hy"].iloc[-1]) or pd.isna(f["vix"].iloc[-1]):
+        return None
+    last = f.index[-1]
+    if (last - g.index[g.index <= last].max()).days > 4 or g["close"].loc[:last].notna().sum() < 127:
+        return None
+    return f
 
 
 def compute_frame(f: pd.DataFrame, start: int = 0, state: dict | None = None) -> tuple[dict, dict]:
@@ -252,29 +266,43 @@ def day_record(f: pd.DataFrame, out: dict, i: int, st: dict) -> dict[str, Any]:
         "alarm": bool(out["alarm"][i]), "cap_hold": bool(out["cap_hold"][i]), "hy_wide": bool(out["hy_wide"][i]),
         "trend": bool(out["trend"][i]),
         "qqq": _r(row["qc"], 4), "tqqq_open": _r(row["to"], 4), "tqqq": _r(row["tc"], 4),
-        "gold_px": _r(row.get("gold"), 4), "rf": _r(row.get("rf"), 5), "hy": _r(row["hy"], 3), "vix": _r(row["vix"], 2),
+        "gold_open": _r(row.get("gopen"), 4), "gold_px": _r(row.get("gold"), 4), "rf": _r(row.get("rf"), 5),
+        "hy": _r(row["hy"], 3), "vix": _r(row["vix"], 2),
         "state": {k: (bool(st[k]) if isinstance(st[k], bool) else _r(st[k], 6)) for k in STATE_KEYS},
     }
 
 
+FIRST_RECORD = 251  # every lookback (200-day line, 52-week high) is complete from here on
+
+
 def update(ledger: dict, f: pd.DataFrame, session: str) -> dict:
-    """Record every session after ledger['last_day'] up to ``session`` (frozen once written)."""
+    """Record every session after ledger['last_day'] up to ``session`` (frozen once written).
+
+    A ledger with history continues only from its own last day and state.  When the
+    input window no longer contains that day (a gap in the download) the ledger is left
+    unchanged rather than restarted, so frozen days and the state machines never reset.
+    """
     dates = [d.strftime("%Y-%m-%d") for d in f.index]
     if session not in dates:
         return ledger
     last = ledger.get("last_day")
-    if last and last in dates and ledger.get("state"):
+    if ledger.get("days"):
+        if not last or last >= session:
+            return ledger
+        if last not in dates or not ledger.get("state"):
+            print(f"TQQQ rule: ledger last day {last} not in the input window; not updated", flush=True)
+            return ledger
         start, state = dates.index(last) + 1, ledger["state"]
-    elif last and last >= session:
-        return ledger
     else:  # cold start: run the whole window from the default state
         start, state = 0, None
     end = dates.index(session)
     if start > end:
         return ledger
     out, st = compute_frame(f.iloc[:end + 1], start, state)
-    for i in range(max(start, 199), end + 1):  # indicators need the 200-day line
+    for i in range(max(start, FIRST_RECORD), end + 1):
         ledger["days"][dates[i]] = day_record(f, out, i, out["states"][i])
+    if not ledger["days"]:
+        return ledger
     ledger["state"] = st
     ledger["last_day"] = session
     return ledger
@@ -285,32 +313,38 @@ def update(ledger: dict, f: pd.DataFrame, session: str) -> dict:
 def fund_bars(ledger: dict) -> dict[str, dict[str, float]]:
     """Open/close NAV of the TQQQ-rule sleeve on recorded days.
 
-    Weights decided at a close trade at the next open (TQQQ open); gold is marked
-    close to close with yesterday's weight; the rest earns the 3-month T-bill rate.
+    Held as units: the weights decided at a close are bought at the next open (TQQQ
+    open, gold open) and the whole sleeve is marked together, so the day return is the
+    weighted sum of TQQQ, gold and T-bill returns; the overnight gap belongs to the
+    holdings bought the previous morning.  Without a recorded gold open the gold trade
+    uses the previous close.
     """
     days = sorted(ledger.get("days", {}))
     bars: dict[str, dict[str, float]] = {}
-    nav, prev, prev2 = 1.0, None, None
+    prev = None
+    ut = ug = cash = 0.0
+    nav = 1.0
     for d in days:
         r = ledger["days"][d]
         if prev is None:
             bars[d] = {"open": nav, "close": nav}
-            prev, prev2 = r, r
+            prev, cash = r, 1.0
             continue
-        wt_over = float(prev2.get("target") or 0) if prev2 is not prev else float(prev.get("target") or 0)
-        wt_new = float(prev.get("target") or 0)
-        wg = float(prev.get("gold") or 0)
-        t0, to, t1 = prev.get("tqqq"), r.get("tqqq_open"), r.get("tqqq")
-        g0, g1 = prev.get("gold_px"), r.get("gold_px")
+        to, t1 = _r(r.get("tqqq_open"), 8) or _r(prev.get("tqqq"), 8), _r(r.get("tqqq"), 8)
+        g1 = _r(r.get("gold_px"), 8) or _r(prev.get("gold_px"), 8)
+        go = _r(r.get("gold_open"), 8) or _r(prev.get("gold_px"), 8) or g1
+        nav_open = ut * (to or 0.0) + ug * (go or 0.0) + cash
+        wt, wg = float(prev.get("target") or 0), float(prev.get("gold") or 0)
+        if not to or (wg > 0 and not go):
+            wt, wg = 0.0, 0.0
+        ut = wt * nav_open / to if to else 0.0
+        ug = wg * nav_open / go if go else 0.0
+        cash = nav_open * (1 - wt - wg)
         rf = float(prev.get("rf") or 0) / 252
-        gap = (to / t0 - 1) if t0 and to else 0.0
-        intra = (t1 / to - 1) if to and t1 else 0.0
-        gret = (g1 / g0 - 1) if g0 and g1 else 0.0
-        cash = max(0.0, 1 - wt_new - wg)
-        nav_open = nav * (1 + wt_over * gap)
-        nav = nav_open * (1 + wt_new * intra) * (1 + wg * gret + cash * rf)
+        cash *= 1 + rf
+        nav = ut * (t1 or to or 0.0) + ug * (g1 or go or 0.0) + cash
         bars[d] = {"open": nav_open, "close": nav}
-        prev2, prev = prev, r
+        prev = r
     return bars
 
 
@@ -325,6 +359,12 @@ def latest(ledger: dict | None) -> tuple[str | None, dict | None]:
 
 def _pct(x: float | None) -> str:
     return "—" if x is None else f"{x * 100:.0f}%"
+
+
+def _pp(x: float) -> str:
+    """Share of total assets: whole numbers, one decimal only when needed (16.5%)."""
+    v = round(x * 100 + 1e-9, 1)
+    return f"{v:.0f}%" if abs(v - round(v)) < 1e-9 else f"{v:.1f}%"
 
 
 def summary_words(rec: dict) -> tuple[str, str]:
@@ -346,27 +386,61 @@ def sleeve_split(rec: dict, sleeve_pct: int) -> tuple[float, float, float]:
     return t, g, max(0.0, 1 - t - g)
 
 
-def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, top: bool = False) -> str:
+def total_split(rec: dict, sleeve_pct: int, stock: float) -> tuple[float, float, float, float]:
+    """Shares of total assets: (stocks, TQQQ, gold, cash/T-bills) for a stock share."""
+    t, g, _ = sleeve_split(rec, sleeve_pct)
+    idle = max(0.0, 1 - stock)
+    return stock, idle * t, idle * g, max(0.0, idle * (1 - t - g))
+
+
+COLORS = {"stock": "#467ed6", "tqqq": "#18813d", "gold": "#c99a2e", "cash": "#b9b5aa"}
+EXAMPLES = (0.0, 0.25, 0.5, 0.75)
+
+
+def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, top: bool = False,
+              stock: float | None = None, session: str | None = None) -> str:
     cid = CARD_ID if top else CARD_ID + "-mini"
+    e = html.escape
     if not rec:
         return (f'<div class="tqr-card" id="{cid}"><div class="tqr-top"><span class="tqr-h">{RULE_NAME}</span>'
-                '<span class="tqr-v">判定不可</span></div><div class="tqr-sub">入力（QQQ・TQQQ・VIX・HY OAS）が'
+                '<span class="tqr-m">判定不可</span></div><div class="tqr-sub">入力（QQQ・TQQQ・VIX・HY OAS・金）が'
                 'そろわないため今日の目標を出していません。前日の比率のまま。</div></div>')
     word, cls = summary_words(rec)
-    tgt = float(rec.get("target") or 0)
-    gold = float(rec.get("gold") or 0)
-    parts = [f"TQQQ <b>{_pct(tgt)}</b>"]
+    pct = sleeve_pct if sleeve_pct in (50, 100) else 50
+    tgt, gold = float(rec.get("target") or 0), float(rec.get("gold") or 0)
+    stale = (f'<div class="tqr-stale">{e(session)}の入力が欠けたため、{e(day or "")}の判定のままです。</div>'
+             if session and day and day < session else "")
+    # 1) total assets: stocks / TQQQ / gold / cash
+    s_pct = round(stock * 100) / 100 if stock is not None else None
+    t_in, g_in, c_in = sleeve_split(rec, pct)          # shares of the money not in stocks
+    fill = (f'枠の <b>{_pct(tgt)}</b> をTQQQ' + (f'・<b>{_pct(gold)}</b> を金' if gold > 0 else '')
+            + ('・残りを短期国債' if tgt + gold < 0.999 else ''))
+    if s_pct is not None:
+        st_, tq, gd, ca = total_split(rec, pct, s_pct)
+        parts = [("stock", "個別株", st_), ("tqqq", "TQQQ", tq), ("gold", "金", gd), ("cash", "現金・短期国債", ca)]
+        head = '<div class="tqr-big">資産全体の配分（今日の目標）</div>'
+        how = (f'<div class="tqr-how">個別株以外の <b>{_pp(1 - st_)}</b> のうち <b>{pct}%</b> が枠（ブレイク成功度で50%か100%）→ '
+               f'{fill} ＝ 全体の TQQQ <b>{_pp(tq)}</b>。枠の外は現金。'
+               f'個別株{_pp(st_)}はスイングルールの今の保有比率（成績タブ）。自分の比率が違うときは下の表で。</div>')
+    else:
+        parts = [("tqqq", "TQQQ", t_in), ("gold", "金", g_in), ("cash", "現金・短期国債", c_in)]
+        head = '<div class="tqr-big">個別株以外のお金の配分（今日の目標）</div>'
+        how = (f'<div class="tqr-how">個別株以外のお金の <b>{pct}%</b> が枠（ブレイク成功度で50%か100%）→ {fill}。'
+               '枠の外は現金。資産全体での比率は下の表で。</div>')
+    bar = '<div class="tqr-bar">' + "".join(
+        f'<i style="width:{v * 100:.2f}%;background:{COLORS[k]}"></i>' for k, _, v in parts if v > 0.0005) + '</div>'
+    legend = '<div class="tqr-leg">' + "".join(
+        f'<span><i style="background:{COLORS[k]}"></i>{n} <b>{_pp(v)}</b></span>' for k, n, v in parts
+        if v > 0.0005 or k in ("stock", "tqqq")) + '</div>'
+    # 3) your own stock share
+    cols = list(EXAMPLES)
+    rows = [("TQQQ", lambda s: total_split(rec, pct, s)[1])]
     if gold > 0:
-        parts.append(f"金 {_pct(gold)}")
-    rest = max(0.0, 1 - tgt - gold)
-    if rest > 0.001:
-        parts.append(f"短期国債 {_pct(rest)}")
-    split = ""
-    if sleeve_pct in (50, 100):
-        t, g, c = sleeve_split(rec, sleeve_pct)
-        split = (f'<div class="tqr-sub">余剰資金のうち<b>{sleeve_pct}%</b>をこの枠に（ブレイク成功度）'
-                 f'→ 余剰資金の TQQQ <b>{_pct(t)}</b>' + (f'・金 {_pct(g)}' if g > 0 else '')
-                 + f'・現金/短期国債 {_pct(c)}</div>')
+        rows.append(("金", lambda s: total_split(rec, pct, s)[2]))
+    rows.append(("現金・国債", lambda s: total_split(rec, pct, s)[3]))
+    table = ('<table class="tqr-tab"><tr><th>自分の個別株</th>' + "".join(f'<th>{_pp(c)}</th>' for c in cols) + '</tr>'
+             + "".join(f'<tr><td>{n}</td>' + "".join(f'<td>{_pp(fn(c))}</td>' for c in cols) + '</tr>' for n, fn in rows)
+             + '</table>')
     checks = [
         ("トレンド", "上" if rec.get("trend") else "下"),
         ("緊急", "切替型" if rec.get("md_switch") and not rec.get("md_hold") else
@@ -374,31 +448,68 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
         ("HY OAS", f'{rec.get("hy"):.2f}%' + ("（拡大）" if rec.get("hy_wide") else "") if rec.get("hy") is not None else "—"),
         ("過熱", "警報" if rec.get("alarm") else "なし"),
     ]
-    chk = "".join(f'<span class="tqr-chip"><i>{html.escape(k)}</i>{html.escape(v)}</span>' for k, v in checks)
-    return (f'<div class="tqr-card tqr-{cls}" id="{cid}" data-day="{html.escape(day or "")}">'
-            f'<div class="tqr-top"><span class="tqr-h">{RULE_NAME}</span><span class="tqr-v">{" ・ ".join(parts)}</span>'
-            f'<span class="tqr-m">{html.escape(word)}</span></div>'
-            f'{split}<div class="tqr-chips">{chk}</div>'
-            f'<div class="tqr-sub tqr-mut">{html.escape(day or "")} 終値で判定 → 翌営業日に執行。ルールはRulesタブ9。</div></div>')
+    chk = "".join(f'<span class="tqr-chip"><i>{e(k)}</i>{e(v)}</span>' for k, v in checks)
+    return (f'<div class="tqr-card tqr-{cls}" id="{cid}" data-day="{e(day or "")}">'
+            f'<div class="tqr-top"><span class="tqr-h">{RULE_NAME}</span><span class="tqr-m">{e(word)}</span>'
+            f'<span class="tqr-d">{e((day or "")[5:].replace("-", "/"))} 終値で判定→翌営業日に執行</span></div>'
+            + stale + head + bar + legend + how
+            + f'<details class="tqr-more"{" open" if s_pct is None else ""}><summary>自分の個別株比率で読み替え（資産全体の%）</summary>' + table
+            + f'<div class="tqr-sub tqr-mut">計算：TQQQ＝（100%−個別株）×枠{pct}%×目標{_pct(tgt)}。ルールはRulesタブ9。</div></details>'
+            f'<div class="tqr-chips">{chk}</div></div>')
 
 
 STYLE = ('<style id="tqqq-rule-style">.tqr-card{border-radius:12px;padding:10px 14px;margin:8px 0;border:1px solid #d7d3c7;'
-         'background:#f7f6f1}.tqr-card.tqr-on{background:rgba(34,197,94,.10);border-color:rgba(34,197,94,.45)}'
+         'background:#f7f6f1}.tqr-card.tqr-on{background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.45)}'
          '.tqr-card.tqr-warn{background:#f3ecd6;border-color:#e0cf98}.tqr-card.tqr-off{background:rgba(239,68,68,.08);'
-         'border-color:rgba(239,68,68,.4)}.tqr-top{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px}'
-         '.tqr-h{font-weight:800;font-size:14px;color:#1b1a18}.tqr-v{font-size:14px;color:#1b1a18}'
+         'border-color:rgba(239,68,68,.4)}.tqr-top{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}'
+         '.tqr-h{font-weight:800;font-size:14px;color:#1b1a18}.tqr-d{font-size:11px;color:#8a877c;margin-left:auto}'
          '.tqr-m{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:#fff;border:1px solid #d7d3c7;color:#565243}'
+         '.tqr-big{font-size:12px;font-weight:700;color:#565243;margin:8px 0 5px}'
+         '.tqr-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;background:#e9e7e0}.tqr-bar i{display:block;height:100%}'
+         '.tqr-leg{display:flex;flex-wrap:wrap;gap:2px 14px;margin:6px 0 2px;font-size:13px;color:#565243}'
+         '.tqr-leg i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:-1px}'
+         '.tqr-leg b{color:#1b1a18;font-size:16px}.tqr-how{font-size:11.5px;color:#565243;line-height:1.6;margin-top:6px}'
+         '.tqr-stale{font-size:12px;font-weight:700;color:#8a5a00;background:#f3ecd6;border:1px solid #e0cf98;'
+         'border-radius:8px;padding:5px 8px;margin-top:6px}'
+         '.tqr-more{margin-top:6px}.tqr-more summary{font-size:11.5px;color:#467ed6;cursor:pointer}'
+         '.tqr-tab{width:100%;border-collapse:collapse;font-size:11.5px;margin:4px 0;table-layout:fixed}'
+         '.tqr-tab th,.tqr-tab td{border-bottom:1px solid #e0ddd5;padding:3px 4px;text-align:right;'
+         'font-variant-numeric:tabular-nums;white-space:nowrap}.tqr-tab th:first-child,.tqr-tab td:first-child'
+         '{text-align:left;width:30%}.tqr-tab th{color:#706e64;font-weight:700;font-size:10.5px}'
          '.tqr-sub{font-size:11.5px;color:#565243;line-height:1.55;margin-top:4px}.tqr-mut{color:#8a877c}'
          '.tqr-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.tqr-chip{font-size:10.5px;background:#fff;'
          'border:1px solid #e0ddd5;border-radius:6px;padding:1px 6px;color:#1b1a18}.tqr-chip i{font-style:normal;'
          'color:#8a877c;margin-right:4px}</style>')
 
 
-def apply_top(text: str, ledger: dict | None, sleeve_pct: int | None) -> str:
+def stock_share(root: Path) -> float | None:
+    """Stock share of the forward-record portfolio at its last mark (None while it is being migrated)."""
+    try:
+        import track_record  # lazy: track_record imports this module
+        led = track_record.display_ledger(track_record.load(root / track_record.LEDGER), root)
+        pf = led.get("portfolio") or {}
+        eq = [e for e in pf.get("equity", []) if e[1] is not None]
+        if len(eq) < 2:
+            return None
+        held = sum(p["shares"] * p["last"] for p in pf.get("positions", {}).values())
+        return max(0.0, min(1.0, held / eq[-1][1]))
+    except Exception:
+        return None
+
+
+def page_session(root: Path) -> str | None:
+    try:
+        return json.loads((root / "latest-manifest.json").read_text(encoding="utf-8")).get("session_date")
+    except Exception:
+        return None
+
+
+def apply_top(text: str, ledger: dict | None, sleeve_pct: int | None, stock: float | None = None,
+              session: str | None = None) -> str:
     """Put today's TQQQ-rule card at the top of the page (where the NQ card used to be)."""
     import re
     day, rec = latest(ledger)
-    card = card_html(day, rec, sleeve_pct, top=True)
+    card = card_html(day, rec, sleeve_pct, top=True, stock=stock, session=session)
     m = re.search(rf'<div[^>]*\bid="{CARD_ID}"', text)
     if m:
         # replace the existing card (balanced divs)
@@ -413,13 +524,12 @@ def apply_top(text: str, ledger: dict | None, sleeve_pct: int | None) -> str:
         if i < 0:
             return text
         text = text[:i] + card + text[i:]
-    if 'id="tqqq-rule-style"' not in text:
-        text = text.replace("</head>", STYLE + "</head>", 1)
-    return text
+    text = re.sub(r'<style id="tqqq-rule-style">.*?</style>', "", text, count=1, flags=re.S)
+    return text.replace("</head>", STYLE + "</head>", 1)
 
 
-def run_refresh(text: str, root: Path, session: str, sleeve_pct: int | None) -> str:
-    """Refresh path: advance the ledger from data/market_inputs.json, then render."""
+def update_ledger(root: Path, session: str) -> dict:
+    """Refresh path: advance the ledger from data/market_inputs.json (before the forward record)."""
     path = root / LEDGER
     ledger = load(path)
     try:
@@ -432,11 +542,12 @@ def run_refresh(text: str, root: Path, session: str, sleeve_pct: int | None) -> 
             print("TQQQ rule: inputs incomplete; keeping the last recorded day", flush=True)
     except Exception as exc:  # display + ledger only
         print(f"TQQQ rule update skipped: {exc!r}", flush=True)
-    return apply_top(text, ledger, sleeve_pct)
+    return ledger
 
 
-def render_only(text: str, root: Path, sleeve_pct: int | None) -> str:
-    return apply_top(text, load(root / LEDGER), sleeve_pct)
+def render_only(text: str, root: Path, sleeve_pct: int | None, session: str | None = None) -> str:
+    """Render the committed ledger; the stock share comes from the forward record."""
+    return apply_top(text, load(root / LEDGER), sleeve_pct, stock_share(root), session or page_session(root))
 
 
 if __name__ == "__main__":
