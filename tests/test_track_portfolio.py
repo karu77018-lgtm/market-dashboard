@@ -221,3 +221,30 @@ def test_monthly_returns_chain_month_ends():
     assert [x[0] for x in m] == ["2026-02", "2026-03"]
     assert abs(m[0][1] - 0.10) < 1e-12 and abs(m[1][1] - (0.99 / 1.10 - 1)) < 1e-12
     assert abs(m[1][2] - (99.96 / 102 - 1)) < 1e-12
+
+
+def test_display_never_mixes_an_unmigrated_qqq_portfolio(tmp_path: Path):
+    page = ('<html><head></head><body><nav><a class="tabx" href="#t-alloc">Positions</a></nav>'
+            '<section id="t-alloc"></section><section id="t-rules"><div class="card" id="rules-card" data-rule="r">'
+            '<div class="rh">成績（単年）</div></div></section></body></html>')
+    f = frame({"AAA": [(100, 99.9, 110)]})
+    led = tr.new_ledger()
+    led["start"], led["sessions"] = S, sessions(["AAA"])
+    old = tp.advance(tp.new_portfolio(S), led["sessions"], f, qqq(31), D[30], fund=qqq(31))
+    old.pop("sleeve")                                         # published before the TQQQ sleeve
+    led["portfolio"] = old
+    tr.save(led, tmp_path / tr.LEDGER)
+    before = (tmp_path / tr.LEDGER).read_text()
+    out = tr.render_only(page, tmp_path)                     # no saved inputs: pending note only
+    assert "計算し直しています" in out and "<i>余剰資金のQQQ</i>" not in out and '<div class="tr-h">保有中</div>' not in out
+    # with the last refresh's saved inputs the display rebuilds it in memory, as run() will
+    (tmp_path / "work").mkdir()
+    f.assign(volume=1e6).to_csv(tmp_path / "work" / "ohlcv.csv", index=False)
+    (tmp_path / "latest-manifest.json").write_text(json.dumps({"session_date": D[30]}))
+    (tmp_path / "work" / "market-inputs-cache.json").write_text(
+        json.dumps({"series": {"QQQ": [{"date": d, **v} for d, v in qqq(31).items()]}}))
+    write_fund(tmp_path, 31)
+    out = tr.render_only(page, tmp_path)
+    assert "<i>余剰資金のTQQQルール枠</i>" in out and '<div class="tr-h">保有中</div>' in out
+    assert "次の更新から新しい計算で表示します" not in out
+    assert (tmp_path / tr.LEDGER).read_text() == before      # display never writes the ledger

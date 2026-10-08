@@ -290,9 +290,8 @@ def main() -> int:
     from rules_tab import apply as apply_rules_tab
     text = apply_rules_tab(text, regime=regime, health=health)
     import tqqq_rule
-    try:  # idle-money TQQQ rule: display + ledger only; before track_record (its sleeve NAV)
-        text = tqqq_rule.run_refresh(text, html_path.resolve().parent, args.session,
-                                     breakout_health.allocation(health, regime)[0])
+    try:  # idle-money TQQQ rule: ledger first (the forward record's sleeve NAV)
+        tqqq_rule.update_ledger(html_path.resolve().parent, args.session)
     except Exception as exc:
         print(f"TQQQ rule skipped: {exc!r}", flush=True)
     import track_record
@@ -300,6 +299,11 @@ def main() -> int:
         text = track_record.run(text, frame, args.session, html_path.resolve().parent)
     except Exception as exc:
         print(f"track record skipped: {exc!r}", flush=True)
+    try:  # top card: needs the forward record's stock share, so after track_record
+        text = tqqq_rule.render_only(text, html_path.resolve().parent,
+                                     breakout_health.allocation(health, regime)[0], args.session)
+    except Exception as exc:
+        print(f"TQQQ card skipped: {exc!r}", flush=True)
     import ipo_base
     try:  # watch only; never blocks publication
         root = html_path.resolve().parent

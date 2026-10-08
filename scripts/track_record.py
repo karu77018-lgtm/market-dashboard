@@ -356,7 +356,13 @@ def sleeve_label(pf: dict) -> str:
 SHORT_REASON = {"安値21EMA割れ（翌始値）": "21EMA割れ", "損切り（窓）": "損切り（窓）", "損切り −8%": "損切り"}
 
 
-def portfolio_html(pf: dict | None) -> str:
+PENDING_HTML = ('<div class="tr-empty">余剰資金の置き先をQQQからTQQQルール枠に変えたため、記録開始日から計算し直しています。'
+                '次の更新から新しい計算で表示します（旧方式の数字は表示しません）。</div>')
+
+
+def portfolio_html(pf: dict | None, pending: bool = False) -> str:
+    if pending:
+        return PENDING_HTML
     if not pf or len(pf.get("equity", [])) < 2:
         start = (pf or {}).get("start")
         when = f"{e_(start)}の本命を" if start else "最初に記録した本命を"
@@ -438,7 +444,7 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
         '<div class="chd"><h2>運用成績（ルールどおりの売買・前向き記録）<span class="h2en">Track Record</span></h2></div>'
         f'<div class="sub">毎日公開した「本命」を、Rulesタブの資金管理（最大6銘柄・最初は資金の1/6・+10%と+20%で同額買い増し・'
         f'1銘柄40%まで・余剰資金はTQQQルール枠）どおりに売買した場合の成績。記録開始 {e(start)}（{days}営業日分）。ルール版 {e(RULE_ID)}。</div>'
-        + warn + portfolio_html(ledger.get("portfolio"))
+        + warn + portfolio_html(ledger.get("portfolio"), bool(ledger.get("_pending")))
         + '<details class="tr-more"><summary>本命1件ごとのシグナル成績</summary>'
         f'<div class="tr-grid">{grid}</div>'
         '<div class="tr-wrap"><table><tr><th>銘柄</th><th>本命の日</th><th>買値（翌始値）</th><th>現在/売値</th>'
@@ -517,6 +523,8 @@ def rules_block(ledger: dict | None, error: str | None = None) -> str:
     if error or ledger is None:
         return head + f'<div class="rnote">記録ファイルを読めなかったため表示していません。詳細は{link}。</div></div>'
     pf = ledger.get("portfolio")
+    if ledger.get("_pending"):
+        return head + f'<div class="rnote">{PENDING_HTML[len('<div class="tr-empty">'):-len("</div>")]}詳細は{link}。</div></div>'
     if not pf or len(pf.get("equity", [])) < 2:
         start = (ledger.get("start") or "次の更新")
         return (head + f'<div class="rnote">毎日公開した本命を、このルールどおりに売買した場合の実績を記録しています。'
@@ -581,13 +589,54 @@ def run(text: str, frame: pd.DataFrame, session: str, root: Path, qqq_path: Path
     return apply(text, ledger, trades_for_display(ledger))
 
 
+def _saved_frame(root: Path, session: str | None) -> pd.DataFrame | None:
+    """The last refresh's OHLCV (Actions cache work/ohlcv.csv), up to its session."""
+    path = root / "work" / "ohlcv.csv"
+    if not session or not path.is_file():
+        return None
+    f = pd.read_csv(path, usecols=["ticker", "date", "open", "high", "low", "close", "volume"])
+    f["ticker"] = f["ticker"].astype(str).str.upper()
+    f["date"] = pd.to_datetime(f["date"], errors="coerce")
+    for c in ("open", "high", "low", "close", "volume"):
+        f[c] = pd.to_numeric(f[c], errors="coerce")
+    f = f[f["date"].notna() & (f["date"] <= pd.Timestamp(session))]
+    return f if not f.empty and f["date"].max() == pd.Timestamp(session) else None
+
+
+def display_ledger(ledger: dict, root: Path) -> dict:
+    """Display path for a portfolio still on the old QQQ sleeve.
+
+    The migration itself happens in run() (refresh).  Until then the display rebuilds
+    the portfolio in memory exactly as run() will (same saved OHLCV, QQQ bars and
+    TQQQ-rule NAV) and never saves it; without those inputs it shows a pending note
+    instead of mixing the old QQQ-sleeve numbers with the new rule.
+    """
+    pf = ledger.get("portfolio")
+    if not ledger.get("start") or not pf or pf.get("sleeve") == tp.SLEEVE:
+        return ledger
+    out = {**ledger, "portfolio": None, "_pending": True}
+    try:
+        session = json.loads((root / "latest-manifest.json").read_text(encoding="utf-8")).get("session_date")
+        frame = _saved_frame(root, session)
+        qqq = next((b for b in (qqq_bars(root / "data" / "market_inputs.json"),
+                                qqq_bars(root / "work" / "market-inputs-cache.json")) if b), {})
+        if frame is not None and qqq:
+            fund = tqqq_rule.fund_bars(tqqq_rule.load(root / tqqq_rule.LEDGER))
+            new = tp.advance(tp.new_portfolio(ledger["start"]), ledger["sessions"], frame, qqq, pf["last_day"], fund=fund)
+            if new["last_day"] == pf["last_day"]:
+                out["portfolio"], out["_pending"] = new, False
+    except Exception as exc:  # display only
+        print(f"track record display migration skipped: {exc!r}", flush=True)
+    return out
+
+
 def render_only(text: str, root: Path) -> str:
     """Display workflows: render the committed ledger; never record or advance."""
     try:
         ledger = load(root / LEDGER)
     except LedgerError as exc:
         return apply(text, None, [], error=str(exc))
-    return apply(text, ledger, trades_for_display(ledger))
+    return apply(text, display_ledger(ledger, root), trades_for_display(ledger))
 
 
 if __name__ == "__main__":
