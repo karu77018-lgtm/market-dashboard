@@ -52,6 +52,11 @@ async function verify(page,width){
   assert.equal(await page.locator('#t-record #track-record-card').count(),1,'track record tab present');
   assert.equal(await page.locator('#t-rotation #mc57-theme-gate, #t-rotation #index-internals-divergence').count(),0,'Rotation keeps money-flow cards only');
   assert(await page.locator('#tqqq-rule-card').isVisible(),'TQQQ rule card at the top');
+  const recordPending=await page.locator('#track-record-card > .tr-empty').count();
+  if(recordPending){
+    assert.equal(await page.locator('#tqqq-rule-card [data-stock-allocation="pending"]').count(),1,'pending current record cannot present legacy stock share');
+    assert(!(await page.locator('#tqqq-rule-card .tqr-leg').textContent()).includes('個別株'),'pending legend covers idle money only');
+  }
   assert.equal(await page.locator('#t-port #taCard, #t-port #sarPill').count(),2,'NQ signal cards live in the archive');
   assert.equal(await page.locator('#t-market #sarPill, #t-weekly .card:has-text("レバレッジ・コンディション")').count(),0,'NQ/leverage cards left Daily/Weekly');
   await page.locator('nav a[href="#t-port"]').click();
