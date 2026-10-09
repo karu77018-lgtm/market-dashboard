@@ -1,5 +1,17 @@
 {
  "schema": "bagger-watch-signals.1",
  "exit": "signal close, -25% trailing stop on closes, max 504 sessions",
- "signals": {}
+ "signals": {
+  "2026-10-09:WFF": {
+   "ticker": "WFF",
+   "session": "2026-10-09",
+   "entry": 12.29,
+   "depth": 0.7815,
+   "rs": 99,
+   "eps_state": "na",
+   "status": "保有中",
+   "peak": 12.29,
+   "ret": 0.0
+  }
+ }
 }
