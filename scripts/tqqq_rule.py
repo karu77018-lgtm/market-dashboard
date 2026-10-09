@@ -181,6 +181,12 @@ def _fred(market: dict, series_id: str) -> pd.Series:
     return s.sort_index()
 
 
+def known_before(series: pd.Series, idx: pd.DatetimeIndex) -> pd.Series:
+    """For each session, the last observation dated strictly before it (FRED one-day lag)."""
+    s = series.dropna().sort_index()
+    return pd.Series(s.asof(idx - pd.Timedelta(days=1)).to_numpy(dtype=float) if len(s) else np.nan, index=idx)
+
+
 def frame_from_market(market: dict) -> pd.DataFrame | None:
     """Aligned daily inputs on QQQ sessions, or None when a required input is missing.
 
@@ -202,10 +208,12 @@ def frame_from_market(market: dict) -> pd.DataFrame | None:
     f["to"] = t["open"].reindex(idx)
     f["tc"] = t["close"].reindex(idx)
     f["vix"] = v["close"].reindex(idx).ffill()
-    f["hy"] = hy.reindex(idx.union(hy.index)).ffill().reindex(idx)
+    # FRED values are published the next morning: a session uses the last value dated
+    # before it (never the same day's value, which was not known at the close).
+    f["hy"] = known_before(hy, idx)
     f["gold"] = g["close"].reindex(idx.union(g.index)).ffill().reindex(idx)
     f["gopen"] = g["open"].reindex(idx) if "open" in g else np.nan
-    f["rf"] = (rf.reindex(idx.union(rf.index)).ffill().reindex(idx) / 100.0) if not rf.empty else 0.0
+    f["rf"] = (known_before(rf, idx) / 100.0) if not rf.empty else 0.0
     # FRED history is shorter than the 2-year price window: keep the price rows (200-day
     # line / 52-week high) and only require HY on the latest session.
     f = f[f["tc"].notna() & f["qc"].notna()]
