@@ -61,6 +61,7 @@ jobs:
           python scripts/rsline_lead.py
           python scripts/option_layout.py
           python scripts/track_record.py
+          python scripts/tqqq_rule.py
           python scripts/audit_display.py
           python scripts/naming.py
           python scripts/render_jev_ranking.py

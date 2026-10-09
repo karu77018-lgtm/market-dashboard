@@ -407,6 +407,7 @@ EXAMPLES = (0.0, 0.25, 0.5, 0.75)
 
 def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, top: bool = False,
               stock: float | None = None, session: str | None = None) -> str:
+    from swing_allocation import MAX_NAMES, INITIAL_WEIGHT
     cid = CARD_ID if top else CARD_ID + "-mini"
     e = html.escape
     if not rec:
@@ -429,10 +430,12 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
         head = '<div class="tqr-big">資産全体の配分（今日の目標）</div>'
         how = (f'<div class="tqr-how">個別株以外の <b>{_pp(1 - st_)}</b> のうち <b>{pct}%</b> が枠（ブレイク成功度で50%か100%）→ '
                f'{fill} ＝ 全体の TQQQ <b>{_pp(tq)}</b>。枠の外は現金。'
-               f'個別株{_pp(st_)}はスイングルールの今の保有比率（成績タブ）。自分の比率が違うときは下の表で。</div>')
+               f'個別株{_pp(st_)}は現行スイングルールの前向き検証の保有比率（成績タブ）。実口座の保有ではありません。自分の比率が違うときは下の表で。</div>')
     else:
         parts = [("tqqq", "TQQQ", t_in), ("gold", "金", g_in), ("cash", "現金・短期国債", c_in)]
-        head = '<div class="tqr-big">個別株以外のお金の配分（今日の目標）</div>'
+        head = ('<div class="tqr-big">個別株以外のお金の配分（今日の目標）</div>'
+                f'<div class="tqr-sub" data-stock-allocation="pending">通常スイング最大{MAX_NAMES}銘柄・初回{INITIAL_WEIGHT:.0%}。'
+                '新ルールの保有比率は記録開始待ちのため、資産全体の目標は未表示です。旧ルールの保有比率は使いません。</div>')
         how = (f'<div class="tqr-how">個別株以外のお金の <b>{pct}%</b> が枠（ブレイク成功度で50%か100%）→ {fill}。'
                '枠の外は現金。資産全体での比率は下の表で。</div>')
     bar = '<div class="tqr-bar">' + "".join(
@@ -496,6 +499,9 @@ def stock_share(root: Path) -> float | None:
         import track_record  # lazy: track_record imports this module
         led = track_record.display_ledger(track_record.load(root / track_record.LEDGER), root)
         pf = led.get("portfolio") or {}
+        from swing_allocation import RULE_ID
+        if led.get("_pending") or pf.get("rule") != RULE_ID or pf.get("sleeve") != "tqqq-rule":
+            return None
         eq = [e for e in pf.get("equity", []) if e[1] is not None]
         if len(eq) < 2:
             return None

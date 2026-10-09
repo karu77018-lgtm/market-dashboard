@@ -139,3 +139,41 @@ def test_hy_uses_only_values_published_before_the_session():
                    pd.Timestamp("2026-10-06"): 3.03, pd.Timestamp("2026-10-07"): 3.09})
     got = tq.known_before(s, pd.DatetimeIndex(["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"]))
     assert list(got) == [3.10, 3.12, 3.03, 3.09]          # Monday uses Friday's; never the same day's value
+
+
+def test_old_portfolio_is_not_used_for_current_top_allocation(tmp_path):
+    import track_record as tr
+    import track_portfolio as tp
+    from swing_allocation import RULE_ID
+    led = tr.new_ledger()
+    old = tp.new_portfolio('2026-10-05', legacy_tqqq=True)
+    old['equity'] = [['2026-10-05', 1, 100], ['2026-10-08', 1, 100]]
+    old['positions'] = {'AAA': {'shares': .0067, 'last': 100}}
+    led['portfolio'] = old
+    tr.save(led, tmp_path / tr.LEDGER)
+    assert tq.stock_share(tmp_path) is None
+    # Old QQQ ledger and an unversioned TQQQ ledger must both be rejected.
+    for sleeve in (None, 'tqqq-rule'):
+        old.pop('rule', None)
+        old['sleeve'] = sleeve
+        tr.save(led, tmp_path / tr.LEDGER)
+        assert tq.stock_share(tmp_path) is None
+    # A current, marked record can supply its actual simulated share (not5x20).
+    old.update(rule=RULE_ID, sleeve='tqqq-rule', max_names=5, initial_weight=.20)
+    tr.save(led, tmp_path / tr.LEDGER)
+    assert abs(tq.stock_share(tmp_path) - .67) < 1e-12
+    old['equity'] = old['equity'][:1]
+    tr.save(led, tmp_path / tr.LEDGER)
+    assert tq.stock_share(tmp_path) is None
+
+
+def test_pending_stock_share_shows_idle_money_target_and_explicit_wait():
+    rec = {'target': .25, 'gold': 0, 'trend': True}
+    out = tq.card_html('2026-10-08', rec, 50, top=True, stock=None)
+    assert '新ルールの保有比率は記録開始待ち' in out
+    assert '最大5銘柄・初回20%' in out and '旧ルールの保有比率は使いません' in out
+    assert 'TQQQ <b>12.5%</b>' in out
+    assert '現金・短期国債 <b>87.5%</b>' in out
+    assert '資産全体の配分（今日の目標）' not in out
+    assert '個別株 <b>' not in out and '80%' not in out
+    assert '個別株以外のお金の配分（今日の目標）' in out
