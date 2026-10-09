@@ -132,3 +132,10 @@ def test_top_card_states_total_asset_shares(tmp_path: Path):
     out2 = tq.apply_top(out, led, 100, stock=0.5)
     assert out2.count(f'id="{tq.CARD_ID}"') == 1 and "過熱警報" in out2
     assert "判定不可" in tq.apply_top(page, None, 50)
+
+
+def test_hy_uses_only_values_published_before_the_session():
+    s = pd.Series({pd.Timestamp("2026-10-02"): 3.10, pd.Timestamp("2026-10-05"): 3.12,
+                   pd.Timestamp("2026-10-06"): 3.03, pd.Timestamp("2026-10-07"): 3.09})
+    got = tq.known_before(s, pd.DatetimeIndex(["2026-10-05", "2026-10-06", "2026-10-07", "2026-10-08"]))
+    assert list(got) == [3.10, 3.12, 3.03, 3.09]          # Monday uses Friday's; never the same day's value

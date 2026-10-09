@@ -143,7 +143,7 @@ def apply(text: str, ledger: dict | None) -> str:
 
     # 4) the archive intro (fixed once by archive_tab on fresh builds)
     intro = archive.find(id=archive_tab.INTRO_ID)
-    if intro is not None and "TQQQルール" not in intro.get_text():
+    if intro is not None and archive_tab.INTRO_MARK not in intro.get_text():
         intro.replace_with(BeautifulSoup(archive_tab.INTRO, "html.parser").find("div"))
     return str(soup).replace('<footer class="disc">', "<footer class='disc'>")
 
