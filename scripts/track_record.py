@@ -465,6 +465,18 @@ def current_inventory_html(ledger: dict) -> str:
     pf = tp.current_portfolio(ledger)
     if not pf:
         return '<div class="tr-empty">現在の保有記録はまだありません。</div>'
+    if pf.get("reconstruction"):
+        r = pf["reconstruction"]
+        provenance = '<br/>'.join(f'{e_(p)}: {e_(h)}' for p, h in r["inputs"].items())
+        return ('<div class="tr-h">新5銘柄ルールで再計算した現在の保有モデル</div>'
+                f'<div class="tr-note">最終評価 {e_(pf["last_day"])}。初回20%・最大5銘柄を開始日から適用。'
+                f'{e_(r["as_of"])}までは公開済み本命と改訂済みチャート価格による再計算で、当時の運用実績ではありません。'
+                '以後はこの保有数量から同じルールで継続します。実口座とは別のモデルです。</div>'
+                + portfolio_html(pf)
+                + '<details class="tr-more"><summary>再計算の入力・価格版</summary>'
+                f'<div class="tr-note" style="overflow-wrap:anywhere">{e_(r["price_note"])} 旧台帳は下にそのまま保存。'
+                f'再計算日時 {e_(r["generated_at"])}。入力コミット {e_(r["input_commit"])}。'
+                f'<br/>入力SHA-256：<br/>{provenance}</div></details>')
     origin = pf.get("inventory_origin", {})
     return ('<div class="tr-h">現在の保有と連続した運用記録</div>'
             f'<div class="tr-note">最終評価 {e_(pf["last_day"])}。保存済みの数量・現金を継承。'
@@ -508,12 +520,13 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
                  f'{e("、".join(sorted({f["session"] for f in fails})))}（0件とは扱っていません）</div>')
     return (
         f'<section id="{TAB_ID}"><div class="card" id="track-record-card" data-rule="{RULE_ID}">'
-        '<div class="chd"><h2>保有・運用記録（数量を引き継ぐモデル）<span class="h2en">Track Record</span></h2></div>'
-        f'<div class="sub">現在の保有記録は既存の数量を引き継ぎ、新規はRulesタブの資金管理（最大5銘柄・最初は総資産の20%・+10%と+20%で同額買い増し・'
-        f'1銘柄40%まで・余剰資金はTQQQルール枠）を適用。下の持越しなし比較の開始 {e(start)}（{days}営業日分）。ルール版 {e(RULE_ID)}。</div>'
+        '<div class="chd"><h2>保有・運用記録（新5銘柄モデル）<span class="h2en">Track Record</span></h2></div>'
+        f'<div class="sub">現在の保有モデルはRulesタブの資金管理（最大5銘柄・最初は総資産の20%・+10%と+20%で同額買い増し・'
+        f'1銘柄40%まで・余剰資金はTQQQルール枠）を適用。過去再計算と以後の記録を区別して表示。ルール版 {e(RULE_ID)}。</div>'
+        + ('' if ledger.get("modeled_portfolio") else f'<div class="sub">持越しなし比較の開始 {e(start)}（{days}営業日分）。</div>')
         + warn + current_inventory_html(ledger)
-        + '<details class="tr-more tr-forward"><summary>新5銘柄ルールだけの前向き比較（持越しなし）</summary>'
-        + portfolio_html(ledger.get("portfolio"), bool(ledger.get("_pending"))) + '</details>' + history_html(ledger)
+        + ('' if ledger.get("modeled_portfolio") else '<details class="tr-more tr-forward"><summary>新5銘柄ルールだけの前向き比較（持越しなし）</summary>'
+           + portfolio_html(ledger.get("portfolio"), bool(ledger.get("_pending"))) + '</details>') + history_html(ledger)
         + '<details class="tr-more"><summary>本命1件ごとのシグナル成績</summary>'
         f'<div class="tr-grid">{grid}</div>'
         '<div class="tr-wrap"><table><tr><th>銘柄</th><th>本命の日</th><th>買値（翌始値）</th><th>現在/売値</th>'
@@ -526,7 +539,7 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
         '<b>余剰資金</b>：毎朝、現金とTQQQルール枠の合計を、前日に公開した比率（Rulesタブ7：通常50%、ブレイク成功度が不調でQQQが200日線より上なら100%）でTQQQルール枠に置く。'
         '枠の中身はRulesタブ9の目標（TQQQ・金・短期国債）を終値で判定し翌営業日の始値で執行。残りの現金は金利0%。'
         '比較用の「QQQ（同期間）」はQQQの持ちっぱなし。'
-        '現在の保有モデルは旧記録の数量・取得額・買い増し単位を引き継ぎます。新規のみ最大5銘柄・初回20%、保有超過を理由に強制売却しません。持越しなしの新ルール比較は別集計です。実口座の売買・清算は表しません。地合い停止の日は新規で買わない。<br/>'
+        '現在の新ルールモデルは公開済み本命から再計算し、その後は数量を継続します。旧配分の記録は変更せず別に保存。実口座の売買・清算は表しません。地合い停止の日は新規で買わない。<br/>'
         '<b>記録のしかた</b>：本命はその日の最初の公開内容で確定し、売買の結果とともに '
         '<code>track-record/signals.json</code> に保存（Gitの履歴と毎日のスナップショットに残る）。'
         'あとで再計算して本命が変わった日は＊印（成績は最初の公開内容で計算）。手数料・スリッページ・税金・テーマ枠は含みません。<br/>'
@@ -591,8 +604,10 @@ def rules_block(ledger: dict | None, error: str | None = None) -> str:
     head = f'<div id="{RULES_BLOCK_ID}"><div class="rh">新5銘柄ルールだけの前向き比較（持越しなし）</div>'
     if error or ledger is None:
         return head + f'<div class="rnote">記録ファイルを読めなかったため表示していません。詳細は{link}。</div></div>'
-    pf = ledger.get("portfolio")
-    if ledger.get("_pending"):
+    pf = ledger.get("modeled_portfolio") or ledger.get("portfolio")
+    if ledger.get("modeled_portfolio"):
+        head = f'<div id="{RULES_BLOCK_ID}"><div class="rh">新5銘柄ルールのモデル記録</div><div class="rnote">{e_(pf["reconstruction"]["as_of"])}までは改訂済み公開チャートによる再計算。過去の実運用成績ではありません。以後はこのモデルを継続。</div>'
+    if ledger.get("_pending") and not ledger.get("modeled_portfolio"):
         note = PENDING_HTML.replace('<div class="tr-empty">', "").replace("</div>", "")
         return head + f'<div class="rnote">{note}詳細は{link}。</div></div>'
     if not pf or len(pf.get("equity", [])) < 2:
@@ -651,16 +666,16 @@ def run(text: str, frame: pd.DataFrame, session: str, root: Path, qqq_path: Path
     record(ledger, text, session, {k: float(v) for k, v in last.items()}, r189=r189)
     qqq = qqq_bars(qqq_path or root / "data" / "market_inputs.json")
     advance_all(ledger, frame, qqq)
-    # Current inventory is continuous; the pure-v4 performance experiment below
-    # remains separate so inherited trades are never claimed as new-rule history.
-    current = tp.current_portfolio(ledger)
-    if current:
-        fund = tqqq_rule.fund_bars(tqqq_rule.load(root / tqqq_rule.LEDGER))
-        ledger["current_portfolio"] = tp.advance(current, ledger["sessions"], frame, qqq, session, fund=fund)
-    pf = prepare_portfolio(ledger)
-    if pf:
-        fund = tqqq_rule.fund_bars(tqqq_rule.load(root / tqqq_rule.LEDGER))
-        ledger["portfolio"] = tp.advance(pf, ledger["sessions"], frame, qqq, session, fund=fund)
+    fund = tqqq_rule.fund_bars(tqqq_rule.load(root / tqqq_rule.LEDGER))
+    if ledger.get("modeled_portfolio"):
+        # The pinned five-name reconstruction is now the ONE current series.
+        # Original saved portfolios remain immutable history, not a second tracker.
+        ledger["modeled_portfolio"] = tp.advance(ledger["modeled_portfolio"], ledger["sessions"],
+                                                frame, qqq, session, fund=fund)
+    else:
+        pf = prepare_portfolio(ledger)
+        if pf:
+            ledger["portfolio"] = tp.advance(pf, ledger["sessions"], frame, qqq, session, fund=fund)
     save(ledger, path)
     return apply(text, display_ledger(ledger, root), trades_for_display(ledger))
 

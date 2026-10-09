@@ -54,12 +54,18 @@ async function verify(page,width){
   assert(await page.locator('#tqqq-rule-card').isVisible(),'TQQQ rule card at the top');
   const holdingNotice=page.locator('#tqqq-rule-card [data-stock-allocation="recorded"]');
   const savedLedger=JSON.parse(fs.readFileSync(root+'/track-record/signals.json'));
-  const savedHolding=savedLedger.current_portfolio || savedLedger.portfolio_history?.at(-1)?.portfolio || savedLedger.portfolio;
+  const savedHolding=savedLedger.modeled_portfolio || savedLedger.current_portfolio || savedLedger.portfolio_history?.at(-1)?.portfolio || savedLedger.portfolio;
   if(savedHolding?.equity?.length>1){
     assert.equal(await holdingNotice.count(),1,'available saved holdings require a dated current readout');
-    assert.match(await holdingNotice.textContent(), /現在の保有記録/);
+    assert.match(await holdingNotice.textContent(), /新ルールで再計算した保有モデル|現在の保有記録/);
     assert.match(await holdingNotice.getAttribute('data-stock-asof'), /^\d{4}-\d{2}-\d{2}$/);
-    assert((await page.locator('#tqqq-rule-card .tqr-leg').textContent()).includes('個別株'),'available carried holdings must not disappear');
+    assert((await page.locator('#tqqq-rule-card .tqr-leg').textContent()).includes('個別株'),'available model holdings must not disappear');
+    if(savedLedger.modeled_portfolio){
+      const pf=savedLedger.modeled_portfolio, total=pf.equity.at(-1)[1];
+      const stock=Object.values(pf.positions).reduce((sum,p)=>sum+p.shares*p.last,0)/total;
+      assert((await holdingNotice.textContent()).includes((stock*100).toFixed(1)+'%'),'top allocation must match current five-name model');
+      assert((await holdingNotice.textContent()).includes('再計算'),'backcast must be labeled');
+    }
     assert.match(await page.locator('#tqqq-rule-card .tqr-big').textContent(), /目標配分/);
   }
 

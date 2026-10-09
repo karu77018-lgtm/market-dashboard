@@ -70,7 +70,7 @@ The audited frozen runtime and seed inputs are restored from
 `FRED_API_KEY`, `MASSIVE_API_KEY` (legacy `POLYGON_API_KEY` accepted) and existing
 Drive/Jev credentials. No credentials are embedded in published outputs.
 
-## Normal-swing allocation transition (2026-10-09)
+## Normal-swing allocation and reconstructed holdings (2026-10-09)
 
 The constants in `scripts/swing_allocation.py` define the current five-name,
 20%-of-total-equity initial target (`swing-v4-max5-tqqq-sleeve`). Available funds
@@ -78,34 +78,49 @@ and the unchanged 40% per-name add cap can limit fills. The residual TQQQ-rule
 sleeve keeps its 50%/100% allocation; signal selection, adds, stops, exits and the
 separate three-name theme sleeve are unchanged.
 
-The first newly frozen current-rule signal session on or after 2026-10-09 starts
-an independent forward comparison at NAV 1 with no positions, separate from the
-continuous holding model. An existing
-same-session signal is never relabelled. The previous saved portfolio (including
-all positions, pending orders and equity marks) is copied intact to
-`portfolio_history`, with a transition marker. This is not an actual account
-liquidation or a continuous return series. No historical results are restated
-using five-name sizing. Old research tables retain their original values and
-are labelled as six-name research, not verified results of the new allocation.
+### Primary current holding model
 
-The prior published six-name/TQQQ display is also retained verbatim in
+`track_portfolio.current_portfolio` prefers the saved `modeled_portfolio`.
+This model reconstructs holdings from the original frozen October 5 signals,
+uniformly applying five slots and initial 20% sizing from the start, using the
+existing next-session-open execution convention. It uses the revised chart
+OHLCV prices available when reconstruction was generated. It is a retrospective
+holding model, not realized account history or an independently verified
+historical-performance claim. It does not retain inherited one-sixth positions
+as the primary current holdings.
+
+The reconstruction is saved once through October 8, 2026 and continued forward
+from that saved state by normal daily updates. Later sessions do not silently
+replay or reprice its prior marks. Its `reconstruction` metadata records
+`kind=chart-ohlcv-backcast`, `as_of`, UTC `generated_at`, `input_commit`, an
+`inputs` map of source hashes, and a `price_note`. The original frozen signal
+records and previous saved ledger remain unchanged history. Revised chart
+prices are explicitly disclosed so the reconstructed holdings are not mistaken
+for the prices previously recorded in that historical ledger.
+
+### Holding inventory versus next-session targets
+
+The top card labels the primary view as 「新ルールで再計算した保有モデル」 and gives
+its valuation date, five-name limit, and initial 20%-of-total-equity rule. Expand
+the holding breakdown for individual weights, synthetic TQQQ-rule sleeve NAV,
+cash, and price provenance. The October 8 reconstructed inventory is approximately
+80.8403% stocks and 19.1597% cash, with essentially no sleeve remaining after
+stock purchases. These are marked model holdings, not today's candidate count
+multiplied by 20% and not actual brokerage positions.
+
+The stock/TQQQ/gold/cash bar is separately labelled as a next-session
+residual-allocation target. It uses the model's unrounded stock weight with the
+unchanged residual-sleeve rule, so its TQQQ and cash target weights can differ
+from the saved October 8 inventory. Future model marks can change those weights.
+
+### Historical comparisons
+
+The original saved QQQ ledger and old six-name research keep their original
+values and are clearly labelled historical. The prior published six-name/TQQQ
+display is also retained verbatim in
 `track-record/legacy-v3.1-tqqq-display.json`, identified by its source commit and
-page SHA256. It remains visible separately from the original saved QQQ ledger.
-A six-name TQQQ reconstruction is available only as an additional comparison
+page SHA256. A six-name TQQQ reconstruction is only an additional comparison
 when the original saved price and NAV inputs exist; display never saves it.
-
-### Current holdings versus new-rule comparison
-
-`current_portfolio` carries the saved model's quantities, cash, marks and original
-same-amount add units across the change. New entries use five slots and 20%; six
-inherited names are not forcibly sold and cannot add a new name until fewer than
-five remain. Lagging sessions before 2026-10-09 use their original allocation.
-At the first executable session on/after that date, an inherited QQQ sleeve is
-converted to synthetic TQQQ-rule NAV at the same open, preserving dollar value;
-missing QQQ or NAV prices pause advancement. No historical mark is rewritten.
-
-The top card gives the holding record's valuation date and actual model stock
-share. Expand its holding breakdown for saved QQQ/sleeve NAV and cash. The TQQQ,
-gold and cash bar is a separate residual-allocation target, not a claim about
-current brokerage holdings. The Record tab shows continuous inherited inventory
-first; the pure-v4, no-carry comparison is separately labelled and collapsed.
+Any independent forward comparison remains separate from the primary
+reconstructed model. Neither a comparison nor the retrospective model is a
+claim that the five-name allocation was traded historically in a real account.

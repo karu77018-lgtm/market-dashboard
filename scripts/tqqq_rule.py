@@ -421,24 +421,24 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
     stale = (f'<div class="tqr-stale">{e(session)}の入力が欠けたため、{e(day or "")}の判定のままです。</div>'
              if session and day and day < session else "")
     # 1) total assets: stocks / TQQQ / gold / cash
-    s_pct = round(stock * 100) / 100 if stock is not None else None
+    s_pct = float(stock) if stock is not None else None
     t_in, g_in, c_in = sleeve_split(rec, pct)          # shares of the money not in stocks
     fill = (f'枠の <b>{_pct(tgt)}</b> をTQQQ' + (f'・<b>{_pct(gold)}</b> を金' if gold > 0 else '')
             + ('・残りを短期国債' if tgt + gold < 0.999 else ''))
     if s_pct is not None:
         st_, tq, gd, ca = total_split(rec, pct, s_pct)
         parts = [("stock", "個別株", st_), ("tqqq", "TQQQ", tq), ("gold", "金", gd), ("cash", "現金・短期国債", ca)]
-        head = '<div class="tqr-big">現在の個別株比率を使った資産全体の目標配分</div>'
+        head = '<div class="tqr-big">保有モデルの個別株比率を使った資産全体の目標配分（翌営業日）</div>'
         if holdings:
             head += holdings_html(holdings)
         how = (f'<div class="tqr-how">個別株以外の <b>{_pp(1 - st_)}</b> のうち <b>{pct}%</b> が枠（ブレイク成功度で50%か100%）→ '
                f'{fill} ＝ 全体の TQQQ <b>{_pp(tq)}</b>。枠の外は現金。'
-               f'個別株{_pp(st_)}はサイトの保有記録の評価比率。TQQQ・金・現金は余剰資金の目標配分で、保存済みの保有そのものではありません。実口座とは別です。自分の比率が違うときは下の表で。</div>')
+               f'個別株{_pp(st_)}は保有モデルの終値評価比率。バーのTQQQ・金・現金は余剰資金を配分する翌営業日の目標で、同日の保有内訳とは別です。実口座ではありません。自分の比率が違うときは下の表で。</div>')
     else:
         parts = [("tqqq", "TQQQ", t_in), ("gold", "金", g_in), ("cash", "現金・短期国債", c_in)]
         head = ('<div class="tqr-big">個別株以外のお金の配分（今日の目標）</div>'
                 f'<div class="tqr-sub" data-stock-allocation="pending">通常スイング最大{MAX_NAMES}銘柄・初回{INITIAL_WEIGHT:.0%}。'
-                '新ルールの保有比率は記録開始待ちのため、資産全体の目標は未表示です。旧ルールの保有比率は使いません。</div>')
+                '新ルールで再計算した保有モデルを確認できないため、資産全体の目標は未表示です。旧ルールの保有比率は使いません。</div>')
         how = (f'<div class="tqr-how">個別株以外のお金の <b>{pct}%</b> が枠（ブレイク成功度で50%か100%）→ {fill}。'
                '枠の外は現金。資産全体での比率は下の表で。</div>')
     bar = '<div class="tqr-bar">' + "".join(
@@ -497,10 +497,11 @@ STYLE = ('<style id="tqqq-rule-style">.tqr-card{border-radius:12px;padding:10px 
 
 
 def holding_state(root: Path) -> dict | None:
-    """Latest marked saved model inventory, including inherited positions.
+    """Latest marked current model, preferring the persisted five-name backcast.
 
-    Never substitute 5x20%, today's candidates, or a fresh simulation's empty
-    start for quantities that are actually present in the saved holding record.
+    Reconstruction uses frozen original signals and revised chart OHLCV. Its
+    provenance stays attached when that saved model advances in later sessions.
+    Historical inventory remains readable only as an explicitly labelled fallback.
     """
     try:
         import track_record
@@ -518,27 +519,52 @@ def holding_state(root: Path) -> dict | None:
         stock = sum(p["share"] for p in positions)
         cash = pf["cash"] / total
         sleeve = 1 - stock - cash
+        if abs(sleeve) < 1e-10:
+            sleeve = 0.0
+        reconstruction = pf.get("reconstruction") or {}
+        reconstructed = reconstruction.get("kind") == "chart-ohlcv-backcast"
+        inherited = not reconstructed and pf.get("inventory_origin", {}).get("rule") != track_record.RULE_ID
+        label = ("新ルールで再計算した保有モデル" if reconstructed else
+                 "旧ルールの保存保有記録（比較用）" if inherited else "保存済みの保有モデル")
         return {"as_of": eq[-1][0], "stock": stock, "cash": cash, "sleeve_share": sleeve,
                 "sleeve": "QQQ" if pf.get("sleeve") == "legacy-qqq" else "TQQQルール枠（NAV）",
-                "positions": positions, "inherited": pf.get("inventory_origin", {}).get("rule") != track_record.RULE_ID}
+                "positions": positions, "inherited": inherited, "reconstruction": reconstruction,
+                "label": label, "source": "modeled_portfolio" if ledger.get("modeled_portfolio") else "saved-portfolio"}
     except (OSError, ValueError, KeyError, TypeError, ZeroDivisionError):
         return None
 
 
 def holdings_html(state: dict) -> str:
-    """Separate dated actual model inventory from the prospective sleeve target."""
+    """Keep the dated model inventory distinct from next-session sleeve targets."""
     from swing_allocation import MAX_NAMES, INITIAL_WEIGHT
     e = html.escape
     holdings = "・".join(f'{e(p["ticker"])} {p["share"]:.1%}' + ("（最終価格）" if p["stale"] else "")
                          for p in state["positions"])
-    return (f'<div class="tqr-sub" data-stock-allocation="recorded" data-stock-asof="{e(state["as_of"])}">'
-            f'<b>現在の保有記録：{e(state["as_of"])}終値時点</b>。個別株 <b>{state["stock"]:.1%}</b>'
-            f'（{len(state["positions"])}銘柄）。通常スイングは最大{MAX_NAMES}銘柄・新規の初回{INITIAL_WEIGHT:.0%}。'
-            + ('既存の保有数量を旧配分から引き継ぎ、20%ずつに買い直していません。' if state["inherited"] else '')
+    reconstruction = state.get("reconstruction") or {}
+    reconstructed = reconstruction.get("kind") == "chart-ohlcv-backcast"
+    label = state.get("label", "新ルールで再計算した保有モデル" if reconstructed else "保存済みの保有モデル")
+    attrs = (f' data-stock-source="{e(state.get("source", "saved-portfolio"))}"'
+             f' data-reconstruction-kind="{e(reconstruction.get("kind", ""))}"'
+             f' data-reconstruction-asof="{e(reconstruction.get("as_of", ""))}"'
+             f' data-reconstruction-generated-at="{e(reconstruction.get("generated_at", ""))}"'
+             f' data-reconstruction-input-commit="{e(reconstruction.get("input_commit", ""))}"')
+    provenance = ""
+    if reconstructed:
+        provenance = (f'再計算基準日：{e(reconstruction.get("as_of", state["as_of"]))}。'
+                      f'10月5日からの保存済みシグナルに最大{MAX_NAMES}銘柄・初回{INITIAL_WEIGHT:.0%}を一貫適用し、修正後のチャートOHLCV価格で再計算したモデルです。'
+                      '実取引の過去実績ではありません。旧台帳は比較用の履歴としてそのまま保存しています。')
+        if reconstruction.get("price_note"):
+            provenance += f'価格注記：{e(str(reconstruction["price_note"]).rstrip("。"))}。'
+    elif state.get("inherited"):
+        provenance = '旧ルールで保存された比較用の履歴です。新ルールの再計算モデルとは別です。'
+    return (f'<div class="tqr-sub" data-stock-allocation="recorded" data-stock-asof="{e(state["as_of"])}"{attrs}>'
+            f'<b>{e(label)}：{e(state["as_of"])}終値時点</b>。個別株 <b>{state["stock"]:.1%}</b>'
+            f'（{len(state["positions"])}銘柄）。通常スイングは最大{MAX_NAMES}銘柄・初回は総資産の{INITIAL_WEIGHT:.0%}。'
             + '<details class="tqr-more"><summary>保有内訳（モデル記録・実口座ではありません）</summary>'
             f'<div class="tqr-sub">{holdings or "個別株なし"}<br/>'
             f'{e(state["sleeve"])} {state["sleeve_share"]:.1%}・現金 {state["cash"]:.1%}。'
-            '下のTQQQ・現金比率は余剰資金を配分する次営業日の目標です。</div></details></div>')
+            f'{provenance}'
+            '下のバーのTQQQ・金・現金比率は余剰資金を配分する次営業日の目標です。</div></details></div>')
 
 
 def stock_share(root: Path) -> float | None:
@@ -595,7 +621,7 @@ def update_ledger(root: Path, session: str) -> dict:
 
 
 def render_only(text: str, root: Path, sleeve_pct: int | None, session: str | None = None) -> str:
-    """Render the committed ledger; the stock share comes from the forward record."""
+    """Render committed targets using the dated primary reconstructed holding model."""
     state = holding_state(root)
     return apply_top(text, load(root / LEDGER), sleeve_pct, state["stock"] if state else None,
                      session or page_session(root), holdings=state)

@@ -117,7 +117,7 @@ def test_top_card_states_total_asset_shares(tmp_path: Path):
     out = tq.apply_top(page, led, 50, stock=0.6, session="2026-10-07")
     assert out.index(tq.CARD_ID) < out.index("<nav") and out.count(f'id="{tq.CARD_ID}"') == 1
     # idle 40% x sleeve 50% = 20%: TQQQ 75% of it = 15%, gold 5%, cash 20%
-    assert "現在の個別株比率を使った資産全体の目標配分" in out
+    assert "保有モデルの個別株比率を使った資産全体の目標配分（翌営業日）" in out
     for name, v in (("個別株", "60%"), ("TQQQ", "15%"), ("金", "5%"), ("現金・短期国債", "20%")):
         assert f"{name} <b>{v}</b>" in out, name
     assert "平時" in out and "判定のまま" not in out
@@ -141,7 +141,7 @@ def test_hy_uses_only_values_published_before_the_session():
     assert list(got) == [3.10, 3.12, 3.03, 3.09]          # Monday uses Friday's; never the same day's value
 
 
-def test_inherited_inventory_stays_visible_with_date_and_separate_sleeve_target(tmp_path):
+def test_legacy_inventory_is_read_only_and_explicitly_historical(tmp_path):
     import track_record as tr
     import track_portfolio as tp
     led = tr.new_ledger()
@@ -162,18 +162,84 @@ def test_inherited_inventory_stays_visible_with_date_and_separate_sleeve_target(
     text = tq.card_html('2026-10-08', {'target': .25}, 50, top=True, stock=state['stock'], holdings=state)
     assert 'QQQ 8.5%' in text and '現金 24.5%' in text
     assert 'TQQQ <b>4.1%</b>' in text and '現金・短期国債 <b>28.9%</b>' in text
-    assert 'data-stock-asof="2026-10-08"' in text and '旧配分から引き継ぎ' in text
-    assert '記録開始待ち' not in text and '現在の個別株比率を使った資産全体の目標配分' in text
+    assert 'data-stock-asof="2026-10-08"' in text and '旧ルールの保存保有記録（比較用）' in text
+    assert '旧配分から引き継ぎ' not in text and '20%ずつに買い直していません' not in text
+    assert '記録開始待ち' not in text and '保有モデルの個別株比率を使った資産全体の目標配分（翌営業日）' in text
     assert (tmp_path / tr.LEDGER).read_bytes() == before
 
 
 def test_pending_stock_share_shows_idle_money_target_and_explicit_wait():
     rec = {'target': .25, 'gold': 0, 'trend': True}
     out = tq.card_html('2026-10-08', rec, 50, top=True, stock=None)
-    assert '新ルールの保有比率は記録開始待ち' in out
+    assert '新ルールで再計算した保有モデルを確認できない' in out
     assert '最大5銘柄・初回20%' in out and '旧ルールの保有比率は使いません' in out
     assert 'TQQQ <b>12.5%</b>' in out
     assert '現金・短期国債 <b>87.5%</b>' in out
     assert '資産全体の配分（今日の目標）' not in out
     assert '個別株 <b>' not in out and '80%' not in out
     assert '個別株以外のお金の配分（今日の目標）' in out
+
+
+def test_primary_model_preferred_over_old_holdings_with_reconstruction_provenance(tmp_path):
+    import track_record as tr
+    import track_portfolio as tp
+
+    led = tr.new_ledger()
+    old = tp.new_portfolio('2026-10-05', legacy_tqqq=True)
+    old.update(equity=[['2026-10-05', 1, 100], ['2026-10-08', 1, 100]],
+               last_day='2026-10-08', cash=.245,
+               positions={'OLD': {'shares': .0067, 'last': 100}})
+    led['portfolio'] = copy.deepcopy(old)
+    led['current_portfolio'] = copy.deepcopy(old)
+    modeled = tp.new_portfolio('2026-10-05')
+    modeled.update(equity=[['2026-10-05', 1, 100], ['2026-10-08', 1, 100]],
+                   last_day='2026-10-08', cash=.191597,
+                   positions={t: {'shares': weight / 100, 'last': 100}
+                              for t, weight in [('AAA', .22), ('BBB', .215), ('CCC', .20), ('DDD', .173403)]})
+    modeled['reconstruction'] = {'kind': 'chart-ohlcv-backcast', 'as_of': '2026-10-08',
+                                 'generated_at': '2026-10-09T06:50:00Z', 'input_commit': 'abc123',
+                                 'inputs': {'chart-data/AAA.json': 'abc456'},
+                                 'price_note': '修正後のチャート価格を使用'}
+    led['modeled_portfolio'] = modeled
+    tr.save(led, tmp_path / tr.LEDGER)
+    before = (tmp_path / tr.LEDGER).read_bytes()
+
+    state = tq.holding_state(tmp_path)
+    assert abs(state['stock'] - .808403) < 1e-12
+    assert abs(state['cash'] - .191597) < 1e-12 and abs(state['sleeve_share']) < 1e-12
+    assert {p['ticker'] for p in state['positions']} == {'AAA', 'BBB', 'CCC', 'DDD'}
+    assert not state['inherited'] and state['source'] == 'modeled_portfolio'
+    assert state['reconstruction'] == modeled['reconstruction']
+    assert state['label'] == '新ルールで再計算した保有モデル'
+    assert abs(tq.stock_share(tmp_path) - .808403) < 1e-12
+
+    text = tq.card_html('2026-10-08', {'target': .25}, 50, top=True, stock=state['stock'], holdings=state)
+    assert '新ルールで再計算した保有モデル：2026-10-08終値時点' in text
+    assert '最大5銘柄・初回は総資産の20%' in text
+    assert '個別株 <b>80.8%</b>' in text and '現金 19.2%' in text
+    assert 'TQQQルール枠（NAV） 0.0%' in text
+    assert 'TQQQ <b>2.4%</b>' in text and '現金・短期国債 <b>16.8%</b>' in text
+    assert 'width:80.84%' in text  # stock weight is not rounded before residual target math
+    assert '目標配分（翌営業日）' in text and '同日の保有内訳とは別' in text
+    assert '修正後のチャートOHLCV価格' in text and '修正後のチャート価格を使用' in text
+    assert '旧台帳は比較用の履歴としてそのまま保存' in text
+    assert '実取引の過去実績ではありません' in text
+    assert 'data-stock-source="modeled_portfolio"' in text
+    assert 'data-reconstruction-kind="chart-ohlcv-backcast"' in text
+    assert 'data-reconstruction-asof="2026-10-08"' in text
+    assert 'data-reconstruction-generated-at="2026-10-09T06:50:00Z"' in text
+    assert 'data-reconstruction-input-commit="abc123"' in text
+    assert '旧配分から引き継ぎ' not in text and '20%ずつに買い直していません' not in text
+    assert (tmp_path / tr.LEDGER).read_bytes() == before
+
+
+def test_reconstruction_labels_escape_price_note_and_source_metadata():
+    state = {'as_of': '2026-10-08', 'stock': .8, 'cash': .2, 'sleeve_share': 0,
+             'sleeve': 'TQQQルール枠（NAV）', 'positions': [], 'inherited': False,
+             'source': 'modeled_portfolio',
+             'reconstruction': {'kind': 'chart-ohlcv-backcast', 'as_of': '2026-10-08',
+                                'price_note': '<script>unsafe</script>', 'input_commit': '"quoted"'}}
+    text = tq.holdings_html(state)
+    assert '<script>unsafe</script>' not in text
+    assert '&lt;script&gt;unsafe&lt;/script&gt;' in text
+    assert 'data-reconstruction-input-commit="&quot;quoted&quot;"' in text
