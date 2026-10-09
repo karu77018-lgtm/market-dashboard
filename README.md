@@ -79,7 +79,8 @@ sleeve keeps its 50%/100% allocation; signal selection, adds, stops, exits and t
 separate three-name theme sleeve are unchanged.
 
 The first newly frozen current-rule signal session on or after 2026-10-09 starts
-an independent forward simulation at NAV 1 with no positions. An existing
+an independent forward comparison at NAV 1 with no positions, separate from the
+continuous holding model. An existing
 same-session signal is never relabelled. The previous saved portfolio (including
 all positions, pending orders and equity marks) is copied intact to
 `portfolio_history`, with a transition marker. This is not an actual account
@@ -92,3 +93,19 @@ The prior published six-name/TQQQ display is also retained verbatim in
 page SHA256. It remains visible separately from the original saved QQQ ledger.
 A six-name TQQQ reconstruction is available only as an additional comparison
 when the original saved price and NAV inputs exist; display never saves it.
+
+### Current holdings versus new-rule comparison
+
+`current_portfolio` carries the saved model's quantities, cash, marks and original
+same-amount add units across the change. New entries use five slots and 20%; six
+inherited names are not forcibly sold and cannot add a new name until fewer than
+five remain. Lagging sessions before 2026-10-09 use their original allocation.
+At the first executable session on/after that date, an inherited QQQ sleeve is
+converted to synthetic TQQQ-rule NAV at the same open, preserving dollar value;
+missing QQQ or NAV prices pause advancement. No historical mark is rewritten.
+
+The top card gives the holding record's valuation date and actual model stock
+share. Expand its holding breakdown for saved QQQ/sleeve NAV and cash. The TQQQ,
+gold and cash bar is a separate residual-allocation target, not a claim about
+current brokerage holdings. The Record tab shows continuous inherited inventory
+first; the pure-v4, no-carry comparison is separately labelled and collapsed.

@@ -461,6 +461,19 @@ def portfolio_html(pf: dict | None, pending: bool = False) -> str:
     )
 
 
+def current_inventory_html(ledger: dict) -> str:
+    pf = tp.current_portfolio(ledger)
+    if not pf:
+        return '<div class="tr-empty">現在の保有記録はまだありません。</div>'
+    origin = pf.get("inventory_origin", {})
+    return ('<div class="tr-h">現在の保有と連続した運用記録</div>'
+            f'<div class="tr-note">最終評価 {e_(pf["last_day"])}。保存済みの数量・現金を継承。'
+            '新規のみ最大5銘柄・初回20%、既存株の強制売却・20%への買い直しはしません。'
+            f'開始時の配分版 {e_(origin.get("rule", pf.get("rule")))}。'
+            '累積成績には旧配分期間を含み、新5銘柄だけの成績ではありません。'
+            '実口座とは別のモデル記録です。</div>' + portfolio_html(pf))
+
+
 def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) -> str:
     e = html.escape
     ledger = ledger or new_ledger()
@@ -495,10 +508,12 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
                  f'{e("、".join(sorted({f["session"] for f in fails})))}（0件とは扱っていません）</div>')
     return (
         f'<section id="{TAB_ID}"><div class="card" id="track-record-card" data-rule="{RULE_ID}">'
-        '<div class="chd"><h2>運用成績（ルールどおりの売買・前向き記録）<span class="h2en">Track Record</span></h2></div>'
-        f'<div class="sub">毎日公開した「本命」を、Rulesタブの資金管理（最大5銘柄・最初は総資産の20%・+10%と+20%で同額買い増し・'
-        f'1銘柄40%まで・余剰資金はTQQQルール枠）どおりに売買した場合の成績。記録開始 {e(start)}（{days}営業日分）。ルール版 {e(RULE_ID)}。</div>'
-        + warn + portfolio_html(ledger.get("portfolio"), bool(ledger.get("_pending"))) + history_html(ledger)
+        '<div class="chd"><h2>保有・運用記録（数量を引き継ぐモデル）<span class="h2en">Track Record</span></h2></div>'
+        f'<div class="sub">現在の保有記録は既存の数量を引き継ぎ、新規はRulesタブの資金管理（最大5銘柄・最初は総資産の20%・+10%と+20%で同額買い増し・'
+        f'1銘柄40%まで・余剰資金はTQQQルール枠）を適用。下の持越しなし比較の開始 {e(start)}（{days}営業日分）。ルール版 {e(RULE_ID)}。</div>'
+        + warn + current_inventory_html(ledger)
+        + '<details class="tr-more tr-forward"><summary>新5銘柄ルールだけの前向き比較（持越しなし）</summary>'
+        + portfolio_html(ledger.get("portfolio"), bool(ledger.get("_pending"))) + '</details>' + history_html(ledger)
         + '<details class="tr-more"><summary>本命1件ごとのシグナル成績</summary>'
         f'<div class="tr-grid">{grid}</div>'
         '<div class="tr-wrap"><table><tr><th>銘柄</th><th>本命の日</th><th>買値（翌始値）</th><th>現在/売値</th>'
@@ -511,7 +526,7 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
         '<b>余剰資金</b>：毎朝、現金とTQQQルール枠の合計を、前日に公開した比率（Rulesタブ7：通常50%、ブレイク成功度が不調でQQQが200日線より上なら100%）でTQQQルール枠に置く。'
         '枠の中身はRulesタブ9の目標（TQQQ・金・短期国債）を終値で判定し翌営業日の始値で執行。残りの現金は金利0%。'
         '比較用の「QQQ（同期間）」はQQQの持ちっぱなし。'
-        '新ルールは初回公開日に資産1・保有なしで始める独立した検証です。実口座の売買・清算や乗り換え損益は表さず、旧ルールの資産推移や保有は書き換えません。地合い停止の日は新規で買わない。<br/>'
+        '現在の保有モデルは旧記録の数量・取得額・買い増し単位を引き継ぎます。新規のみ最大5銘柄・初回20%、保有超過を理由に強制売却しません。持越しなしの新ルール比較は別集計です。実口座の売買・清算は表しません。地合い停止の日は新規で買わない。<br/>'
         '<b>記録のしかた</b>：本命はその日の最初の公開内容で確定し、売買の結果とともに '
         '<code>track-record/signals.json</code> に保存（Gitの履歴と毎日のスナップショットに残る）。'
         'あとで再計算して本命が変わった日は＊印（成績は最初の公開内容で計算）。手数料・スリッページ・税金・テーマ枠は含みません。<br/>'
@@ -573,7 +588,7 @@ def monthly(equity: list) -> list[tuple[str, float | None, float | None]]:
 def rules_block(ledger: dict | None, error: str | None = None) -> str:
     link = ('<a href="#t-record" onclick="var a=document.querySelector(\'nav a[href=&quot;#t-record&quot;]\');'
             'if(a){a.click();return false;}">成績タブ</a>')
-    head = f'<div id="{RULES_BLOCK_ID}"><div class="rh">リターン実績（公開後の前向き記録）</div>'
+    head = f'<div id="{RULES_BLOCK_ID}"><div class="rh">新5銘柄ルールだけの前向き比較（持越しなし）</div>'
     if error or ledger is None:
         return head + f'<div class="rnote">記録ファイルを読めなかったため表示していません。詳細は{link}。</div></div>'
     pf = ledger.get("portfolio")
@@ -636,6 +651,12 @@ def run(text: str, frame: pd.DataFrame, session: str, root: Path, qqq_path: Path
     record(ledger, text, session, {k: float(v) for k, v in last.items()}, r189=r189)
     qqq = qqq_bars(qqq_path or root / "data" / "market_inputs.json")
     advance_all(ledger, frame, qqq)
+    # Current inventory is continuous; the pure-v4 performance experiment below
+    # remains separate so inherited trades are never claimed as new-rule history.
+    current = tp.current_portfolio(ledger)
+    if current:
+        fund = tqqq_rule.fund_bars(tqqq_rule.load(root / tqqq_rule.LEDGER))
+        ledger["current_portfolio"] = tp.advance(current, ledger["sessions"], frame, qqq, session, fund=fund)
     pf = prepare_portfolio(ledger)
     if pf:
         fund = tqqq_rule.fund_bars(tqqq_rule.load(root / tqqq_rule.LEDGER))

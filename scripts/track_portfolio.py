@@ -27,13 +27,14 @@ never recomputed from the chart window, so results cannot drift.
 """
 from __future__ import annotations
 
+import copy
 import math
 import re
 from typing import Any
 
 import pandas as pd
 
-from swing_allocation import RULE_ID, MAX_NAMES, INITIAL_WEIGHT
+from swing_allocation import RULE_ID, MAX_NAMES, INITIAL_WEIGHT, EFFECTIVE_DATE
 STOP = 0.08
 ADDS = (0.10, 0.20)
 CAP = 0.40
@@ -55,6 +56,31 @@ def published_qqq_pct(text: str) -> int | None:
 def new_portfolio(start: str, *, legacy_tqqq: bool = False) -> dict[str, Any]:
     return {"start": start, "last_day": start, "cash": 1.0, "qqq_sh": 0.0, "qqq_pct": DEFAULT_QQQ_PCT,
             "sleeve": SLEEVE, "rule": "swing-v3.1-tqqq-sleeve" if legacy_tqqq else RULE_ID, "max_names": 6 if legacy_tqqq else MAX_NAMES, "initial_weight": 1 / 6 if legacy_tqqq else INITIAL_WEIGHT, "positions": {}, "closed": [], "skipped": [], "equity": [[start, 1.0, None]]}
+
+
+def current_portfolio(ledger: dict) -> dict | None:
+    """Carry saved inventory forward independently of the pure-v4 performance series.
+
+    Reading is non-mutating. Historical quantities, cash, marks and add units are
+    preserved; only future entry limits/sizing adopt the current rule.
+    """
+    if ledger.get("current_portfolio"):
+        return copy.deepcopy(ledger["current_portfolio"])
+    histories = ledger.get("portfolio_history", [])
+    source = histories[-1]["portfolio"] if histories else ledger.get("portfolio")
+    if not source:
+        return None
+    pf = copy.deepcopy(source)
+    origin = pf.get("rule", histories[-1].get("rule", "legacy") if histories else ledger.get("rule", "legacy"))
+    pf.update(rule=RULE_ID, max_names=MAX_NAMES, initial_weight=INITIAL_WEIGHT)
+    if pf.get("sleeve") != SLEEVE:
+        pf["sleeve"] = "legacy-qqq"
+    pf["allocation_effective_date"] = EFFECTIVE_DATE
+    pf["inventory_origin"] = {"rule": origin, "as_of": source["last_day"],
+                               "max_names": source.get("max_names", 6),
+                               "initial_weight": source.get("initial_weight", 1 / 6),
+                               "method": "carry-saved-quantities-no-reweight"}
+    return pf
 
 
 def _f(v: Any) -> float | None:
@@ -147,20 +173,26 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
                 p["adds"] += 1
         p["pending_add"] = 0
     # 3. new entries from the list published after prev's close
+    # A lagging inherited record catches up with its original sizing until the
+    # announced cutover date. Current rules never retroactively size past trades.
+    origin = pf.get("inventory_origin", {})
+    before_cutover = day < pf.get("allocation_effective_date", "")
+    max_names = origin.get("max_names", pf["max_names"]) if before_cutover else pf["max_names"]
+    initial_weight = origin.get("initial_weight", pf["initial_weight"]) if before_cutover else pf["initial_weight"]
     if signal and signal.get("regime") == "on":
         names = [r for r in signal.get("best", []) if r["t"] not in pf["positions"]]
         names.sort(key=lambda r: (r.get("r189") is None, -(r.get("r189") or 0.0)))  # stable: card order on ties
         for r in names:
             t = r["t"]
-            if len(pf["positions"]) >= pf["max_names"]:
-                pf["skipped"].append({"t": t, "signal": prev, "day": day, "why": f"{pf['max_names']}銘柄で満杯"})
+            if len(pf["positions"]) >= max_names:
+                pf["skipped"].append({"t": t, "signal": prev, "day": day, "why": f"{max_names}銘柄で満杯"})
                 continue
             b = _bar(bars, t, day)
             ema = _ema_until(bars, t, prev)
             if b is None or ema is None:
                 pf["skipped"].append({"t": t, "signal": prev, "day": day, "why": "株価データなし"})
                 continue
-            unit = equity_open * pf["initial_weight"]
+            unit = equity_open * initial_weight
             amt = _fund(pf, unit, q_open)
             if amt <= 1e-9:
                 pf["skipped"].append({"t": t, "signal": prev, "day": day, "why": "資金不足"})
@@ -206,7 +238,7 @@ def advance(pf: dict, sessions: dict[str, dict], frame: pd.DataFrame, qqq: dict[
             fund: dict[str, dict] | None = None) -> dict:
     """Run every session after pf['last_day'] up to ``until`` that has a QQQ open and close
     (and, for the TQQQ-rule sleeve, a recorded sleeve NAV)."""
-    if pf.get("rule") not in (RULE_ID, "swing-v3.1-tqqq-sleeve") or pf.get("sleeve") != SLEEVE:
+    if pf.get("rule") not in (RULE_ID, "swing-v3.1-tqqq-sleeve") or pf.get("sleeve") not in (SLEEVE, "legacy-qqq"):
         raise ValueError("Legacy portfolio must be archived, not advanced under the current allocation")
     days = sorted(d for d in qqq if pf["last_day"] < d <= until)
     if not days:
@@ -218,7 +250,7 @@ def advance(pf: dict, sessions: dict[str, dict], frame: pd.DataFrame, qqq: dict[
     for day in days:
         q = qqq.get(day) or {}
         sv = None
-        if pf.get("sleeve") == SLEEVE:
+        if pf.get("sleeve") == SLEEVE or (pf.get("sleeve") == "legacy-qqq" and day >= pf.get("allocation_effective_date", EFFECTIVE_DATE)):
             sv = (fund or {}).get(day) or {}
             if _f(sv.get("open")) is None or _f(sv.get("close")) is None:
                 pf["waiting"] = day
@@ -227,6 +259,15 @@ def advance(pf: dict, sessions: dict[str, dict], frame: pd.DataFrame, qqq: dict[
             pf["waiting"] = day      # resume here next run rather than skip a session
             break
         pf.pop("waiting", None)
+        if pf.get("sleeve") == "legacy-qqq" and sv is not None:
+            # Exchange the saved QQQ units for synthetic sleeve NAV at the SAME
+            # next-session open. Preserve dollars; never rewrite a past mark.
+            value = pf["qqq_sh"] * float(q["open"])
+            prior_units = pf["qqq_sh"]
+            pf["qqq_sh"] = value / float(sv["open"])
+            pf["sleeve"] = SLEEVE
+            pf["sleeve_conversion"] = {"day": day, "from": "QQQ", "to": SLEEVE,
+                                       "old_units": prior_units, "value_at_open": value}
         step(pf, day, prev, q, sessions.get(prev), bars, sv)
         prev = day
     return pf
