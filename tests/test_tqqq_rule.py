@@ -117,7 +117,7 @@ def test_top_card_states_total_asset_shares(tmp_path: Path):
     out = tq.apply_top(page, led, 50, stock=0.6, session="2026-10-07")
     assert out.index(tq.CARD_ID) < out.index("<nav") and out.count(f'id="{tq.CARD_ID}"') == 1
     # idle 40% x sleeve 50% = 20%: TQQQ 75% of it = 15%, gold 5%, cash 20%
-    assert "資産全体の配分" in out
+    assert "現在の個別株比率を使った資産全体の目標配分" in out
     for name, v in (("個別株", "60%"), ("TQQQ", "15%"), ("金", "5%"), ("現金・短期国債", "20%")):
         assert f"{name} <b>{v}</b>" in out, name
     assert "平時" in out and "判定のまま" not in out
@@ -141,30 +141,30 @@ def test_hy_uses_only_values_published_before_the_session():
     assert list(got) == [3.10, 3.12, 3.03, 3.09]          # Monday uses Friday's; never the same day's value
 
 
-def test_old_portfolio_is_not_used_for_current_top_allocation(tmp_path):
+def test_inherited_inventory_stays_visible_with_date_and_separate_sleeve_target(tmp_path):
     import track_record as tr
     import track_portfolio as tp
-    from swing_allocation import RULE_ID
     led = tr.new_ledger()
+    led['rule'] = 'swing-v2-max6'
     old = tp.new_portfolio('2026-10-05', legacy_tqqq=True)
     old['equity'] = [['2026-10-05', 1, 100], ['2026-10-08', 1, 100]]
+    old['last_day'] = '2026-10-08'
+    old['cash'] = .245
     old['positions'] = {'AAA': {'shares': .0067, 'last': 100}}
+    old.pop('rule'); old.pop('sleeve')
     led['portfolio'] = old
     tr.save(led, tmp_path / tr.LEDGER)
-    assert tq.stock_share(tmp_path) is None
-    # Old QQQ ledger and an unversioned TQQQ ledger must both be rejected.
-    for sleeve in (None, 'tqqq-rule'):
-        old.pop('rule', None)
-        old['sleeve'] = sleeve
-        tr.save(led, tmp_path / tr.LEDGER)
-        assert tq.stock_share(tmp_path) is None
-    # A current, marked record can supply its actual simulated share (not5x20).
-    old.update(rule=RULE_ID, sleeve='tqqq-rule', max_names=5, initial_weight=.20)
-    tr.save(led, tmp_path / tr.LEDGER)
-    assert abs(tq.stock_share(tmp_path) - .67) < 1e-12
-    old['equity'] = old['equity'][:1]
-    tr.save(led, tmp_path / tr.LEDGER)
-    assert tq.stock_share(tmp_path) is None
+    before = (tmp_path / tr.LEDGER).read_bytes()
+    state = tq.holding_state(tmp_path)
+    assert abs(state['stock'] - .67) < 1e-12 and state['as_of'] == '2026-10-08'
+    assert state['inherited'] and state['sleeve'] == 'QQQ'
+    assert abs(state['stock'] + state['cash'] + state['sleeve_share'] - 1) < 1e-12
+    text = tq.card_html('2026-10-08', {'target': .25}, 50, top=True, stock=state['stock'], holdings=state)
+    assert 'QQQ 8.5%' in text and '現金 24.5%' in text
+    assert 'TQQQ <b>4.1%</b>' in text and '現金・短期国債 <b>28.9%</b>' in text
+    assert 'data-stock-asof="2026-10-08"' in text and '旧配分から引き継ぎ' in text
+    assert '記録開始待ち' not in text and '現在の個別株比率を使った資産全体の目標配分' in text
+    assert (tmp_path / tr.LEDGER).read_bytes() == before
 
 
 def test_pending_stock_share_shows_idle_money_target_and_explicit_wait():

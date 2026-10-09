@@ -406,7 +406,8 @@ EXAMPLES = (0.0, 0.25, 0.5, 0.75)
 
 
 def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, top: bool = False,
-              stock: float | None = None, session: str | None = None) -> str:
+              stock: float | None = None, session: str | None = None,
+              holdings: dict | None = None) -> str:
     from swing_allocation import MAX_NAMES, INITIAL_WEIGHT
     cid = CARD_ID if top else CARD_ID + "-mini"
     e = html.escape
@@ -427,10 +428,12 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
     if s_pct is not None:
         st_, tq, gd, ca = total_split(rec, pct, s_pct)
         parts = [("stock", "個別株", st_), ("tqqq", "TQQQ", tq), ("gold", "金", gd), ("cash", "現金・短期国債", ca)]
-        head = '<div class="tqr-big">資産全体の配分（今日の目標）</div>'
+        head = '<div class="tqr-big">現在の個別株比率を使った資産全体の目標配分</div>'
+        if holdings:
+            head += holdings_html(holdings)
         how = (f'<div class="tqr-how">個別株以外の <b>{_pp(1 - st_)}</b> のうち <b>{pct}%</b> が枠（ブレイク成功度で50%か100%）→ '
                f'{fill} ＝ 全体の TQQQ <b>{_pp(tq)}</b>。枠の外は現金。'
-               f'個別株{_pp(st_)}は現行スイングルールの前向き検証の保有比率（成績タブ）。実口座の保有ではありません。自分の比率が違うときは下の表で。</div>')
+               f'個別株{_pp(st_)}はサイトの保有記録の評価比率。TQQQ・金・現金は余剰資金の目標配分で、保存済みの保有そのものではありません。実口座とは別です。自分の比率が違うときは下の表で。</div>')
     else:
         parts = [("tqqq", "TQQQ", t_in), ("gold", "金", g_in), ("cash", "現金・短期国債", c_in)]
         head = ('<div class="tqr-big">個別株以外のお金の配分（今日の目標）</div>'
@@ -493,22 +496,54 @@ STYLE = ('<style id="tqqq-rule-style">.tqr-card{border-radius:12px;padding:10px 
          'color:#8a877c;margin-right:4px}</style>')
 
 
-def stock_share(root: Path) -> float | None:
-    """Stock share of the forward-record portfolio at its last mark (None while it is being migrated)."""
+def holding_state(root: Path) -> dict | None:
+    """Latest marked saved model inventory, including inherited positions.
+
+    Never substitute 5x20%, today's candidates, or a fresh simulation's empty
+    start for quantities that are actually present in the saved holding record.
+    """
     try:
-        import track_record  # lazy: track_record imports this module
-        led = track_record.display_ledger(track_record.load(root / track_record.LEDGER), root)
-        pf = led.get("portfolio") or {}
-        from swing_allocation import RULE_ID
-        if led.get("_pending") or pf.get("rule") != RULE_ID or pf.get("sleeve") != "tqqq-rule":
+        import track_record
+        import track_portfolio as tp
+        ledger = track_record.load(root / track_record.LEDGER)
+        pf = tp.current_portfolio(ledger)
+        if not pf:
             return None
         eq = [e for e in pf.get("equity", []) if e[1] is not None]
-        if len(eq) < 2:
+        if len(eq) < 2 or eq[-1][1] <= 0:
             return None
-        held = sum(p["shares"] * p["last"] for p in pf.get("positions", {}).values())
-        return max(0.0, min(1.0, held / eq[-1][1]))
-    except Exception:
+        total = float(eq[-1][1])
+        positions = [{"ticker": t, "share": p["shares"] * p["last"] / total,
+                      "stale": bool(p.get("stale"))} for t, p in pf.get("positions", {}).items()]
+        stock = sum(p["share"] for p in positions)
+        cash = pf["cash"] / total
+        sleeve = 1 - stock - cash
+        return {"as_of": eq[-1][0], "stock": stock, "cash": cash, "sleeve_share": sleeve,
+                "sleeve": "QQQ" if pf.get("sleeve") == "legacy-qqq" else "TQQQルール枠（NAV）",
+                "positions": positions, "inherited": pf.get("inventory_origin", {}).get("rule") != track_record.RULE_ID}
+    except (OSError, ValueError, KeyError, TypeError, ZeroDivisionError):
         return None
+
+
+def holdings_html(state: dict) -> str:
+    """Separate dated actual model inventory from the prospective sleeve target."""
+    from swing_allocation import MAX_NAMES, INITIAL_WEIGHT
+    e = html.escape
+    holdings = "・".join(f'{e(p["ticker"])} {p["share"]:.1%}' + ("（最終価格）" if p["stale"] else "")
+                         for p in state["positions"])
+    return (f'<div class="tqr-sub" data-stock-allocation="recorded" data-stock-asof="{e(state["as_of"])}">'
+            f'<b>現在の保有記録：{e(state["as_of"])}終値時点</b>。個別株 <b>{state["stock"]:.1%}</b>'
+            f'（{len(state["positions"])}銘柄）。通常スイングは最大{MAX_NAMES}銘柄・新規の初回{INITIAL_WEIGHT:.0%}。'
+            + ('既存の保有数量を旧配分から引き継ぎ、20%ずつに買い直していません。' if state["inherited"] else '')
+            + '<details class="tqr-more"><summary>保有内訳（モデル記録・実口座ではありません）</summary>'
+            f'<div class="tqr-sub">{holdings or "個別株なし"}<br/>'
+            f'{e(state["sleeve"])} {state["sleeve_share"]:.1%}・現金 {state["cash"]:.1%}。'
+            '下のTQQQ・現金比率は余剰資金を配分する次営業日の目標です。</div></details></div>')
+
+
+def stock_share(root: Path) -> float | None:
+    state = holding_state(root)
+    return state["stock"] if state else None
 
 
 def page_session(root: Path) -> str | None:
@@ -519,11 +554,11 @@ def page_session(root: Path) -> str | None:
 
 
 def apply_top(text: str, ledger: dict | None, sleeve_pct: int | None, stock: float | None = None,
-              session: str | None = None) -> str:
+              session: str | None = None, holdings: dict | None = None) -> str:
     """Put today's TQQQ-rule card at the top of the page (where the NQ card used to be)."""
     import re
     day, rec = latest(ledger)
-    card = card_html(day, rec, sleeve_pct, top=True, stock=stock, session=session)
+    card = card_html(day, rec, sleeve_pct, top=True, stock=stock, session=session, holdings=holdings)
     m = re.search(rf'<div[^>]*\bid="{CARD_ID}"', text)
     if m:
         # replace the existing card (balanced divs)
@@ -561,7 +596,9 @@ def update_ledger(root: Path, session: str) -> dict:
 
 def render_only(text: str, root: Path, sleeve_pct: int | None, session: str | None = None) -> str:
     """Render the committed ledger; the stock share comes from the forward record."""
-    return apply_top(text, load(root / LEDGER), sleeve_pct, stock_share(root), session or page_session(root))
+    state = holding_state(root)
+    return apply_top(text, load(root / LEDGER), sleeve_pct, state["stock"] if state else None,
+                     session or page_session(root), holdings=state)
 
 
 if __name__ == "__main__":

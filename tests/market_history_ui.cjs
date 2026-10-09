@@ -52,11 +52,17 @@ async function verify(page,width){
   assert.equal(await page.locator('#t-record #track-record-card').count(),1,'track record tab present');
   assert.equal(await page.locator('#t-rotation #mc57-theme-gate, #t-rotation #index-internals-divergence').count(),0,'Rotation keeps money-flow cards only');
   assert(await page.locator('#tqqq-rule-card').isVisible(),'TQQQ rule card at the top');
-  const recordPending=await page.locator('#track-record-card > .tr-empty').count();
-  if(recordPending){
-    assert.equal(await page.locator('#tqqq-rule-card [data-stock-allocation="pending"]').count(),1,'pending current record cannot present legacy stock share');
-    assert(!(await page.locator('#tqqq-rule-card .tqr-leg').textContent()).includes('個別株'),'pending legend covers idle money only');
+  const holdingNotice=page.locator('#tqqq-rule-card [data-stock-allocation="recorded"]');
+  const savedLedger=JSON.parse(fs.readFileSync(root+'/track-record/signals.json'));
+  const savedHolding=savedLedger.current_portfolio || savedLedger.portfolio_history?.at(-1)?.portfolio || savedLedger.portfolio;
+  if(savedHolding?.equity?.length>1){
+    assert.equal(await holdingNotice.count(),1,'available saved holdings require a dated current readout');
+    assert.match(await holdingNotice.textContent(), /現在の保有記録/);
+    assert.match(await holdingNotice.getAttribute('data-stock-asof'), /^\d{4}-\d{2}-\d{2}$/);
+    assert((await page.locator('#tqqq-rule-card .tqr-leg').textContent()).includes('個別株'),'available carried holdings must not disappear');
+    assert.match(await page.locator('#tqqq-rule-card .tqr-big').textContent(), /目標配分/);
   }
+
   assert.equal(await page.locator('#t-port #taCard, #t-port #sarPill').count(),2,'NQ signal cards live in the archive');
   assert.equal(await page.locator('#t-market #sarPill, #t-weekly .card:has-text("レバレッジ・コンディション")').count(),0,'NQ/leverage cards left Daily/Weekly');
   await page.locator('nav a[href="#t-port"]').click();
