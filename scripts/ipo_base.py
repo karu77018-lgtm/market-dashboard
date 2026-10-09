@@ -219,7 +219,7 @@ def card_html(res: dict, regime: dict | None, summary: dict | None) -> str:
     return (
         f'<div class="card ds-merged" id="{CARD_ID}"><div class="hdr"><h2>IPOベース監視</h2>{copy}</div>'
         f'<div class="sub">上場2年以内の銘柄が、上場後の高値を3週間以上のベースから出来高を伴って抜けるところ。'
-        f'今のルール（RS189・200日線）は上場1年未満を拾えないので別枠で監視。<b>6枠には入れない</b>。{reg}</div>'
+        f'今のルール（RS189・200日線）は上場1年未満を拾えないので別枠で監視。<b>通常スイング枠には入れない</b>。{reg}</div>'
         f'{body}{more}{rec}'
         f'<details class="cxpl"><summary>根拠と条件</summary><div class="cxpl-b">{e(STUDY)}。'
         '上場から15〜504営業日・上場後の高値から15日以上・深さ10〜50%・出来高が50日平均の1.4倍以上・株価$10以上・売買代金$20M以上。'

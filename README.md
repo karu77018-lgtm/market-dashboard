@@ -69,3 +69,26 @@ The audited frozen runtime and seed inputs are restored from
 `bootstrap/recovery-assets.tar.xz`. Required repository secrets remain
 `FRED_API_KEY`, `MASSIVE_API_KEY` (legacy `POLYGON_API_KEY` accepted) and existing
 Drive/Jev credentials. No credentials are embedded in published outputs.
+
+## Normal-swing allocation transition (2026-10-09)
+
+The constants in `scripts/swing_allocation.py` define the current five-name,
+20%-of-total-equity initial target (`swing-v4-max5-tqqq-sleeve`). Available funds
+and the unchanged 40% per-name add cap can limit fills. The residual TQQQ-rule
+sleeve keeps its 50%/100% allocation; signal selection, adds, stops, exits and the
+separate three-name theme sleeve are unchanged.
+
+The first newly frozen current-rule signal session on or after 2026-10-09 starts
+an independent forward simulation at NAV 1 with no positions. An existing
+same-session signal is never relabelled. The previous saved portfolio (including
+all positions, pending orders and equity marks) is copied intact to
+`portfolio_history`, with a transition marker. This is not an actual account
+liquidation or a continuous return series. No historical results are restated
+using five-name sizing. Old research tables retain their original values and
+are labelled as six-name research, not verified results of the new allocation.
+
+The prior published six-name/TQQQ display is also retained verbatim in
+`track-record/legacy-v3.1-tqqq-display.json`, identified by its source commit and
+page SHA256. It remains visible separately from the original saved QQQ ledger.
+A six-name TQQQ reconstruction is available only as an additional comparison
+when the original saved price and NAV inputs exist; display never saves it.

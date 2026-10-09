@@ -125,7 +125,16 @@ def test_inside_structure_is_listed_first():
     assert "HL構造・ライン下" in html and "RS21 50・63 80" in html and "選定3日目" in html
     assert 'data-tkone="AAA"' in html  # tap opens the shared ticker detail overlay
     assert "買い増し +10%" in html and "買い増し +20%" in html and "$12.00" in html  # second add level (falls back to close x1.20)
-    assert "最大6銘柄" in html
+    assert "通常スイング最大5銘柄" in html
+    assert "最初は総資産の20%" in html
+    assert "初回のリスクは総資産の1.6%" in html
+    assert "同時3銘柄（通常スイングとの合計最大8）" in html
+    assert "通常スイングの5枠に含める" in html
+    assert "現行5銘柄の成績ではありません" in html
+    assert "旧6銘柄ルール" in html
+    assert "年率55.1%" in html and "年率57.0%" not in html
+    assert "約1/6" not in html and "16.7%" not in html
+    assert 'data-rule="swing-v4-max5-tqqq-sleeve"' in html
 
 
 def test_option_walls_render_and_failures_are_harmless():

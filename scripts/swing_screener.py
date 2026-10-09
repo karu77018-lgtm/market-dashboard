@@ -2,8 +2,10 @@
 """Swing screener card for the Positions tab (display-only adapter).
 
 It never changes MC57, V38, NQSAR, Massive, FRED or publication logic. The only
-input is the already-acquired adjusted OHLCV frame. Rules come from the
-2015-2026 backtest (current listings, Yahoo daily data):
+input is the already-acquired adjusted OHLCV frame. Signal research comes from
+the 2015-2026 backtest (current listings, Yahoo daily data). Active allocation
+is 5 names at an initial 20% of total equity from 2026-10-09; quoted portfolio
+returns below are historical research, not a reproduced 5-name backtest:
 
 Core (main strategy)
   Selection : trend template, 50-day dollar volume in the top 5% and 189-day
@@ -13,7 +15,7 @@ Core (main strategy)
               5-day / 50-day average volume <= 0.9.
   No chase  : session change < +3%, previous session <= +3%, close within
               +12% of the 10-day average.
-  Trade     : at most 6 positions; buy about 1/6 of equity (16.7%) at the
+  Trade     : at most 5 positions; buy 20% of total equity at the
               close with an -8% stop, add the same amount at +10% and again at
               +20% (one name capped at 40% of equity), exit on a close below the
               21-day EMA of lows.
@@ -34,7 +36,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from rules_tab import RULE_ID  # noqa: E402
+from swing_allocation import EFFECTIVE_DATE, INITIAL_WEIGHT, MAX_NAMES, RULE_ID  # noqa: E402
 
 CARD_ID = "mc57-swing-screener"
 SECTION = '<section id="t-alloc">'
@@ -49,7 +51,7 @@ MAX_CHG = 0.03
 MAX_PREV_CHG = 0.03
 MAX_EXT10 = 0.12
 STOP = 0.08
-CORE_RISK = 0.01
+CORE_RISK = INITIAL_WEIGHT * STOP
 EP_RISK = 0.005
 PEER_K = 15
 PEER_WINDOW = 120
@@ -138,7 +140,7 @@ GOOD_POS = (0.50, 0.75)  # backtest sweet spot inside the HL structure
 # trend template, 50-day dollar volume top 50%, RS189 and RS63 top 20%, weekly SAR bull
 # flipped 0-8 completed weeks ago, inside the HL structure at 50-75%, setup OK.
 # 2015-2026: ~19 names/yr, PF 2.12 (2.75 / 2.05 / 1.88 by period) excluding 本命 overlap;
-# adding them to the 6 slots lowers CAGR (42.4% -> 38-40%), so they stay discretionary.
+# historical 6-slot research lowered CAGR (42.4% -> 38-40%); they stay discretionary.
 GL_DV_PCT = 50
 GL_RS189_PCT = 80
 GL_RS63_PCT = 80
@@ -954,8 +956,8 @@ def card_html(result: dict) -> str:
         + watch_body
         + sec("好位置リーダー（検討可）", f"本命の外・監視のみ（形OK {len(glead)}・あと1つ {len(glead_near)}）", gl_all)
         + '<div class="sw-hint">本命の一歩外（売買代金上位50%・RS189とRS63が上位20%・TT）で、週足SAR転換8週以内の好位置にあり、形がそろった銘柄。'
-          '2015〜2026年の検証でPF 2.12・年19件（本命と重なるものを除く）。ただし本命の6枠に機械的に混ぜると年率が42.4%→38〜40%に下がるので、'
-          '空き枠があるときに裁量で検討する監視リスト。入るなら本命と同じ売買ルール'
+          '2015〜2026年の過去検証でPF 2.12・年19件（本命と重なるものを除く）。旧6枠の検証では機械的に混ぜると年率が42.4%→38〜40%に下がったため、'
+          f'空き枠があるときに裁量で検討する監視リスト。入るなら本命と同じ売買ルールで通常スイングの{MAX_NAMES}枠に含める'
           + ('（地合い停止中は新規不可・参考表示）' if stopped else '') + '。</div>'
         + gl_body
         + sec("テーマ枠", "本日の窓開け", ep) + ep_body
@@ -975,11 +977,11 @@ def card_html(result: dict) -> str:
         '週足SARは0.02・0.02・0.08、確定した週足のみ。<br/>'
         '<b>次の候補の並び</b>：監視した日から10営業日以内に全条件がそろう率×そろった後の成績で、'
         '優先S・A×あと1条件 → B×あと1 → S・A×あと2 → その他。残り条件数は「あと1かどうか」だけが効く。<br/>'
-        '<b>売買</b>：最大6銘柄。最初は資金の約1/6（16.7%）を買い、−8%で損切り（1回のリスクは資金の約1.3%）。'
+        f'<b>売買</b>：通常スイング最大{MAX_NAMES}銘柄（{EFFECTIVE_DATE}適用）。最初は総資産の{INITIAL_WEIGHT:.0%}を買い、−8%で損切り（初回のリスクは総資産の{CORE_RISK:.1%}、窓開け・スリッページを除く）。'
         '終値が買値+10%で同額、+20%でもう一度同額を買い増し（1銘柄の上限は資金の40%）。安値21EMAを割って引けたら手仕舞い。'
-        '最大10銘柄・+10%で半分買い増しの旧ルール（年率32.4%・DD−23.5%）より、年率42.4%・DD−30.3%（余剰資金のQQQ切替込み・当時の検証）。'
+        '過去の旧6銘柄ルールの検証は年率42.4%・DD−30.3%（余剰資金のQQQ切替込み）。当時の最大10銘柄・+10%で半分買い増しは年率32.4%・DD−23.5%。'
         '余剰資金の50%はTQQQルール枠（Rulesタブ9）。ブレイク成功度が不調かつQQQが200日線より上の日は100%。'
-        '置き先をTQQQルール枠にした再計算で年率55.1%・最大DD−33.8%（QQQのままなら40.6%）。<br/>'
+        f'旧6銘柄ルールの置き先をTQQQルール枠にした過去の再計算は年率55.1%・最大DD−33.8%（QQQのままなら40.6%）。現行{MAX_NAMES}銘柄の成績ではありません。<br/>'
         '<b>外した条件</b>：52週安値+30%・10日線+12%以内・高値+25%で建値へ。外しても成績はほぼ同じ（21.2%→21.0%）。<br/>'
         '<b>バー</b>：緑の始まりがHL（切り上げた安値・割れたら構造崩れ）、緑の終わりがピボットライン'
         '（直近のLL→HL間の最高値・期間2〜10本で一番狭い構造）、黒い線が今の株価。濃い緑がHL→ラインの50〜75%（好位置）。<br/>'
@@ -990,7 +992,7 @@ def card_html(result: dict) -> str:
         '<b>まだ入れる</b>：1〜2日前に条件が成立し、成立時の終値+3%以内・その後に損切り/安値21EMA割れなし・'
         '選定条件を維持・当日+3%未満。損切りは今の価格から−8%。<br/>'
         '<b>テーマ枠</b>：窓+5〜20%・終値+5%以上・出来高3〜15倍・上半分引け・50日線上・値幅3〜7%・'
-        '相関の高い15銘柄のRS平均（テーマ強度）50〜90。リスク0.5%・同時3銘柄・60営業日で手仕舞い。<br/>'
+        f'相関の高い15銘柄のRS平均（テーマ強度）50〜90。リスク0.5%・別枠で同時3銘柄（通常スイングとの合計最大{MAX_NAMES + 3}）・60営業日で手仕舞い。<br/>'
         '現存銘柄のみ・税金なしの検証で、上場廃止銘柄は未検証。売買指示ではない。'
         '</div></details>'
         '</div>'

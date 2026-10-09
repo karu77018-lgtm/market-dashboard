@@ -1,15 +1,15 @@
-"""Forward record of the swing rule run as the actual 6-slot portfolio.
+"""Forward record of the swing rule run as the actual 5-slot portfolio.
 
 The Rules tab's money management, applied day by day to the 本命 lists exactly as
 they were first published (track-record/signals.json):
 
-* capital starts at 1.0 on the first recorded session; at most 6 names;
+* capital starts at 1.0 on the first recorded session; at most 5 names;
 * a 本命 published after session S's close is bought at the next session's open
   (the list is published after the close, so that is the first price a reader can
   get; the Rules tab's backtest buys at S's close).  Only when that session's
   regime was "on".  Slots short: higher 189-day return first.  A name already
   held is not bought twice;
-* first purchase = 1/6 of equity at that open; stop = entry x 0.92 (a gap below
+* first purchase = 20% of equity at that open; stop = entry x 0.92 (a gap below
   exits at the open, otherwise at the stop);
 * a close at entry x 1.10 / 1.20 buys the SAME amount again at the next open,
   never taking the name above 40% of equity;
@@ -19,7 +19,7 @@ they were first published (track-record/signals.json):
   is weak and QQQ is above its 200-day line); the rest is cash at 0%.  The sleeve
   is the TQQQ rule (section 9) marked by tqqq_rule.fund_bars (TQQQ / gold /
   T-bills at the published weights).  Until October 2026 the sleeve was QQQ;
-  a ledger without ``sleeve`` is rebuilt from its start with the new sleeve;
+  old ledgers are retained separately, never rebuilt as current-rule results;
 * equity is marked at each close.  No fees, slippage, taxes or theme slots.
 
 State is persisted and advanced only through sessions after ``last_day``; it is
@@ -33,7 +33,7 @@ from typing import Any
 
 import pandas as pd
 
-MAX_NAMES = 6
+from swing_allocation import RULE_ID, MAX_NAMES, INITIAL_WEIGHT
 STOP = 0.08
 ADDS = (0.10, 0.20)
 CAP = 0.40
@@ -52,9 +52,9 @@ def published_qqq_pct(text: str) -> int | None:
     return int(m.group(1)) if m and int(m.group(1)) in (0, 50, 100) else None
 
 
-def new_portfolio(start: str) -> dict[str, Any]:
+def new_portfolio(start: str, *, legacy_tqqq: bool = False) -> dict[str, Any]:
     return {"start": start, "last_day": start, "cash": 1.0, "qqq_sh": 0.0, "qqq_pct": DEFAULT_QQQ_PCT,
-            "sleeve": SLEEVE, "positions": {}, "closed": [], "skipped": [], "equity": [[start, 1.0, None]]}
+            "sleeve": SLEEVE, "rule": "swing-v3.1-tqqq-sleeve" if legacy_tqqq else RULE_ID, "max_names": 6 if legacy_tqqq else MAX_NAMES, "initial_weight": 1 / 6 if legacy_tqqq else INITIAL_WEIGHT, "positions": {}, "closed": [], "skipped": [], "equity": [[start, 1.0, None]]}
 
 
 def _f(v: Any) -> float | None:
@@ -152,15 +152,15 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
         names.sort(key=lambda r: (r.get("r189") is None, -(r.get("r189") or 0.0)))  # stable: card order on ties
         for r in names:
             t = r["t"]
-            if len(pf["positions"]) >= MAX_NAMES:
-                pf["skipped"].append({"t": t, "signal": prev, "day": day, "why": "6銘柄で満杯"})
+            if len(pf["positions"]) >= pf["max_names"]:
+                pf["skipped"].append({"t": t, "signal": prev, "day": day, "why": f"{pf['max_names']}銘柄で満杯"})
                 continue
             b = _bar(bars, t, day)
             ema = _ema_until(bars, t, prev)
             if b is None or ema is None:
                 pf["skipped"].append({"t": t, "signal": prev, "day": day, "why": "株価データなし"})
                 continue
-            unit = equity_open / MAX_NAMES
+            unit = equity_open * pf["initial_weight"]
             amt = _fund(pf, unit, q_open)
             if amt <= 1e-9:
                 pf["skipped"].append({"t": t, "signal": prev, "day": day, "why": "資金不足"})
@@ -206,6 +206,8 @@ def advance(pf: dict, sessions: dict[str, dict], frame: pd.DataFrame, qqq: dict[
             fund: dict[str, dict] | None = None) -> dict:
     """Run every session after pf['last_day'] up to ``until`` that has a QQQ open and close
     (and, for the TQQQ-rule sleeve, a recorded sleeve NAV)."""
+    if pf.get("rule") not in (RULE_ID, "swing-v3.1-tqqq-sleeve") or pf.get("sleeve") != SLEEVE:
+        raise ValueError("Legacy portfolio must be archived, not advanced under the current allocation")
     days = sorted(d for d in qqq if pf["last_day"] < d <= until)
     if not days:
         return pf

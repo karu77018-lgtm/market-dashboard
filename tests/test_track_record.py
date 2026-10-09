@@ -51,7 +51,7 @@ def test_record_freezes_first_good_publication(tmp_path: Path):
     day = led["sessions"]["2026-10-05"]
     assert [r["t"] for r in day["best"]] == ["AAA", "BBB"] and day["recorded_at"] == "t1"
     assert day["revisions"] == 1 and [r["t"] for r in day["latest"]] == ["CCC"]
-    assert day["regime"] == "on" and day["rule"] == tr.RULE_ID and led["start"] == "2026-10-05"
+    assert day["regime"] == "on" and day["rule"] == "pre-v4-unversioned" and led["start"] == "2026-10-05"
     assert tr.published_best(page("")) == ("ok", [])                       # real zero is still recorded
     tr.record(led, page("", regime="off"), "2026-10-06", {}, now="t4")
     assert led["sessions"]["2026-10-06"]["best"] == [] and led["sessions"]["2026-10-06"]["regime"] == "off"

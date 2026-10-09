@@ -198,7 +198,7 @@ def card_html(res: dict, regime: dict | None, summary: dict | None) -> str:
     return (
         f'<div class="card ds-merged" id="{CARD_ID}"><div class="hdr"><h2>RSライン先行</h2>{copy}</div>'
         '<div class="sub">市場（SPY）に対する強さの線（RSライン）が先に高値を更新し、株価はまだ高値の少し下にある強い銘柄。'
-        f'本命（売買代金上位5%・RS189上位10%）の外から拾う。<b>6枠には入れない</b>。{reg}</div>'
+        f'本命（売買代金上位5%・RS189上位10%）の外から拾う。<b>通常スイング枠には入れない</b>。{reg}</div>'
         f'{body}{rec}'
         f'<details class="cxpl"><summary>根拠と条件</summary><div class="cxpl-b">{e(STUDY)}。'
         '株価が高値の−2〜−5%にあるもの（「強い位置」）が特に強く、−5〜−8%は弱い（PF 1.13）。'
