@@ -104,7 +104,7 @@ def test_section_goes_before_options_and_is_idempotent():
         r["eps_state"] = "better"
     out = bw.apply(setups_page(), res, {"on": True}, None)
     assert out.index("RSライン先行") < out.index(bw.TITLE) < out.index("オプション配置")
-    assert "LEAD" in out and "EPS改善" in out and "6枠には入れない" in out and bw.RESEARCH in out
+    assert "LEAD" in out and "EPS改善" in out and "通常スイング枠には入れない" in out and bw.RESEARCH in out
     again = bw.apply(out, res, {"on": True}, None)
     assert again.count(f'id="{bw.CARD_ID}"') == 1 and again.count('id="bagger-watch-style"') == 1
     empty = bw.apply(setups_page(), {"rows": [], "today": []}, {"on": False}, None)

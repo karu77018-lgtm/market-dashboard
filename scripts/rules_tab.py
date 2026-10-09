@@ -1,18 +1,19 @@
 """Rules tab: the swing rules shown on the dashboard (replaces the old Core 12 text).
 
-Display only.  The numbers quoted here come from the offline backtests
-(2015-01 to 2026-08, current listings, QQQ 200-day regime filter, 6-position
-sizing with adds at +10% and +20%).  Since October 2026 the idle money goes to
-the TQQQ rule (section 9, tqqq_rule.py) instead of QQQ.
+Display only.  Active allocation is defined in swing_allocation. The quoted
+portfolio returns are historical 6-position backtests (2015-01 to 2026-08,
+current listings, QQQ 200-day regime filter, adds at +10% and +20%), not a
+reproduction of the active 5-position allocation. Since October 2026 idle
+money goes to the TQQQ rule (section 9, tqqq_rule.py) instead of QQQ.
 """
 from __future__ import annotations
 
 import re
 from typing import Any
 
-# Single source of the adopted rule version.  Every rule-dependent card carries
-# it as data-rule so publication can refuse a page that mixes versions.
-RULE_ID = "swing-v3.1-tqqq-sleeve"
+from swing_allocation import EFFECTIVE_DATE, INITIAL_WEIGHT, MAX_NAMES, RULE_ID
+
+# Re-export the adopted version for rule-dependent cards and publication checks.
 RULE_CARDS = ("rules-card", "mc57-swing-screener", "mc57-breakout-health", "mc57-pickup-watch", "track-record-card")
 _RULE_ATTR = re.compile(r'<div[^>]*\bid="([^"]+)"[^>]*\bdata-rule="([^"]*)"|<div[^>]*\bdata-rule="([^"]*)"[^>]*\bid="([^"]+)"')
 
@@ -59,7 +60,7 @@ def _table(head: list[str], rows: list[list[str]], num_cols: tuple[int, ...] = (
     return f'<table class="rtb"><tr>{th}</tr>{body}</table>'
 
 
-# 6-position rule, re-run in October 2026 on one data set (HY OAS with its real one-day publication lag):
+# Historical 6-position rule, re-run in October 2026 on one data set (HY OAS with its real one-day publication lag):
 # (year, stock-only %, idle money QQQ (section 7 switch) %, idle money TQQQ rule (section 7 switch) %,
 #  QQQ price %, stock-only intra-year max DD %)
 YEARLY = [
@@ -72,7 +73,7 @@ YEARLY = [
 ]
 # (label, CAGR %, max DD %, multiple) for the same run, 2015-01 .. 2026-08
 TOTALS = [("なし（個別株だけ）", 31.0, -31.4, 23), ("QQQ（旧）", 40.6, -31.6, 53),
-          ("TQQQルール枠（現行）", 55.1, -33.8, 166)]
+          ("TQQQルール枠（旧6銘柄検証）", 55.1, -33.8, 166)]
 
 
 def _pct(v: float) -> str:
@@ -133,8 +134,8 @@ def rules_html(regime: dict[str, Any] | None = None, health: dict[str, Any] | No
         ["D", "SARベア・HL構造なし", "1.05"],
     ], num_cols=(2,))
     trade = _table(["場面", "やること"], [
-        ["同時保有", "コア最大6銘柄（テーマ枠込みで最大9）"],
-        ["サイズ", "最初は資金の約1/6（16.7%）。損切り8%なので1回のリスクは資金の約1.3%"],
+        ["同時保有", f"通常スイング最大{MAX_NAMES}銘柄（テーマ枠は別枠3銘柄、合計最大{MAX_NAMES + 3}）"],
+        ["サイズ", f"最初は総資産の{INITIAL_WEIGHT:.0%}。損切り8%なので初回のリスクは総資産の{INITIAL_WEIGHT * 8:.1f}%（窓開け・スリッページを除く）"],
         ["買い", "本命が出た日の終値"],
         ["損切り", "買値−8%（窓を開けて下回ったら始値）"],
         ["買い増し", "終値が買値+10%で同額、+20%でもう一度同額。1銘柄の上限は資金の40%"],
@@ -146,8 +147,8 @@ def rules_html(regime: dict[str, Any] | None = None, health: dict[str, Any] | No
         "<b>まだ入れる</b>：1〜2日前に本命になり、成立時の終値+3%以内・損切りや安値21EMA割れなし・当日+3%未満のもの。損切りは今の価格から−8%",
         "<b>次の候補</b>：選定OKで形待ち。残り条件を「あと何%」で表示。並びは 優先S・A×あと1 → B×あと1 → S・A×あと2 → その他。地合い停止中も表示",
         "<b>好位置リーダー（検討可）</b>：本命の一歩外のリーダー（TT・売買代金上位50%・RS189とRS63が上位20%・週足SAR転換8週以内・HL→ラインの50〜75%・形OK）。"
-        "検証ではPF 2.12・年19件（本命と重なるもの除く）。ただし本命の6枠に機械的に混ぜると年率が42.4%→38〜40%に下がる（悪い年の負けは浅くなる）ので監視のみ。"
-        "空き枠があるときに裁量で入るなら、本命と同じ売買ルールで6枠に含める。形が1つ足りないものは「あと1つ」で表示",
+        "過去の検証ではPF 2.12・年19件（本命と重なるもの除く）。旧6枠で機械的に混ぜた検証では年率が42.4%→38〜40%に下がった（悪い年の負けは浅くなる）ため監視のみ。"
+        f"空き枠があるときに裁量で入るなら、本命と同じ売買ルールで通常スイングの{MAX_NAMES}枠に含める。形が1つ足りないものは「あと1つ」で表示",
         "<b>テーマ枠</b>：下の別枠ルール",
         "<b>条件OKだが買わない</b>（折りたたみ）：週足SARベアかHL寄りのもの",
     ]
@@ -165,7 +166,7 @@ def rules_html(regime: dict[str, Any] | None = None, health: dict[str, Any] | No
     return (
         f'<div class="card" id="rules-card" data-rule="{RULE_ID}"><h2>スイングルール（新ルール） <span class="h2en">Swing Rules</span></h2>'
         '<div class="sub" style="color:#467ed6">売買代金トップの中から一番強い銘柄を、形がそろった日の終値で買う。'
-        '最大6銘柄に絞り、損は−8%で切り、勝ちは+10%・+20%で買い増して安値21EMAを割るまで伸ばす。毎日の候補はPositionsタブ「スイング候補」。</div>'
+        f'最大{MAX_NAMES}銘柄・初回は総資産の{INITIAL_WEIGHT:.0%}（{EFFECTIVE_DATE}適用）。損は−8%で切り、勝ちは+10%・+20%で買い増して安値21EMAを割るまで伸ばす。毎日の候補はPositionsタブ「スイング候補」。</div>'
         + _regime_line(regime) + _health_line(health, regime)
         + '<div class="rh">0. 地合い</div>'
         '<div class="sub">QQQが200日線より上の日だけ新規で買う。割れている日は新規停止（持ち株は通常の手仕舞いルールのまま）。</div>'
@@ -181,7 +182,7 @@ def rules_html(regime: dict[str, Any] | None = None, health: dict[str, Any] | No
         '<div class="rnote">優先度は並び順とバッジだけに使う。週足SARは0.02・0.02・0.08、金曜終値で確定した週のみ。</div>'
         + tiers
         + '<div class="rh">4. 売買</div>' + trade
-        + '<div class="rnote">集中度の比較（余剰資金をQQQ切替で置いた当時の検証）：最大10銘柄・+10%で半分買い増し＝年率32.4%・DD−23.5%／'
+        + '<div class="rnote">過去の集中度の比較（旧6銘柄ルール・余剰資金をQQQ切替で置いた当時の検証）：最大10銘柄・+10%で半分買い増し＝年率32.4%・DD−23.5%／'
         '<b>最大6銘柄・+10%と+20%で同額買い増し＝年率42.4%・DD−30.3%</b>。買う銘柄の優先順位をランダムにしても年率31〜38%（中央36%）。'
         '選び方はRS189順が最良（RS63順・RS21順・値幅順より上）。集中の効果は2021年以降の強いリーダー相場で大きく、'
         '下落の幅が耐えにくくなったら銘柄数を8〜10に戻す。</div>'
@@ -195,8 +196,8 @@ def rules_html(regime: dict[str, Any] | None = None, health: dict[str, Any] | No
         '個別株の売買は変えない。DailyタブとPositionsタブに今日の値を表示。枠の中身（TQQQ・金・短期国債の比率）は9のルールで決まる。</div>'
         + li(["指数は上がるのに勢い株が伸びない年（2016・2021・2023年）を不調と判定し、その年を指数側（TQQQルール枠）で埋める",
               "未来のデータは使わない（10日後の結果が出たシグナルだけで計算）。ただし63日平均を10日遅れで見るので、判定の切り替わりは数週間遅れる（好調・不調は平均54日続く）",
-              "QQQで検証した当初：年率38.5%→42.4%、最大DD−30.3%のまま。ただし平均QQQ比率は約63%で、63%固定でも40.0%。判定そのものの上乗せは年+1〜2pt程度（日数・基準を変えた36通り中35通りでプラス）",
-              "置き先をTQQQルール枠にした再計算：年率55.1%・最大DD−33.8%（QQQのままなら40.6%・−31.6%）。資産全体に占めるTQQQは平均約30%。枠外の現金をなくして常に100%にすると57.9%・−45.0%（DDの底は2025年4月）",
+              "旧6銘柄ルールをQQQで検証した当初：年率38.5%→42.4%、最大DD−30.3%のまま。ただし平均QQQ比率は約63%で、63%固定でも40.0%。判定そのものの上乗せは年+1〜2pt程度（日数・基準を変えた36通り中35通りでプラス）",
+              "旧6銘柄ルールの置き先をTQQQルール枠にした過去の再計算：年率55.1%・最大DD−33.8%（QQQのままなら40.6%・−31.6%）。資産全体に占めるTQQQは平均約30%。枠外の現金をなくして常に100%にすると57.9%・−45.0%（DDの底は2025年4月）",
               "QQQが200日線より下では枠を増やさない（2022年のような下げで傷を深くしない）",
               "不調でも新規エントリーは止めない・リスクも減らさない（止めると年率が下がる）",
               "サイトのF1〜F3・MC57・リーダーの強さは「崩れるか」の計器で、この切り替えには効かない"])
@@ -208,11 +209,11 @@ def rules_html(regime: dict[str, Any] | None = None, health: dict[str, Any] | No
               "業績（EPS・売上の伸びや加速）は成績をほとんど改善しなかった。値動きに出る特徴（3期間RS・SAR転換直後・2倍後のベース・高ボラ・強い業種）が効く"])
         + _tqqq_section()
         + '<div class="rh">やらないこと</div>' + li(dont)
-        + '<div class="rh">成績（単年）</div>'
-        '<div class="rnote">個別株＝個別株だけ、QQQ込（旧）＝余剰資金を7のルールでQQQに置いた場合、TQQQ枠込＝7のルールでTQQQルール枠（9）に置いた場合（現行）。'
+        + '<div class="rh">成績（単年・旧6銘柄ルールの過去検証）</div>'
+        f'<div class="rnote">以下は旧6銘柄・初回1/6の過去検証。現行の最大{MAX_NAMES}銘柄・初回{INITIAL_WEIGHT:.0%}の成績ではありません。個別株＝個別株だけ、QQQ込（旧）＝余剰資金を7のルールでQQQに置いた場合、TQQQ枠込＝7のルールでTQQQルール枠（9）に置いた場合。'
         '年内DD＝個別株だけの年内最大下落。2026年は1〜8月。2026年10月に同じデータで計算し直した値（以前の表示より個別株の年ごとの値が少し違う）。</div>'
         + _yearly() + _totals()
-        + '<div class="rwarn"><b>成績</b>（2015年1月〜2026年8月、地合い込み・最大6銘柄ルール）：個別株だけで年率31.0%・最大DD−31.4%（約23倍）。'
+        + '<div class="rwarn"><b>過去検証の成績</b>（2015年1月〜2026年8月、地合い込み・旧最大6銘柄ルール）：個別株だけで年率31.0%・最大DD−31.4%（約23倍）。'
         '余剰資金を7のルールでTQQQルール枠に置くと<b>年率55.1%・最大DD−33.8%（約166倍）</b>。QQQのままなら40.6%・−31.6%（約53倍）。'
         '2015〜20年は年率33.6%（QQQなら23.7%）、2021〜26年は81.5%（同61.0%）。負けた年は2022年（−10.1%、QQQなら−17.2%）。<br>'
         '2026年10月9日訂正：HY OASを公表日より1営業日早く使っていたため、公表の遅れどおりに直して再計算（以前の表示は年率60.2%・約244倍）。<br>'

@@ -21,6 +21,13 @@ async function verify(page,width){
   assert.equal(narrowAxes,0,'date axes span their graph including grid rate cards');
   const tabs=page.locator('nav a.tabx');
   assert.equal(await tabs.count(),13,'all tabs including Jev, Themes, track record and archive');
+  assert.match(await page.locator('#rules-card').textContent(), /最大5銘柄/);
+  assert.match(await page.locator('#rules-card').textContent(), /総資産の20%/);
+  assert.match(await page.locator('#mc57-swing-screener').textContent(), /通常スイング最大5銘柄/);
+  assert.match(await page.locator('#track-record-card').textContent(), /最大5銘柄/);
+  assert.match(await page.locator('#rules-card').textContent(), /旧6銘柄ルールの過去検証/);
+  assert.equal(await page.locator('[data-rule="swing-v3.1-tqqq-sleeve"]').count(),0);
+
   assert.equal(await page.locator('.mh-card [data-window="2y"][aria-pressed="true"]').count(),await page.locator('.mh-card[data-history-key]').count());
   assert(!requests.some(u=>/-(?:5|10)y\.json/.test(u)),'initial page must not request 5/10Y');
   for(let i=0;i<await tabs.count();i++){

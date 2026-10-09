@@ -408,7 +408,7 @@ def card_html(res: dict, regime: dict | None, summary: dict | None) -> str:
     return (
         f'<div class="card ds-merged" id="{CARD_ID}"><div class="hdr"><h2>{TITLE}</h2>{copy}</div>'
         '<div class="sub">前の相場で主役だった銘柄が30%以上押してから、52週高値を取り返しにきたもの。'
-        f'<b>6枠には入れない</b>監視リスト。EPS改善を上に並べる。{reg}</div>'
+        f'<b>通常スイング枠には入れない</b>監視リスト。EPS改善を上に並べる。{reg}</div>'
         + group("ブレイク済み（直近15営業日）", bos, "該当なし（直近15営業日に深い押しからのブレイクはない）")
         + group("監視中（52週高値まで−15%以内）", watch, "該当なし")
         + rec

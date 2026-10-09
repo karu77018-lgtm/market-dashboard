@@ -16,9 +16,11 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, NavigableString, Tag
 
+from swing_allocation import EFFECTIVE_DATE, INITIAL_WEIGHT, MAX_NAMES
+
 ARCHIVE_ID = "t-port"          # the former Core 12 section; id kept for its scripts
 INTRO_ID = "archive-intro"
-INTRO_MARK = "年率55.1%"   # changes whenever the intro numbers change (legacy_archive refreshes it)
+INTRO_MARK = f"現行の通常スイングは最大{MAX_NAMES}銘柄・初回は総資産の{INITIAL_WEIGHT:.0%}"  # legacy_archive refreshes old intros
 TAB_LABEL = "アーカイブ"
 
 # Cards (h2 prefix) moved out of Setups: the old weekly 30WMA rule.
@@ -38,9 +40,10 @@ INTRO = (
     '<div class="sub" style="color:#467ed6">運用は<b>新ルールだけ</b>（Rulesタブ・Positionsタブ「スイング候補」）。'
     'Core 12・旧ルール（30週線ブレイク）・NQトレンド信号とレバ枠（SOXL・非常口）は並行運用しません。'
     'TQQQはRulesタブ9の「TQQQルール」（余剰資金の置き先）に移行。振り返り・比較用に表示だけ残しています。売買には使いません。</div>'
-    '<details class="cxpl"><summary>停止の根拠（2015〜2026年の再検証）</summary><div class="cxpl-b">'
-    '<b>現行</b>（最大6銘柄・余剰資金はTQQQルール枠）：年率55.1%・最大下落−33.8%（2015年1月〜2026年8月の再計算。同じ計算でQQQ切替は40.6%）<br/>'
-    '<b>旧・新ルール</b>（最大6銘柄・余剰資金はQQQ切替）：年率42.4%・最大下落−30.3%・シャープ1.26<br/>'
+    '<details class="cxpl"><summary>停止の根拠（2015〜2026年の過去検証）</summary><div class="cxpl-b">'
+    f'{INTRO_MARK}（{EFFECTIVE_DATE}適用）。以下は旧ルールの比較で、現行{MAX_NAMES}銘柄の成績ではありません。<br/>'
+    '<b>旧6銘柄ルールの過去検証</b>（最大6銘柄・余剰資金はTQQQルール枠）：年率55.1%・最大下落−33.8%（2015年1月〜2026年8月の再計算。同じ計算でQQQ切替は40.6%）<br/>'
+    '<b>旧6銘柄・QQQ切替の過去検証</b>（最大6銘柄・余剰資金はQQQ切替）：年率42.4%・最大下落−30.3%・シャープ1.26<br/>'
     '<b>Core 12</b>（売買代金上位10%から選定、個別70%＋TQQQ30%）：年率23.1%・最大下落−40.8%・シャープ0.82<br/>'
     '<b>Core 12の個別株部分だけ</b>：年率15.9%・最大下落−42.2%（QQQを持ち続ける18.2%に届かない）。'
     '候補に小さい銘柄まで含めるとさらに悪化（年率7〜12%・最大下落−52〜−63%）<br/>'

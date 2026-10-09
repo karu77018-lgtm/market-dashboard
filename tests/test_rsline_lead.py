@@ -85,7 +85,7 @@ def test_section_goes_between_ipo_and_options_and_is_idempotent():
     res = rl.scan(frame(), spy(), SESSION)
     out = rl.apply(setups_page(), res, {"on": True}, None)
     assert out.index("IPOベース") < out.index("RSライン先行") < out.index("支えへの接触")
-    assert "LEAD" in out and "地合いOK" in out and "6枠には入れない" in out
+    assert "LEAD" in out and "地合いOK" in out and "通常スイング枠には入れない" in out
     again = rl.apply(out, res, {"on": True}, None)
     assert again.count(f'id="{rl.CARD_ID}"') == 1 and again.count('id="rsline-lead-style"') == 1
     empty = rl.apply(setups_page(), {"rows": [], "today": []}, {"on": False}, None)

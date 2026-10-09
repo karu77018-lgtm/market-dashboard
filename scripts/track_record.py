@@ -26,11 +26,12 @@ after the close):
 No fees, slippage or taxes.  Each 本命 is one independent signal here.
 
 The headline record is the rule run as the actual portfolio (track_portfolio.py:
-6 slots, 1/6 sizing, same-amount adds up to 40%, idle money in the TQQQ-rule sleeve at the
+5 slots, 20% sizing, same-amount adds up to 40%, idle money in the TQQQ-rule sleeve at the
 published share), stored under ledger["portfolio"] and advanced the same way.
 """
 from __future__ import annotations
 
+import copy
 import html
 import json
 import math
@@ -45,7 +46,7 @@ import pandas as pd
 
 import track_portfolio as tp
 import tqqq_rule
-from rules_tab import RULE_ID
+from swing_allocation import RULE_ID, MAX_NAMES, EFFECTIVE_DATE
 
 LEDGER = Path("track-record/signals.json")
 SCHEMA = "mc57-track-record.2"
@@ -132,7 +133,7 @@ def record(ledger: dict, text: str, session: str, closes: dict[str, float], now:
     rows = [{"t": t, "close": closes.get(t), "r189": (r189 or {}).get(t)} for t in best]
     if entry is None:
         ledger["sessions"][session] = {"recorded_at": now, "best": rows, "regime": card_regime(text),
-                                       "qqq_pct": tp.published_qqq_pct(text), "rule": RULE_ID, "revisions": 0}
+                                       "qqq_pct": tp.published_qqq_pct(text), "rule": RULE_ID if session >= EFFECTIVE_DATE else (ledger.get("rule") if ledger.get("rule") != RULE_ID else "pre-v4-unversioned"), "revisions": 0}
     elif [r["t"] for r in entry.get("latest", entry["best"])] != best:
         entry["latest"] = rows
         entry["revisions"] = int(entry.get("revisions", 0)) + 1
@@ -356,8 +357,60 @@ def sleeve_label(pf: dict) -> str:
 SHORT_REASON = {"安値21EMA割れ（翌始値）": "21EMA割れ", "損切り（窓）": "損切り（窓）", "損切り −8%": "損切り"}
 
 
-PENDING_HTML = ('<div class="tr-empty">余剰資金の置き先をQQQからTQQQルール枠に変えたため、記録開始日から計算し直しています。'
-                '次の更新から新しい計算で表示します（旧方式の数字は表示しません）。</div>')
+PENDING_HTML = ('<div class="tr-empty">最大5銘柄・各20%の新ルールは、2026-10-09以降に初めて公開した本命から別集計します。'
+                '旧ルールの記録は保存し、新ルールの過去実績として計算し直しません。</div>')
+
+
+def prepare_portfolio(ledger: dict) -> dict | None:
+    """Start a separate forward series at the first newly frozen current-rule session.
+
+    Preserve every old position, mark and signal. No backfill, forced liquidation,
+    or splicing unlike portfolios into one return series. Same-session reruns cannot
+    convert an already frozen legacy signal into a new-rule signal.
+    """
+    pf = ledger.get("portfolio")
+    if pf and pf.get("rule") == RULE_ID and pf.get("sleeve") == tp.SLEEVE:
+        return pf
+    starts = sorted(d for d, v in ledger.get("sessions", {}).items()
+                    if d >= EFFECTIVE_DATE and v.get("rule") == RULE_ID)
+    if not starts:
+        return None
+    start = starts[0]
+    if pf:
+        ledger.setdefault("portfolio_history", []).append({
+            "rule": pf.get("rule", ledger.get("rule", "legacy")),
+            "archived_at_session": start, "portfolio": copy.deepcopy(pf)})
+    pf = tp.new_portfolio(start)
+    ledger["portfolio"] = pf
+    ledger["rule"] = RULE_ID
+    ledger["allocation_transition"] = {"first_signal_session": start, "rule": RULE_ID,
+                                        "method": "separate-forward-series"}
+    return pf
+
+
+def history_html(ledger: dict) -> str:
+    history = list(ledger.get("portfolio_history", []))
+    pf = ledger.get("portfolio")
+    if pf and (pf.get("rule") != RULE_ID or pf.get("sleeve") != tp.SLEEVE):
+        history.append({"rule": pf.get("rule", ledger.get("rule", "legacy")), "portfolio": pf})
+    result = "".join('<details class="tr-more"><summary>旧ルールの保存記録（新ルールと別集計）</summary>'
+                   + f'<div class="tr-note">ルール版 {e_(h["rule"])}。保存済み最終日 {e_(h["portfolio"].get("last_day", "—"))}。保有はこの時点のまま保存、更新停止・参考。</div>'
+                   + portfolio_html(h["portfolio"]) + '</details>' for h in history)
+    snapshot = ledger.get("_legacy_snapshot")
+    if snapshot:
+        result += ('<details class="tr-more"><summary>旧6銘柄・TQQQ枠の公開時点表示（保存）</summary>'
+                   f'<div class="tr-note">{e_(snapshot["through"])}までの従来表示をそのまま保存。'
+                   '新ルールの実績や保存済みQQQ台帳とは別で、更新しない表示スナップショットです。</div>'
+                   + snapshot["html"] + '</details>')
+    reconstruction = ledger.get("_legacy_tqqq")
+    if reconstruction:
+        result += ('<details class="tr-more"><summary>旧6銘柄・TQQQ枠の再計算（従来表示・参考）</summary>'
+                   '<div class="tr-note">従来の表示用再計算。保存済みQQQ記録や新5銘柄の前向き実績とは別です。</div>'
+                   + portfolio_html(reconstruction) + '</details>')
+    elif not snapshot and history and any(h["portfolio"].get("sleeve") != tp.SLEEVE for h in history):
+        result += '<div class="tr-note">旧6銘柄のTQQQ枠再計算は保存株価・NAVが揃う場合のみ参考表示します。</div>'
+    return result
+
 
 
 def portfolio_html(pf: dict | None, pending: bool = False) -> str:
@@ -374,7 +427,7 @@ def portfolio_html(pf: dict | None, pending: bool = False) -> str:
     grid = "".join(f"<div><i>{k}</i><b>{v}</b></div>" for k, v in (
         ("ルール運用", _p(st.get("ret"))), ("QQQ（同期間）", _p(st.get("qqq"))),
         ("QQQとの差", _p(st["ret"] - st["qqq"]) if "qqq" in st and "ret" in st else "—"),
-        ("最大DD", _p(st.get("dd"))), ("保有（最大6）", f"{st['names']}銘柄"),
+        ("最大DD", _p(st.get("dd"))), (f"保有（最大{pf.get('max_names', 6)}）", f"{st['names']}銘柄"),
         ("株の比率", fmt(st.get("stock_share"), lambda v: f"{v:.0%}")),
         ("確定した売買", f"{st['closed']}件"), ("勝率（確定）", fmt(st.get("win"), lambda v: f"{v:.0%}")),
         (sleeve_label(pf), f"{pf.get('qqq_pct', tp.DEFAULT_QQQ_PCT)}%"),
@@ -412,8 +465,9 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
     e = html.escape
     ledger = ledger or new_ledger()
     s = summary(trades)
-    start = ledger.get("start") or "—"
-    days = len(ledger.get("sessions", {}))
+    start = (ledger.get("portfolio") or {}).get("start") if not ledger.get("_pending") else None
+    start = start or "新ルール開始待ち"
+    days = sum(v.get("rule") == RULE_ID and d >= EFFECTIVE_DATE for d, v in ledger.get("sessions", {}).items())
     fmt = lambda v, f: "—" if v is None else f(v)
     grid = "".join(f"<div><i>{k}</i><b>{v}</b></div>" for k, v in (
         ("本命の数", str(s["signals"])), ("確定", str(s["closed"])), ("保有中", str(s["open"])),
@@ -442,14 +496,14 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
     return (
         f'<section id="{TAB_ID}"><div class="card" id="track-record-card" data-rule="{RULE_ID}">'
         '<div class="chd"><h2>運用成績（ルールどおりの売買・前向き記録）<span class="h2en">Track Record</span></h2></div>'
-        f'<div class="sub">毎日公開した「本命」を、Rulesタブの資金管理（最大6銘柄・最初は資金の1/6・+10%と+20%で同額買い増し・'
+        f'<div class="sub">毎日公開した「本命」を、Rulesタブの資金管理（最大5銘柄・最初は総資産の20%・+10%と+20%で同額買い増し・'
         f'1銘柄40%まで・余剰資金はTQQQルール枠）どおりに売買した場合の成績。記録開始 {e(start)}（{days}営業日分）。ルール版 {e(RULE_ID)}。</div>'
-        + warn + portfolio_html(ledger.get("portfolio"), bool(ledger.get("_pending")))
+        + warn + portfolio_html(ledger.get("portfolio"), bool(ledger.get("_pending"))) + history_html(ledger)
         + '<details class="tr-more"><summary>本命1件ごとのシグナル成績</summary>'
         f'<div class="tr-grid">{grid}</div>'
         '<div class="tr-wrap"><table><tr><th>銘柄</th><th>本命の日</th><th>買値（翌始値）</th><th>現在/売値</th>'
         f'<th>損益</th><th>買い増し込み</th><th>QQQとの差</th><th>日数</th><th>状態</th></tr>{rows}</table></div>'
-        '<div class="tr-note">資金や6銘柄の枠を考えず、本命を1件ずつ追った成績（銘柄選びそのものの強さを見る用）。</div></details>'
+        '<div class="tr-note">資金や5銘柄の枠を考えず、本命を1件ずつ追った成績（銘柄選びそのものの強さを見る用）。</div></details>'
         '<div class="tr-note"><b>約定</b>：本命は引け後に公開するので<b>翌営業日の始値</b>で買う（Rulesタブの検証は本命の日の終値）。'
         '枠が足りない日は189日リターンの高い順、保有中の銘柄は重ねて買わない。損切りは買値−8%（窓で下回ればその始値）。'
         '安値21EMA割れは引けで確定し<b>翌営業日の始値</b>で売り。買い増しは終値が買値+10%・+20%に届いた翌営業日の始値で最初と同じ金額、'
@@ -457,7 +511,7 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
         '<b>余剰資金</b>：毎朝、現金とTQQQルール枠の合計を、前日に公開した比率（Rulesタブ7：通常50%、ブレイク成功度が不調でQQQが200日線より上なら100%）でTQQQルール枠に置く。'
         '枠の中身はRulesタブ9の目標（TQQQ・金・短期国債）を終値で判定し翌営業日の始値で執行。残りの現金は金利0%。'
         '比較用の「QQQ（同期間）」はQQQの持ちっぱなし。'
-        '（2026年10月に余剰資金の置き先をQQQからTQQQルール枠に変更し、記録開始日から計算し直しています。）地合い停止の日は新規で買わない。<br/>'
+        '新ルールは初回公開日に資産1・保有なしで始める独立した検証です。実口座の売買・清算や乗り換え損益は表さず、旧ルールの資産推移や保有は書き換えません。地合い停止の日は新規で買わない。<br/>'
         '<b>記録のしかた</b>：本命はその日の最初の公開内容で確定し、売買の結果とともに '
         '<code>track-record/signals.json</code> に保存（Gitの履歴と毎日のスナップショットに残る）。'
         'あとで再計算して本命が変わった日は＊印（成績は最初の公開内容で計算）。手数料・スリッページ・税金・テーマ枠は含みません。<br/>'
@@ -498,7 +552,7 @@ def apply(text: str, ledger: dict | None, trades: list[dict], error: str | None 
 
 
 RULES_BLOCK_ID = "rules-live-record"
-RULES_ANCHOR = '<div class="rh">成績（単年）</div>'
+RULES_ANCHOR = '<div class="rh">成績（単年・旧6銘柄ルールの過去検証）</div>'
 
 
 def monthly(equity: list) -> list[tuple[str, float | None, float | None]]:
@@ -527,7 +581,7 @@ def rules_block(ledger: dict | None, error: str | None = None) -> str:
         note = PENDING_HTML.replace('<div class="tr-empty">', "").replace("</div>", "")
         return head + f'<div class="rnote">{note}詳細は{link}。</div></div>'
     if not pf or len(pf.get("equity", [])) < 2:
-        start = (ledger.get("start") or "次の更新")
+        start = ((pf or {}).get("start") or "次の更新")
         return (head + f'<div class="rnote">毎日公開した本命を、このルールどおりに売買した場合の実績を記録しています。'
                 f'{html.escape(start)}の本命を翌営業日の始値で買うところから集計が始まります。詳細は{link}。</div></div>')
     st = tp.stats(pf)
@@ -545,7 +599,7 @@ def rules_block(ledger: dict | None, error: str | None = None) -> str:
                         f'<td class="n">{_p(a - b) if b is not None else "—"}</td></tr>' for m, a, b in reversed(months))
         mtable = ('<table class="rtb"><tr><th>月</th><th>ルール運用</th><th>QQQ</th><th>差</th></tr>' + mrows + '</table>')
     return (head + summary + mtable
-            + '<div class="rnote">毎日公開した本命を、このルールどおり（最大6銘柄・1/6・+10%と+20%で同額買い増し・40%上限・'
+            + '<div class="rnote">毎日公開した本命を、このルールどおり（最大5銘柄・20%・+10%と+20%で同額買い増し・40%上限・'
             f'余剰資金はTQQQルール枠）に売買した場合。約定は翌営業日の始値、手数料・税金なし。下の「成績（単年）」は過去データでの検証。詳細は{link}。</div></div>')
 
 
@@ -561,6 +615,8 @@ def apply_rules(text: str, ledger: dict | None, error: str | None = None) -> str
                 break
     start = text.find('id="rules-card"')
     i = text.find(RULES_ANCHOR, start) if start >= 0 else -1
+    if i < 0 and start >= 0:
+        i = text.find('<div class="rh">成績（単年）</div>', start)
     if i < 0:
         return text
     return text[:i] + rules_block(ledger, error) + text[i:]
@@ -580,14 +636,12 @@ def run(text: str, frame: pd.DataFrame, session: str, root: Path, qqq_path: Path
     record(ledger, text, session, {k: float(v) for k, v in last.items()}, r189=r189)
     qqq = qqq_bars(qqq_path or root / "data" / "market_inputs.json")
     advance_all(ledger, frame, qqq)
-    if ledger.get("start"):
-        pf = ledger.get("portfolio")
-        if not pf or pf.get("sleeve") != tp.SLEEVE:   # idle money moved from QQQ to the TQQQ rule
-            pf = tp.new_portfolio(ledger["start"])
+    pf = prepare_portfolio(ledger)
+    if pf:
         fund = tqqq_rule.fund_bars(tqqq_rule.load(root / tqqq_rule.LEDGER))
         ledger["portfolio"] = tp.advance(pf, ledger["sessions"], frame, qqq, session, fund=fund)
     save(ledger, path)
-    return apply(text, ledger, trades_for_display(ledger))
+    return apply(text, display_ledger(ledger, root), trades_for_display(ledger))
 
 
 def _saved_frame(root: Path, session: str | None) -> pd.DataFrame | None:
@@ -605,29 +659,33 @@ def _saved_frame(root: Path, session: str | None) -> pd.DataFrame | None:
 
 
 def display_ledger(ledger: dict, root: Path) -> dict:
-    """Display path for a portfolio still on the old QQQ sleeve.
-
-    The migration itself happens in run() (refresh).  Until then the display rebuilds
-    the portfolio in memory exactly as run() will (same saved OHLCV, QQQ bars and
-    TQQQ-rule NAV) and never saves it; without those inputs it shows a pending note
-    instead of mixing the old QQQ-sleeve numbers with the new rule.
-    """
+    """Render saved results only; never rebuild legacy history using current sizing."""
     pf = ledger.get("portfolio")
-    if not ledger.get("start") or not pf or pf.get("sleeve") == tp.SLEEVE:
-        return ledger
-    out = {**ledger, "portfolio": None, "_pending": True}
-    try:
-        session = json.loads((root / "latest-manifest.json").read_text(encoding="utf-8")).get("session_date")
-        frame = _saved_frame(root, session)
-        qqq = next((b for b in (qqq_bars(root / "data" / "market_inputs.json"),
-                                qqq_bars(root / "work" / "market-inputs-cache.json")) if b), {})
-        if frame is not None and qqq:
-            fund = tqqq_rule.fund_bars(tqqq_rule.load(root / tqqq_rule.LEDGER))
-            new = tp.advance(tp.new_portfolio(ledger["start"]), ledger["sessions"], frame, qqq, pf["last_day"], fund=fund)
-            if new["last_day"] == pf["last_day"]:
-                out["portfolio"], out["_pending"] = new, False
-    except Exception as exc:  # display only
-        print(f"track record display migration skipped: {exc!r}", flush=True)
+    pending = not pf or pf.get("rule") != RULE_ID or pf.get("sleeve") != tp.SLEEVE
+    out = {**ledger, "_pending": pending}
+    snapshot_path = root / "track-record/legacy-v3.1-tqqq-display.json"
+    if snapshot_path.is_file():
+        snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        if snapshot.get("kind") == "published-display-snapshot-not-ledger":
+            out["_legacy_snapshot"] = snapshot
+    # Keep the previous display-only six-name reconstruction available as a
+    # separately labelled comparison; never convert it to the five-name record.
+    old = pf if pending else next((h["portfolio"] for h in ledger.get("portfolio_history", [])
+                                  if h["portfolio"].get("sleeve") != tp.SLEEVE), None)
+    if old and old.get("sleeve") != tp.SLEEVE:
+        try:
+            session = json.loads((root / "latest-manifest.json").read_text()).get("session_date")
+            frame = _saved_frame(root, session)
+            qqq = next((b for b in (qqq_bars(root / "data" / "market_inputs.json"),
+                                    qqq_bars(root / "work" / "market-inputs-cache.json")) if b), {})
+            if frame is not None and qqq:
+                fund = tqqq_rule.fund_bars(tqqq_rule.load(root / tqqq_rule.LEDGER))
+                comparison = tp.advance(tp.new_portfolio(old["start"], legacy_tqqq=True),
+                                        ledger["sessions"], frame, qqq, old["last_day"], fund=fund)
+                if comparison["last_day"] == old["last_day"]:
+                    out["_legacy_tqqq"] = comparison
+        except (OSError, ValueError, KeyError) as exc:
+            print(f"legacy comparison unavailable: {exc!r}", flush=True)
     return out
 
 
