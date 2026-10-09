@@ -431,5 +431,144 @@
     747.5800170898438
    ]
   ]
+ },
+ "modeled_portfolio": {
+  "start": "2026-10-05",
+  "last_day": "2026-10-08",
+  "cash": 0.18400000000000002,
+  "qqq_sh": 1.7018102562730225e-17,
+  "qqq_pct": 50,
+  "sleeve": "tqqq-rule",
+  "rule": "swing-v4-max5-tqqq-sleeve",
+  "max_names": 5,
+  "initial_weight": 0.2,
+  "positions": {
+   "MRVL": {
+    "signal": "2026-10-05",
+    "entry_day": "2026-10-06",
+    "entry": 271.26,
+    "stop": 249.5592,
+    "shares": 0.0007373000073730002,
+    "unit": 0.2,
+    "invested": 0.2,
+    "adds": 0,
+    "triggered": [],
+    "pending_add": 0,
+    "pending_exit": false,
+    "ema": 251.60586168341058,
+    "last": 274.66,
+    "days": 3
+   },
+   "AMD": {
+    "signal": "2026-10-05",
+    "entry_day": "2026-10-06",
+    "entry": 648.04,
+    "stop": 596.1967999999999,
+    "shares": 0.0003086229245108327,
+    "unit": 0.2,
+    "invested": 0.2,
+    "adds": 0,
+    "triggered": [],
+    "pending_add": 0,
+    "pending_exit": false,
+    "ema": 581.4583494274531,
+    "last": 620.68,
+    "days": 3
+   },
+   "CRWD": {
+    "signal": "2026-10-05",
+    "entry_day": "2026-10-06",
+    "entry": 278.0,
+    "stop": 255.76000000000002,
+    "shares": 0.0007194244604316547,
+    "unit": 0.2,
+    "invested": 0.2,
+    "adds": 0,
+    "triggered": [],
+    "pending_add": 0,
+    "pending_exit": false,
+    "ema": 247.9134703831432,
+    "last": 263.01,
+    "days": 3
+   },
+   "PANW": {
+    "signal": "2026-10-05",
+    "entry_day": "2026-10-06",
+    "entry": 412.8,
+    "stop": 379.776,
+    "shares": 0.00048449612403100775,
+    "unit": 0.2,
+    "invested": 0.2,
+    "adds": 0,
+    "triggered": [],
+    "pending_add": 0,
+    "pending_exit": false,
+    "ema": 378.66705799339957,
+    "last": 398.5,
+    "days": 3
+   }
+  },
+  "closed": [
+   {
+    "t": "INTC",
+    "signal": "2026-10-05",
+    "entry_day": "2026-10-06",
+    "entry": 117.06,
+    "exit_day": "2026-10-08",
+    "exit": 107.6952,
+    "reason": "損切り −8%",
+    "adds": 0,
+    "invested": 0.2,
+    "pnl": -0.016000000000000014,
+    "ret": -0.08000000000000007,
+    "days": 3
+   }
+  ],
+  "skipped": [],
+  "equity": [
+   [
+    "2026-10-05",
+    1.0,
+    756.2000122070312
+   ],
+   [
+    "2026-10-06",
+    1.0083109707561781,
+    759.6599731445312
+   ],
+   [
+    "2026-10-07",
+    0.9899512992864663,
+    757.72998046875
+   ],
+   [
+    "2026-10-08",
+    0.960350429574938,
+    747.5800170898438
+   ]
+  ],
+  "reconstruction": {
+   "kind": "chart-ohlcv-backcast",
+   "as_of": "2026-10-08",
+   "generated_at": "2026-10-09T06:51:00Z",
+   "input_commit": "c84723327de7992f95e10cd6972722214f0bdf3d",
+   "inputs": {
+    "chart-data/index.json": "e9d680eb920d31177c7346184a5d9dfafa9e9825f23885ef989649bfc0d806da",
+    "chart-data/shard-00.json": "8c4e970ef42d9243c9a63fc39ab968cbe8c9bb81164e1bac6bec48e00347b8c1",
+    "chart-data/shard-04.json": "8332a7bc2b550b41d13ac7924d3442c5def7f20f1bd1120adf4499e19b802c2e",
+    "chart-data/shard-05.json": "56c3aa449857d4af9b6e921f07041fbda6a471c3d597fb1597bcc5cd7321ac58",
+    "chart-data/shard-07.json": "6bc2a31c2ea36dfc0c83f840a0feb2c766355fd5ba29b5fcc0a95b23d299fcd0",
+    "chart-data/shard-12.json": "dde7ea2508207798604f72e1d613fbabaca83026448811531f41ab809012ff2d",
+    "chart-data/shard-19.json": "67ccbaaf623b868cd0722d388690b80892d7616f3d11cf87ac1db39faa99135b",
+    "chart-data/shard-28.json": "df22f157dd0e0015d66a9057544f214b05ab0de00dcfbdf581e6353408f5f6a3",
+    "track-record/signals.json": "2ddfbb2f773fe5c8554b554bdc106797bed75a0b3a04513aa57d4b955beb5a0f",
+    "track-record/tqqq-rule.json": "fc545fe31c4491f8e7e36678075a1e2cbe2bdc2235813415abffad9e1b8498cc"
+   },
+   "signal_policy": "original-frozen-lists-and-order; old rule labels unchanged",
+   "price_policy": "all stock fills/stops/EMA/marks use committed chart OHLC; no frozen stock-fill overrides",
+   "benchmark_policy": "QQQ opens/closes from original recorded benchmark quotes; not stock fill inputs",
+   "price_note": "公開チャートの改訂済みOHLCを統一使用。旧記録の約定価格とは一部異なります。",
+   "forward_policy": "advance this saved model only after last_day; never rebuild on display"
+  }
  }
 }

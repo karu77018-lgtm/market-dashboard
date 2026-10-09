@@ -64,6 +64,8 @@ def current_portfolio(ledger: dict) -> dict | None:
     Reading is non-mutating. Historical quantities, cash, marks and add units are
     preserved; only future entry limits/sizing adopt the current rule.
     """
+    if ledger.get("modeled_portfolio"):
+        return copy.deepcopy(ledger["modeled_portfolio"])
     if ledger.get("current_portfolio"):
         return copy.deepcopy(ledger["current_portfolio"])
     histories = ledger.get("portfolio_history", [])
