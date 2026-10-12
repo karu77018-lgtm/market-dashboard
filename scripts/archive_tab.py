@@ -16,11 +16,11 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup, NavigableString, Tag
 
-from swing_allocation import EFFECTIVE_DATE, INITIAL_WEIGHT, MAX_NAMES
+from swing_allocation import EFFECTIVE_DATE, INITIAL_LABEL, INITIAL_WEIGHT, MAX_NAMES
 
 ARCHIVE_ID = "t-port"          # the former Core 12 section; id kept for its scripts
 INTRO_ID = "archive-intro"
-INTRO_MARK = f"現行の通常スイングは最大{MAX_NAMES}銘柄・初回は総資産の{INITIAL_WEIGHT:.0%}。"  # legacy_archive refreshes old intros
+INTRO_MARK = f"現行の通常スイングは最大{MAX_NAMES}銘柄・初回は総資産の{INITIAL_LABEL}。"  # legacy_archive refreshes old intros
 TAB_LABEL = "アーカイブ"
 
 # Cards (h2 prefix) moved out of Setups: the old weekly 30WMA rule.
@@ -42,8 +42,8 @@ INTRO = (
     'TQQQはRulesタブ9の「TQQQルール」（余剰資金の置き先）に移行。振り返り・比較用に表示だけ残しています。売買には使いません。</div>'
     '<details class="cxpl"><summary>停止の根拠（2015〜2026年の過去検証）</summary><div class="cxpl-b">'
     f'{INTRO_MARK}適用は{EFFECTIVE_DATE}。<br/>'
-    '<b>現行</b>（最大5銘柄×20%・余剰資金はTQQQルール枠）：年率57.0%・最大下落−33.8%（2015年1月〜2026年8月）<br/>'
-    '<b>旧6銘柄ルール</b>（1銘柄1/6・余剰資金はTQQQルール枠）：年率54.9%・最大下落−33.8%（同じ計算）<br/>'
+    '<b>現行</b>（最大6銘柄×1/6・余剰資金はTQQQルール枠）：年率53.4%・最大下落−36.3%（2015年1月〜2026年8月・翌営業日の寄りで売買）<br/>'
+    '<b>5銘柄×20%</b>（2026年10月9〜12日に採用、撤回）：年率52.3%・最大下落−36.9%（同じ計算）<br/>'
     '<b>旧6銘柄・QQQ切替の過去検証</b>（最大6銘柄・余剰資金はQQQ切替）：年率42.4%・最大下落−30.3%・シャープ1.26<br/>'
     '<b>Core 12</b>（売買代金上位10%から選定、個別70%＋TQQQ30%）：年率23.1%・最大下落−40.8%・シャープ0.82<br/>'
     '<b>Core 12の個別株部分だけ</b>：年率15.9%・最大下落−42.2%（QQQを持ち続ける18.2%に届かない）。'

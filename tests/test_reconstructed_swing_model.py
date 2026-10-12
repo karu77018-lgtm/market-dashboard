@@ -14,6 +14,15 @@ import track_record as tr
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.fixture(autouse=True)
+def five_name_rule(monkeypatch):
+    """The pinned fixture is the 2026-10-09 five-name (x20%) model; replay it under that rule."""
+    for mod in (tp, tr):
+        monkeypatch.setattr(mod, 'RULE_ID', 'swing-v4-max5-tqqq-sleeve')
+    monkeypatch.setattr(tp, 'MAX_NAMES', 5)
+    monkeypatch.setattr(tp, 'INITIAL_WEIGHT', 0.20)
+
+
 def fixture():
     return json.loads((ROOT / 'tests/fixtures/five-stock-reconstruction.json').read_text())[str(tr.LEDGER)]
 

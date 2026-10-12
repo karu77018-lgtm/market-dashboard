@@ -1,6 +1,6 @@
 {
  "schema": "mc57-track-record.2",
- "rule": "swing-v2-max6",
+ "rule": "swing-v5-max6-tqqq-sleeve",
  "sessions": {
   "2026-10-05": {
    "recorded_at": "2026-10-05T22:20:56Z",
@@ -544,28 +544,28 @@
  "modeled_portfolio": {
   "start": "2026-10-05",
   "last_day": "2026-10-09",
-  "cash": -1.487407817474206e-19,
-  "qqq_sh": -9.218723900618082e-20,
+  "cash": 0.0,
+  "qqq_sh": 0.0,
   "qqq_pct": 50,
   "sleeve": "tqqq-rule",
-  "rule": "swing-v4-max5-tqqq-sleeve",
-  "max_names": 5,
-  "initial_weight": 0.2,
+  "rule": "swing-v5-max6-tqqq-sleeve",
+  "max_names": 6,
+  "initial_weight": 0.16666666666666666,
   "positions": {
    "MRVL": {
     "signal": "2026-10-05",
     "entry_day": "2026-10-06",
     "entry": 271.26,
     "stop": 249.5592,
-    "shares": 0.0007373000073730002,
-    "unit": 0.2,
-    "invested": 0.2,
+    "shares": 0.0006144166728108334,
+    "unit": 0.16666666666666666,
+    "invested": 0.16666666666666666,
     "adds": 0,
     "triggered": [],
     "pending_add": 0,
     "pending_exit": false,
-    "ema": 253.0691937711403,
-    "last": 275.2799987792969,
+    "ema": 253.06919243947772,
+    "last": 275.28,
     "days": 4
    },
    "AMD": {
@@ -573,15 +573,15 @@
     "entry_day": "2026-10-06",
     "entry": 648.04,
     "stop": 596.1967999999999,
-    "shares": 0.0003086229245108327,
-    "unit": 0.2,
-    "invested": 0.2,
+    "shares": 0.0002571857704256939,
+    "unit": 0.16666666666666666,
+    "invested": 0.16666666666666666,
     "adds": 0,
     "triggered": [],
     "pending_add": 0,
     "pending_exit": false,
-    "ema": 583.6894085704118,
-    "last": 608.0999755859375,
+    "ema": 583.6895077440148,
+    "last": 608.1,
     "days": 4
    },
    "CRWD": {
@@ -589,15 +589,15 @@
     "entry_day": "2026-10-06",
     "entry": 278.0,
     "stop": 255.76000000000002,
-    "shares": 0.0007194244604316547,
-    "unit": 0.2,
-    "invested": 0.2,
+    "shares": 0.0005995203836930455,
+    "unit": 0.16666666666666666,
+    "invested": 0.16666666666666666,
     "adds": 0,
     "triggered": [],
     "pending_add": 0,
     "pending_exit": false,
-    "ema": 249.23406420662164,
-    "last": 275.0400085449219,
+    "ema": 249.23406398472906,
+    "last": 275.04,
     "days": 4
    },
    "PANW": {
@@ -605,31 +605,47 @@
     "entry_day": "2026-10-06",
     "entry": 412.8,
     "stop": 379.776,
-    "shares": 0.00048449612403100775,
-    "unit": 0.2,
-    "invested": 0.2,
+    "shares": 0.00040374677002583977,
+    "unit": 0.16666666666666666,
+    "invested": 0.16666666666666666,
     "adds": 0,
     "triggered": [],
     "pending_add": 0,
     "pending_exit": false,
-    "ema": 380.7782358711303,
-    "last": 418.7799987792969,
+    "ema": 380.77823453948844,
+    "last": 418.78,
     "days": 4
    },
    "DELL": {
     "signal": "2026-10-08",
     "entry_day": "2026-10-09",
-    "entry": 581.6500244140625,
-    "stop": 535.1180224609375,
-    "shares": 0.00031634142917015497,
-    "unit": 0.19430223634833277,
-    "invested": 0.18400000000000005,
+    "entry": 581.65,
+    "stop": 535.118,
+    "shares": 0.00027940733641341635,
+    "unit": 0.16251727722486362,
+    "invested": 0.16251727722486362,
     "adds": 0,
     "triggered": [],
     "pending_add": 0,
     "pending_exit": false,
-    "ema": 538.0893314461767,
-    "last": 586.0599975585938,
+    "ema": 538.089326927924,
+    "last": 586.06,
+    "days": 1
+   },
+   "LITE": {
+    "signal": "2026-10-08",
+    "entry_day": "2026-10-09",
+    "entry": 1115.5,
+    "stop": 1026.26,
+    "shares": 0.0001401408049503241,
+    "unit": 0.16251727722486362,
+    "invested": 0.15632706792208656,
+    "adds": 0,
+    "triggered": [],
+    "pending_add": 0,
+    "pending_exit": false,
+    "ema": 972.7329307073114,
+    "last": 1103.355,
     "days": 1
    }
   },
@@ -643,20 +659,13 @@
     "exit": 107.6952,
     "reason": "損切り −8%",
     "adds": 0,
-    "invested": 0.2,
-    "pnl": -0.016000000000000014,
+    "invested": 0.16666666666666666,
+    "pnl": -0.013333333333333336,
     "ret": -0.08000000000000007,
     "days": 3
    }
   ],
-  "skipped": [
-   {
-    "t": "LITE",
-    "signal": "2026-10-08",
-    "day": "2026-10-09",
-    "why": "5銘柄で満杯"
-   }
-  ],
+  "skipped": [],
   "equity": [
    [
     "2026-10-05",
@@ -665,47 +674,206 @@
    ],
    [
     "2026-10-06",
-    1.0083109707561781,
+    1.0068647356444276,
     759.6599731445312
    ],
    [
     "2026-10-07",
-    0.9899512992864663,
+    0.9914277700916421,
     757.72998046875
    ],
    [
     "2026-10-08",
-    0.960350429574938,
+    0.9643197187495005,
     747.5800170898438
    ],
    [
     "2026-10-09",
-    0.9768003911718838,
+    0.9778789687939987,
     751.27001953125
    ]
   ],
   "reconstruction": {
    "kind": "chart-ohlcv-backcast",
-   "as_of": "2026-10-08",
-   "generated_at": "2026-10-09T06:51:00Z",
-   "input_commit": "c84723327de7992f95e10cd6972722214f0bdf3d",
-   "inputs": {
-    "chart-data/index.json": "e9d680eb920d31177c7346184a5d9dfafa9e9825f23885ef989649bfc0d806da",
-    "chart-data/shard-00.json": "8c4e970ef42d9243c9a63fc39ab968cbe8c9bb81164e1bac6bec48e00347b8c1",
-    "chart-data/shard-04.json": "8332a7bc2b550b41d13ac7924d3442c5def7f20f1bd1120adf4499e19b802c2e",
-    "chart-data/shard-05.json": "56c3aa449857d4af9b6e921f07041fbda6a471c3d597fb1597bcc5cd7321ac58",
-    "chart-data/shard-07.json": "6bc2a31c2ea36dfc0c83f840a0feb2c766355fd5ba29b5fcc0a95b23d299fcd0",
-    "chart-data/shard-12.json": "dde7ea2508207798604f72e1d613fbabaca83026448811531f41ab809012ff2d",
-    "chart-data/shard-19.json": "67ccbaaf623b868cd0722d388690b80892d7616f3d11cf87ac1db39faa99135b",
-    "chart-data/shard-28.json": "df22f157dd0e0015d66a9057544f214b05ab0de00dcfbdf581e6353408f5f6a3",
-    "track-record/signals.json": "2ddfbb2f773fe5c8554b554bdc106797bed75a0b3a04513aa57d4b955beb5a0f",
-    "track-record/tqqq-rule.json": "fc545fe31c4491f8e7e36678075a1e2cbe2bdc2235813415abffad9e1b8498cc"
-   },
-   "signal_policy": "original-frozen-lists-and-order; old rule labels unchanged",
-   "price_policy": "all stock fills/stops/EMA/marks use committed chart OHLC; no frozen stock-fill overrides",
-   "benchmark_policy": "QQQ opens/closes from original recorded benchmark quotes; not stock fill inputs",
-   "price_note": "公開チャートの改訂済みOHLCを統一使用。旧記録の約定価格とは一部異なります。",
-   "forward_policy": "advance this saved model only after last_day; never rebuild on display"
+   "as_of": "2026-10-09",
+   "generated_at": "2026-10-12T00:00:00Z",
+   "signal_policy": "original frozen 本命 lists",
+   "price_policy": "committed chart OHLC for all fills, stops, EMA and marks",
+   "rule": "swing-v5-max6-tqqq-sleeve",
+   "note": "6 names x 1/6 restored 2026-10-12 (next-open backtest)"
   }
- }
+ },
+ "portfolio_history": [
+  {
+   "rule": "swing-v4-max5-tqqq-sleeve",
+   "archived_at_session": "2026-10-12",
+   "portfolio": {
+    "start": "2026-10-05",
+    "last_day": "2026-10-09",
+    "cash": -1.487407817474206e-19,
+    "qqq_sh": -9.218723900618082e-20,
+    "qqq_pct": 50,
+    "sleeve": "tqqq-rule",
+    "rule": "swing-v4-max5-tqqq-sleeve",
+    "max_names": 5,
+    "initial_weight": 0.2,
+    "positions": {
+     "MRVL": {
+      "signal": "2026-10-05",
+      "entry_day": "2026-10-06",
+      "entry": 271.26,
+      "stop": 249.5592,
+      "shares": 0.0007373000073730002,
+      "unit": 0.2,
+      "invested": 0.2,
+      "adds": 0,
+      "triggered": [],
+      "pending_add": 0,
+      "pending_exit": false,
+      "ema": 253.0691937711403,
+      "last": 275.2799987792969,
+      "days": 4
+     },
+     "AMD": {
+      "signal": "2026-10-05",
+      "entry_day": "2026-10-06",
+      "entry": 648.04,
+      "stop": 596.1967999999999,
+      "shares": 0.0003086229245108327,
+      "unit": 0.2,
+      "invested": 0.2,
+      "adds": 0,
+      "triggered": [],
+      "pending_add": 0,
+      "pending_exit": false,
+      "ema": 583.6894085704118,
+      "last": 608.0999755859375,
+      "days": 4
+     },
+     "CRWD": {
+      "signal": "2026-10-05",
+      "entry_day": "2026-10-06",
+      "entry": 278.0,
+      "stop": 255.76000000000002,
+      "shares": 0.0007194244604316547,
+      "unit": 0.2,
+      "invested": 0.2,
+      "adds": 0,
+      "triggered": [],
+      "pending_add": 0,
+      "pending_exit": false,
+      "ema": 249.23406420662164,
+      "last": 275.0400085449219,
+      "days": 4
+     },
+     "PANW": {
+      "signal": "2026-10-05",
+      "entry_day": "2026-10-06",
+      "entry": 412.8,
+      "stop": 379.776,
+      "shares": 0.00048449612403100775,
+      "unit": 0.2,
+      "invested": 0.2,
+      "adds": 0,
+      "triggered": [],
+      "pending_add": 0,
+      "pending_exit": false,
+      "ema": 380.7782358711303,
+      "last": 418.7799987792969,
+      "days": 4
+     },
+     "DELL": {
+      "signal": "2026-10-08",
+      "entry_day": "2026-10-09",
+      "entry": 581.6500244140625,
+      "stop": 535.1180224609375,
+      "shares": 0.00031634142917015497,
+      "unit": 0.19430223634833277,
+      "invested": 0.18400000000000005,
+      "adds": 0,
+      "triggered": [],
+      "pending_add": 0,
+      "pending_exit": false,
+      "ema": 538.0893314461767,
+      "last": 586.0599975585938,
+      "days": 1
+     }
+    },
+    "closed": [
+     {
+      "t": "INTC",
+      "signal": "2026-10-05",
+      "entry_day": "2026-10-06",
+      "entry": 117.06,
+      "exit_day": "2026-10-08",
+      "exit": 107.6952,
+      "reason": "損切り −8%",
+      "adds": 0,
+      "invested": 0.2,
+      "pnl": -0.016000000000000014,
+      "ret": -0.08000000000000007,
+      "days": 3
+     }
+    ],
+    "skipped": [
+     {
+      "t": "LITE",
+      "signal": "2026-10-08",
+      "day": "2026-10-09",
+      "why": "5銘柄で満杯"
+     }
+    ],
+    "equity": [
+     [
+      "2026-10-05",
+      1.0,
+      756.2000122070312
+     ],
+     [
+      "2026-10-06",
+      1.0083109707561781,
+      759.6599731445312
+     ],
+     [
+      "2026-10-07",
+      0.9899512992864663,
+      757.72998046875
+     ],
+     [
+      "2026-10-08",
+      0.960350429574938,
+      747.5800170898438
+     ],
+     [
+      "2026-10-09",
+      0.9768003911718838,
+      751.27001953125
+     ]
+    ],
+    "reconstruction": {
+     "kind": "chart-ohlcv-backcast",
+     "as_of": "2026-10-08",
+     "generated_at": "2026-10-09T06:51:00Z",
+     "input_commit": "c84723327de7992f95e10cd6972722214f0bdf3d",
+     "inputs": {
+      "chart-data/index.json": "e9d680eb920d31177c7346184a5d9dfafa9e9825f23885ef989649bfc0d806da",
+      "chart-data/shard-00.json": "8c4e970ef42d9243c9a63fc39ab968cbe8c9bb81164e1bac6bec48e00347b8c1",
+      "chart-data/shard-04.json": "8332a7bc2b550b41d13ac7924d3442c5def7f20f1bd1120adf4499e19b802c2e",
+      "chart-data/shard-05.json": "56c3aa449857d4af9b6e921f07041fbda6a471c3d597fb1597bcc5cd7321ac58",
+      "chart-data/shard-07.json": "6bc2a31c2ea36dfc0c83f840a0feb2c766355fd5ba29b5fcc0a95b23d299fcd0",
+      "chart-data/shard-12.json": "dde7ea2508207798604f72e1d613fbabaca83026448811531f41ab809012ff2d",
+      "chart-data/shard-19.json": "67ccbaaf623b868cd0722d388690b80892d7616f3d11cf87ac1db39faa99135b",
+      "chart-data/shard-28.json": "df22f157dd0e0015d66a9057544f214b05ab0de00dcfbdf581e6353408f5f6a3",
+      "track-record/signals.json": "2ddfbb2f773fe5c8554b554bdc106797bed75a0b3a04513aa57d4b955beb5a0f",
+      "track-record/tqqq-rule.json": "fc545fe31c4491f8e7e36678075a1e2cbe2bdc2235813415abffad9e1b8498cc"
+     },
+     "signal_policy": "original-frozen-lists-and-order; old rule labels unchanged",
+     "price_policy": "all stock fills/stops/EMA/marks use committed chart OHLC; no frozen stock-fill overrides",
+     "benchmark_policy": "QQQ opens/closes from original recorded benchmark quotes; not stock fill inputs",
+     "price_note": "公開チャートの改訂済みOHLCを統一使用。旧記録の約定価格とは一部異なります。",
+     "forward_policy": "advance this saved model only after last_day; never rebuild on display"
+    }
+   }
+  }
+ ]
 }

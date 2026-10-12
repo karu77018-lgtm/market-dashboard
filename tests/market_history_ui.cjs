@@ -21,12 +21,12 @@ async function verify(page,width){
   assert.equal(narrowAxes,0,'date axes span their graph including grid rate cards');
   const tabs=page.locator('nav a.tabx');
   assert.equal(await tabs.count(),13,'all tabs including Jev, Themes, track record and archive');
-  assert.match(await page.locator('#rules-card').textContent(), /最大5銘柄/);
-  assert.match(await page.locator('#rules-card').textContent(), /総資産の20%/);
-  assert.match(await page.locator('#mc57-swing-screener').textContent(), /通常スイング最大5銘柄/);
-  assert.match(await page.locator('#track-record-card').textContent(), /最大5銘柄/);
+  assert.match(await page.locator('#rules-card').textContent(), /最大6銘柄/);
+  assert.match(await page.locator('#rules-card').textContent(), /総資産の1\/6/);
+  assert.match(await page.locator('#mc57-swing-screener').textContent(), /通常スイング最大6銘柄/);
+  assert.match(await page.locator('#track-record-card').textContent(), /最大6銘柄/);
   assert.match(await page.locator('#rules-card').textContent(), /成績（単年）/);
-  assert.match(await page.locator('#rules-card').textContent(), /年率57\.0%/);
+  assert.match(await page.locator('#rules-card').textContent(), /年率53\.4%/);
   assert.equal(await page.locator('[data-rule="swing-v3.1-tqqq-sleeve"]').count(),0);
 
   assert.equal(await page.locator('.mh-card [data-window="2y"][aria-pressed="true"]').count(),await page.locator('.mh-card[data-history-key]').count());

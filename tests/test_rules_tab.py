@@ -20,7 +20,7 @@ def test_rules_tab_replaces_core12_with_swing_rules():
     assert "今日の地合い：新規OK" in out and "QQQ 600.00 / 200日線 550.00" in out
     assert '<section id="t-post1">x</section>' in out and '<section id="t-jev">j</section>' in out
     assert out.count(rules_tab.STYLE) == 1
-    assert "成績（単年）" in out and "+136.5%" in out and "−8.6%" in out and "TQQQ枠込" in out and "9. TQQQルール" in out and "①早期再エントリー" in out and "②信用125%（参考・未採用）" in out and "193倍" in out and "最大5銘柄" in out and "+20%でもう一度同額" in out and "好位置リーダー（検討可）" in out and "7. 余剰資金の配分" in out and "2026*" in out
+    assert "成績（単年）" in out and "+133.7%" in out and "−12.3%" in out and "TQQQ枠込" in out and "9. TQQQルール" in out and "①早期再エントリー" in out and "②信用125%（参考・未採用）" in out and "147倍" in out and "最大6銘柄" in out and "+20%でもう一度同額" in out and "好位置リーダー（検討可）" in out and "7. 余剰資金の配分" in out and "2026*" in out
     assert rules_tab.apply(out, regime={"on": True, "close": 600.0, "ma": 550.0, "date": "2026-10-02"}) == out
 
 
@@ -41,39 +41,40 @@ def test_active_allocation_uses_shared_constants_and_keeps_historical_research()
     trade = soup.find("div", string="4. 売買").find_next_sibling("table")
     rows = {r.select_one("td").get_text(): r.get_text(" ", strip=True)
             for r in trade.select("tr") if r.select_one("td")}
-    assert rules_tab.RULE_ID == RULE_ID == "swing-v4-max5-tqqq-sleeve"
-    assert MAX_NAMES == 5 and INITIAL_WEIGHT == 0.20
+    assert rules_tab.RULE_ID == RULE_ID == "swing-v5-max6-tqqq-sleeve"
+    assert MAX_NAMES == 6 and abs(INITIAL_WEIGHT - 1 / 6) < 1e-12
     assert soup.select_one("#rules-card")["data-rule"] == RULE_ID
-    assert "通常スイング最大5銘柄" in rows["同時保有"]
-    assert "テーマ枠は別枠3銘柄、合計最大8" in rows["同時保有"]
-    assert "最初は総資産の20%" in rows["サイズ"]
-    assert "初回のリスクは総資産の1.6%" in rows["サイズ"]
-    assert "1/6" not in rows["サイズ"] and "16.7%" not in rows["サイズ"]
+    assert "通常スイング最大6銘柄" in rows["同時保有"]
+    assert "テーマ枠は別枠3銘柄、合計最大9" in rows["同時保有"]
+    assert "最初は総資産の1/6（約16.7%）" in rows["サイズ"]
+    assert "初回のリスクは総資産の1.3%" in rows["サイズ"]
+    assert "翌営業日の寄り付き" in rows["買い"]
     assert EFFECTIVE_DATE in html
-    assert "通常スイングの5枠に含める" in html
+    assert "通常スイングの6枠に含める" in html
     assert "50%をTQQQルール枠" in rows["余剰資金"] and "100%" in rows["余剰資金"]
     assert "買値−8%" in rows["損切り"]
-    assert "+10%で同額、+20%でもう一度同額" in rows["買い増し"]
+    assert "翌営業日の寄りで同額、+20%でもう一度同額" in rows["買い増し"]
     assert "資金の40%" in rows["買い増し"]
-    assert "安値21EMA" in rows["手仕舞い"]
-    assert "最大5銘柄・初回20%のルールでの検証" in html and "旧6銘柄" not in html
-    assert "TQQQルール枠（現行）" in html and "年率57.0%" in html
-    assert rules_tab.YEARLY[0] == (2015, 4.5, 11.0, 4.2, 8.7, -7.2)
-    assert rules_tab.YEARLY[-1] == (2026, 84.7, 93.6, 109.6, 16.7, -17.8)
-    assert [entry[1:] for entry in rules_tab.TOTALS] == [(34.5, -32.3, 32), (43.9, -31.5, 70), (57.0, -33.8, 193)]
+    assert "安値21EMA" in rows["手仕舞い"] and "翌営業日の寄りで売り" in rows["手仕舞い"]
+    assert "最大6銘柄・初回1/6（約16.7%）のルールでの検証" in html and "旧6銘柄" not in html
+    assert "TQQQルール枠（現行）" in html and "年率53.4%" in html and "翌営業日の寄りで売買" in html
+    assert "年率57.0%" not in html
+    assert rules_tab.YEARLY[0] == (2015, 2.6, 9.3, 3.0, 8.7, -6.4)
+    assert rules_tab.YEARLY[-1] == (2026, 88.6, 97.6, 115.0, 16.7, -17.3)
+    assert [entry[1:] for entry in rules_tab.TOTALS] == [(28.7, -30.7, 19), (39.0, -34.1, 46), (53.4, -36.3, 147)]
 
 
 def test_rule_version_rejects_previous_six_name_cards():
     html = rules_tab.rules_html() + '<div id="mc57-swing-screener" data-rule="swing-v3.1-tqqq-sleeve"></div>'
     assert rules_tab.rule_problems(html) == [
-        "mc57-swing-screener: rule 'swing-v3.1-tqqq-sleeve' != 'swing-v4-max5-tqqq-sleeve'"]
+        "mc57-swing-screener: rule 'swing-v3.1-tqqq-sleeve' != 'swing-v5-max6-tqqq-sleeve'"]
 
 
 def test_archive_intro_marks_six_name_results_historical():
     import archive_tab
 
     assert archive_tab.INTRO_MARK in archive_tab.INTRO
-    assert "現行の通常スイングは最大5銘柄・初回は総資産の20%" in archive_tab.INTRO
-    assert "<b>現行</b>（最大5銘柄×20%" in archive_tab.INTRO and "年率57.0%" in archive_tab.INTRO
-    assert "<b>旧6銘柄ルール</b>（1銘柄1/6" in archive_tab.INTRO and "<b>現行</b>（最大6銘柄" not in archive_tab.INTRO
+    assert "現行の通常スイングは最大6銘柄・初回は総資産の1/6（約16.7%）" in archive_tab.INTRO
+    assert "<b>現行</b>（最大6銘柄×1/6" in archive_tab.INTRO and "年率53.4%" in archive_tab.INTRO
+    assert "<b>5銘柄×20%</b>" in archive_tab.INTRO and "年率57.0%" not in archive_tab.INTRO
     assert archive_tab.INTRO_MARK != "年率55.1%"
