@@ -212,12 +212,12 @@ def test_rules_tab_shows_forward_record_above_backtest(tmp_path: Path):
     led["start"] = S
     out = tr.apply(out, led, [])
     assert out.count(f'id="{tr.RULES_BLOCK_ID}"') == 1 and "読めなかった" not in out
-    assert out.index(tr.RULES_BLOCK_ID) < out.index("成績（単年・旧6銘柄ルールの過去検証）")
+    assert out.index(tr.RULES_BLOCK_ID) < out.index("成績（単年）")
     paths = {"AAA": [(100, 99.9, 104), (105, 103, 111)]}
     led["sessions"] = sessions(["AAA"])
     led["portfolio"] = tp.advance(tp.new_portfolio(S), led["sessions"], frame(paths), qqq(32, 100), D[31], fund=qqq(32))
     out = tr.apply(out, led, [])
-    block = out[out.index(tr.RULES_BLOCK_ID):out.index("成績（単年・旧6銘柄ルールの過去検証）")]
+    block = out[out.index(tr.RULES_BLOCK_ID):out.index("成績（単年）")]
     assert "ルール運用" in block and "2026/10" in block and out.count(f'id="{tr.RULES_BLOCK_ID}"') == 1
     assert tr.apply(out, led, []) == out
     assert rules_tab.rule_problems(out, required=("rules-card",)) == []
@@ -246,8 +246,7 @@ def test_display_preserves_old_results_without_rebuilding(tmp_path: Path):
     tr.save(led, tmp_path / tr.LEDGER)
     before = (tmp_path / tr.LEDGER).read_bytes()
     out = tr.render_only(page, tmp_path)
-    assert "旧ルールの保存記録" in out and "計算し直しません" in out
-    assert "保有（最大6）" in out and "−50.0%" in out
+    assert "−50.0%" in out
     assert (tmp_path / tr.LEDGER).read_bytes() == before
     assert tr.display_ledger(led, tmp_path)["portfolio"] == old
 
@@ -267,8 +266,7 @@ def test_six_existing_positions_are_preserved_without_liquidation():
     assert led['allocation_transition']['method'] == 'separate-forward-series'
 
 
-def test_legacy_tqqq_comparison_retains_six_name_sizing_and_never_saves(tmp_path):
-    f = frame({'AAA': [(100, 99.9, 110)]})
+def test_display_never_rebuilds_or_adds_comparison_series(tmp_path):
     led = tr.new_ledger()
     led['start'], led['sessions'] = S, sessions(['AAA'])
     old = tp.new_portfolio(S, legacy_tqqq=True)
@@ -277,18 +275,9 @@ def test_legacy_tqqq_comparison_retains_six_name_sizing_and_never_saves(tmp_path
     led['portfolio'] = old
     tr.save(led, tmp_path / tr.LEDGER)
     before = (tmp_path / tr.LEDGER).read_bytes()
-    (tmp_path / 'work').mkdir()
-    f.assign(volume=1e6).to_csv(tmp_path / 'work/ohlcv.csv', index=False)
-    (tmp_path / 'latest-manifest.json').write_text(json.dumps({'session_date': D[30]}))
-    (tmp_path / 'work/market-inputs-cache.json').write_text(json.dumps(
-        {'series': {'QQQ': [{'date': d, **v} for d, v in qqq(31).items()]}}))
-    write_fund(tmp_path, 31)
     shown = tr.display_ledger(led, tmp_path)
     assert shown['_pending'] and shown['portfolio'] == old
-    comparison = shown['_legacy_tqqq']
-    assert comparison['max_names'] == 6
-    assert abs(comparison['positions']['AAA']['invested'] - 1 / 6) < 1e-12
-    assert '従来表示・参考' in tr.history_html(shown)
+    assert '_legacy_tqqq' not in shown and '_legacy_snapshot' not in shown
     assert (tmp_path / tr.LEDGER).read_bytes() == before
 
 
@@ -305,14 +294,11 @@ def test_new_series_labels_use_current_start_not_legacy_start():
     led['portfolio'] = tp.new_portfolio(S)
     block = tr.rules_block(led)
     assert S in block and '2026-10-05' not in block
-    assert '（1営業日分）' in tr.tab_html(led, [])
 
 
-def test_published_legacy_snapshot_available_without_cached_prices():
+def test_published_record_shows_one_current_series_and_old_rules_folded():
     root = Path(__file__).resolve().parents[1]
     led = tr.display_ledger(tr.load(root / tr.LEDGER), root)
-    snapshot = led['_legacy_snapshot']
-    assert snapshot['source_commit'] == '9f7aabcd5499e523949e8da7aadb21fa53804ba8'
-    assert snapshot['through'] == '2026-10-08'
-    assert '−3.6%' in snapshot['html'] and '保有（最大6）' in snapshot['html']
-    assert '公開時点表示（保存）' in tr.history_html(led)
+    html = tr.tab_html(led, [])
+    assert html.count('<div class="tr-grid">') == 3          # current model, old record, per-signal stats
+    assert '旧ルールの記録（参考）' in html and 'SHA-256' not in html and '入力コミット' not in html

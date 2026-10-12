@@ -117,7 +117,7 @@ def test_top_card_states_total_asset_shares(tmp_path: Path):
     out = tq.apply_top(page, led, 50, stock=0.6, session="2026-10-07")
     assert out.index(tq.CARD_ID) < out.index("<nav") and out.count(f'id="{tq.CARD_ID}"') == 1
     # idle 40% x sleeve 50% = 20%: TQQQ 75% of it = 15%, gold 5%, cash 20%
-    assert "保有モデルの個別株比率を使った資産全体の目標配分（翌営業日）" in out
+    assert "資産全体の目標配分（翌営業日）" in out
     for name, v in (("個別株", "60%"), ("TQQQ", "15%"), ("金", "5%"), ("現金・短期国債", "20%")):
         assert f"{name} <b>{v}</b>" in out, name
     assert "平時" in out and "判定のまま" not in out
@@ -160,19 +160,16 @@ def test_legacy_inventory_is_read_only_and_explicitly_historical(tmp_path):
     assert state['inherited'] and state['sleeve'] == 'QQQ'
     assert abs(state['stock'] + state['cash'] + state['sleeve_share'] - 1) < 1e-12
     text = tq.card_html('2026-10-08', {'target': .25}, 50, top=True, stock=state['stock'], holdings=state)
-    assert 'QQQ 8.5%' in text and '現金 24.5%' in text
     assert 'TQQQ <b>4.1%</b>' in text and '現金・短期国債 <b>28.9%</b>' in text
-    assert 'data-stock-asof="2026-10-08"' in text and '旧ルールの保存保有記録（比較用）' in text
-    assert '旧配分から引き継ぎ' not in text and '20%ずつに買い直していません' not in text
-    assert '記録開始待ち' not in text and '保有モデルの個別株比率を使った資産全体の目標配分（翌営業日）' in text
+    assert '個別株 <b>67%</b>（ルール運用の今の保有1銘柄）' in text
+    assert '資産全体の目標配分（翌営業日）' in text and 'SHA' not in text
     assert (tmp_path / tr.LEDGER).read_bytes() == before
 
 
 def test_pending_stock_share_shows_idle_money_target_and_explicit_wait():
     rec = {'target': .25, 'gold': 0, 'trend': True}
     out = tq.card_html('2026-10-08', rec, 50, top=True, stock=None)
-    assert '新ルールで再計算した保有モデルを確認できない' in out
-    assert '最大5銘柄・初回20%' in out and '旧ルールの保有比率は使いません' in out
+    assert '資産全体の比率は下の表で' in out
     assert 'TQQQ <b>12.5%</b>' in out
     assert '現金・短期国債 <b>87.5%</b>' in out
     assert '資産全体の配分（今日の目標）' not in out
@@ -214,21 +211,10 @@ def test_primary_model_preferred_over_old_holdings_with_reconstruction_provenanc
     assert abs(tq.stock_share(tmp_path) - .808403) < 1e-12
 
     text = tq.card_html('2026-10-08', {'target': .25}, 50, top=True, stock=state['stock'], holdings=state)
-    assert '新ルールで再計算した保有モデル：2026-10-08終値時点' in text
-    assert '最大5銘柄・初回は総資産の20%' in text
-    assert '個別株 <b>80.8%</b>' in text and '現金 19.2%' in text
-    assert 'TQQQルール枠（NAV） 0.0%' in text
+    assert '個別株 <b>80.8%</b>（ルール運用の今の保有4銘柄）' in text
     assert 'TQQQ <b>2.4%</b>' in text and '現金・短期国債 <b>16.8%</b>' in text
     assert 'width:80.84%' in text  # stock weight is not rounded before residual target math
-    assert '目標配分（翌営業日）' in text and '同日の保有内訳とは別' in text
-    assert '修正後のチャートOHLCV価格' in text and '修正後のチャート価格を使用' in text
-    assert '旧台帳は比較用の履歴としてそのまま保存' in text
-    assert '実取引の過去実績ではありません' in text
-    assert 'data-stock-source="modeled_portfolio"' in text
-    assert 'data-reconstruction-kind="chart-ohlcv-backcast"' in text
-    assert 'data-reconstruction-asof="2026-10-08"' in text
-    assert 'data-reconstruction-generated-at="2026-10-09T06:50:00Z"' in text
-    assert 'data-reconstruction-input-commit="abc123"' in text
+    assert '目標配分（翌営業日）' in text and 'abc123' not in text
     assert '旧配分から引き継ぎ' not in text and '20%ずつに買い直していません' not in text
     assert (tmp_path / tr.LEDGER).read_bytes() == before
 
@@ -243,3 +229,20 @@ def test_reconstruction_labels_escape_price_note_and_source_metadata():
     assert '<script>unsafe</script>' not in text
     assert '&lt;script&gt;unsafe&lt;/script&gt;' in text
     assert 'data-reconstruction-input-commit="&quot;quoted&quot;"' in text
+
+
+def test_fully_invested_model_says_there_is_no_idle_money():
+    out = tq.card_html('2026-10-09', {'target': .25, 'gold': 0, 'trend': True}, 50, top=True, stock=1.0,
+                       holdings={'positions': [1, 2, 3, 4, 5]})
+    assert '今は余剰資金がありません' in out and '以外の <b>0%</b>' not in out
+    assert '個別株 <b>100%</b>' in out
+
+
+def test_card_dates_older_holdings_and_flags_stale_prices():
+    hold = {'as_of': '2026-10-08', 'positions': [{'ticker': 'A', 'share': .5, 'stale': True},
+                                                  {'ticker': 'B', 'share': .3, 'stale': False}]}
+    out = tq.card_html('2026-10-09', {'target': .25, 'gold': 0, 'trend': True}, 50, top=True, stock=.8, holdings=hold)
+    assert 'ルール運用の10/08時点の保有2銘柄' in out and 'うち1銘柄は最新の株価が取れず' in out
+    cur = tq.card_html('2026-10-08', {'target': .25, 'gold': 0, 'trend': True}, 50, top=True, stock=.8,
+                       holdings={**hold, 'positions': [{'ticker': 'B', 'share': .8, 'stale': False}]})
+    assert 'ルール運用の今の保有1銘柄' in cur and '最新の株価' not in cur

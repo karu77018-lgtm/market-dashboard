@@ -130,9 +130,7 @@ def test_inside_structure_is_listed_first():
     assert "初回のリスクは総資産の1.6%" in html
     assert "同時3銘柄（通常スイングとの合計最大8）" in html
     assert "通常スイングの5枠に含める" in html
-    assert "現行5銘柄の成績ではありません" in html
-    assert "旧6銘柄ルール" in html
-    assert "年率55.1%" in html and "年率57.0%" not in html
+    assert "年率57.0%" in html and "年率55.1%" not in html and "旧6銘柄ルールの" not in html
     assert "約1/6" not in html and "16.7%" not in html
     assert 'data-rule="swing-v4-max5-tqqq-sleeve"' in html
 
