@@ -227,6 +227,25 @@ def substitute_badge(text: str, manifest_path: Path) -> str:
     return text.replace(anchor, badge + anchor, 1) if anchor in text else text
 
 
+def provisional_badge(text: str, manifest_path: Path) -> str:
+    """Mark a provisional (Yahoo) morning publication until the Massive retry confirms it."""
+    try:
+        status = json.loads(manifest_path.read_text(encoding="utf-8")).get("provider_status") or {}
+    except Exception:
+        return text
+    if status.get("publication_state") != "provisional" or 'id="mc57-provisional"' in text:
+        return text
+    short = int(status.get("universe_shortfall") or 0)
+    target = status.get("universe_target")
+    detail = (f"・銘柄{int(target) - short:,}/{int(target):,}" if short and target else "")
+    badge = ('<span id="mc57-provisional" title="当日分はYahooの速報値。日本時間の午後にMassiveの確定値で上書きします"'
+             ' style="margin-left:8px;padding:1px 6px;border-radius:6px;font-size:11px;font-weight:700;'
+             'background:#eef4ff;color:#1f4fa8;border:1px solid #9db8e8">'
+             f'速報（午後に確定）{detail}</span>')
+    anchor = '</div></header>'
+    return text.replace(anchor, badge + anchor, 1) if anchor in text else text
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--html", default="source-mc57.html")
@@ -336,6 +355,7 @@ def main() -> int:
     import legacy_archive
     text = legacy_archive.run(text, html_path.resolve().parent)  # NQ signal / SOXL cards -> アーカイブ
     text = substitute_badge(text, html_path.resolve().parent / "latest-manifest.json")
+    text = provisional_badge(text, html_path.resolve().parent / "latest-manifest.json")
     import naming
     text = naming.apply(text)  # reader-facing names (MC57 -> マーケットパルス etc.), text only
     import design_system

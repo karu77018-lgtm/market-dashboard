@@ -263,6 +263,29 @@ def prior_universe_tickers(root: Path, ohlcv_path: Path) -> list[str]:
     raise ProviderError("Yahoo fallback cannot recover the prior universe ticker list")
 
 
+# A provisional (Yahoo) morning publication may be this many names short of the
+# prior universe when no eligible replacement exists; the Massive retry confirms it.
+FALLBACK_MAX_SHORTFALL_PCT = 0.005
+
+
+def fallback_max_shortfall(count: int) -> int:
+    return max(1, int(count * FALLBACK_MAX_SHORTFALL_PCT))
+
+
+def held_tickers(root: Path) -> list[str]:
+    """Names held by the published swing model; the fallback never drops these."""
+    try:
+        ledger = json.loads((root / "track-record" / "signals.json").read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    held: set[str] = set()
+    for key in ("modeled_portfolio", "portfolio"):
+        positions = (ledger.get(key) or {}).get("positions") or {}
+        if isinstance(positions, dict):
+            held.update(str(t).upper() for t in positions)
+    return sorted(held)
+
+
 def prior_universe_count(root: Path, tickers: list[str]) -> int:
     try:
         manifest = json.loads((root / "latest-manifest.json").read_text(encoding="utf-8"))
@@ -619,8 +642,13 @@ def main() -> int:
         frozen_count = prior_universe_count(root, prior_tickers)
         universe, expansion_stats = select_preserved_count_fallback_universe(
             broad_universe, reference, grouped, preserved_tickers=prior_tickers,
-            target_count=frozen_count,
+            target_count=frozen_count, max_shortfall=fallback_max_shortfall(frozen_count),
+            required_tickers=held_tickers(root),
         )
+        if expansion_stats.get("fallback_shortfall"):
+            print(f"Provisional universe {expansion_stats['active_universe']}/{frozen_count}"
+                  f" (no eligible replacement); out today: "
+                  + ", ".join(expansion_stats.get("fallback_dropped_prior") or []), flush=True)
     else:
         universe, expansion_stats = select_expanded_universe(
             broad_universe, reference, grouped, target_session=target,
@@ -726,6 +754,8 @@ def main() -> int:
                          "adopted_universe_count": len(tickers),
                          "current_session_provider": "Yahoo Finance" if yahoo_fallback else "Massive",
                          "yahoo_substitute": dict(SUBSTITUTE) or None,
+                         "universe_shortfall": int(expansion_stats.get("fallback_shortfall") or 0),
+                         "universe_target": expansion_stats.get("fallback_target_count"),
                      },
                      "universe_expansion": {
                          "legacy": expansion_stats["legacy_universe"],
