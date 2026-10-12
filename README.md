@@ -70,57 +70,23 @@ The audited frozen runtime and seed inputs are restored from
 `FRED_API_KEY`, `MASSIVE_API_KEY` (legacy `POLYGON_API_KEY` accepted) and existing
 Drive/Jev credentials. No credentials are embedded in published outputs.
 
-## Normal-swing allocation and reconstructed holdings (2026-10-09)
+## Normal-swing allocation and the 成績 tab (2026-10-12)
 
-The constants in `scripts/swing_allocation.py` define the current five-name,
-20%-of-total-equity initial target (`swing-v4-max5-tqqq-sleeve`). Available funds
-and the unchanged 40% per-name add cap can limit fills. The residual TQQQ-rule
-sleeve keeps its 50%/100% allocation; signal selection, adds, stops, exits and the
-separate three-name theme sleeve are unchanged.
+`scripts/swing_allocation.py` defines the current allocation: at most six names,
+first buy 1/6 of total equity (`swing-v5-max6-tqqq-sleeve`). The 5 x 20% rule used
+from 2026-10-09 was withdrawn: it rested on a backtest that bought at the
+signal-day close, while a 本命 is published after the close and can only be
+bought at the next open. With next-open fills (the production engine,
+`track_portfolio.step`, fed with the research signals) 6 x 1/6 is as good or better
+in both halves of 2015-2026.
 
-### Primary current holding model
+`scripts/backtest_summary.py` is the single source of the backtest figures on the
+Rules and 成績 tabs (next-open fills, HY OAS with its publication lag): the current
+rule 53.4% a year, max DD -36.3% (2015-01 .. 2026-08), plus the alternatives
+(idle-cash share, TQQQ-rule variants, position size).
 
-`track_portfolio.current_portfolio` prefers the saved `modeled_portfolio`.
-This model reconstructs holdings from the original frozen October 5 signals,
-uniformly applying five slots and initial 20% sizing from the start, using the
-existing next-session-open execution convention. It uses the revised chart
-OHLCV prices available when reconstruction was generated. It is a retrospective
-holding model, not realized account history or an independently verified
-historical-performance claim. It does not retain inherited one-sixth positions
-as the primary current holdings.
-
-The reconstruction is saved once through October 8, 2026 and continued forward
-from that saved state by normal daily updates. Later sessions do not silently
-replay or reprice its prior marks. Its `reconstruction` metadata records
-`kind=chart-ohlcv-backcast`, `as_of`, UTC `generated_at`, `input_commit`, an
-`inputs` map of source hashes, and a `price_note`. The original frozen signal
-records and previous saved ledger remain unchanged history. Revised chart
-prices are explicitly disclosed so the reconstructed holdings are not mistaken
-for the prices previously recorded in that historical ledger.
-
-### Holding inventory versus next-session targets
-
-The top card labels the primary view as 「新ルールで再計算した保有モデル」 and gives
-its valuation date, five-name limit, and initial 20%-of-total-equity rule. Expand
-the holding breakdown for individual weights, synthetic TQQQ-rule sleeve NAV,
-cash, and price provenance. The October 8 reconstructed inventory is approximately
-80.8403% stocks and 19.1597% cash, with essentially no sleeve remaining after
-stock purchases. These are marked model holdings, not today's candidate count
-multiplied by 20% and not actual brokerage positions.
-
-The stock/TQQQ/gold/cash bar is separately labelled as a next-session
-residual-allocation target. It uses the model's unrounded stock weight with the
-unchanged residual-sleeve rule, so its TQQQ and cash target weights can differ
-from the saved October 8 inventory. Future model marks can change those weights.
-
-### Historical comparisons
-
-The original saved QQQ ledger and old six-name research keep their original
-values and are clearly labelled historical. The prior published six-name/TQQQ
-display is also retained verbatim in
-`track-record/legacy-v3.1-tqqq-display.json`, identified by its source commit and
-page SHA256. A six-name TQQQ reconstruction is only an additional comparison
-when the original saved price and NAV inputs exist; display never saves it.
-Any independent forward comparison remains separate from the primary
-reconstructed model. Neither a comparison nor the retrospective model is a
-claim that the five-name allocation was traded historically in a real account.
+`track-record/signals.json` keeps one current model (`modeled_portfolio`): the
+frozen 本命 since 2026-10-05 replayed under the current rule with the published
+chart OHLC through 2026-10-09, then advanced by the daily refresh. Earlier models
+(the QQQ-sleeve ledger and the 5 x 20% model) stay unchanged in
+`portfolio_history` / `portfolio` and are shown folded as 旧ルールの記録.

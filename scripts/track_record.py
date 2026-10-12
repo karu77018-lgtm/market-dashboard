@@ -46,7 +46,7 @@ import pandas as pd
 
 import track_portfolio as tp
 import tqqq_rule
-from swing_allocation import RULE_ID, MAX_NAMES, EFFECTIVE_DATE
+from swing_allocation import RULE_ID, MAX_NAMES, EFFECTIVE_DATE, INITIAL_LABEL
 
 LEDGER = Path("track-record/signals.json")
 SCHEMA = "mc57-track-record.2"
@@ -319,6 +319,13 @@ STYLE = ('<style id="track-record-style">'
          f'#{TAB_ID} .tr-range{{flex-basis:100%}}'
          f'#{TAB_ID} .tr-pf table{{min-width:0;font-size:11.5px}}#{TAB_ID} .tr-pf td,#{TAB_ID} .tr-pf th{{padding:5px 4px}}'
          f'#{TAB_ID} .tr-more{{margin-top:12px}}#{TAB_ID} .tr-more summary{{font-size:12.5px;font-weight:700;cursor:pointer}}'
+         f'#{TAB_ID} .tr-sec{{font-size:14px;font-weight:800;margin:18px 0 4px;padding-top:10px;border-top:1px solid #e0ddd5;color:#1b1a18}}'
+         f'#{TAB_ID} .tr-bt{{width:100%;height:auto;display:block;margin-top:6px}}'
+         f'#{TAB_ID} .tr-alt table{{min-width:0;font-size:11.5px}}#{TAB_ID} .tr-alt td,#{TAB_ID} .tr-alt th{{padding:5px 4px}}'
+         f'#{TAB_ID} .tr-alt td:first-child{{white-space:normal;text-align:left;max-width:52vw}}'
+         f'#{TAB_ID} .tr-alt tr.cur td{{font-weight:800;background:rgba(34,197,94,.10)}}'
+         f'#{TAB_ID} .tr-alt tr.grp td{{font-size:10.5px;color:#706e64;font-weight:700;background:#f2f1ee;text-align:left}}'
+         f'#{TAB_ID} ul.tr-why{{margin:6px 0 0 18px;padding:0;font-size:12px;line-height:1.65;color:#3d3a32}}'
          f'#{TAB_ID} .tr-warn{{font-size:11.5px;background:#f6e3dc;color:#8a2f1d;border:1px solid #e3b4a3;border-radius:8px;padding:6px 9px;margin:6px 0}}'
          f'body:has(#{TAB_ID}:target) nav a.tabx{{background:#ebeae5;color:#5a5850;border-color:#575342}}'
          f'body:has(#{TAB_ID}:target) nav a[href="#{TAB_ID}"]{{background:#3774d3;color:#f1f0ef;border-color:#eef3fb}}'
@@ -501,9 +508,10 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
     return (
         f'<section id="{TAB_ID}"><div class="card" id="track-record-card" data-rule="{RULE_ID}">'
         '<div class="chd"><h2>運用成績（ルールどおりの売買）<span class="h2en">Track Record</span></h2></div>'
-        f'<div class="sub">毎日公開した本命を、Rulesタブの資金管理（最大{tp.MAX_NAMES}銘柄・初回{tp.INITIAL_WEIGHT:.0%}・+10%と+20%で同額買い増し・'
+        f'<div class="sub">毎日公開した本命を、Rulesタブの資金管理（最大{tp.MAX_NAMES}銘柄・初回{INITIAL_LABEL}・+10%と+20%で同額買い増し・'
         '1銘柄40%まで・余剰資金はTQQQルール枠）で売買した場合のモデル記録。実口座ではありません。</div>'
-        + warn + current_inventory_html(ledger) + history_html(ledger)
+        + warn + '<div class="tr-sec" style="border-top:0;padding-top:0;margin-top:10px">ルール運用の記録（公開後）</div>'
+        + current_inventory_html(ledger) + backtest_html() + history_html(ledger)
         + '<details class="tr-more"><summary>本命1件ごとのシグナル成績</summary>'
         f'<div class="tr-grid">{grid}</div>'
         '<div class="tr-wrap"><table><tr><th>銘柄</th><th>本命の日</th><th>買値（翌始値）</th><th>現在/売値</th>'
@@ -521,6 +529,67 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
         'あとで再計算して本命が変わった日は＊印（成績は最初の公開内容で計算）。手数料・スリッページ・税金・テーマ枠は含みません。<br/>'
         '過去の成績は将来の成績を保証しません。売買の推奨ではなく、ルールの検証記録です。</div>'
         '</div></section>'
+    )
+
+
+def _n(v: float) -> str:
+    return f"{v:.1f}%".replace("-", "−")
+
+
+def backtest_html() -> str:
+    """Realistic backtest (next-open fills) of the current rule and its alternatives."""
+    import backtest_summary as bt
+    import math
+    cur = bt.CURRENT
+    cur_cls = ' class="cur"'
+    totals = "".join(f'<tr{cur_cls if "現行" in k else ""}><td>{e_(k)}</td><td>{_n(c)}</td><td>{_n(d)}</td><td>{m}倍</td></tr>'
+                     for k, c, d, m in bt.TOTALS)
+    # log-scale chart of month-end equity
+    W, H, L, R, T, B = 680, 250, 34, 8, 10, 22
+    pts = bt.CURVE
+    vmax = max(max(r[1:]) for r in pts)
+    ly = lambda v: T + (H - T - B) * (1 - math.log10(v) / math.log10(vmax))
+    lx = lambda i: L + (W - L - R) * i / (len(pts) - 1)
+    series = [(1, "#18813d", "TQQQ枠（現行）", 2.4), (2, "#3774d3", "QQQ枠", 1.6), (3, "#9a978c", "個別株だけ", 1.6),
+              (4, "#c9c5b9", "QQQ（持ちっぱなし）", 1.4)]
+    grid = "".join(f'<line x1="{L}" x2="{W - R}" y1="{ly(g):.1f}" y2="{ly(g):.1f}" stroke="#e6e3dc"/>'
+                   f'<text x="{L - 4}" y="{ly(g) + 4:.1f}" font-size="11" fill="#8a877c" text-anchor="end">{g:g}</text>'
+                   for g in (1, 10, 100) if g <= vmax)
+    years = "".join(f'<text x="{lx(i):.1f}" y="{H - 6}" font-size="11" fill="#8a877c" text-anchor="middle">{d[2:4]}</text>'
+                    for i, (d, *_) in enumerate(pts) if d.endswith("-12") and int(d[:4]) % 2 == 0)
+    lines = "".join(f'<polyline fill="none" stroke="{c}" stroke-width="{w}" points="'
+                    + " ".join(f"{lx(i):.1f},{ly(r[k]):.1f}" for i, r in enumerate(pts)) + '"/>'
+                    for k, c, _, w in reversed(series))
+    legend = "".join(f'<span style="color:{c}">━ {e_(n)}</span>' for _, c, n, _ in series)
+    chart = (f'<svg class="tr-bt" viewBox="0 0 {W} {H}" role="img" aria-label="過去検証の資産推移（対数目盛）">'
+             f'{grid}{years}{lines}</svg><div class="tr-legend">{legend}<span class="tr-range">月末の資産（開始=1・対数目盛）</span></div>')
+    alt_rows, last = "", None
+    for g, k, c, d, h1, h2 in bt.ALTERNATIVES:
+        if g != last and g != "現行":
+            alt_rows += f'<tr class="grp"><td colspan="5">{e_(g)}</td></tr>'
+        last = g
+        alt_rows += (f'<tr{cur_cls if g == "現行" else ""}><td>{e_(k)}</td><td>{_n(c)}</td><td>{_n(d)}</td>'
+                     f'<td>{_n(h1)}</td><td>{_n(h2)}</td></tr>')
+    why = [
+        "<b>1銘柄の大きさ</b>：6銘柄×1/6に戻した。5銘柄×20%は「本命の日の終値で買える」前提でだけ上で、実際に買える翌日の寄りでは前半・後半とも下回った。8銘柄×12.5%はほぼ同じ（後半が弱い）",
+        "<b>余剰資金の置き先</b>：TQQQルール枠が年率でQQQより約14pt上。最大DDの差は2pt",
+        "<b>枠外の現金</b>：DDを浅くする役。枠を増やすほど年率は上がるがDDも深くなる（現金なしで−45.6%）。"
+        "許容DD−30%に近づけたいなら「個別株は資産の60%まで」（年率−1.2pt・最大DD−29.9%、ただし最悪の年は−18%と深くなる）",
+        "<b>TQQQルールの中身</b>：①早期再エントリーと金はわずかにプラスなので残す。HY上限はこの期間だと年率を約3pt下げるが、"
+        "ITバブル・金融危機を含む2000〜12年ではTQQQ単体の年率を+2.2pt・最大DDを−62%→−56%に改善するので、危機の保険として残す",
+    ]
+    return (
+        f'<div class="tr-sec">過去検証（{bt.PERIOD}・翌営業日の寄りで売買）</div>'
+        f'<div class="tr-note" style="margin-top:2px">サイトの記録と同じ計算（本命は翌営業日の寄りで買い、21EMA割れ・買い増しも翌寄り）に、'
+        '過去の本命を流した結果。現存銘柄のみ・手数料と税金なし。</div>'
+        '<div class="tr-wrap tr-alt"><table><tr><th>余剰資金の置き先</th><th>年率</th><th>最大DD</th><th>約11.7年</th></tr>'
+        f'{totals}</table></div>{chart}'
+        f'<div class="tr-note">現行は2015〜20年が年率{_n(cur["h1"])}、2021〜26年が{_n(cur["h2"])}。負けた年は2022年（{_n(cur["worst_year"][1])}）。'
+        f'最大DDは{_n(cur["dd"])}で、許容の−30%を超える。年ごとの数字はRulesタブ「成績（単年）」。</div>'
+        '<div class="tr-sec">設定の比較（なぜ今の設定か）</div>'
+        '<div class="tr-wrap tr-alt"><table><tr><th>設定</th><th>年率</th><th>最大DD</th><th>15〜20年</th><th>21〜26年</th></tr>'
+        f'{alt_rows}</table></div>'
+        '<ul class="tr-why">' + "".join(f"<li>{x}</li>" for x in why) + '</ul>'
     )
 
 
@@ -606,7 +675,7 @@ def rules_block(ledger: dict | None, error: str | None = None) -> str:
                         f'<td class="n">{_p(a - b) if b is not None else "—"}</td></tr>' for m, a, b in reversed(months))
         mtable = ('<table class="rtb"><tr><th>月</th><th>ルール運用</th><th>QQQ</th><th>差</th></tr>' + mrows + '</table>')
     return (head + summary + mtable
-            + '<div class="rnote">毎日公開した本命を、このルールどおり（最大5銘柄・20%・+10%と+20%で同額買い増し・40%上限・'
+            + f'<div class="rnote">毎日公開した本命を、このルールどおり（最大{MAX_NAMES}銘柄・初回{INITIAL_LABEL}・+10%と+20%で同額買い増し・40%上限・'
             f'余剰資金はTQQQルール枠）に売買した場合。約定は翌営業日の始値、手数料・税金なし。下の「成績（単年）」は過去データでの検証。詳細は{link}。</div></div>')
 
 

@@ -145,7 +145,7 @@ def card_html(res: dict) -> str:
 
     def item(r: dict) -> str:
         cls = "pw-up" if r["chg"] >= 0 else "pw-dn"
-        chips = ('<span class="pw-c ok">形OK・本日の終値で候補</span>' if r["ready"] else
+        chips = ('<span class="pw-c ok">形OK（翌営業日の寄りで候補）</span>' if r["ready"] else
                  "".join(f'<span class="pw-c need">{e(m)}待ち</span>' for m in r["missing"]))
         chips += (f'<span class="pw-c">RS {r["rs21"]}/{r["rs63"]}/{r["rs189"]}</span>'
                   f'<span class="pw-c">安値から{r["uplow"]:.1f}倍</span>'

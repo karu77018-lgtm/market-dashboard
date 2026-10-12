@@ -408,7 +408,7 @@ EXAMPLES = (0.0, 0.25, 0.5, 0.75)
 def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, top: bool = False,
               stock: float | None = None, session: str | None = None,
               holdings: dict | None = None) -> str:
-    from swing_allocation import MAX_NAMES, INITIAL_WEIGHT
+    from swing_allocation import MAX_NAMES, INITIAL_WEIGHT, INITIAL_LABEL
     cid = CARD_ID if top else CARD_ID + "-mini"
     e = html.escape
     if not rec:
@@ -545,7 +545,7 @@ def holding_state(root: Path) -> dict | None:
 
 def holdings_html(state: dict) -> str:
     """Keep the dated model inventory distinct from next-session sleeve targets."""
-    from swing_allocation import MAX_NAMES, INITIAL_WEIGHT
+    from swing_allocation import MAX_NAMES, INITIAL_WEIGHT, INITIAL_LABEL
     e = html.escape
     holdings = "・".join(f'{e(p["ticker"])} {p["share"]:.1%}' + ("（最終価格）" if p["stale"] else "")
                          for p in state["positions"])
@@ -560,7 +560,7 @@ def holdings_html(state: dict) -> str:
     provenance = ""
     if reconstructed:
         provenance = (f'再計算基準日：{e(reconstruction.get("as_of", state["as_of"]))}。'
-                      f'10月5日からの保存済みシグナルに最大{MAX_NAMES}銘柄・初回{INITIAL_WEIGHT:.0%}を一貫適用し、修正後のチャートOHLCV価格で再計算したモデルです。'
+                      f'10月5日からの保存済みシグナルに最大{MAX_NAMES}銘柄・初回{INITIAL_LABEL}を一貫適用し、修正後のチャートOHLCV価格で再計算したモデルです。'
                       '実取引の過去実績ではありません。旧台帳は比較用の履歴としてそのまま保存しています。')
         if reconstruction.get("price_note"):
             provenance += f'価格注記：{e(str(reconstruction["price_note"]).rstrip("。"))}。'
@@ -568,7 +568,7 @@ def holdings_html(state: dict) -> str:
         provenance = '旧ルールで保存された比較用の履歴です。新ルールの再計算モデルとは別です。'
     return (f'<div class="tqr-sub" data-stock-allocation="recorded" data-stock-asof="{e(state["as_of"])}"{attrs}>'
             f'<b>{e(label)}：{e(state["as_of"])}終値時点</b>。個別株 <b>{state["stock"]:.1%}</b>'
-            f'（{len(state["positions"])}銘柄）。通常スイングは最大{MAX_NAMES}銘柄・初回は総資産の{INITIAL_WEIGHT:.0%}。'
+            f'（{len(state["positions"])}銘柄）。通常スイングは最大{MAX_NAMES}銘柄・初回は総資産の{INITIAL_LABEL}。'
             + '<details class="tqr-more"><summary>保有内訳（モデル記録・実口座ではありません）</summary>'
             f'<div class="tqr-sub">{holdings or "個別株なし"}<br/>'
             f'{e(state["sleeve"])} {state["sleeve_share"]:.1%}・現金 {state["cash"]:.1%}。'

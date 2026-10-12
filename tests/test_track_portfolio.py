@@ -12,7 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import track_portfolio as tp  # noqa: E402
 import track_record as tr  # noqa: E402
 
-D = [d.date().isoformat() for d in pd.bdate_range(end="2026-10-09", periods=30).append(pd.bdate_range("2026-10-12", periods=30))]
+D = [d.date().isoformat() for d in pd.bdate_range(end="2026-10-12", periods=30).append(pd.bdate_range("2026-10-13", periods=30))]
+W, N = tp.INITIAL_WEIGHT, tp.MAX_NAMES
 S = D[29]                       # signal session; history before it is flat at 100
 
 
@@ -51,23 +52,23 @@ def run(names, paths, n_days, **kw):
                       frame(paths), q, D[29 + n_days], fund=q)   # sleeve NAV priced like QQQ
 
 
-def test_entry_next_open_twenty_percent_and_idle_money_in_qqq():
+def test_entry_next_open_first_weight_and_idle_money_in_qqq():
     pf = run(["AAA"], {"AAA": [(100, 99.9, 110)]}, 1)
     p = pf["positions"]["AAA"]
-    assert p["entry_day"] == D[30] and p["entry"] == 100 and abs(p["invested"] - 0.20) < 1e-12
-    idle = 1 - 0.20
+    assert p["entry_day"] == D[30] and p["entry"] == 100 and abs(p["invested"] - W) < 1e-12
+    idle = 1 - W
     assert abs(pf["qqq_sh"] * 100 - idle / 2) < 1e-12 and abs(pf["cash"] - idle / 2) < 1e-12
-    assert abs(pf["equity"][-1][1] - (1 + (0.20) * 0.10)) < 1e-12       # AAA +10%, QQQ flat
+    assert abs(pf["equity"][-1][1] - (1 + W * 0.10)) < 1e-12       # AAA +10%, QQQ flat
     assert p["triggered"] == [0] and p["pending_add"] == 1
 
 
-def test_five_slots_ranked_by_189_day_return():
-    names = [f"T{k}" for k in range(6)]
-    r189 = {t: k / 10 for k, t in enumerate(names)}                        # T5 strongest, T0 weakest
+def test_slots_ranked_by_189_day_return():
+    names = [f"T{k}" for k in range(N + 1)]
+    r189 = {t: k / 10 for k, t in enumerate(names)}                        # strongest last, T0 weakest
     pf = run(names, {t: [(100, 99.9, 100)] for t in names}, 1, r189=r189)
-    assert set(pf["positions"]) == {f"T{k}" for k in range(1, 6)}
-    assert pf["skipped"] == [{"t": "T0", "signal": S, "day": D[30], "why": "5銘柄で満杯"}]
-    assert abs(pf["cash"] + pf["qqq_sh"] * 100) < 1e-12                   # 5 x 20% = fully invested
+    assert set(pf["positions"]) == {f"T{k}" for k in range(1, N + 1)}
+    assert pf["skipped"] == [{"t": "T0", "signal": S, "day": D[30], "why": f"{N}銘柄で満杯"}]
+    assert abs(pf["cash"] + pf["qqq_sh"] * 100) < 1e-9                    # N x W = fully invested
 
 
 def test_regime_off_buys_nothing_and_unknown_pct_keeps_last():
@@ -79,17 +80,16 @@ def test_same_amount_adds_never_exceed_forty_percent():
     up = [(100, 99.9, 110), (111, 110.5, 125), (126, 125, 160), (160, 159, 170)]
     pf = run(["AAA"], {"AAA": up}, 4, pct=0)
     p = pf["positions"]["AAA"]
-    assert p["adds"] == 1
-    first_add = min(0.20, 0.40 * (0.80 + 0.20 / 100 * 111) - 0.20 / 100 * 111)
-    first = 0.20 / 100 + first_add / 111                                 # full same-amount add at 111
-    eq_open = (0.80 - first_add) + first * 126
-    second = max(0, min(0.20, 0.40 * eq_open - first * 126))                      # the 40% cap binds at 126
-    assert second < 0.20 and abs(p["shares"] - (first + second / 126)) < 1e-12
+    first = W / 100 + W / 111                                            # same-amount add at 111 (below 40%)
+    eq_open = (1 - 2 * W) + first * 126
+    second = max(0, min(W, 0.40 * eq_open - first * 126))                # the 40% cap binds at 126
+    assert p["adds"] == 2 and second < W and abs(p["shares"] - (first + second / 126)) < 1e-12
     big = run(["AAA"], {"AAA": [(100, 99.9, 110), (300, 299, 300)]}, 2, pct=0)
     q = big["positions"]["AAA"]
-    eq_open = (1 - 0.20) + (0.20) / 100 * 300                            # cash + position at the open
-    room = 0.40 * eq_open - (0.20) / 100 * 300                            # < 1/6: only up to 40%
-    assert room < 0 and q["adds"] == 0 and q["invested"] == 0.20
+    eq_open = (1 - W) + W / 100 * 300                                    # cash + position at the open
+    room = 0.40 * eq_open - W / 100 * 300
+    assert room < W                                                      # only up to 40%, never a full add
+    assert abs(q["invested"] - (W + max(0.0, room))) < 1e-12 and q["adds"] == (1 if room > 0 else 0)
 
 
 def test_exits_gap_and_ema_break_next_open():
@@ -131,9 +131,9 @@ def test_waits_for_missing_sleeve_nav_and_sleeve_moves_with_the_fund():
     assert pf["last_day"] == D[30] and pf["waiting"] == D[31]
     fund[D[31]] = {"open": 100, "close": 120}         # sleeve +20% while QQQ is flat
     pf = tp.advance(pf, sessions(["AAA"]), f, q, D[31], fund=fund)
-    idle = 1 - 0.20
+    idle = 1 - W
     assert pf["last_day"] == D[31] and "waiting" not in pf
-    assert abs(pf["equity"][-1][1] - (0.20 + idle / 2 * 1.2 + idle / 2)) < 1e-12
+    assert abs(pf["equity"][-1][1] - (W + idle / 2 * 1.2 + idle / 2)) < 1e-12
     assert pf["equity"][-1][2] == 100                  # benchmark column stays QQQ
 
 
@@ -212,12 +212,12 @@ def test_rules_tab_shows_forward_record_above_backtest(tmp_path: Path):
     led["start"] = S
     out = tr.apply(out, led, [])
     assert out.count(f'id="{tr.RULES_BLOCK_ID}"') == 1 and "読めなかった" not in out
-    assert out.index(tr.RULES_BLOCK_ID) < out.index("成績（単年）")
+    assert out.index(tr.RULES_BLOCK_ID) < out.index('<div class="rh">成績（単年）</div>')
     paths = {"AAA": [(100, 99.9, 104), (105, 103, 111)]}
     led["sessions"] = sessions(["AAA"])
     led["portfolio"] = tp.advance(tp.new_portfolio(S), led["sessions"], frame(paths), qqq(32, 100), D[31], fund=qqq(32))
     out = tr.apply(out, led, [])
-    block = out[out.index(tr.RULES_BLOCK_ID):out.index("成績（単年）")]
+    block = out[out.index(tr.RULES_BLOCK_ID):out.index('<div class="rh">成績（単年）</div>')]
     assert "ルール運用" in block and "2026/10" in block and out.count(f'id="{tr.RULES_BLOCK_ID}"') == 1
     assert tr.apply(out, led, []) == out
     assert rules_tab.rule_problems(out, required=("rules-card",)) == []
@@ -281,10 +281,10 @@ def test_display_never_rebuilds_or_adds_comparison_series(tmp_path):
     assert (tmp_path / tr.LEDGER).read_bytes() == before
 
 
-def test_idle_hundred_percent_sleeve_unchanged_at_twenty_percent_stock():
+def test_idle_hundred_percent_sleeve_holds_all_idle_money():
     pf = run(['AAA'], {'AAA': [(100, 99.9, 100)]}, 1, pct=100)
-    assert abs(pf['positions']['AAA']['invested'] - 0.20) < 1e-12
-    assert abs(pf['qqq_sh'] * 100 - 0.80) < 1e-12 and abs(pf['cash']) < 1e-12
+    assert abs(pf['positions']['AAA']['invested'] - W) < 1e-12
+    assert abs(pf['qqq_sh'] * 100 - (1 - W)) < 1e-12 and abs(pf['cash']) < 1e-12
 
 
 def test_new_series_labels_use_current_start_not_legacy_start():
@@ -300,5 +300,6 @@ def test_published_record_shows_one_current_series_and_old_rules_folded():
     root = Path(__file__).resolve().parents[1]
     led = tr.display_ledger(tr.load(root / tr.LEDGER), root)
     html = tr.tab_html(led, [])
-    assert html.count('<div class="tr-grid">') == 3          # current model, old record, per-signal stats
+    assert html.count('<div class="tr-grid">') == 2 + len(led.get('portfolio_history', [])) + (1 if led.get('portfolio') else 0)
+    assert '過去検証（' in html and '設定の比較' in html and '翌営業日の寄りで売買' in html
     assert '旧ルールの記録（参考）' in html and 'SHA-256' not in html and '入力コミット' not in html

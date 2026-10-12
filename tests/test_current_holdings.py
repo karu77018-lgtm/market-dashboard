@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import track_portfolio as tp
 import track_record as tr
 
-D = [d.date().isoformat() for d in pd.bdate_range(end='2026-10-09', periods=34)]
+D = [d.date().isoformat() for d in pd.bdate_range(end=tp.EFFECTIVE_DATE, periods=34)]
 
 
 def inputs(names, gaps=()):
@@ -37,7 +37,7 @@ def test_six_carried_names_are_not_sold_or_resized_and_new_entry_waits():
     assert cur['positions'] == old['positions'] and cur['equity'] == old['equity']
     tp.advance(cur, {D[-2]: signal(['NEW'])}, inputs(names + ['NEW']), q, D[-1], fund=q)
     assert len(cur['positions']) == 6 and cur['closed'] == []
-    assert cur['skipped'][-1]['why'] == '5銘柄で満杯'
+    assert cur['skipped'][-1]['why'] == f'{tp.MAX_NAMES}銘柄で満杯'
     assert all(p['unit'] == 1 / 6 for p in cur['positions'].values())
     assert old == saved
 
@@ -47,12 +47,12 @@ def test_existing_exits_free_one_twenty_percent_slot_without_reweighting_others(
     cur = tp.current_portfolio({'portfolio': old})
     tp.advance(cur, {D[-2]: signal(['NEW', 'OTHER'])}, inputs(names + ['NEW', 'OTHER'], ['T0', 'T1']),
                q, D[-1], fund=q)
-    assert len(cur['positions']) == 5 and len(cur['closed']) == 2
+    assert len(cur['positions']) == 6 and len(cur['closed']) == 2
     equity_open = 1 - 2 * (1 / 6) * .10
-    assert abs(cur['positions']['NEW']['unit'] - equity_open * .20) < 1e-12
+    assert abs(cur['positions']['NEW']['unit'] - equity_open * tp.INITIAL_WEIGHT) < 1e-12
     assert cur['positions']['T2']['shares'] == old['positions']['T2']['shares']
     assert cur['positions']['T2']['unit'] == old['positions']['T2']['unit']
-    assert cur['skipped'][-1]['t'] == 'OTHER'
+    assert 'OTHER' in cur['positions']
 
 
 def test_qqq_conversion_waits_for_quotes_and_preserves_value_at_same_future_open():
@@ -67,7 +67,7 @@ def test_qqq_conversion_waits_for_quotes_and_preserves_value_at_same_future_open
     assert cur['waiting'] == D[-1] and cur['sleeve'] == 'legacy-qqq'
     assert cur['qqq_sh'] == .003 and cur['equity'] == old['equity']
     tp.advance(cur, {}, frame, q, D[-1], fund={D[-1]: {'open': 2, 'close': 2}})
-    assert cur['sleeve_conversion']['day'] == '2026-10-09'
+    assert cur['sleeve_conversion']['day'] == D[-1]
     assert abs(cur['sleeve_conversion']['value_at_open'] - .33) < 1e-12
     assert abs(cur['equity'][-1][1] - 1.03) < 1e-12
     assert cur['equity'][:-1] == old['equity']
@@ -86,7 +86,7 @@ def test_lagged_pre_cutover_sessions_keep_old_sizing_and_qqq():
     assert len(cur['positions']) == 6
     assert all(p['unit'] == 1 / 6 for p in cur['positions'].values())
     assert cur['sleeve'] == 'legacy-qqq' and 'sleeve_conversion' not in cur
-    assert cur['last_day'] == '2026-10-08'
+    assert cur['last_day'] == D[-2]
 
 
 def test_archived_origin_survives_independent_forward_series():
