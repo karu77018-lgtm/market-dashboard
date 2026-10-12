@@ -430,7 +430,12 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
         parts = [("stock", "個別株", st_), ("tqqq", "TQQQ", tq), ("gold", "金", gd), ("cash", "現金・短期国債", ca)]
         head = '<div class="tqr-big">資産全体の目標配分（翌営業日）</div>'
         n = len((holdings or {}).get("positions") or [])
-        held = f'（ルール運用の今の保有{n}銘柄）' if n else '（ルール運用の今の比率）'
+        as_of = (holdings or {}).get("as_of")
+        when = f'{as_of[5:].replace("-", "/")}時点の' if as_of and day and as_of < day else '今の'
+        held = f'（ルール運用の{when}保有{n}銘柄）' if n else f'（ルール運用の{when}比率）'
+        stale_n = sum(1 for x in (holdings or {}).get("positions") or [] if isinstance(x, dict) and x.get("stale"))
+        if stale_n:
+            held += f'<span class="tqr-mut">（うち{stale_n}銘柄は最新の株価が取れず前回の値）</span>'
         if 1 - st_ < 0.005:
             how = (f'<div class="tqr-how">個別株が <b>{_pp(st_)}</b>{held}で、今は余剰資金がありません。'
                    f'個別株を売ってお金が空いたら、その <b>{pct}%</b> を枠に入れ、{fill}。'

@@ -392,7 +392,7 @@ def history_html(ledger: dict) -> str:
     """Old-rule records, kept unchanged for reference (one collapsed block)."""
     history = list(ledger.get("portfolio_history", []))
     pf = ledger.get("portfolio")
-    if pf and (pf.get("rule") != RULE_ID or pf.get("sleeve") != tp.SLEEVE) and ledger.get("modeled_portfolio"):
+    if pf and (pf.get("rule") != RULE_ID or pf.get("sleeve") != tp.SLEEVE):
         history.append({"rule": pf.get("rule", ledger.get("rule", "legacy")), "portfolio": pf})
     if not history:
         return ""
@@ -453,17 +453,17 @@ def portfolio_html(pf: dict | None, pending: bool = False) -> str:
 
 
 def current_inventory_html(ledger: dict) -> str:
-    pf = tp.current_portfolio(ledger)
-    if not pf:
-        return '<div class="tr-empty">まだ記録がありません。次の更新から表示します。</div>'
-    note = ""
-    r = pf.get("reconstruction") or {}
-    if r.get("as_of"):
+    """The one current-rule series: the saved five-name model, else the forward series."""
+    pf = ledger.get("modeled_portfolio")
+    if pf:
+        r = pf.get("reconstruction") or {}
         note = (f'<div class="tr-note">{e_(pf.get("start", ""))}〜{e_(r["as_of"])}は公開済みの本命に今のルールを当てはめた再計算、'
-                f'その翌営業日からは毎日の記録です。</div>')
-    elif pf.get("inventory_origin"):
-        note = '<div class="tr-note">旧ルールの保有を引き継ぎ、新規の買いから今のルールを使っています。</div>'
-    return note + portfolio_html(pf)
+                'その翌営業日からは毎日の記録です。</div>') if r.get("as_of") else ""
+        return note + portfolio_html(pf)
+    pf = ledger.get("portfolio")
+    if pf and pf.get("rule") == RULE_ID and pf.get("sleeve") == tp.SLEEVE:
+        return portfolio_html(pf)
+    return PENDING_HTML
 
 
 def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) -> str:

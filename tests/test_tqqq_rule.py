@@ -236,3 +236,13 @@ def test_fully_invested_model_says_there_is_no_idle_money():
                        holdings={'positions': [1, 2, 3, 4, 5]})
     assert '今は余剰資金がありません' in out and '以外の <b>0%</b>' not in out
     assert '個別株 <b>100%</b>' in out
+
+
+def test_card_dates_older_holdings_and_flags_stale_prices():
+    hold = {'as_of': '2026-10-08', 'positions': [{'ticker': 'A', 'share': .5, 'stale': True},
+                                                  {'ticker': 'B', 'share': .3, 'stale': False}]}
+    out = tq.card_html('2026-10-09', {'target': .25, 'gold': 0, 'trend': True}, 50, top=True, stock=.8, holdings=hold)
+    assert 'ルール運用の10/08時点の保有2銘柄' in out and 'うち1銘柄は最新の株価が取れず' in out
+    cur = tq.card_html('2026-10-08', {'target': .25, 'gold': 0, 'trend': True}, 50, top=True, stock=.8,
+                       holdings={**hold, 'positions': [{'ticker': 'B', 'share': .8, 'stale': False}]})
+    assert 'ルール運用の今の保有1銘柄' in cur and '最新の株価' not in cur
