@@ -25,7 +25,8 @@ async function verify(page,width){
   assert.match(await page.locator('#rules-card').textContent(), /総資産の20%/);
   assert.match(await page.locator('#mc57-swing-screener').textContent(), /通常スイング最大5銘柄/);
   assert.match(await page.locator('#track-record-card').textContent(), /最大5銘柄/);
-  assert.match(await page.locator('#rules-card').textContent(), /旧6銘柄ルールの過去検証/);
+  assert.match(await page.locator('#rules-card').textContent(), /成績（単年）/);
+  assert.match(await page.locator('#rules-card').textContent(), /年率57\.0%/);
   assert.equal(await page.locator('[data-rule="swing-v3.1-tqqq-sleeve"]').count(),0);
 
   assert.equal(await page.locator('.mh-card [data-window="2y"][aria-pressed="true"]').count(),await page.locator('.mh-card[data-history-key]').count());
@@ -52,21 +53,13 @@ async function verify(page,width){
   assert.equal(await page.locator('#t-record #track-record-card').count(),1,'track record tab present');
   assert.equal(await page.locator('#t-rotation #mc57-theme-gate, #t-rotation #index-internals-divergence').count(),0,'Rotation keeps money-flow cards only');
   assert(await page.locator('#tqqq-rule-card').isVisible(),'TQQQ rule card at the top');
-  const holdingNotice=page.locator('#tqqq-rule-card [data-stock-allocation="recorded"]');
   const savedLedger=JSON.parse(fs.readFileSync(root+'/track-record/signals.json'));
   const savedHolding=savedLedger.modeled_portfolio || savedLedger.current_portfolio || savedLedger.portfolio_history?.at(-1)?.portfolio || savedLedger.portfolio;
   if(savedHolding?.equity?.length>1){
-    assert.equal(await holdingNotice.count(),1,'available saved holdings require a dated current readout');
-    assert.match(await holdingNotice.textContent(), /新ルールで再計算した保有モデル|現在の保有記録/);
-    assert.match(await holdingNotice.getAttribute('data-stock-asof'), /^\d{4}-\d{2}-\d{2}$/);
     assert((await page.locator('#tqqq-rule-card .tqr-leg').textContent()).includes('個別株'),'available model holdings must not disappear');
-    if(savedLedger.modeled_portfolio){
-      const pf=savedLedger.modeled_portfolio, total=pf.equity.at(-1)[1];
-      const stock=Object.values(pf.positions).reduce((sum,p)=>sum+p.shares*p.last,0)/total;
-      assert((await holdingNotice.textContent()).includes((stock*100).toFixed(1)+'%'),'top allocation must match current five-name model');
-      assert((await holdingNotice.textContent()).includes('再計算'),'backcast must be labeled');
-    }
+    assert.match(await page.locator('#tqqq-rule-card .tqr-how').textContent(), /ルール運用の今の保有/);
     assert.match(await page.locator('#tqqq-rule-card .tqr-big').textContent(), /目標配分/);
+    assert(!(await page.locator('#tqqq-rule-card').textContent()).includes('SHA'),'no provenance dump in the top card');
   }
 
   assert.equal(await page.locator('#t-port #taCard, #t-port #sarPill').count(),2,'NQ signal cards live in the archive');

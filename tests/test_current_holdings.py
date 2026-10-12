@@ -98,4 +98,4 @@ def test_archived_origin_survives_independent_forward_series():
     assert len(current['positions']) == 6
     assert current['start'] == old['start'] and current['equity'] == old['equity']
     assert ledger['portfolio']['positions'] == {}
-    assert '新5銘柄だけの成績ではありません' in tr.current_inventory_html(ledger)
+    assert '旧ルールの保有を引き継ぎ' in tr.current_inventory_html(ledger)

@@ -371,7 +371,7 @@ def _pct(x: float | None) -> str:
 
 def _pp(x: float) -> str:
     """Share of total assets: whole numbers, one decimal only when needed (16.5%)."""
-    v = round(x * 100 + 1e-9, 1)
+    v = round(abs(x) * 100 + 1e-9, 1) if abs(x) >= 0.0005 else 0.0
     return f"{v:.0f}%" if abs(v - round(v)) < 1e-9 else f"{v:.1f}%"
 
 
@@ -428,17 +428,21 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
     if s_pct is not None:
         st_, tq, gd, ca = total_split(rec, pct, s_pct)
         parts = [("stock", "個別株", st_), ("tqqq", "TQQQ", tq), ("gold", "金", gd), ("cash", "現金・短期国債", ca)]
-        head = '<div class="tqr-big">保有モデルの個別株比率を使った資産全体の目標配分（翌営業日）</div>'
-        if holdings:
-            head += holdings_html(holdings)
-        how = (f'<div class="tqr-how">個別株以外の <b>{_pp(1 - st_)}</b> のうち <b>{pct}%</b> が枠（ブレイク成功度で50%か100%）→ '
-               f'{fill} ＝ 全体の TQQQ <b>{_pp(tq)}</b>。枠の外は現金。'
-               f'個別株{_pp(st_)}は保有モデルの終値評価比率。バーのTQQQ・金・現金は余剰資金を配分する翌営業日の目標で、同日の保有内訳とは別です。実口座ではありません。自分の比率が違うときは下の表で。</div>')
+        head = '<div class="tqr-big">資産全体の目標配分（翌営業日）</div>'
+        n = len((holdings or {}).get("positions") or [])
+        held = f'（ルール運用の今の保有{n}銘柄）' if n else '（ルール運用の今の比率）'
+        if 1 - st_ < 0.005:
+            how = (f'<div class="tqr-how">個別株が <b>{_pp(st_)}</b>{held}で、今は余剰資金がありません。'
+                   f'個別株を売ってお金が空いたら、その <b>{pct}%</b> を枠に入れ、{fill}。'
+                   '自分の個別株比率が違うときは下の表で。</div>')
+        else:
+            how = (f'<div class="tqr-how">個別株 <b>{_pp(st_)}</b>{held}以外の <b>{_pp(1 - st_)}</b> のうち <b>{pct}%</b> が枠'
+                   f'（ブレイク成功度で50%か100%）→ {fill} ＝ 全体の TQQQ <b>{_pp(tq)}</b>。枠の外は現金。'
+                   '自分の個別株比率が違うときは下の表で。</div>')
     else:
         parts = [("tqqq", "TQQQ", t_in), ("gold", "金", g_in), ("cash", "現金・短期国債", c_in)]
         head = ('<div class="tqr-big">個別株以外のお金の配分（今日の目標）</div>'
-                f'<div class="tqr-sub" data-stock-allocation="pending">通常スイング最大{MAX_NAMES}銘柄・初回{INITIAL_WEIGHT:.0%}。'
-                '新ルールで再計算した保有モデルを確認できないため、資産全体の目標は未表示です。旧ルールの保有比率は使いません。</div>')
+                f'<div class="tqr-sub" data-stock-allocation="pending">ルール運用の保有比率が読めないため、資産全体の比率は下の表で。</div>')
         how = (f'<div class="tqr-how">個別株以外のお金の <b>{pct}%</b> が枠（ブレイク成功度で50%か100%）→ {fill}。'
                '枠の外は現金。資産全体での比率は下の表で。</div>')
     bar = '<div class="tqr-bar">' + "".join(

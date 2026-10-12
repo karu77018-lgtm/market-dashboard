@@ -20,7 +20,7 @@ def test_rules_tab_replaces_core12_with_swing_rules():
     assert "今日の地合い：新規OK" in out and "QQQ 600.00 / 200日線 550.00" in out
     assert '<section id="t-post1">x</section>' in out and '<section id="t-jev">j</section>' in out
     assert out.count(rules_tab.STYLE) == 1
-    assert "成績（単年・旧6銘柄ルールの過去検証）" in out and "+122.2%" in out and "−10.1%" in out and "TQQQ枠込" in out and "9. TQQQルール" in out and "①早期再エントリー" in out and "②信用125%（参考・未採用）" in out and "166倍" in out and "最大5銘柄" in out and "+20%でもう一度同額" in out and "好位置リーダー（検討可）" in out and "7. 余剰資金の配分" in out and "2026*" in out
+    assert "成績（単年）" in out and "+136.5%" in out and "−8.6%" in out and "TQQQ枠込" in out and "9. TQQQルール" in out and "①早期再エントリー" in out and "②信用125%（参考・未採用）" in out and "193倍" in out and "最大5銘柄" in out and "+20%でもう一度同額" in out and "好位置リーダー（検討可）" in out and "7. 余剰資金の配分" in out and "2026*" in out
     assert rules_tab.apply(out, regime={"on": True, "close": 600.0, "ma": 550.0, "date": "2026-10-02"}) == out
 
 
@@ -56,13 +56,11 @@ def test_active_allocation_uses_shared_constants_and_keeps_historical_research()
     assert "+10%で同額、+20%でもう一度同額" in rows["買い増し"]
     assert "資金の40%" in rows["買い増し"]
     assert "安値21EMA" in rows["手仕舞い"]
-    assert "旧6銘柄・初回1/6の過去検証" in html
-    assert "現行の最大5銘柄・初回20%の成績ではありません" in html
-    assert "TQQQルール枠（現行）" not in html
-    assert "年率57.0%" not in html
-    assert rules_tab.YEARLY[0] == (2015, 2.8, 9.4, 3.1, 8.7, -6.1)
-    assert rules_tab.YEARLY[-1] == (2026, 75.8, 79.8, 100.5, 16.7, -19.2)
-    assert [entry[1:] for entry in rules_tab.TOTALS] == [(31.0, -31.4, 23), (40.6, -31.6, 53), (55.1, -33.8, 166)]
+    assert "最大5銘柄・初回20%のルールでの検証" in html and "旧6銘柄" not in html
+    assert "TQQQルール枠（現行）" in html and "年率57.0%" in html
+    assert rules_tab.YEARLY[0] == (2015, 4.5, 11.0, 4.2, 8.7, -7.2)
+    assert rules_tab.YEARLY[-1] == (2026, 84.7, 93.6, 109.6, 16.7, -17.8)
+    assert [entry[1:] for entry in rules_tab.TOTALS] == [(34.5, -32.3, 32), (43.9, -31.5, 70), (57.0, -33.8, 193)]
 
 
 def test_rule_version_rejects_previous_six_name_cards():
@@ -76,8 +74,6 @@ def test_archive_intro_marks_six_name_results_historical():
 
     assert archive_tab.INTRO_MARK in archive_tab.INTRO
     assert "現行の通常スイングは最大5銘柄・初回は総資産の20%" in archive_tab.INTRO
-    assert "現行5銘柄の成績ではありません" in archive_tab.INTRO
-    assert "旧6銘柄ルールの過去検証" in archive_tab.INTRO
-    assert "<b>現行</b>（最大6銘柄" not in archive_tab.INTRO
-    assert "年率55.1%・最大下落−33.8%" in archive_tab.INTRO
+    assert "<b>現行</b>（最大5銘柄×20%" in archive_tab.INTRO and "年率57.0%" in archive_tab.INTRO
+    assert "<b>旧6銘柄ルール</b>（1銘柄1/6" in archive_tab.INTRO and "<b>現行</b>（最大6銘柄" not in archive_tab.INTRO
     assert archive_tab.INTRO_MARK != "年率55.1%"

@@ -38,6 +38,11 @@ def apply(text: str, root: Path) -> str:
             wrapper = soup.new_tag('div', attrs={'class': 'core-table-wrap',
                 'style': 'max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch'})
             table.wrap(wrapper)
+    # The sub-theme table can be a few px wider than a 375px phone; let it scroll.
+    for table in soup.select('table.secrs'):
+        if 'secrs-wrap' not in table.parent.get('class', []):
+            table.wrap(soup.new_tag('div', attrs={'class': 'secrs-wrap',
+                'style': 'max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch'}))
     expo = soup.select_one('#taExpo')
     if expo:
         content = expo.get_text().replace('目標露出：', '目標露出（上限）：').replace(' ・ フル投資', '')
