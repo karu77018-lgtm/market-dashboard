@@ -238,10 +238,14 @@ def provisional_badge(text: str, manifest_path: Path) -> str:
     short = int(status.get("universe_shortfall") or 0)
     target = status.get("universe_target")
     detail = (f"・銘柄{int(target) - short:,}/{int(target):,}" if short and target else "")
-    badge = ('<span id="mc57-provisional" title="当日分はYahooの速報値。日本時間の午後にMassiveの確定値で上書きします"'
+    retry = status.get("massive_confirmation", "scheduled") != "unavailable"
+    label = "速報（午後に確定）" if retry else "速報（Yahoo・確定版なし）"
+    title = ("当日分はYahooの速報値。日本時間の午後にMassiveの確定値で上書きします" if retry
+             else "当日分はYahooの速報値。Massiveの鍵がないため確定版での上書きはありません")
+    badge = (f'<span id="mc57-provisional" title="{title}"'
              ' style="margin-left:8px;padding:1px 6px;border-radius:6px;font-size:11px;font-weight:700;'
              'background:#eef4ff;color:#1f4fa8;border:1px solid #9db8e8">'
-             f'速報（午後に確定）{detail}</span>')
+             f'{label}{detail}</span>')
     anchor = '</div></header>'
     return text.replace(anchor, badge + anchor, 1) if anchor in text else text
 

@@ -166,3 +166,7 @@ def test_page_badge_marks_provisional_morning_publication(tmp_path: Path):
     assert provisional_badge(out, manifest) == out
     manifest.write_text(json.dumps({"provider_status": {"publication_state": "provisional"}}))
     assert "速報（午後に確定）</span>" in provisional_badge(page, manifest)
+    manifest.write_text(json.dumps({"provider_status": {
+        "publication_state": "provisional", "massive_confirmation": "unavailable"}}))
+    out = provisional_badge(page, manifest)
+    assert "速報（Yahoo・確定版なし）" in out and "午後に確定" not in out

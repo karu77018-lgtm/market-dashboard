@@ -273,23 +273,34 @@ def fallback_max_shortfall(count: int) -> int:
 
 
 def held_tickers(root: Path) -> list[str]:
-    """Names held by the published swing model; the fallback never drops these."""
-    try:
-        ledger = json.loads((root / "track-record" / "signals.json").read_text(encoding="utf-8"))
-    except Exception:
+    """Names held by the current swing model; the fallback never drops these.
+
+    ``modeled_portfolio`` is the one current series; ``portfolio`` is only the
+    current series when no model exists (otherwise it is a frozen earlier model).
+    A missing ledger means nothing is held; an unreadable one stops acquisition.
+    """
+    path = root / "track-record" / "signals.json"
+    if not path.is_file():
         return []
-    held: set[str] = set()
-    for key in ("modeled_portfolio", "portfolio"):
-        positions = (ledger.get(key) or {}).get("positions") or {}
-        if isinstance(positions, dict):
-            held.update(str(t).upper() for t in positions)
-    return sorted(held)
+    try:
+        ledger = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ProviderError(f"holdings ledger is unreadable: {type(exc).__name__}") from exc
+    current = ledger.get("modeled_portfolio") or ledger.get("portfolio") or {}
+    positions = current.get("positions") or {}
+    if not isinstance(positions, dict):
+        raise ProviderError("holdings ledger positions are malformed")
+    return sorted(str(t).upper() for t in positions)
 
 
 def prior_universe_count(root: Path, tickers: list[str]) -> int:
     try:
         manifest = json.loads((root / "latest-manifest.json").read_text(encoding="utf-8"))
         count = int(manifest.get("universe", {}).get("active_universe", 0))
+        # A provisional shortfall keeps its original target, so consecutive fallback
+        # sessions refill toward it instead of ratcheting the universe down.
+        target = int((manifest.get("provider_status") or {}).get("universe_target") or 0)
+        count = max(count, target)
         return count if count > 0 else len(tickers)
     except Exception:
         return len(tickers)
@@ -756,6 +767,7 @@ def main() -> int:
                          "yahoo_substitute": dict(SUBSTITUTE) or None,
                          "universe_shortfall": int(expansion_stats.get("fallback_shortfall") or 0),
                          "universe_target": expansion_stats.get("fallback_target_count"),
+                         "massive_confirmation": "scheduled" if massive_key else "unavailable",
                      },
                      "universe_expansion": {
                          "legacy": expansion_stats["legacy_universe"],
