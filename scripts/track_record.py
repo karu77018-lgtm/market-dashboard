@@ -364,7 +364,7 @@ def sleeve_label(pf: dict) -> str:
 SHORT_REASON = {"安値21EMA割れ（翌始値）": "21EMA割れ", "損切り（窓）": "損切り（窓）", "損切り −8%": "損切り"}
 
 
-PENDING_HTML = ('<div class="tr-empty">最大5銘柄・各20%の新ルールは、2026-10-09以降に初めて公開した本命から別集計します。'
+PENDING_HTML = (f'<div class="tr-empty">最大{MAX_NAMES}銘柄・初回{INITIAL_LABEL}の現行ルールは、{EFFECTIVE_DATE}以降に初めて公開した本命から別集計します。'
                 '旧ルールの記録は保存し、新ルールの過去実績として計算し直しません。</div>')
 
 
@@ -516,8 +516,8 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
         f'<div class="tr-grid">{grid}</div>'
         '<div class="tr-wrap"><table><tr><th>銘柄</th><th>本命の日</th><th>買値（翌始値）</th><th>現在/売値</th>'
         f'<th>損益</th><th>買い増し込み</th><th>QQQとの差</th><th>日数</th><th>状態</th></tr>{rows}</table></div>'
-        '<div class="tr-note">資金や5銘柄の枠を考えず、本命を1件ずつ追った成績（銘柄選びそのものの強さを見る用）。</div></details>'
-        '<div class="tr-note"><b>約定</b>：本命は引け後に公開するので<b>翌営業日の始値</b>で買う（Rulesタブの検証は本命の日の終値）。'
+        '<div class="tr-note">資金や銘柄数の枠を考えず、本命を1件ずつ追った成績（銘柄選びそのものの強さを見る用）。</div></details>'
+        '<div class="tr-note"><b>約定</b>：本命は引け後に公開するので<b>翌営業日の始値</b>で買う（Rulesタブ・成績タブの検証も同じく翌営業日の寄り）。'
         '枠が足りない日は189日リターンの高い順、保有中の銘柄は重ねて買わない。損切りは買値−8%（窓で下回ればその始値）。'
         '安値21EMA割れは引けで確定し<b>翌営業日の始値</b>で売り。買い増しは終値が買値+10%・+20%に届いた翌営業日の始値で最初と同じ金額、'
         'ただし1銘柄が資金の40%を超えない範囲。<br/>'
