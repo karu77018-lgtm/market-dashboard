@@ -371,3 +371,12 @@ def test_carried_v5_portfolio_is_labeled_in_both_views():
     html = tr.current_inventory_html(led)
     assert "旧ルール（株の上限なし・余剰資金の枠50%）" in html
     assert "旧ルール（株の上限なし・余剰資金の枠50%）" in tr.rules_block(led)
+
+
+def test_v5_retag_waits_for_a_valid_session():
+    v5 = tp.new_portfolio(S)
+    v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
+    q = qqq(31)
+    q[D[30]] = {"open": None, "close": 100}               # newer date, unusable bar
+    out = tp.advance(v5, sessions(["AAA"]), frame({"AAA": [(100, 99, 100)]}), q, D[30], fund=qqq(31))
+    assert out["rule"] == tp.PREVIOUS_RULE_IDS[0] and "rule_changes" not in out and out["waiting"] == D[30]

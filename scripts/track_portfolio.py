@@ -263,10 +263,6 @@ def advance(pf: dict, sessions: dict[str, dict], frame: pd.DataFrame, qqq: dict[
     days = sorted(d for d in qqq if pf["last_day"] < d <= until)
     if not days:
         return pf
-    if carried:
-        # v5 -> v6 keeps the sizing; only future orders adopt the stock cap and sleeve share.
-        pf.setdefault("rule_changes", []).append({"from": pf["rule"], "to": RULE_ID, "after": pf["last_day"]})
-        pf["rule"] = RULE_ID
     if pf["equity"][0][2] is None:
         pf["equity"][0][2] = _f((qqq.get(pf["start"]) or {}).get("close"))
     bars = {t: g.set_index("date")[["open", "low", "close"]].sort_index() for t, g in frame.groupby("ticker")}
@@ -292,6 +288,11 @@ def advance(pf: dict, sessions: dict[str, dict], frame: pd.DataFrame, qqq: dict[
             pf["sleeve"] = SLEEVE
             pf["sleeve_conversion"] = {"day": day, "from": "QQQ", "to": SLEEVE,
                                        "old_units": prior_units, "value_at_open": value}
+        if pf.get("rule") in PREVIOUS_RULE_IDS:
+            # v5 -> v6 keeps the sizing; only orders from here on adopt the stock cap and
+            # sleeve share.  Retag only when a session is actually processed.
+            pf.setdefault("rule_changes", []).append({"from": pf["rule"], "to": RULE_ID, "after": pf["last_day"]})
+            pf["rule"] = RULE_ID
         step(pf, day, prev, q, sessions.get(prev), bars, sv)
         prev = day
     return pf
