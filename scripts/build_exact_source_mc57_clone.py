@@ -151,8 +151,39 @@ def reconstruct_source(source_dir: Path, target: Path) -> Path:
     if old_sector not in text:
         raise CloneBuildError("frozen source sector-ETF function was not found")
     text = text.replace(old_sector, new_sector, 1)
+
+    # 2026-10-13 review fixes (display wording only; no calculation changes):
+    #  * the copy-box label named RS63/126/189, but pulse["all3"] counts RS21/63/189;
+    #  * outside a correction the FTD card kept showing an old "割れ" reason and the
+    #    summary warned "戻り売り" although FTD does not apply to an uptrend.
+    for old_text, new_text, label in DISPLAY_PATCHES:
+        if text.count(old_text) != 1:
+            raise CloneBuildError(f"frozen source text for {label} was not found exactly once")
+        text = text.replace(old_text, new_text, 1)
     target.write_text(text, encoding="utf-8")
     return target
+
+
+DISPLAY_PATCHES = (
+    ('RS63/126/189すべて85以上 {pulse.get("all3", 0)}',
+     'RS21/63/189すべて85以上 {pulse.get("all3", 0)}', "RS3 label"),
+    ('        rec.update(state=state, st=st, cls=cls)\n',
+     '        if state == "NO_CORRECTION":  # both no-correction paths: no stale "割れ" reason\n'
+     '            rec["invalidation"] = None\n'
+     '        rec.update(state=state, st=st, cls=cls)\n', "FTD stale invalidation"),
+    ('    ftd_ok = any((not it.get("invalidation")) and it.get("ftd_date") for it in ftd) if ftd else False\n',
+     '    ftd_ok = any((not it.get("invalidation")) and it.get("ftd_date") for it in ftd) if ftd else False\n'
+     '    ftd_up = bool(ftd) and all(it.get("state") == "NO_CORRECTION" for it in ftd)\n', "FTD uptrend flag"),
+    ('("フォロースルー(FTD)を確認済みで反発に裏付けあり。" if ftd_ok else '
+     '"フォロースルー(FTD)は未確認で本格反発の裏付けは乏しい。")',
+     '("フォロースルー(FTD)を確認済みで反発に裏付けあり。" if ftd_ok else '
+     '"上昇トレンド中でFTD判定の対象外（調整局面だけで使う）。" if ftd_up else '
+     '"フォロースルー(FTD)は未確認で本格反発の裏付けは乏しい。")', "FTD score sentence"),
+    ('("直近FTDありで押し目反発に裏付け。" if ftd_ok else "FTD未確認＝戻りは戻り売りに警戒。")',
+     '("直近FTDありで押し目反発に裏付け。" if ftd_ok else '
+     '"上昇継続中（FTDは調整局面だけで使う）。" if ftd_up else "FTD未確認＝戻りは戻り売りに警戒。")',
+     "FTD index sentence"),
+)
 
 
 def write_universe_from_rs(data_dir: Path, output: Path) -> list[str]:

@@ -44,6 +44,10 @@ SECTOR_MARKET_SYMBOLS = (
     "RSPT", "RSPF", "RSPN", "RSPD", "RSPM", "RSPC",
     "RSPU", "RSPS", "RSPH", "RSPR", "RSPG",
 )
+MACRO_DIAGNOSTIC_SYMBOLS = (
+    "^VVIX", "LQD", "IEI", "JPY=X", "^TYX", "TLT", "^MOVE", "^SKEW",
+    "SQQQ", "SOXS", "SOXX", "SMH",
+)
 TRADINGVIEW_CURRENT_MARKET_TICKERS = {
     "QQQ": "NASDAQ:QQQ",
     "TQQQ": "NASDAQ:TQQQ",
@@ -57,6 +61,10 @@ MARKET_SYMBOLS = (
     "XLB", "XLC", "XLE", "XLF", "XLI", "XLK", "XLP", "XLRE",
     "XLU", "XLV", "XLY",
     *SECTOR_MARKET_SYMBOLS,
+    # Diagnostic inputs the frozen dashboard source reads (credit HYG/IEI·LQD, bond
+    # volatility MOVE/TLT, VVIX, SKEW, yen, 30Y, 3x pairs and semis).  Missing ones
+    # never block publication; without them those cards showed "未取得".
+    *MACRO_DIAGNOSTIC_SYMBOLS,
 )
 
 

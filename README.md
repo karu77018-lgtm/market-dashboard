@@ -90,3 +90,9 @@ frozen 本命 since 2026-10-05 replayed under the current rule with the publishe
 chart OHLC through 2026-10-09, then advanced by the daily refresh. Earlier models
 (the QQQ-sleeve ledger and the 5 x 20% model) stay unchanged in
 `portfolio_history` / `portfolio` and are shown folded as 旧ルールの記録.
+
+## Review fixes (2026-10-13)
+
+- The frozen dashboard source reads twelve diagnostic macro series (credit HYG/IEI·LQD, MOVE/TLT, VVIX, SKEW, JPY, 30Y, SQQQ/SOXS, SOXX/SMH) that the live market-input route never fetched; they are now in `MACRO_DIAGNOSTIC_SYMBOLS` (never required for publication).
+- `build_exact_source_mc57_clone.DISPLAY_PATCHES`: wording-only patches to the frozen source (RS21/63/189 label; no stale FTD failure reason or "戻り売り" warning outside a correction).
+- Swing/Rules/Breakout-health comparison figures were re-run on the production engine with next-open fills (stock-only 本命 28.7% vs all setups 24.8%, regime 26.1%→28.7%, 好位置 mix 53.6%/51.9%, QQQ sleeve 35.0%/39.0%/36.9%). Figures not re-run are marked 旧計算.
