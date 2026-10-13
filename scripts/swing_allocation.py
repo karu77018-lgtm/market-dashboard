@@ -9,7 +9,7 @@ better in both halves of 2015-2026.
 that would go above it; nothing is sold to get under it) and 60% of the idle
 money goes to the TQQQ-rule sleeve normally (100% when breakout health is weak
 and QQQ is above its 200-day line).  Next-open backtest 2015-01..2026-08:
-55.3% a year, max DD -35.8% (v5: 53.4%, -36.3%), better in both halves.
+55.0% a year, max DD -35.9% (v5: 53.4%, -36.3%), not worse in either half.
 """
 RULE_ID = "swing-v6-max6-cap80-sleeve60"
 PREVIOUS_RULE_IDS = ("swing-v5-max6-tqqq-sleeve",)  # same sizing; a running model continues under v6

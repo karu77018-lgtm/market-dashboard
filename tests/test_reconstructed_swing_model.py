@@ -66,12 +66,12 @@ def test_model_is_only_current_series_and_same_session_rerun_is_idempotent():
     before = copy.deepcopy(pf)
     assert tp.advance(pf, led['sessions'], pd.DataFrame(), {}, '2026-10-08', fund={}) == before
     html = tr.tab_html(tr.display_ledger(led, ROOT), [])
-    assert '公開済みの本命に今のルールを当てはめた再計算' in html
+    assert '公開済みの本命に当時のルールを当てはめた再計算' in html
     assert '実口座ではありません' in html
     assert 'tr-forward' not in html and 'SHA-256' not in html
     assert '旧ルールの記録（参考）' in html
     rules = tr.rules_block(tr.display_ledger(led, ROOT))
-    assert '公開済みの本命に今のルールを当てはめた再計算' in rules
+    assert '公開済みの本命に当時のルールを当てはめた再計算' in rules
     assert '開始待ち' not in rules
     assert led['portfolio'] == old
 

@@ -82,7 +82,10 @@ def test_slots_ranked_by_189_day_return():
 
 def test_regime_off_buys_nothing_and_unknown_pct_keeps_last():
     pf = run(["AAA"], {"AAA": [(100, 99.9, 100)]}, 1, regime="off", pct=None)
-    assert pf["positions"] == {} and abs(pf["qqq_sh"] * 100 - 0.5) < 1e-12
+    # after the v6 cutover an unpublished share moves the v5 normal 50% to the v6 normal 60%
+    assert pf["positions"] == {} and abs(pf["qqq_sh"] * 100 - tp.SLEEVE_NORMAL / 100) < 1e-12
+    pf = run(["AAA"], {"AAA": [(100, 99.9, 100)]}, 1, regime="off", pct=100)
+    assert abs(pf["qqq_sh"] * 100 - 1.0) < 1e-12
 
 
 def test_same_amount_adds_never_exceed_forty_percent():
@@ -335,5 +338,6 @@ def test_v5_model_continues_under_v6_without_selling():
     assert len([t for t in out["positions"] if t.startswith("H")]) == 4          # nothing sold
     new = out["positions"]["NEW"]["shares"] * 100
     assert abs(new - (tp.STOCK_CAP - 4 * W)) < 1e-9 and out["qqq_pct"] == 60     # filled up to the cap only
+    assert abs(out["positions"]["NEW"]["unit"] - (tp.STOCK_CAP - 4 * W)) < 1e-9     # adds repeat the smaller buy
     full = tp.advance(pf5, ses, bars, q, D[30], fund=fund)                      # already above 80%: hold, no buy
     assert len(full["positions"]) == 5 and full["skipped"][-1]["why"] == f"株が上限の{tp.STOCK_CAP:.0%}"

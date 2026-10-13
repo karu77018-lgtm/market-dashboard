@@ -20,7 +20,7 @@ def test_rules_tab_replaces_core12_with_swing_rules():
     assert "今日の地合い：新規OK" in out and "QQQ 600.00 / 200日線 550.00" in out
     assert '<section id="t-post1">x</section>' in out and '<section id="t-jev">j</section>' in out
     assert out.count(rules_tab.STYLE) == 1
-    assert "成績（単年）" in out and "+141.7%" in out and "−15.4%" in out and "TQQQ枠込" in out and "9. TQQQルール" in out and "①早期再エントリー" in out and "②信用125%（参考・未採用）" in out and "169倍" in out and "最大6銘柄" in out and "+20%でもう一度同額" in out and "好位置リーダー（検討可）" in out and "7. 余剰資金の配分" in out and "2026*" in out
+    assert "成績（単年）" in out and "+139.4%" in out and "−15.4%" in out and "TQQQ枠込" in out and "9. TQQQルール" in out and "①早期再エントリー" in out and "②信用125%（参考・未採用）" in out and "166倍" in out and "最大6銘柄" in out and "+20%でもう一度同額" in out and "好位置リーダー（検討可）" in out and "7. 余剰資金の配分" in out and "2026*" in out
     assert rules_tab.apply(out, regime={"on": True, "close": 600.0, "ma": 550.0, "date": "2026-10-02"}) == out
 
 
@@ -58,11 +58,11 @@ def test_active_allocation_uses_shared_constants_and_keeps_historical_research()
     assert "資金の40%" in rows["買い増し"]
     assert "安値21EMA" in rows["手仕舞い"] and "翌営業日の寄りで売り" in rows["手仕舞い"]
     assert "最大6銘柄・初回1/6（約16.7%）のルールでの検証" in html and "旧6銘柄" not in html
-    assert "TQQQルール枠（現行）" in html and "年率55.3%" in html and "翌営業日の寄りで売買" in html
+    assert "TQQQルール枠（現行）" in html and "年率55.0%" in html and "翌営業日の寄りで売買" in html
     assert "年率57.0%" not in html
     assert rules_tab.YEARLY[0] == (2015, 2.8, 10.6, 1.9, 8.7, -6.4)
-    assert rules_tab.YEARLY[-1] == (2026, 76.4, 89.1, 113.7, 16.7, -14.9)
-    assert [entry[1:] for entry in rules_tab.TOTALS] == [(27.1, -29.5, 16), (38.6, -32.5, 45), (55.3, -35.8, 169)]
+    assert rules_tab.YEARLY[-1] == (2026, 75.8, 88.8, 113.7, 16.7, -14.9)
+    assert [entry[1:] for entry in rules_tab.TOTALS] == [(26.5, -29.5, 15), (36.7, -32.5, 38), (55.0, -35.9, 166)]
 
 
 def test_rule_version_rejects_previous_six_name_cards():
@@ -76,6 +76,6 @@ def test_archive_intro_marks_six_name_results_historical():
 
     assert archive_tab.INTRO_MARK in archive_tab.INTRO
     assert "現行の通常スイングは最大6銘柄・初回は総資産の1/6（約16.7%）" in archive_tab.INTRO
-    assert "<b>現行</b>（最大6銘柄×1/6" in archive_tab.INTRO and "年率55.3%" in archive_tab.INTRO
+    assert "<b>現行</b>（最大6銘柄×1/6" in archive_tab.INTRO and "年率55.0%" in archive_tab.INTRO
     assert "<b>5銘柄×20%</b>" in archive_tab.INTRO and "年率57.0%" not in archive_tab.INTRO
     assert archive_tab.INTRO_MARK != "年率55.1%"

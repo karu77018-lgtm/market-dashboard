@@ -37,7 +37,7 @@ from typing import Any
 import pandas as pd
 
 from swing_allocation import (RULE_ID, PREVIOUS_RULE_IDS, MAX_NAMES, INITIAL_WEIGHT, EFFECTIVE_DATE,
-                              STOCK_CAP, SLEEVE_SHARES)
+                              STOCK_CAP, SLEEVE_NORMAL, SLEEVE_SHARES)
 STOP = 0.08
 ADDS = (0.10, 0.20)
 CAP = 0.40
@@ -212,7 +212,9 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
                 pf["skipped"].append({"t": t, "signal": prev, "day": day, "why": why})
                 continue
             pf["positions"][t] = {"signal": prev, "entry_day": day, "entry": b[0], "stop": b[0] * (1 - STOP),
-                                  "shares": amt / b[0], "unit": unit, "invested": amt, "adds": 0,
+                                  "shares": amt / b[0], "invested": amt, "adds": 0,
+                                  # v6: adds repeat the actual first purchase (a cap-limited entry is smaller)
+                                  "unit": amt if stock_cap < 1.0 and amt < unit else unit,
                                   "triggered": [], "pending_add": 0, "pending_exit": False,
                                   "ema": ema, "last": b[0], "days": 0}
             today[t] = b
@@ -220,6 +222,8 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
     # 4. idle money to the published QQQ share
     if signal and signal.get("qqq_pct") in SLEEVE_SHARES:
         pf["qqq_pct"] = signal["qqq_pct"]
+    elif signal and signal.get("qqq_pct") is None and prev >= EFFECTIVE_DATE and pf["qqq_pct"] == 50:
+        pf["qqq_pct"] = SLEEVE_NORMAL  # unpublished share after v6: the v5 normal 50% becomes the v6 normal
     idle = pf["cash"] + pf["qqq_sh"] * q_open
     pf["qqq_sh"] = idle * pf["qqq_pct"] / 100 / q_open
     pf["cash"] = idle - pf["qqq_sh"] * q_open
