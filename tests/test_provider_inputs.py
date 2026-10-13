@@ -230,6 +230,18 @@ def test_yahoo_fallback_never_drops_a_held_ticker():
             max_shortfall=5, required_tickers=["GONE"])
 
 
+def test_yahoo_fallback_keeps_held_ticker_outside_prior_universe():
+    broad, reference, history = _shortfall_case()
+    with pytest.raises(ProviderError, match="lost a held ticker: NOTPRIOR"):
+        select_preserved_count_fallback_universe(
+            broad, reference, history, preserved_tickers=["CORE"], target_count=1,
+            max_shortfall=5, required_tickers=["NOTPRIOR"])
+    selected, _ = select_preserved_count_fallback_universe(
+        broad, reference, history, preserved_tickers=["GONE"], target_count=1,
+        max_shortfall=1, required_tickers=["CORE"])
+    assert [row["ticker"] for row in selected] == ["CORE"]
+
+
 def test_fallback_shortfall_limit_and_held_names(tmp_path):
     import json as _json
     import refresh_mc57 as rm

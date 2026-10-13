@@ -239,9 +239,10 @@ def provisional_badge(text: str, manifest_path: Path) -> str:
     target = status.get("universe_target")
     detail = (f"・銘柄{int(target) - short:,}/{int(target):,}" if short and target else "")
     retry = status.get("massive_confirmation", "scheduled") != "unavailable"
-    label = "速報（午後に確定）" if retry else "速報（Yahoo・確定版なし）"
-    title = ("当日分はYahooの速報値。日本時間の午後にMassiveの確定値で上書きします" if retry
-             else "当日分はYahooの速報値。Massiveの鍵がないため確定版での上書きはありません")
+    label = "速報（午後にMassiveで照合）" if retry else "速報（Massive照合なし）"
+    title = ("Massiveの当日データが出る前の速報。日本時間の午後の再取得で、ブレッドスなどをMassiveの当日データに切り替え、"
+             "株価（Yahoo）をMassiveと照合して確定します" if retry
+             else "Massiveの当日データが出る前の速報。Massiveの鍵がないため、午後の照合・確定はありません")
     badge = (f'<span id="mc57-provisional" title="{title}"'
              ' style="margin-left:8px;padding:1px 6px;border-radius:6px;font-size:11px;font-weight:700;'
              'background:#eef4ff;color:#1f4fa8;border:1px solid #9db8e8">'

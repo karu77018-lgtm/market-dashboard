@@ -466,6 +466,9 @@ def select_preserved_count_fallback_universe(
         by_ticker[ticker] = row
     prior = list(dict.fromkeys(str(ticker).upper() for ticker in preserved_tickers))
     chosen = [ticker for ticker in prior if ticker in by_ticker]
+    # Held names stay in even when an earlier universe dropped them.
+    held = sorted({str(t).upper() for t in required_tickers})
+    chosen.extend(t for t in held if t in by_ticker and t not in set(chosen))
     chosen_set = set(chosen)
     replacements = sorted(
         (ticker for ticker in by_ticker if ticker not in chosen_set),
@@ -477,14 +480,15 @@ def select_preserved_count_fallback_universe(
     )
     chosen.extend(replacements[:max(target_count - len(chosen), 0)])
     prior_set = set(prior)
-    required = sorted({str(t).upper() for t in required_tickers} & prior_set - set(chosen))
-    if required:
-        raise ProviderError("Yahoo fallback lost a held ticker: " + ", ".join(required))
     if len(chosen) < target_count - max(int(max_shortfall), 0):
         raise ProviderError(
             f"Yahoo fallback cannot preserve universe count: {len(chosen)}/{target_count}"
         )
-    chosen = chosen[:target_count]
+    held_set = set(held)
+    chosen = ([t for t in chosen if t in held_set] + [t for t in chosen if t not in held_set])[:max(target_count, len(held_set))]
+    required = sorted(held_set - set(chosen))
+    if required:
+        raise ProviderError("Yahoo fallback lost a held ticker: " + ", ".join(required))
     missing_prior = sorted(prior_set - set(chosen))
     selected = []
     for ticker in chosen:
