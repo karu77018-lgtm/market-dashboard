@@ -341,3 +341,15 @@ def test_v5_model_continues_under_v6_without_selling():
     assert abs(out["positions"]["NEW"]["unit"] - (tp.STOCK_CAP - 4 * W)) < 1e-9     # adds repeat the smaller buy
     full = tp.advance(pf5, ses, bars, q, D[30], fund=fund)                      # already above 80%: hold, no buy
     assert len(full["positions"]) == 5 and full["skipped"][-1]["why"] == f"株が上限の{tp.STOCK_CAP:.0%}"
+
+
+def test_missing_share_after_v6_falls_back_to_normal_and_v5_portfolio_is_carried():
+    pf = tp.new_portfolio(S)
+    pf["qqq_pct"] = 100                                    # a weak-health day before the outage
+    q = qqq(31)
+    out = tp.advance(pf, sessions(["AAA"], pct=None), frame({"AAA": [(100, 99.9, 100)]}), q, D[30], fund=q)
+    assert out["qqq_pct"] == tp.SLEEVE_NORMAL
+    v5 = tp.new_portfolio(S)
+    v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
+    led = {"rule": v5["rule"], "portfolio": v5, "sessions": {S: {"rule": tr.RULE_ID}}}
+    assert tr.prepare_portfolio(led) is v5 and "portfolio_history" not in led

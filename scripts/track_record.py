@@ -377,8 +377,8 @@ def prepare_portfolio(ledger: dict) -> dict | None:
     convert an already frozen legacy signal into a new-rule signal.
     """
     pf = ledger.get("portfolio")
-    if pf and pf.get("rule") == RULE_ID and pf.get("sleeve") == tp.SLEEVE:
-        return pf
+    if pf and pf.get("rule") in (RULE_ID, *tp.PREVIOUS_RULE_IDS) and pf.get("sleeve") == tp.SLEEVE:
+        return pf  # a v5 series continues under v6 (tp.advance re-tags it); nothing is archived
     starts = sorted(d for d, v in ledger.get("sessions", {}).items()
                     if d >= EFFECTIVE_DATE and v.get("rule") == RULE_ID)
     if not starts:
@@ -400,7 +400,7 @@ def history_html(ledger: dict) -> str:
     """Old-rule records, kept unchanged for reference (one collapsed block)."""
     history = list(ledger.get("portfolio_history", []))
     pf = ledger.get("portfolio")
-    if pf and (pf.get("rule") != RULE_ID or pf.get("sleeve") != tp.SLEEVE):
+    if pf and (pf.get("rule") not in (RULE_ID, *tp.PREVIOUS_RULE_IDS) or pf.get("sleeve") != tp.SLEEVE):
         history.append({"rule": pf.get("rule", ledger.get("rule", "legacy")), "portfolio": pf})
     if not history:
         return ""
@@ -477,7 +477,7 @@ def current_inventory_html(ledger: dict) -> str:
                 f'その翌営業日からは毎日の記録です。{_segment_note(pf)}</div>') if r.get("as_of") else ""
         return note + portfolio_html(pf)
     pf = ledger.get("portfolio")
-    if pf and pf.get("rule") == RULE_ID and pf.get("sleeve") == tp.SLEEVE:
+    if pf and pf.get("rule") in (RULE_ID, *tp.PREVIOUS_RULE_IDS) and pf.get("sleeve") == tp.SLEEVE:
         return portfolio_html(pf)
     return PENDING_HTML
 
@@ -755,7 +755,8 @@ def _saved_frame(root: Path, session: str | None) -> pd.DataFrame | None:
 def display_ledger(ledger: dict, root: Path) -> dict:
     """Render saved results only (no rebuilding on display)."""
     pf = ledger.get("portfolio")
-    pending = not ledger.get("modeled_portfolio") and (not pf or pf.get("rule") != RULE_ID or pf.get("sleeve") != tp.SLEEVE)
+    pending = not ledger.get("modeled_portfolio") and (not pf or pf.get("rule") not in (RULE_ID, *tp.PREVIOUS_RULE_IDS)
+                                                       or pf.get("sleeve") != tp.SLEEVE)
     return {**ledger, "_pending": pending}
 
 
