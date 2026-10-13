@@ -187,27 +187,91 @@ def _spark(hist: list) -> str:
             f'<div class="dax">{"".join(ticks)}</div></div>')
 
 
+BH_STYLE = (
+    '<style id="bh-style">'
+    '#mc57-breakout-health .bh-q{font-size:12.5px;color:#6b6858;margin:2px 0 8px}'
+    '#mc57-breakout-health .bh-act{border-radius:10px;padding:10px 12px;margin:6px 0 8px;border:1px solid}'
+    '#mc57-breakout-health .bh-act.on{background:#eef7f0;border-color:#b9dcc3}'
+    '#mc57-breakout-health .bh-act.off{background:#fbf3e3;border-color:#e6cf98}'
+    '#mc57-breakout-health .bh-act.na{background:#f3f2ee;border-color:#dedbd2}'
+    '#mc57-breakout-health .bh-act b.big{font-size:17px}'
+    '#mc57-breakout-health .bh-act .bh-why{font-size:12px;color:#5c594d;margin-top:3px}'
+    '#mc57-breakout-health .bh-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:6px 0}'
+    '#mc57-breakout-health .bh-grid div{background:#f6f5f1;border-radius:8px;padding:6px 8px;font-size:11.5px;color:#6b6858}'
+    '#mc57-breakout-health .bh-grid b{display:block;font-size:14px;color:#1c1b19}'
+    '#mc57-breakout-health .bh-next{font-size:12px;color:#3f3d35;margin:4px 0 2px}'
+    '#mc57-breakout-health ul.bh-ul{margin:4px 0 0 1.1em;padding:0;font-size:12px;line-height:1.6}'
+    '</style>')
+
+
+WHY_TEXT = {"好調": "好調なので通常の比率"}
+
+
+def _streak_days(health: dict) -> int:
+    """Sessions the current state (好調/不調) has lasted in the shown history."""
+    since = health.get("since")
+    return sum(1 for d, v, _ in health.get("history", []) if since and d >= since and v is not None)
+
+
+def _next_switch(health: dict | None, regime: dict | None, pct: int) -> str:
+    if not health or health.get("on") is None:
+        return "計算できるようになるまで通常の比率のまま。"
+    gap = abs(float(health["value"])) * 100
+    if health["on"]:
+        tail = (f"、QQQが200日線より上なら余剰資金を{SLEEVE_WEAK}%に増やす" if not regime or regime.get("on") is not False
+                else "。ただしQQQが200日線より下の間は増やさない")
+        return f"0%を下回ると（今はあと{gap:.1f}pt）不調に変わり{tail}。"
+    if regime and regime.get("on"):
+        back = allocation({"on": True, "value": 0.0, "session": health.get("session")}, regime)[0]
+        return f"0%以上に戻ると（今はあと{gap:.1f}pt）好調に戻り、余剰資金は{back}%に戻す。"
+    return f"QQQが200日線を回復したら余剰資金を{SLEEVE_WEAK}%に増やす（不調のままなら）。"
+
+
 def daily_card(health: dict | None, regime: dict | None) -> str:
     word, color = _state_word(health)
     pct, why = allocation(health, regime)
     value = health.get("value") if health else None
-    since = health.get("since") if health else None
     n = health.get("n") if health else 0
-    since_txt = f"・{since[5:].replace('-', '/')}から" if since else ""
+    since = health.get("since") if health else None
+    on = None if not health else health.get("on")
+    cls = "na" if on is None else ("on" if on else "off")
+    meaning = ("勢い株は報われている（買った本命が伸びている）" if on else
+               "勢い株が報われていない（指数は上がっても本命が伸びない）" if on is False else "判定に必要なシグナルが足りない")
+    days = _streak_days(health) if health and since else 0
+    since_txt = f'{since[5:].replace("-", "/")}から' if since else ""
+    action = (f'<div class="bh-act {cls}">今日の余剰資金：<b class="big">{pct}%</b> をTQQQルール枠へ'
+              f'<div class="bh-why">{html.escape(WHY_TEXT.get(why, why))}。残りは現金。個別株の売買ルールは変えない。</div></div>')
+    grid = ('<div class="bh-grid">'
+            f'<div>本命の10日後<b>{html.escape(_fmt(value))}</b>平均</div>'
+            f'<div>数えた本命<b>{n}件</b>直近63営業日</div>'
+            f'<div>{html.escape(word)}が続いて<b>{days}営業日</b>{html.escape(since_txt)}</div>'
+            '</div>')
+    explain = (
+        '<details class="cxpl"><summary>読み方と根拠</summary><div class="cxpl-b"><ul class="bh-ul">'
+        '<li><b>何を測る？</b> 直近63営業日に出た本命が、10日後に平均何%動いたか。0%以上＝好調、マイナス＝不調。'
+        '10日後の結果が出たものだけを使うので先読みはない（その分、切り替わりは数週間遅れる。好調・不調は平均54日続く）。</li>'
+        '<li><b>何に使う？</b> 余剰資金の置き場所だけ。不調かつQQQが200日線より上の日は'
+        f'{SLEEVE_WEAK}%をTQQQルール枠、それ以外は{SLEEVE_NORMAL}%（10月12日の公開分までは50%）。'
+        'QQQが200日線より下では増やさない（2022年のような下げで傷を深くしない）。個別株の新規・損切り・買い増しは変えない。</li>'
+        '<li><b>なぜ効く？</b> 指数は上がるのに勢い株が伸びない「退屈な年」（2016・2021・2023年）を不調と判定し、その年を指数側で取りにいく。'
+        '退屈な年は不調判定が約3分の2、好調だった2020・2026年は約5%。</li>'
+        '<li><b>崩れの警戒とは別物</b>：F1〜F3・MC57は「相場が崩れるか」、これは「買ったシグナルが伸びているか」。</li>'
+        '</ul><details class="cxpl"><summary>検証の数字</summary><div class="cxpl-b">'
+        f'現行（6銘柄×1/6・株は資産の{STOCK_CAP_LABEL}まで・枠{SLEEVE_NORMAL}%/{SLEEVE_WEAK}%・翌日の寄りで売買）で年率{BT["cagr"]}%・'
+        f'最大DD{str(BT["dd"]).replace("-", "−")}%。'
+        '置き先をQQQにした検証（株の上限なし）では、常に50%の年率35.0%→切替39.0%（最大DD−34.1%のまま）。'
+        '平均すると余剰資金の約65%を置く形で、65%固定なら36.9%＝切り替えそのものの上乗せは年+2pt程度（日数・基準を変えた36通り中35通りでプラス＝旧計算）。'
+        '</div></details></div></details>')
     return (
-        f'<div class="card" id="{CARD_ID}" data-rule="{RULE_ID}"><div class="chd"><h2>ブレイク成功度<span class="h2en">Breakout Health</span></h2>'
+        f'<div class="card" id="{CARD_ID}" data-rule="{RULE_ID}">' + BH_STYLE
+        + '<div class="chd"><h2>ブレイク成功度<span class="h2en">Breakout Health</span></h2>'
         f'<div class="chd-now" style="color:{color}"><b>{html.escape(_fmt(value))}</b><span>{word}</span></div></div>'
-        f'<div class="sub">スイングの本命シグナルが10日後に平均何%動いたか（直近63営業日・{n}件{since_txt}）。'
-        f'<b>余剰資金のTQQQルール枠：{pct}%</b>（{html.escape(why)}）</div>'
-        '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
-        '0%以上＝好調（勢い株が報われている）、マイナス＝不調（指数は上がっても勢い株が伸びない「退屈な年」型）。'
-        f'不調かつQQQが200日線より上の日は、余剰資金を{SLEEVE_WEAK}%TQQQルール枠に置く（それ以外は{SLEEVE_NORMAL}%、10月12日の公開分までは50%。残りは現金）。枠の中身はRulesタブ9。個別株の売買ルールは変えない。<br/>'
-        '置き先をQQQにした検証（6銘柄×1/6・翌営業日の寄りで売買・株の上限なし）では、常に50%の年率35.0%→切替39.0%、最大DDは−34.1%のまま。ただし平均すると余剰資金の約65%を置く形になり、65%固定なら36.9%（最大DD−36.3%）。判定そのものの上乗せは年+2pt程度（日数や基準を変えた36通り中35通りでプラス＝旧計算）。退屈だった2016・2021・2023年は不調判定が約3分の2、'
-        f'好調だった2020・2026年は約5%。現行（6銘柄×1/6・株は資産の{STOCK_CAP_LABEL}まで・枠{SLEEVE_NORMAL}%/{SLEEVE_WEAK}%・翌日の寄りで売買）の検証では年率{BT["cagr"]}%・最大DD{str(BT["dd"]).replace("-", "−")}%。'
-        '崩れの警戒（F1〜F3・MC57）とは別の問い＝「買ったシグナルが伸びているか」を測る。'
-        '10日後の結果が出たシグナルだけを使うので先読みはない。地合い停止中もシグナルは数え続ける。</div></details>'
+        f'<div class="bh-q">{html.escape(meaning)}</div>'
+        + action + grid
+        + f'<div class="bh-next"><b>次の切り替え</b>：{html.escape(_next_switch(health, regime, pct))}</div>'
         + (_spark(health["history"]) if health else "")
-        + '</div>'
+        + '<div class="sub" style="margin-top:2px">線＝その日の値（上の緑＝好調、下の赤＝不調）。1年分。</div>'
+        + explain + '</div>'
     )
 
 
@@ -218,8 +282,8 @@ def positions_line(health: dict | None, regime: dict | None) -> str:
     pct, why = allocation(health, regime)
     cls = "on" if health["on"] else "off"
     return (f'<div class="sw-reg {cls}" style="{"" if health["on"] else "background:#f3ecd6;color:#6b5a1e;border:1px solid #e0cf98"}">'
-            f'ブレイク成功度 <b>{html.escape(_fmt(health["value"]))}</b>：余剰資金のTQQQルール枠は<b>{pct}%</b>'
-            f'<span style="opacity:.85">（{html.escape(why)}）</span></div>')
+            f'ブレイク成功度 <b>{html.escape(_fmt(health["value"]))}</b>（{word}）→ 余剰資金の<b>{pct}%</b>をTQQQルール枠'
+            f'<span style="opacity:.85">（{html.escape(WHY_TEXT.get(why, why))}。0%をまたぐと切り替え。詳しくはDailyタブ）</span></div>')
 
 
 def apply_daily(text: str, health: dict | None, regime: dict | None) -> str:
