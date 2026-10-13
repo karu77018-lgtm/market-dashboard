@@ -12,7 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import track_portfolio as tp  # noqa: E402
 import track_record as tr  # noqa: E402
 
-D = [d.date().isoformat() for d in pd.bdate_range(end="2026-10-12", periods=30).append(pd.bdate_range("2026-10-13", periods=30))]
+D = [d.date().isoformat() for d in pd.bdate_range(end=tp.EFFECTIVE_DATE, periods=30).append(
+    pd.bdate_range(pd.Timestamp(tp.EFFECTIVE_DATE) + pd.offsets.BDay(1), periods=30))]
 W, N = tp.INITIAL_WEIGHT, tp.MAX_NAMES
 S = D[29]                       # signal session; history before it is flat at 100
 
@@ -66,14 +67,25 @@ def test_slots_ranked_by_189_day_return():
     names = [f"T{k}" for k in range(N + 1)]
     r189 = {t: k / 10 for k, t in enumerate(names)}                        # strongest last, T0 weakest
     pf = run(names, {t: [(100, 99.9, 100)] for t in names}, 1, r189=r189)
-    assert set(pf["positions"]) == {f"T{k}" for k in range(1, N + 1)}
-    assert pf["skipped"] == [{"t": "T0", "signal": S, "day": D[30], "why": f"{N}銘柄で満杯"}]
-    assert abs(pf["cash"] + pf["qqq_sh"] * 100) < 1e-9                    # N x W = fully invested
+    # v6: stocks stop at STOCK_CAP of equity -> four full names, the fifth gets what is left
+    full = int(tp.STOCK_CAP / W + 1e-9)
+    held = {f"T{k}" for k in range(N + 1 - full - 1, N + 1)}
+    assert set(pf["positions"]) == held
+    stock = sum(p["shares"] * 100 for p in pf["positions"].values())
+    assert abs(stock - tp.STOCK_CAP) < 1e-9
+    partial = pf["positions"][f"T{N - full}"]
+    assert abs(partial["shares"] * 100 - (tp.STOCK_CAP - full * W)) < 1e-9
+    cap = f"株が上限の{tp.STOCK_CAP:.0%}"
+    assert [x["t"] for x in pf["skipped"]] == [f"T{k}" for k in range(N - full - 1, -1, -1)]
+    assert all(x["why"] == cap for x in pf["skipped"])
 
 
 def test_regime_off_buys_nothing_and_unknown_pct_keeps_last():
     pf = run(["AAA"], {"AAA": [(100, 99.9, 100)]}, 1, regime="off", pct=None)
-    assert pf["positions"] == {} and abs(pf["qqq_sh"] * 100 - 0.5) < 1e-12
+    # after the v6 cutover an unpublished share moves the v5 normal 50% to the v6 normal 60%
+    assert pf["positions"] == {} and abs(pf["qqq_sh"] * 100 - tp.SLEEVE_NORMAL / 100) < 1e-12
+    pf = run(["AAA"], {"AAA": [(100, 99.9, 100)]}, 1, regime="off", pct=100)
+    assert abs(pf["qqq_sh"] * 100 - 1.0) < 1e-12
 
 
 def test_same_amount_adds_never_exceed_forty_percent():
@@ -132,8 +144,9 @@ def test_waits_for_missing_sleeve_nav_and_sleeve_moves_with_the_fund():
     fund[D[31]] = {"open": 100, "close": 120}         # sleeve +20% while QQQ is flat
     pf = tp.advance(pf, sessions(["AAA"]), f, q, D[31], fund=fund)
     idle = 1 - W
+    share = tp.SLEEVE_NORMAL / 100                     # D[30] has no session record -> the v6 normal share
     assert pf["last_day"] == D[31] and "waiting" not in pf
-    assert abs(pf["equity"][-1][1] - (W + idle / 2 * 1.2 + idle / 2)) < 1e-12
+    assert abs(pf["equity"][-1][1] - (W + idle * share * 1.2 + idle * (1 - share))) < 1e-12
     assert pf["equity"][-1][2] == 100                  # benchmark column stays QQQ
 
 
@@ -303,3 +316,82 @@ def test_published_record_shows_one_current_series_and_old_rules_folded():
     assert html.count('<div class="tr-grid">') == 2 + len(led.get('portfolio_history', [])) + (1 if led.get('portfolio') else 0)
     assert '過去検証（' in html and '設定の比較' in html and '翌営業日の寄りで売買' in html
     assert '旧ルールの記録（参考）' in html and 'SHA-256' not in html and '入力コミット' not in html
+
+
+def test_v5_model_continues_under_v6_without_selling():
+    """A running v5 model keeps its holdings; only orders from v6 publications are capped."""
+    pf = tp.new_portfolio(D[25])
+    pf["rule"] = tp.PREVIOUS_RULE_IDS[0]
+    pf["positions"] = {f"H{i}": {"signal": D[25], "entry_day": D[26], "entry": 100.0, "stop": 92.0,
+                                 "shares": W / 100, "unit": W, "invested": W, "adds": 0, "triggered": [],
+                                 "pending_add": 0, "pending_exit": False, "ema": 90.0, "last": 100.0, "days": 1}
+                       for i in range(4)}
+    pf["cash"], pf["qqq_sh"], pf["last_day"] = 1 - 4 * W, 0.0, D[29]
+    pf5 = copy.deepcopy(pf)
+    pf5["positions"]["H4"] = dict(pf5["positions"]["H0"])
+    pf5["cash"] -= W
+    bars = frame({**{f"H{i}": [(100, 99, 100)] for i in range(4)}, "NEW": [(100, 99, 100)]})
+    ses = {S: {"best": [{"t": "NEW", "r189": 1.0}], "regime": "on", "qqq_pct": 60}}
+    q = {d: {"open": 100.0, "close": 100.0} for d in D}
+    fund = {d: {"open": 1.0, "close": 1.0} for d in D}
+    out = tp.advance(pf, ses, bars, q, D[30], fund=fund)
+    assert out["rule"] == tp.RULE_ID and out["rule_changes"][0]["from"] == tp.PREVIOUS_RULE_IDS[0]
+    assert len([t for t in out["positions"] if t.startswith("H")]) == 4          # nothing sold
+    new = out["positions"]["NEW"]["shares"] * 100
+    assert abs(new - (tp.STOCK_CAP - 4 * W)) < 1e-9 and out["qqq_pct"] == 60     # filled up to the cap only
+    assert abs(out["positions"]["NEW"]["unit"] - (tp.STOCK_CAP - 4 * W)) < 1e-9     # adds repeat the smaller buy
+    full = tp.advance(pf5, ses, bars, q, D[30], fund=fund)                      # already above 80%: hold, no buy
+    assert len(full["positions"]) == 5 and full["skipped"][-1]["why"] == f"株が上限の{tp.STOCK_CAP:.0%}"
+
+
+def test_missing_share_after_v6_falls_back_to_normal_and_v5_portfolio_is_carried():
+    pf = tp.new_portfolio(S)
+    pf["qqq_pct"] = 100                                    # a weak-health day before the outage
+    q = qqq(31)
+    out = tp.advance(pf, sessions(["AAA"], pct=None), frame({"AAA": [(100, 99.9, 100)]}), q, D[30], fund=q)
+    assert out["qqq_pct"] == tp.SLEEVE_NORMAL
+    v5 = tp.new_portfolio(S)
+    v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
+    led = {"rule": v5["rule"], "portfolio": v5, "sessions": {S: {"rule": tr.RULE_ID}}}
+    assert tr.prepare_portfolio(led) is v5 and "portfolio_history" not in led
+
+
+def test_v5_retag_only_when_a_session_advances():
+    v5 = tp.new_portfolio(S)
+    v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
+    before = copy.deepcopy(v5)
+    q = qqq(30)                                            # nothing after S
+    assert tp.advance(v5, sessions(["AAA"]), frame({"AAA": []}), q, S, fund=q) == before
+
+
+def test_carried_v5_portfolio_is_labeled_in_both_views():
+    v5 = tp.new_portfolio("2026-10-05")
+    v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
+    v5["equity"] = [["2026-10-05", 1.0, 100], ["2026-10-06", 1.01, 100]]
+    led = {**tr.new_ledger(), "portfolio": v5, "sessions": {}}
+    html = tr.current_inventory_html(led)
+    assert "旧ルール（株の上限なし・余剰資金の枠50%）" in html
+    assert "旧ルール（株の上限なし・余剰資金の枠50%）" in tr.rules_block(led)
+
+
+def test_v5_retag_waits_for_a_valid_session():
+    v5 = tp.new_portfolio(S)
+    v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
+    q = qqq(31)
+    q[D[30]] = {"open": None, "close": 100}               # newer date, unusable bar
+    out = tp.advance(v5, sessions(["AAA"]), frame({"AAA": [(100, 99, 100)]}), q, D[30], fund=qqq(31))
+    assert out["rule"] == tp.PREVIOUS_RULE_IDS[0] and "rule_changes" not in out and out["waiting"] == D[30]
+
+
+def test_segment_note_only_for_carried_series():
+    old = tp.new_portfolio("2026-10-05", legacy_tqqq=True)
+    assert tr._segment_note(old) == ""
+    v5 = tp.new_portfolio("2026-10-05")
+    v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
+    assert "旧ルール" in tr._segment_note(v5)
+
+
+def test_allocation_uses_health_session_when_regime_is_missing():
+    import breakout_health as bh
+    assert bh.allocation({"on": True, "value": 0.1, "session": "2026-10-12"}, None)[0] == 50
+    assert bh.allocation({"on": True, "value": 0.1, "session": "2026-10-13"}, None)[0] == 60

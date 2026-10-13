@@ -325,7 +325,7 @@ def main() -> int:
         print(f"track record skipped: {exc!r}", flush=True)
     try:  # top card: needs the forward record's stock share, so after track_record
         text = tqqq_rule.render_only(text, html_path.resolve().parent,
-                                     breakout_health.allocation(health, regime)[0], args.session)
+                                     breakout_health.allocation(health, regime, args.session)[0], args.session)
     except Exception as exc:
         print(f"TQQQ card skipped: {exc!r}", flush=True)
     import ipo_base

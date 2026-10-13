@@ -32,10 +32,10 @@ def test_weekly_sar_lookup_matches_truncated_state():
 def test_allocation_rule():
     on, off = {"on": True, "value": 0.05}, {"on": False, "value": -0.02}
     assert bh.allocation(off, {"on": True})[0] == 100
-    assert bh.allocation(off, {"on": False})[0] == 50
-    assert bh.allocation(on, {"on": True})[0] == 50
-    assert bh.allocation(None, {"on": True})[0] == 50
-    assert bh.allocation(off, None)[0] == 50
+    assert bh.allocation(off, {"on": False})[0] == 60
+    assert bh.allocation(on, {"on": True})[0] == 60
+    assert bh.allocation(None, {"on": True})[0] == 60
+    assert bh.allocation(off, None)[0] == 60
 
 
 def test_daily_card_and_positions_line():
@@ -48,5 +48,13 @@ def test_daily_card_and_positions_line():
     assert bh.apply_daily(out, health, {"on": True}) == out
     assert bh.apply_daily("<html></html>", health, None) == "<html></html>"
     line = bh.positions_line(health, {"on": False})
-    assert "不調" in line and "50%" in line
+    assert "不調" in line and "50%" in line          # session 2026-10-01 is before the v6 cutover
     assert bh.positions_line(None, None) == ""
+
+
+def test_allocation_keeps_v5_share_for_publications_before_the_cutover():
+    on = {"on": True, "value": 0.05}
+    assert bh.allocation(on, {"on": True, "date": "2026-10-12"})[0] == 50
+    assert bh.allocation(on, {"on": True, "date": "2026-10-13"})[0] == 60
+    assert bh.allocation(on, {"on": True}, "2026-10-12")[0] == 50
+    assert bh.allocation({"on": False, "value": -0.01}, {"on": True, "date": "2026-10-12"})[0] == 100

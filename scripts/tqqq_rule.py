@@ -408,7 +408,7 @@ EXAMPLES = (0.0, 0.25, 0.5, 0.75)
 def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, top: bool = False,
               stock: float | None = None, session: str | None = None,
               holdings: dict | None = None) -> str:
-    from swing_allocation import MAX_NAMES, INITIAL_WEIGHT, INITIAL_LABEL
+    from swing_allocation import MAX_NAMES, INITIAL_WEIGHT, INITIAL_LABEL, SLEEVE_NORMAL, SLEEVE_WEAK, SLEEVE_SHARES
     cid = CARD_ID if top else CARD_ID + "-mini"
     e = html.escape
     if not rec:
@@ -416,7 +416,9 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
                 '<span class="tqr-m">判定不可</span></div><div class="tqr-sub">入力（QQQ・TQQQ・VIX・HY OAS・金）が'
                 'そろわないため今日の目標を出していません。前日の比率のまま。</div></div>')
     word, cls = summary_words(rec)
-    pct = sleeve_pct if sleeve_pct in (50, 100) else 50
+    pct = sleeve_pct if sleeve_pct in SLEEVE_SHARES and sleeve_pct else SLEEVE_NORMAL
+    pick = (f'ブレイク成功度で{SLEEVE_NORMAL}%か{SLEEVE_WEAK}%' if pct != 50 else
+            f'10月12日の公開分までの通常は50%。10月13日の公開分から{SLEEVE_NORMAL}%（不調なら{SLEEVE_WEAK}%）')
     tgt, gold = float(rec.get("target") or 0), float(rec.get("gold") or 0)
     stale = (f'<div class="tqr-stale">{e(session)}の入力が欠けたため、{e(day or "")}の判定のままです。</div>'
              if session and day and day < session else "")
@@ -442,13 +444,13 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
                    '自分の個別株比率が違うときは下の表で。</div>')
         else:
             how = (f'<div class="tqr-how">個別株 <b>{_pp(st_)}</b>{held}以外の <b>{_pp(1 - st_)}</b> のうち <b>{pct}%</b> が枠'
-                   f'（ブレイク成功度で50%か100%）→ {fill} ＝ 全体の TQQQ <b>{_pp(tq)}</b>。枠の外は現金。'
+                   f'（{pick}）→ {fill} ＝ 全体の TQQQ <b>{_pp(tq)}</b>。枠の外は現金。'
                    '自分の個別株比率が違うときは下の表で。</div>')
     else:
         parts = [("tqqq", "TQQQ", t_in), ("gold", "金", g_in), ("cash", "現金・短期国債", c_in)]
         head = ('<div class="tqr-big">個別株以外のお金の配分（今日の目標）</div>'
                 f'<div class="tqr-sub" data-stock-allocation="pending">ルール運用の保有比率が読めないため、資産全体の比率は下の表で。</div>')
-        how = (f'<div class="tqr-how">個別株以外のお金の <b>{pct}%</b> が枠（ブレイク成功度で50%か100%）→ {fill}。'
+        how = (f'<div class="tqr-how">個別株以外のお金の <b>{pct}%</b> が枠（{pick}）→ {fill}。'
                '枠の外は現金。資産全体での比率は下の表で。</div>')
     bar = '<div class="tqr-bar">' + "".join(
         f'<i style="width:{v * 100:.2f}%;background:{COLORS[k]}"></i>' for k, _, v in parts if v > 0.0005) + '</div>'
