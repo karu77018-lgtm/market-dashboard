@@ -75,7 +75,10 @@ def stance_html(soup: BeautifulSoup, ledger: dict | None) -> str:
     day, rec = tqqq_rule.latest(ledger)
     if rec:
         mode, _ = tqqq_rule.summary_words(rec)
-        tq = f'TQQQ <b>{tqqq_rule._pct(float(rec.get("target") or 0))}</b>（{html.escape(mode)}）'
+        # The rule's target is a share of the TQQQ-rule sleeve, not of total assets
+        # (the top card shows the total-asset split).
+        tq = (f'枠の中のTQQQ <b>{tqqq_rule._pct(float(rec.get("target") or 0))}</b>（{html.escape(mode)}）'
+              '・資産全体の配分は上部のカード')
     else:
         tq = "判定不可"
     return (f'<div id="{STANCE_ID}" style="font-size:13px;line-height:1.7"><b>来週の姿勢</b>（地合い＝QQQの200日線）：'

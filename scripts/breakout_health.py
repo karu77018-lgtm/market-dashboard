@@ -12,10 +12,11 @@ Definition (same as the 2015-2026 backtest):
 
 Allocation rule: when 不調 and QQQ is above its 200-day average, put 100% of idle
 cash in the TQQQ-rule sleeve (Rules tab 9; QQQ until October 2026); otherwise 50%.
-Original test with QQQ as the sleeve:  Backtest with the 6-position rule (stock trades
-unchanged): CAGR 38.5% -> 42.4%, max DD -30.3% either way.  The switch holds about
-63% of idle cash in QQQ on average and a fixed 63% gives 40.0%, so the timing
-itself adds roughly +1 to +2 points a year (positive in 35 of 36 parameter sets).
+Re-check with QQQ as the sleeve and next-open fills (2026-10-13, 6 x 1/6, stock trades
+unchanged): always 50% 35.0% -> switch 39.0%, max DD -34.1% either way.  The switch
+holds about 65% of idle cash on average and a fixed 65% gives 36.9%, so the timing
+itself adds roughly +2 points a year (35 of 36 parameter sets positive in the older
+signal-close study).
 """
 from __future__ import annotations
 
@@ -189,7 +190,7 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
         '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
         '0%以上＝好調（勢い株が報われている）、マイナス＝不調（指数は上がっても勢い株が伸びない「退屈な年」型）。'
         '不調かつQQQが200日線より上の日は、余剰資金を100%TQQQルール枠に置く（それ以外は50%、残りは現金）。枠の中身はRulesタブ9。個別株の売買ルールは変えない。<br/>'
-        '置き先をQQQにした当初の検証（6銘柄ルール）で年率38.5%→42.4%、最大DDは−30.3%のまま。ただし平均するとQQQを約63%持つ形になり、63%固定でも40.0%。判定そのものの上乗せは年+1〜2pt程度（日数や基準を変えた36通り中35通りでプラス）。退屈だった2016・2021・2023年は不調判定が約3分の2、'
+        '置き先をQQQにした検証（6銘柄×1/6・翌営業日の寄りで売買）では、常に50%の年率35.0%→切替39.0%、最大DDは−34.1%のまま。ただし平均すると余剰資金の約65%を置く形になり、65%固定なら36.9%（最大DD−36.3%）。判定そのものの上乗せは年+2pt程度（日数や基準を変えた36通り中35通りでプラス＝旧計算）。退屈だった2016・2021・2023年は不調判定が約3分の2、'
         '好調だった2020・2026年は約5%。現行（6銘柄×1/6・置き先はTQQQルール枠・翌日の寄りで売買）の検証では年率53.4%・最大DD−36.3%。崩れの警戒（F1〜F3・MC57）とは別の問い＝「買ったシグナルが伸びているか」を測る。'
         '10日後の結果が出たシグナルだけを使うので先読みはない。地合い停止中もシグナルは数え続ける。</div></details>'
         + (_spark(health["history"]) if health else "")

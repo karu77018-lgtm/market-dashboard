@@ -7,6 +7,9 @@ from bs4 import BeautifulSoup
 
 
 _TICKER_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-")
+FAVICON = ("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E"
+           "%3Crect width='16' height='16' rx='3' fill='%231f2a44'/%3E"
+           "%3Cpath d='M3 11l3-3 2 2 5-5' stroke='%2334d399' stroke-width='2' fill='none'/%3E%3C/svg%3E")
 
 
 def rs_tab_taps(soup: BeautifulSoup) -> int:
@@ -32,6 +35,9 @@ def apply(text: str, root: Path) -> str:
     text = text.replace("NQ運用判定（専用）", "NQ露出上限")
     soup = BeautifulSoup(text, "html.parser")
     rs_tab_taps(soup)
+    # Browsers request /favicon.ico (404) when the page names no icon.
+    if soup.head is not None and soup.head.find('link', rel='icon') is None:
+        soup.head.append(soup.new_tag('link', attrs={'rel': 'icon', 'href': FAVICON}))
     # Only the two legacy Core 12 tables need containment; table styling stays.
     for table in soup.select('#t-port table'):
         if 'core-table-wrap' not in table.parent.get('class', []):
