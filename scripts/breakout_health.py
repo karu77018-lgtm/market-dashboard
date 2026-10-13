@@ -34,7 +34,7 @@ HISTORY = 252
 MIN_SIGNALS = 5
 CARD_ID = "mc57-breakout-health"
 from rules_tab import RULE_ID  # noqa: E402
-from swing_allocation import SLEEVE_NORMAL, SLEEVE_WEAK, STOCK_CAP_LABEL  # noqa: E402
+from swing_allocation import EFFECTIVE_DATE, SLEEVE_NORMAL, SLEEVE_WEAK, STOCK_CAP_LABEL  # noqa: E402
 from backtest_summary import CURRENT as BT  # noqa: E402
 
 # Year-by-year backtest (2015-01 .. 2026-08, 6-position rule): idle cash 50% QQQ vs this switch.
@@ -129,17 +129,26 @@ def compute(frame: pd.DataFrame, history: int = HISTORY) -> dict[str, Any] | Non
             "on": None if value is None else value >= 0, "since": since, "history": hist}
 
 
-def allocation(health: dict | None, regime: dict | None) -> tuple[int, str]:
-    """Idle-cash share (%) for the TQQQ-rule sleeve and the reason."""
+def allocation(health: dict | None, regime: dict | None, session: str | None = None) -> tuple[int, str]:
+    """Idle-cash share (%) for the TQQQ-rule sleeve and the reason.
+
+    A publication before the v6 cutover (session < EFFECTIVE_DATE) keeps the v5 normal 50%;
+    the session defaults to the regime's date.
+    """
+    session = session or (regime or {}).get("date")
+    if session and str(session) < EFFECTIVE_DATE:
+        normal = 50
+    else:
+        normal = SLEEVE_NORMAL
     if not health or health.get("on") is None:
-        return SLEEVE_NORMAL, "ブレイク成功度が計算できないため通常どおり"
+        return normal, "ブレイク成功度が計算できないため通常どおり"
     if regime is None:
-        return SLEEVE_NORMAL, "地合い（QQQの200日線）が取れないため通常どおり"
+        return normal, "地合い（QQQの200日線）が取れないため通常どおり"
     if not health["on"] and regime.get("on"):
         return SLEEVE_WEAK, "不調かつQQQが200日線より上"
     if not health["on"]:
-        return SLEEVE_NORMAL, "不調だがQQQが200日線より下なので増やさない"
-    return SLEEVE_NORMAL, "好調"
+        return normal, "不調だがQQQが200日線より下なので増やさない"
+    return normal, "好調"
 
 
 def _fmt(v: float | None) -> str:

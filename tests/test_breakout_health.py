@@ -50,3 +50,11 @@ def test_daily_card_and_positions_line():
     line = bh.positions_line(health, {"on": False})
     assert "不調" in line and "60%" in line
     assert bh.positions_line(None, None) == ""
+
+
+def test_allocation_keeps_v5_share_for_publications_before_the_cutover():
+    on = {"on": True, "value": 0.05}
+    assert bh.allocation(on, {"on": True, "date": "2026-10-12"})[0] == 50
+    assert bh.allocation(on, {"on": True, "date": "2026-10-13"})[0] == 60
+    assert bh.allocation(on, {"on": True}, "2026-10-12")[0] == 50
+    assert bh.allocation({"on": False, "value": -0.01}, {"on": True, "date": "2026-10-12"})[0] == 100
