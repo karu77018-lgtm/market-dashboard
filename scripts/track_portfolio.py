@@ -222,8 +222,9 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
     # 4. idle money to the published QQQ share
     if signal and signal.get("qqq_pct") in SLEEVE_SHARES:
         pf["qqq_pct"] = signal["qqq_pct"]
-    elif signal and signal.get("qqq_pct") is None and prev >= EFFECTIVE_DATE:
-        pf["qqq_pct"] = SLEEVE_NORMAL  # unpublished share after v6 = the normal share (as breakout_health.allocation)
+    elif prev >= EFFECTIVE_DATE:
+        # no published share (or no session record) after v6 = the normal share, as breakout_health.allocation
+        pf["qqq_pct"] = SLEEVE_NORMAL
     idle = pf["cash"] + pf["qqq_sh"] * q_open
     pf["qqq_sh"] = idle * pf["qqq_pct"] / 100 / q_open
     pf["cash"] = idle - pf["qqq_sh"] * q_open

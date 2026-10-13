@@ -48,7 +48,7 @@ def test_daily_card_and_positions_line():
     assert bh.apply_daily(out, health, {"on": True}) == out
     assert bh.apply_daily("<html></html>", health, None) == "<html></html>"
     line = bh.positions_line(health, {"on": False})
-    assert "不調" in line and "60%" in line
+    assert "不調" in line and "50%" in line          # session 2026-10-01 is before the v6 cutover
     assert bh.positions_line(None, None) == ""
 
 

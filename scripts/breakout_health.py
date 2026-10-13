@@ -133,9 +133,9 @@ def allocation(health: dict | None, regime: dict | None, session: str | None = N
     """Idle-cash share (%) for the TQQQ-rule sleeve and the reason.
 
     A publication before the v6 cutover (session < EFFECTIVE_DATE) keeps the v5 normal 50%;
-    the session defaults to the regime's date.
+    the session defaults to the regime's date, then the health session.
     """
-    session = session or (regime or {}).get("date")
+    session = session or (regime or {}).get("date") or (health or {}).get("session")
     if session and str(session) < EFFECTIVE_DATE:
         normal = 50
     else:

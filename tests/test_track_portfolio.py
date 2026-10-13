@@ -144,8 +144,9 @@ def test_waits_for_missing_sleeve_nav_and_sleeve_moves_with_the_fund():
     fund[D[31]] = {"open": 100, "close": 120}         # sleeve +20% while QQQ is flat
     pf = tp.advance(pf, sessions(["AAA"]), f, q, D[31], fund=fund)
     idle = 1 - W
+    share = tp.SLEEVE_NORMAL / 100                     # D[30] has no session record -> the v6 normal share
     assert pf["last_day"] == D[31] and "waiting" not in pf
-    assert abs(pf["equity"][-1][1] - (W + idle / 2 * 1.2 + idle / 2)) < 1e-12
+    assert abs(pf["equity"][-1][1] - (W + idle * share * 1.2 + idle * (1 - share))) < 1e-12
     assert pf["equity"][-1][2] == 100                  # benchmark column stays QQQ
 
 
@@ -388,3 +389,9 @@ def test_segment_note_only_for_carried_series():
     v5 = tp.new_portfolio("2026-10-05")
     v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
     assert "旧ルール" in tr._segment_note(v5)
+
+
+def test_allocation_uses_health_session_when_regime_is_missing():
+    import breakout_health as bh
+    assert bh.allocation({"on": True, "value": 0.1, "session": "2026-10-12"}, None)[0] == 50
+    assert bh.allocation({"on": True, "value": 0.1, "session": "2026-10-13"}, None)[0] == 60
