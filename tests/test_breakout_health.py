@@ -68,3 +68,11 @@ def test_card_wording_for_unavailable_health_and_regime_off():
     bad = {"session": "2026-10-14", "value": -0.01, "n": 20, "on": False, "since": "2026-10-01", "history": []}
     line = bh.positions_line(bad, {"on": False, "date": "2026-10-14"})
     assert "0%をまたぐと切り替え" not in line and "比率は同じ" in line
+
+
+def test_unknown_regime_is_not_shown_as_below_the_line():
+    good = {"session": "2026-10-14", "value": 0.02, "n": 20, "on": True, "since": "2026-10-01", "history": []}
+    line = bh.positions_line(good, None)
+    assert "地合いが取れない" in line and "200日線より下" not in line
+    card = bh.daily_card(good, None)
+    assert "地合い（QQQの200日線）が取れない間は" in card and "回復したら" not in card

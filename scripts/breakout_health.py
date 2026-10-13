@@ -217,11 +217,13 @@ def _next_switch(health: dict | None, regime: dict | None, pct: int) -> str:
     if not health or health.get("on") is None:
         return "計算できるようになるまで通常の比率のまま。"
     gap = abs(float(health["value"])) * 100
+    if not regime or regime.get("on") is None:
+        return "地合い（QQQの200日線）が取れない間は、好調・不調にかかわらず通常の比率のまま。"
     if health["on"]:
-        tail = (f"、QQQが200日線より上なら余剰資金を{SLEEVE_WEAK}%に増やす" if not regime or regime.get("on") is not False
+        tail = (f"、QQQが200日線より上なら余剰資金を{SLEEVE_WEAK}%に増やす" if regime.get("on")
                 else "。ただしQQQが200日線より下の間は増やさない")
         return f"0%を下回ると（今はあと{gap:.1f}pt）不調に変わり{tail}。"
-    if regime and regime.get("on"):
+    if regime.get("on"):
         back = allocation({"on": True, "value": 0.0, "session": health.get("session")}, regime)[0]
         return f"0%以上に戻ると（今はあと{gap:.1f}pt）好調に戻り、余剰資金は{back}%に戻す。"
     return f"QQQが200日線を回復したら余剰資金を{SLEEVE_WEAK}%に増やす（不調のままなら）。"
@@ -283,7 +285,8 @@ def positions_line(health: dict | None, regime: dict | None) -> str:
     pct, why = allocation(health, regime)
     cls = "on" if health["on"] else "off"
     # crossing 0% changes the share only while QQQ is above its 200-day line
-    switch = "0%をまたぐと切り替え。" if regime and regime.get("on") else "QQQが200日線より下の間は0%をまたいでも比率は同じ。"
+    switch = ("地合いが取れないため比率は通常のまま。" if not regime or regime.get("on") is None
+              else "0%をまたぐと切り替え。" if regime.get("on") else "QQQが200日線より下の間は0%をまたいでも比率は同じ。")
     return (f'<div class="sw-reg {cls}" style="{"" if health["on"] else "background:#f3ecd6;color:#6b5a1e;border:1px solid #e0cf98"}">'
             f'ブレイク成功度 <b>{html.escape(_fmt(health["value"]))}</b>（{word}）→ 余剰資金の<b>{pct}%</b>をTQQQルール枠'
             f'<span style="opacity:.85">（{html.escape(WHY_TEXT.get(why, why))}。{switch}詳しくはDailyタブ）</span></div>')
