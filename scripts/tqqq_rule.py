@@ -417,7 +417,8 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
                 'そろわないため今日の目標を出していません。前日の比率のまま。</div></div>')
     word, cls = summary_words(rec)
     pct = sleeve_pct if sleeve_pct in SLEEVE_SHARES and sleeve_pct else SLEEVE_NORMAL
-    pick = f'ブレイク成功度で{SLEEVE_NORMAL}%か{SLEEVE_WEAK}%'
+    pick = (f'ブレイク成功度で{SLEEVE_NORMAL}%か{SLEEVE_WEAK}%' if pct != 50 else
+            f'10月12日の公開分までの通常は50%。10月13日の公開分から{SLEEVE_NORMAL}%（不調なら{SLEEVE_WEAK}%）')
     tgt, gold = float(rec.get("target") or 0), float(rec.get("gold") or 0)
     stale = (f'<div class="tqr-stale">{e(session)}の入力が欠けたため、{e(day or "")}の判定のままです。</div>'
              if session and day and day < session else "")

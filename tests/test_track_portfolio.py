@@ -380,3 +380,11 @@ def test_v5_retag_waits_for_a_valid_session():
     q[D[30]] = {"open": None, "close": 100}               # newer date, unusable bar
     out = tp.advance(v5, sessions(["AAA"]), frame({"AAA": [(100, 99, 100)]}), q, D[30], fund=qqq(31))
     assert out["rule"] == tp.PREVIOUS_RULE_IDS[0] and "rule_changes" not in out and out["waiting"] == D[30]
+
+
+def test_segment_note_only_for_carried_series():
+    old = tp.new_portfolio("2026-10-05", legacy_tqqq=True)
+    assert tr._segment_note(old) == ""
+    v5 = tp.new_portfolio("2026-10-05")
+    v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
+    assert "旧ルール" in tr._segment_note(v5)

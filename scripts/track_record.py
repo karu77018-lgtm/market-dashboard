@@ -462,7 +462,8 @@ def portfolio_html(pf: dict | None, pending: bool = False) -> str:
 
 def _segment_note(pf: dict) -> str:
     """Which rule each part of a carried series used (v5 until the v6 cutover)."""
-    if str(pf.get("start", "")) >= EFFECTIVE_DATE:
+    if str(pf.get("start", "")) >= EFFECTIVE_DATE or pf.get("rule") not in (RULE_ID, *tp.PREVIOUS_RULE_IDS) \
+            or pf.get("sleeve") != tp.SLEEVE:
         return ""
     return (f'{EFFECTIVE_DATE}の公開分より前は旧ルール（株の上限なし・余剰資金の枠50%）、'
             f'それ以後は現行ルール（個別株は総資産の{STOCK_CAP_LABEL}まで・枠{SLEEVE_NORMAL}%）で同じ記録を続けています。')
