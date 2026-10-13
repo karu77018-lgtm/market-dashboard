@@ -140,8 +140,8 @@ GOOD_POS = (0.50, 0.75)  # backtest sweet spot inside the HL structure
 # trend template, 50-day dollar volume top 50%, RS189 and RS63 top 20%, weekly SAR bull
 # flipped 0-8 completed weeks ago, inside the HL structure at 50-75%, setup OK.
 # 2015-2026: ~19 names/yr, PF 2.12 (2.75 / 2.05 / 1.88 by period) excluding 本命 overlap;
-# next-open re-check (2026-10-13): mixed into the 6 slots after the 本命 53.4% -> 53.6% (by RS189 51.9%);
-# they stay discretionary.
+# next-open re-check (2026-10-13): mixed into the 6 slots after the 本命 53.4% -> 53.6%, but lower in every
+# other setup (2021-26 77.9% -> 67.9%, stocks only 28.7% -> 27.7%, QQQ sleeve 39.0% -> 36.9%); watch only.
 GL_DV_PCT = 50
 GL_RS189_PCT = 80
 GL_RS63_PCT = 80
@@ -957,7 +957,7 @@ def card_html(result: dict) -> str:
         + watch_body
         + sec("好位置リーダー（検討可）", f"本命の外・監視のみ（形OK {len(glead)}・あと1つ {len(glead_near)}）", gl_all)
         + '<div class="sw-hint">本命の一歩外（売買代金上位50%・RS189とRS63が上位20%・TT）で、週足SAR転換8週以内の好位置にあり、形がそろった銘柄。'
-          '2015〜2026年の過去検証でPF 2.12・年19件（本命と重なるものを除く）。本命の枠に機械的に混ぜると、本命を優先すれば年率53.4%→53.6%とほぼ同じ（2022年の負けは−12.3%→−6.5%と浅い）、RS189順に混ぜると51.9%に下がるため、'
+          '2015〜2026年の過去検証でPF 2.12・年19件（本命と重なるものを除く）。本命の枠に機械的に混ぜると、今の設定では年率53.4%→53.6%だが、2021〜26年は77.9%→67.9%、個別株だけ28.7%→27.7%、余剰資金をQQQ 39.0%→36.9%と、ほかの設定ではすべて下がる（2022年の負けは−12.3%→−6.5%と浅くなるが最大DDは同じ）。上乗せが不安定なため、'
           f'空き枠があるときに裁量で検討する監視リスト。入るなら本命と同じ売買ルールで通常スイングの{MAX_NAMES}枠に含める'
           + ('（地合い停止中は新規不可・参考表示）' if stopped else '') + '。</div>'
         + gl_body
