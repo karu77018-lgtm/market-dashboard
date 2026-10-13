@@ -33,6 +33,9 @@ def test_display_patches_match_the_frozen_source_once_and_compile():
     compile(text, "patched-source", "exec")
     assert 'RS21/63/189すべて85以上 {pulse.get("all3", 0)}' in text
     assert "ftd_up = bool(ftd)" in text and text.count('if ftd_up else') == 2
+    clear = text.index('if state == "NO_CORRECTION":')
+    assert clear < text.index("rec.update(state=state, st=st, cls=cls)")
+    assert text.rindex('state = "NO_CORRECTION"', 0, clear) > text.index('st, cls = "上昇継続中（FTD非対象）", "mut"')
     # the count itself is RS21/63/189 in the frozen source
     assert "(top.rs21>=85)&(top.rs63>=85)&(top.rs189>=85)" in text
 

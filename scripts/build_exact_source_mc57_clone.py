@@ -167,9 +167,10 @@ def reconstruct_source(source_dir: Path, target: Path) -> Path:
 DISPLAY_PATCHES = (
     ('RS63/126/189すべて85以上 {pulse.get("all3", 0)}',
      'RS21/63/189すべて85以上 {pulse.get("all3", 0)}', "RS3 label"),
-    ('            state = "NO_CORRECTION"\n            st, cls = "上昇継続中（FTD非対象）", "mut"\n',
-     '            state = "NO_CORRECTION"\n            st, cls = "上昇継続中（FTD非対象）", "mut"\n'
-     '            rec["invalidation"] = None\n', "FTD stale invalidation"),
+    ('        rec.update(state=state, st=st, cls=cls)\n',
+     '        if state == "NO_CORRECTION":  # both no-correction paths: no stale "割れ" reason\n'
+     '            rec["invalidation"] = None\n'
+     '        rec.update(state=state, st=st, cls=cls)\n', "FTD stale invalidation"),
     ('    ftd_ok = any((not it.get("invalidation")) and it.get("ftd_date") for it in ftd) if ftd else False\n',
      '    ftd_ok = any((not it.get("invalidation")) and it.get("ftd_date") for it in ftd) if ftd else False\n'
      '    ftd_up = bool(ftd) and all(it.get("state") == "NO_CORRECTION" for it in ftd)\n', "FTD uptrend flag"),
