@@ -59,3 +59,12 @@ def test_allocation_keeps_v5_share_for_publications_before_the_cutover():
     assert bh.allocation(on, {"on": True, "date": "2026-10-13"})[0] == 60
     assert bh.allocation(on, {"on": True}, "2026-10-12")[0] == 50
     assert bh.allocation({"on": False, "value": -0.01}, {"on": True, "date": "2026-10-12"})[0] == 100
+
+
+def test_card_wording_for_unavailable_health_and_regime_off():
+    na = {"session": "2026-10-14", "value": None, "n": 2, "on": None, "since": None, "history": []}
+    card = bh.daily_card(na, {"on": True, "date": "2026-10-14"})
+    assert "0営業日" not in card and "判定できない" in card
+    bad = {"session": "2026-10-14", "value": -0.01, "n": 20, "on": False, "since": "2026-10-01", "history": []}
+    line = bh.positions_line(bad, {"on": False, "date": "2026-10-14"})
+    assert "0%をまたぐと切り替え" not in line and "比率は同じ" in line

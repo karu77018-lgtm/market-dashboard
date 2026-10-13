@@ -244,8 +244,9 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
     grid = ('<div class="bh-grid">'
             f'<div>本命の10日後<b>{html.escape(_fmt(value))}</b>平均</div>'
             f'<div>数えた本命<b>{n}件</b>直近63営業日</div>'
-            f'<div>{html.escape(word)}が続いて<b>{days}営業日</b>{html.escape(since_txt)}</div>'
-            '</div>')
+            + (f'<div>{html.escape(word)}が続いて<b>{days}営業日</b>{html.escape(since_txt)}</div>' if since
+               else '<div>続いた日数<b>—</b>判定できない</div>')
+            + '</div>')
     explain = (
         '<details class="cxpl"><summary>読み方と根拠</summary><div class="cxpl-b"><ul class="bh-ul">'
         '<li><b>何を測る？</b> 直近63営業日に出た本命が、10日後に平均何%動いたか。0%以上＝好調、マイナス＝不調。'
@@ -281,9 +282,11 @@ def positions_line(health: dict | None, regime: dict | None) -> str:
     word, _ = _state_word(health)
     pct, why = allocation(health, regime)
     cls = "on" if health["on"] else "off"
+    # crossing 0% changes the share only while QQQ is above its 200-day line
+    switch = "0%をまたぐと切り替え。" if regime and regime.get("on") else "QQQが200日線より下の間は0%をまたいでも比率は同じ。"
     return (f'<div class="sw-reg {cls}" style="{"" if health["on"] else "background:#f3ecd6;color:#6b5a1e;border:1px solid #e0cf98"}">'
             f'ブレイク成功度 <b>{html.escape(_fmt(health["value"]))}</b>（{word}）→ 余剰資金の<b>{pct}%</b>をTQQQルール枠'
-            f'<span style="opacity:.85">（{html.escape(WHY_TEXT.get(why, why))}。0%をまたぐと切り替え。詳しくはDailyタブ）</span></div>')
+            f'<span style="opacity:.85">（{html.escape(WHY_TEXT.get(why, why))}。{switch}詳しくはDailyタブ）</span></div>')
 
 
 def apply_daily(text: str, health: dict | None, regime: dict | None) -> str:
