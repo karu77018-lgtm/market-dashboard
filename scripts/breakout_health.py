@@ -240,13 +240,18 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
     meaning = ("勢い株は報われている（買った本命が伸びている）" if on else
                "勢い株が報われていない（指数は上がっても本命が伸びない）" if on is False else "判定に必要なシグナルが足りない")
     days = _streak_days(health) if health and since else 0
+    hist = health.get("history", []) if health else []
+    # a state that began before the shown year is at least that long, not exactly
+    truncated = bool(since and hist and since == hist[0][0])
+    spark = _spark(hist) if health else ""
     since_txt = f'{since[5:].replace("-", "/")}から' if since else ""
     action = (f'<div class="bh-act {cls}">今日の余剰資金：<b class="big">{pct}%</b> をTQQQルール枠へ'
               f'<div class="bh-why">{html.escape(WHY_TEXT.get(why, why))}。残りは現金。個別株の売買ルールは変えない。</div></div>')
     grid = ('<div class="bh-grid">'
             f'<div>本命の10日後<b>{html.escape(_fmt(value))}</b>平均</div>'
             f'<div>数えた本命<b>{n}件</b>直近63営業日</div>'
-            + (f'<div>{html.escape(word)}が続いて<b>{days}営業日</b>{html.escape(since_txt)}</div>' if since
+            + (f'<div>{html.escape(word)}が続いて<b>{days}営業日{"以上" if truncated else ""}</b>'
+               f'{"1年以上前から" if truncated else html.escape(since_txt)}</div>' if since
                else '<div>続いた日数<b>—</b>判定できない</div>')
             + '</div>')
     explain = (
@@ -272,8 +277,8 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
         f'<div class="bh-q">{html.escape(meaning)}</div>'
         + action + grid
         + f'<div class="bh-next"><b>次の切り替え</b>：{html.escape(_next_switch(health, regime, pct))}</div>'
-        + (_spark(health["history"]) if health else "")
-        + '<div class="sub" style="margin-top:2px">線＝その日の値（上の緑＝好調、下の赤＝不調）。1年分。</div>'
+        + (f'{spark}<div class="sub" style="margin-top:2px">線＝その日の値（上の緑＝好調、下の赤＝不調）。1年分。</div>'
+           if spark else '<div class="sub" style="margin-top:2px">推移はまだ描けない（計算できた日が足りない）。</div>')
         + explain + '</div>'
     )
 

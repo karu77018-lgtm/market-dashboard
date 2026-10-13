@@ -76,3 +76,13 @@ def test_unknown_regime_is_not_shown_as_below_the_line():
     assert "地合いが取れない" in line and "200日線より下" not in line
     card = bh.daily_card(good, None)
     assert "地合い（QQQの200日線）が取れない間は" in card and "回復したら" not in card
+
+
+def test_streak_is_a_lower_bound_at_the_window_edge_and_no_legend_without_chart():
+    hist = [("2025-10-%02d" % d, 0.01, 20) for d in range(1, 29)]
+    long = {"session": hist[-1][0], "value": 0.01, "n": 20, "on": True, "since": hist[0][0], "history": hist}
+    card = bh.daily_card(long, {"on": True, "date": hist[-1][0]})
+    assert "28営業日以上" in card and "1年以上前から" in card and "1年分" in card
+    empty = {**long, "history": [], "since": "2025-10-10"}
+    card = bh.daily_card(empty, {"on": True, "date": hist[-1][0]})
+    assert "1年分" not in card and "推移はまだ描けない" in card
