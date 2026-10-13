@@ -361,3 +361,13 @@ def test_v5_retag_only_when_a_session_advances():
     before = copy.deepcopy(v5)
     q = qqq(30)                                            # nothing after S
     assert tp.advance(v5, sessions(["AAA"]), frame({"AAA": []}), q, S, fund=q) == before
+
+
+def test_carried_v5_portfolio_is_labeled_in_both_views():
+    v5 = tp.new_portfolio("2026-10-05")
+    v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
+    v5["equity"] = [["2026-10-05", 1.0, 100], ["2026-10-06", 1.01, 100]]
+    led = {**tr.new_ledger(), "portfolio": v5, "sessions": {}}
+    html = tr.current_inventory_html(led)
+    assert "旧ルール（株の上限なし・余剰資金の枠50%）" in html
+    assert "旧ルール（株の上限なし・余剰資金の枠50%）" in tr.rules_block(led)

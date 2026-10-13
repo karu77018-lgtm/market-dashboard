@@ -478,7 +478,8 @@ def current_inventory_html(ledger: dict) -> str:
         return note + portfolio_html(pf)
     pf = ledger.get("portfolio")
     if pf and pf.get("rule") in (RULE_ID, *tp.PREVIOUS_RULE_IDS) and pf.get("sleeve") == tp.SLEEVE:
-        return portfolio_html(pf)
+        seg = _segment_note(pf)
+        return (f'<div class="tr-note">{seg}</div>' if seg else "") + portfolio_html(pf)
     return PENDING_HTML
 
 
@@ -665,6 +666,8 @@ def rules_block(ledger: dict | None, error: str | None = None) -> str:
         head = (f'<div id="{RULES_BLOCK_ID}"><div class="rh">ルール運用の記録（公開後）</div><div class="rnote">'
                 f'{e_(pf["reconstruction"]["as_of"])}までは公開済みの本命に当時のルールを当てはめた再計算、以後は毎日の記録。'
                 f'{_segment_note(pf)}実口座ではありません。</div>')
+    elif pf and _segment_note(pf):
+        head += f'<div class="rnote">{_segment_note(pf)}</div>'
     if ledger.get("_pending") and not ledger.get("modeled_portfolio"):
         note = PENDING_HTML.replace('<div class="tr-empty">', "").replace("</div>", "")
         return head + f'<div class="rnote">{note}詳細は{link}。</div></div>'
