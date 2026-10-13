@@ -9,9 +9,11 @@
    "depth": 0.7815,
    "rs": 99,
    "eps_state": "na",
-   "status": "保有中",
+   "status": "手仕舞い",
    "peak": 17.28,
-   "ret": 0.406
+   "ret": -0.8275,
+   "exit_date": "2026-10-13",
+   "exit": 2.12
   },
   "2026-10-12:FIGS": {
    "ticker": "FIGS",
@@ -21,8 +23,8 @@
    "rs": 95,
    "eps_state": "better",
    "status": "保有中",
-   "peak": 17.74,
-   "ret": 0.0
+   "peak": 18.0,
+   "ret": 0.0147
   }
  }
 }
