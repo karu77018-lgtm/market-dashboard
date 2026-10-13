@@ -96,3 +96,7 @@ chart OHLC through 2026-10-09, then advanced by the daily refresh. Earlier model
 - The frozen dashboard source reads twelve diagnostic macro series (credit HYG/IEI·LQD, MOVE/TLT, VVIX, SKEW, JPY, 30Y, SQQQ/SOXS, SOXX/SMH) that the live market-input route never fetched; they are now in `MACRO_DIAGNOSTIC_SYMBOLS` (never required for publication).
 - `build_exact_source_mc57_clone.DISPLAY_PATCHES`: wording-only patches to the frozen source (RS21/63/189 label; no stale FTD failure reason or "戻り売り" warning outside a correction).
 - Swing/Rules/Breakout-health comparison figures were re-run on the production engine with next-open fills (stock-only 本命 28.7% vs all setups 24.8%, regime 26.1%→28.7%, 好位置 mix 53.6%/51.9%, QQQ sleeve 35.0%/39.0%/36.9%). Figures not re-run are marked 旧計算.
+
+## Rule v6 (2026-10-13): stock cap 80% and sleeve 60%
+
+`swing_allocation.STOCK_CAP = 0.80`: from the 2026-10-13 publication, new buys and adds never take the swing stocks above 80% of total assets at the open (nothing is sold to get under it); `SLEEVE_NORMAL = 60` (was 50) of the idle money goes to the TQQQ-rule sleeve, 100% when breakout health is weak and QQQ is above its 200-day line. Next-open backtest 2015-01..2026-08: 55.3% / max DD -35.8% (v5: 53.4% / -36.3%), better in both halves; worst year 2022 -15.4% (v5 -12.3%). A running v5 model continues under v6 (`PREVIOUS_RULE_IDS`). Figures: `scripts/backtest_summary.py`.

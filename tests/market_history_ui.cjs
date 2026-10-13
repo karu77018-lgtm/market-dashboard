@@ -26,7 +26,8 @@ async function verify(page,width){
   assert.match(await page.locator('#mc57-swing-screener').textContent(), /通常スイング最大6銘柄/);
   assert.match(await page.locator('#track-record-card').textContent(), /最大6銘柄/);
   assert.match(await page.locator('#rules-card').textContent(), /成績（単年）/);
-  assert.match(await page.locator('#rules-card').textContent(), /年率53\.4%/);
+  assert.match(await page.locator('#rules-card').textContent(), /年率55\.3%/);
+  assert.match(await page.locator('#rules-card').textContent(), /総資産の80%まで/);
   assert.equal(await page.locator('[data-rule="swing-v3.1-tqqq-sleeve"]').count(),0);
 
   assert.equal(await page.locator('.mh-card [data-window="2y"][aria-pressed="true"]').count(),await page.locator('.mh-card[data-history-key]').count());

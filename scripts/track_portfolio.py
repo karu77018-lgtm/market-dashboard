@@ -15,8 +15,10 @@ they were first published (track-record/signals.json):
   never taking the name above 40% of equity;
 * a close below the 21-EMA of lows sells at the next open;
 * idle money (cash + the TQQQ-rule sleeve) is rebalanced at each open to the
-  published sleeve share (Rules tab section 7: 50%, or 100% when breakout success
-  is weak and QQQ is above its 200-day line); the rest is cash at 0%.  The sleeve
+  published sleeve share (Rules tab section 7: 60%, or 100% when breakout success
+  is weak and QQQ is above its 200-day line; 50% before 2026-10-13); the rest is
+  cash at 0%.  From the 2026-10-13 publication (v6) new buys and adds never take
+  the stocks above 80% of equity at the open (nothing is sold to get under it).  The sleeve
   is the TQQQ rule (section 9) marked by tqqq_rule.fund_bars (TQQQ / gold /
   T-bills at the published weights).  Until October 2026 the sleeve was QQQ;
   old ledgers are retained separately, never rebuilt as current-rule results;
@@ -34,7 +36,8 @@ from typing import Any
 
 import pandas as pd
 
-from swing_allocation import RULE_ID, MAX_NAMES, INITIAL_WEIGHT, EFFECTIVE_DATE
+from swing_allocation import (RULE_ID, PREVIOUS_RULE_IDS, MAX_NAMES, INITIAL_WEIGHT, EFFECTIVE_DATE,
+                              STOCK_CAP, SLEEVE_SHARES)
 STOP = 0.08
 ADDS = (0.10, 0.20)
 CAP = 0.40
@@ -50,7 +53,7 @@ def published_qqq_pct(text: str) -> int | None:
     if start < 0:
         return None
     m = QQQ_PCT_RE.search(text, start, start + 20000)
-    return int(m.group(1)) if m and int(m.group(1)) in (0, 50, 100) else None
+    return int(m.group(1)) if m and int(m.group(1)) in SLEEVE_SHARES else None
 
 
 def new_portfolio(start: str, *, legacy_tqqq: bool = False) -> dict[str, Any]:
@@ -161,6 +164,12 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
             _sell(pf, t, day, b[0], "損切り（窓）")
     held_open = {t: today[t][0] for t in pf["positions"] if today.get(t)}
     equity_open = _value(pf, held_open, q_open)
+    # v6: stocks capped at STOCK_CAP of equity for orders from the v6 publications on
+    stock_cap = STOCK_CAP if prev >= EFFECTIVE_DATE else 1.0
+
+    def stock_room() -> float:
+        held_v = sum(x["shares"] * (today[t2][0] if today.get(t2) else x["last"]) for t2, x in pf["positions"].items())
+        return max(0.0, stock_cap * equity_open - held_v)
     # 2. same-amount adds, capped at 40% of equity
     for t, p in pf["positions"].items():
         b = today.get(t)
@@ -168,6 +177,8 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
             if b is None:
                 break
             room = CAP * equity_open - p["shares"] * b[0]
+            if stock_cap < 1.0:
+                room = min(room, stock_room())
             amt = _fund(pf, min(p["unit"], room), q_open) if room > 0 else 0.0
             if amt > 0:
                 p["shares"] += amt / b[0]
@@ -195,9 +206,10 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
                 pf["skipped"].append({"t": t, "signal": prev, "day": day, "why": "株価データなし"})
                 continue
             unit = equity_open * initial_weight
-            amt = _fund(pf, unit, q_open)
+            amt = _fund(pf, min(unit, stock_room()) if stock_cap < 1.0 else unit, q_open)
             if amt <= 1e-9:
-                pf["skipped"].append({"t": t, "signal": prev, "day": day, "why": "資金不足"})
+                why = f"株が上限の{stock_cap:.0%}" if stock_cap < 1.0 and stock_room() <= 1e-9 else "資金不足"
+                pf["skipped"].append({"t": t, "signal": prev, "day": day, "why": why})
                 continue
             pf["positions"][t] = {"signal": prev, "entry_day": day, "entry": b[0], "stop": b[0] * (1 - STOP),
                                   "shares": amt / b[0], "unit": unit, "invested": amt, "adds": 0,
@@ -206,7 +218,7 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
             today[t] = b
     pf["skipped"] = pf["skipped"][-300:]
     # 4. idle money to the published QQQ share
-    if signal and signal.get("qqq_pct") in (0, 50, 100):
+    if signal and signal.get("qqq_pct") in SLEEVE_SHARES:
         pf["qqq_pct"] = signal["qqq_pct"]
     idle = pf["cash"] + pf["qqq_sh"] * q_open
     pf["qqq_sh"] = idle * pf["qqq_pct"] / 100 / q_open
@@ -240,6 +252,10 @@ def advance(pf: dict, sessions: dict[str, dict], frame: pd.DataFrame, qqq: dict[
             fund: dict[str, dict] | None = None) -> dict:
     """Run every session after pf['last_day'] up to ``until`` that has a QQQ open and close
     (and, for the TQQQ-rule sleeve, a recorded sleeve NAV)."""
+    if pf.get("rule") in PREVIOUS_RULE_IDS and pf.get("sleeve") == SLEEVE:
+        # v5 -> v6 keeps the sizing; only future orders adopt the stock cap and sleeve share.
+        pf.setdefault("rule_changes", []).append({"from": pf["rule"], "to": RULE_ID, "after": pf["last_day"]})
+        pf["rule"] = RULE_ID
     if pf.get("rule") not in (RULE_ID, "swing-v3.1-tqqq-sleeve") or pf.get("sleeve") not in (SLEEVE, "legacy-qqq"):
         raise ValueError("Legacy portfolio must be archived, not advanced under the current allocation")
     days = sorted(d for d in qqq if pf["last_day"] < d <= until)

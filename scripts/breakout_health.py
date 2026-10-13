@@ -11,7 +11,8 @@ Definition (same as the 2015-2026 backtest):
   < 0 is 不調 (momentum entries are not being rewarded).
 
 Allocation rule: when 不調 and QQQ is above its 200-day average, put 100% of idle
-cash in the TQQQ-rule sleeve (Rules tab 9; QQQ until October 2026); otherwise 50%.
+cash in the TQQQ-rule sleeve (Rules tab 9; QQQ until October 2026); otherwise 60%
+(50% before the 2026-10-13 v6 rule).
 Re-check with QQQ as the sleeve and next-open fills (2026-10-13, 6 x 1/6, stock trades
 unchanged): always 50% 35.0% -> switch 39.0%, max DD -34.1% either way.  The switch
 holds about 65% of idle cash on average and a fixed 65% gives 36.9%, so the timing
@@ -33,6 +34,8 @@ HISTORY = 252
 MIN_SIGNALS = 5
 CARD_ID = "mc57-breakout-health"
 from rules_tab import RULE_ID  # noqa: E402
+from swing_allocation import SLEEVE_NORMAL, SLEEVE_WEAK, STOCK_CAP_LABEL  # noqa: E402
+from backtest_summary import CURRENT as BT  # noqa: E402
 
 # Year-by-year backtest (2015-01 .. 2026-08, 6-position rule): idle cash 50% QQQ vs this switch.
 YEARLY = [
@@ -129,14 +132,14 @@ def compute(frame: pd.DataFrame, history: int = HISTORY) -> dict[str, Any] | Non
 def allocation(health: dict | None, regime: dict | None) -> tuple[int, str]:
     """Idle-cash share (%) for the TQQQ-rule sleeve and the reason."""
     if not health or health.get("on") is None:
-        return 50, "ブレイク成功度が計算できないため通常どおり"
+        return SLEEVE_NORMAL, "ブレイク成功度が計算できないため通常どおり"
     if regime is None:
-        return 50, "地合い（QQQの200日線）が取れないため通常どおり"
+        return SLEEVE_NORMAL, "地合い（QQQの200日線）が取れないため通常どおり"
     if not health["on"] and regime.get("on"):
-        return 100, "不調かつQQQが200日線より上"
+        return SLEEVE_WEAK, "不調かつQQQが200日線より上"
     if not health["on"]:
-        return 50, "不調だがQQQが200日線より下なので増やさない"
-    return 50, "好調"
+        return SLEEVE_NORMAL, "不調だがQQQが200日線より下なので増やさない"
+    return SLEEVE_NORMAL, "好調"
 
 
 def _fmt(v: float | None) -> str:
@@ -189,9 +192,10 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
         f'<b>余剰資金のTQQQルール枠：{pct}%</b>（{html.escape(why)}）</div>'
         '<details class="cxpl"><summary>読み方</summary><div class="cxpl-b">'
         '0%以上＝好調（勢い株が報われている）、マイナス＝不調（指数は上がっても勢い株が伸びない「退屈な年」型）。'
-        '不調かつQQQが200日線より上の日は、余剰資金を100%TQQQルール枠に置く（それ以外は50%、残りは現金）。枠の中身はRulesタブ9。個別株の売買ルールは変えない。<br/>'
-        '置き先をQQQにした検証（6銘柄×1/6・翌営業日の寄りで売買）では、常に50%の年率35.0%→切替39.0%、最大DDは−34.1%のまま。ただし平均すると余剰資金の約65%を置く形になり、65%固定なら36.9%（最大DD−36.3%）。判定そのものの上乗せは年+2pt程度（日数や基準を変えた36通り中35通りでプラス＝旧計算）。退屈だった2016・2021・2023年は不調判定が約3分の2、'
-        '好調だった2020・2026年は約5%。現行（6銘柄×1/6・置き先はTQQQルール枠・翌日の寄りで売買）の検証では年率53.4%・最大DD−36.3%。崩れの警戒（F1〜F3・MC57）とは別の問い＝「買ったシグナルが伸びているか」を測る。'
+        f'不調かつQQQが200日線より上の日は、余剰資金を{SLEEVE_WEAK}%TQQQルール枠に置く（それ以外は{SLEEVE_NORMAL}%、残りは現金）。枠の中身はRulesタブ9。個別株の売買ルールは変えない。<br/>'
+        '置き先をQQQにした検証（6銘柄×1/6・翌営業日の寄りで売買・株の上限なし）では、常に50%の年率35.0%→切替39.0%、最大DDは−34.1%のまま。ただし平均すると余剰資金の約65%を置く形になり、65%固定なら36.9%（最大DD−36.3%）。判定そのものの上乗せは年+2pt程度（日数や基準を変えた36通り中35通りでプラス＝旧計算）。退屈だった2016・2021・2023年は不調判定が約3分の2、'
+        f'好調だった2020・2026年は約5%。現行（6銘柄×1/6・株は資産の{STOCK_CAP_LABEL}まで・枠{SLEEVE_NORMAL}%/{SLEEVE_WEAK}%・翌日の寄りで売買）の検証では年率{BT["cagr"]}%・最大DD{str(BT["dd"]).replace("-", "−")}%。'
+        '崩れの警戒（F1〜F3・MC57）とは別の問い＝「買ったシグナルが伸びているか」を測る。'
         '10日後の結果が出たシグナルだけを使うので先読みはない。地合い停止中もシグナルは数え続ける。</div></details>'
         + (_spark(health["history"]) if health else "")
         + '</div>'
