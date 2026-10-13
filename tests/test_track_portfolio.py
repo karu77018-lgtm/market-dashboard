@@ -353,3 +353,11 @@ def test_missing_share_after_v6_falls_back_to_normal_and_v5_portfolio_is_carried
     v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
     led = {"rule": v5["rule"], "portfolio": v5, "sessions": {S: {"rule": tr.RULE_ID}}}
     assert tr.prepare_portfolio(led) is v5 and "portfolio_history" not in led
+
+
+def test_v5_retag_only_when_a_session_advances():
+    v5 = tp.new_portfolio(S)
+    v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
+    before = copy.deepcopy(v5)
+    q = qqq(30)                                            # nothing after S
+    assert tp.advance(v5, sessions(["AAA"]), frame({"AAA": []}), q, S, fund=q) == before
