@@ -462,6 +462,11 @@ def _install_mc57_score_patch(module: Any, data_dir: Path, session: str) -> None
             # the two required indices instead of blocking the publication.
             if "QQQ/SPY history" not in str(exc):
                 raise
+            # Log which input emptied the legacy frame (display-only diagnostics).
+            spans = {k: (len(macro[k]), str(macro[k].index.min())[:10], str(macro[k].index.max())[:10])
+                     for k in ("QQQ", "SPY", "HYG", "LQD", "RSP", "IWM", "^VIX", "^VIX3M", "^VVIX")
+                     if k in macro and getattr(macro[k], "empty", True) is False}
+            print(f"legacy market-score frame fell back to QQQ/SPY: {spans}", flush=True)
             essential = {k: macro[k] for k in ("QQQ", "SPY")
                          if k in macro and getattr(macro[k], "empty", True) is False}
             if len(essential) != 2:
