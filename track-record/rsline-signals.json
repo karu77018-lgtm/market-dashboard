@@ -1,4 +1,14 @@
 {
  "schema": "rsline-lead-signals.1",
- "signals": {}
+ "signals": {
+  "2026-10-12:PENG": {
+   "ticker": "PENG",
+   "session": "2026-10-12",
+   "status": "約定待ち",
+   "off": 0.0275,
+   "rs189": 100,
+   "ema": 58.70273144016743,
+   "last_day": "2026-10-12"
+  }
+ }
 }

@@ -10,7 +10,18 @@
    "rs": 99,
    "eps_state": "na",
    "status": "保有中",
-   "peak": 12.29,
+   "peak": 17.28,
+   "ret": 0.406
+  },
+  "2026-10-12:FIGS": {
+   "ticker": "FIGS",
+   "session": "2026-10-12",
+   "entry": 17.74,
+   "depth": 0.4603,
+   "rs": 95,
+   "eps_state": "better",
+   "status": "保有中",
+   "peak": 17.74,
    "ret": 0.0
   }
  }
