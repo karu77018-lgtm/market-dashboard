@@ -263,10 +263,44 @@ def prior_universe_tickers(root: Path, ohlcv_path: Path) -> list[str]:
     raise ProviderError("Yahoo fallback cannot recover the prior universe ticker list")
 
 
+# A provisional (Yahoo) morning publication may be this many names short of the
+# prior universe when no eligible replacement exists; the Massive retry confirms it.
+FALLBACK_MAX_SHORTFALL_PCT = 0.005
+
+
+def fallback_max_shortfall(count: int) -> int:
+    return max(1, int(count * FALLBACK_MAX_SHORTFALL_PCT))
+
+
+def held_tickers(root: Path) -> list[str]:
+    """Names held by the current swing model; the fallback never drops these.
+
+    ``modeled_portfolio`` is the one current series; ``portfolio`` is only the
+    current series when no model exists (otherwise it is a frozen earlier model).
+    A missing ledger means nothing is held; an unreadable one stops acquisition.
+    """
+    path = root / "track-record" / "signals.json"
+    if not path.is_file():
+        return []
+    try:
+        ledger = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        raise ProviderError(f"holdings ledger is unreadable: {type(exc).__name__}") from exc
+    current = ledger.get("modeled_portfolio") or ledger.get("portfolio") or {}
+    positions = current.get("positions") or {}
+    if not isinstance(positions, dict):
+        raise ProviderError("holdings ledger positions are malformed")
+    return sorted(str(t).upper() for t in positions)
+
+
 def prior_universe_count(root: Path, tickers: list[str]) -> int:
     try:
         manifest = json.loads((root / "latest-manifest.json").read_text(encoding="utf-8"))
         count = int(manifest.get("universe", {}).get("active_universe", 0))
+        # A provisional shortfall keeps its original target, so consecutive fallback
+        # sessions refill toward it instead of ratcheting the universe down.
+        target = int((manifest.get("provider_status") or {}).get("universe_target") or 0)
+        count = max(count, target)
         return count if count > 0 else len(tickers)
     except Exception:
         return len(tickers)
@@ -619,8 +653,13 @@ def main() -> int:
         frozen_count = prior_universe_count(root, prior_tickers)
         universe, expansion_stats = select_preserved_count_fallback_universe(
             broad_universe, reference, grouped, preserved_tickers=prior_tickers,
-            target_count=frozen_count,
+            target_count=frozen_count, max_shortfall=fallback_max_shortfall(frozen_count),
+            required_tickers=held_tickers(root),
         )
+        if expansion_stats.get("fallback_shortfall"):
+            print(f"Provisional universe {expansion_stats['active_universe']}/{frozen_count}"
+                  f" (no eligible replacement); out today: "
+                  + ", ".join(expansion_stats.get("fallback_dropped_prior") or []), flush=True)
     else:
         universe, expansion_stats = select_expanded_universe(
             broad_universe, reference, grouped, target_session=target,
@@ -726,6 +765,9 @@ def main() -> int:
                          "adopted_universe_count": len(tickers),
                          "current_session_provider": "Yahoo Finance" if yahoo_fallback else "Massive",
                          "yahoo_substitute": dict(SUBSTITUTE) or None,
+                         "universe_shortfall": int(expansion_stats.get("fallback_shortfall") or 0),
+                         "universe_target": expansion_stats.get("fallback_target_count"),
+                         "massive_confirmation": "scheduled" if massive_key else "unavailable",
                      },
                      "universe_expansion": {
                          "legacy": expansion_stats["legacy_universe"],

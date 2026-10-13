@@ -151,3 +151,22 @@ def test_page_badge_marks_massive_substitute(tmp_path: Path):
     out = substitute_badge(page, manifest)
     assert "Massive代替：営業日判定・個別3,950銘柄・MC57 ETF 1本" in out
     assert substitute_badge(out, manifest) == out
+
+
+def test_page_badge_marks_provisional_morning_publication(tmp_path: Path):
+    from enhance_source_mc57 import provisional_badge
+    manifest = tmp_path / "latest-manifest.json"
+    page = '<body><div class="wrap"><header><h1>x</h1><div class="asof">分析基準日 2026-10-12</div></header>'
+    manifest.write_text(json.dumps({"provider_status": {"publication_state": "confirmed"}}))
+    assert provisional_badge(page, manifest) == page
+    manifest.write_text(json.dumps({"provider_status": {
+        "publication_state": "provisional", "universe_shortfall": 3, "universe_target": 3968}}))
+    out = provisional_badge(page, manifest)
+    assert "速報（午後にMassiveで照合）・銘柄3,965/3,968" in out and 'id="mc57-provisional"' in out
+    assert provisional_badge(out, manifest) == out
+    manifest.write_text(json.dumps({"provider_status": {"publication_state": "provisional"}}))
+    assert "速報（午後にMassiveで照合）</span>" in provisional_badge(page, manifest)
+    manifest.write_text(json.dumps({"provider_status": {
+        "publication_state": "provisional", "massive_confirmation": "unavailable"}}))
+    out = provisional_badge(page, manifest)
+    assert "速報（Massive照合なし）" in out and "午後に" not in out

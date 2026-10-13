@@ -415,8 +415,16 @@ def select_preserved_count_fallback_universe(
     *,
     preserved_tickers: Iterable[str],
     target_count: int,
+    max_shortfall: int = 0,
+    required_tickers: Iterable[str] = (),
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Keep the prior universe count when current Massive bars are unavailable."""
+    """Keep the prior universe count when current Massive bars are unavailable.
+
+    The result is a provisional (Yahoo) publication that the Massive retry later
+    confirms.  Up to ``max_shortfall`` names may be short of the prior count when no
+    eligible replacement exists, but never a ``required_tickers`` name (a held
+    position): losing one of those stops the publication as before.
+    """
     if target_count <= 0:
         raise ProviderError("Yahoo fallback requires a positive prior universe count")
     cached_session = max(grouped)
@@ -458,6 +466,9 @@ def select_preserved_count_fallback_universe(
         by_ticker[ticker] = row
     prior = list(dict.fromkeys(str(ticker).upper() for ticker in preserved_tickers))
     chosen = [ticker for ticker in prior if ticker in by_ticker]
+    # Held names stay in even when an earlier universe dropped them.
+    held = sorted({str(t).upper() for t in required_tickers})
+    chosen.extend(t for t in held if t in by_ticker and t not in set(chosen))
     chosen_set = set(chosen)
     replacements = sorted(
         (ticker for ticker in by_ticker if ticker not in chosen_set),
@@ -468,11 +479,17 @@ def select_preserved_count_fallback_universe(
         ),
     )
     chosen.extend(replacements[:max(target_count - len(chosen), 0)])
-    if len(chosen) < target_count:
+    prior_set = set(prior)
+    if len(chosen) < target_count - max(int(max_shortfall), 0):
         raise ProviderError(
             f"Yahoo fallback cannot preserve universe count: {len(chosen)}/{target_count}"
         )
-    chosen = chosen[:target_count]
+    held_set = set(held)
+    chosen = ([t for t in chosen if t in held_set] + [t for t in chosen if t not in held_set])[:max(target_count, len(held_set))]
+    required = sorted(held_set - set(chosen))
+    if required:
+        raise ProviderError("Yahoo fallback lost a held ticker: " + ", ".join(required))
+    missing_prior = sorted(prior_set - set(chosen))
     selected = []
     for ticker in chosen:
         row = dict(by_ticker[ticker])
@@ -480,14 +497,16 @@ def select_preserved_count_fallback_universe(
         row["current_session_provider"] = "Yahoo Finance"
         selected.append(row)
     selected.sort(key=lambda row: row["ticker"])
-    preserved = sum(ticker in set(prior) for ticker in chosen)
+    preserved = sum(ticker in prior_set for ticker in chosen)
     stats.update({
         "active_universe": len(selected),
         "fallback_mode": "YAHOO_PRESERVED_COUNT",
         "fallback_cached_massive_session": cached_session,
         "fallback_target_count": target_count,
         "fallback_preserved_tickers": preserved,
-        "fallback_replacements": target_count - preserved,
+        "fallback_replacements": len(chosen) - preserved,
+        "fallback_shortfall": target_count - len(chosen),
+        "fallback_dropped_prior": missing_prior[:50],
     })
     return selected, stats
 

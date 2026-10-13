@@ -196,3 +196,76 @@ def test_massive_key_only_sent_to_trusted_https_host():
             _url_with_key(bad, "KEY", path_prefix="/v3/reference/tickers")
     with pytest.raises(ProviderError):
         _url_with_key("https://api.massive.com/v2/other", "KEY", path_prefix="/v3/reference/tickers")
+
+
+def _shortfall_case():
+    history = grouped_history()
+    broad = [{"ticker": "CORE", "price": 12, "market_cap": 300_000_000}]
+    reference = {"CORE": {"ticker": "CORE", "type": "CS", "primary_exchange": "XNAS"}}
+    return broad, reference, history
+
+
+def test_yahoo_fallback_rejects_shortfall_by_default():
+    broad, reference, history = _shortfall_case()
+    with pytest.raises(ProviderError, match="cannot preserve universe count: 1/2"):
+        select_preserved_count_fallback_universe(
+            broad, reference, history, preserved_tickers=["CORE", "GONE"], target_count=2)
+
+
+def test_yahoo_fallback_allows_small_provisional_shortfall_and_names_it():
+    broad, reference, history = _shortfall_case()
+    selected, stats = select_preserved_count_fallback_universe(
+        broad, reference, history, preserved_tickers=["CORE", "GONE"], target_count=2,
+        max_shortfall=1, required_tickers=["CORE"])
+    assert [row["ticker"] for row in selected] == ["CORE"]
+    assert stats["active_universe"] == 1 and stats["fallback_shortfall"] == 1
+    assert stats["fallback_dropped_prior"] == ["GONE"] and stats["fallback_replacements"] == 0
+
+
+def test_yahoo_fallback_never_drops_a_held_ticker():
+    broad, reference, history = _shortfall_case()
+    with pytest.raises(ProviderError, match="lost a held ticker: GONE"):
+        select_preserved_count_fallback_universe(
+            broad, reference, history, preserved_tickers=["CORE", "GONE"], target_count=2,
+            max_shortfall=5, required_tickers=["GONE"])
+
+
+def test_yahoo_fallback_keeps_held_ticker_outside_prior_universe():
+    broad, reference, history = _shortfall_case()
+    with pytest.raises(ProviderError, match="lost a held ticker: NOTPRIOR"):
+        select_preserved_count_fallback_universe(
+            broad, reference, history, preserved_tickers=["CORE"], target_count=1,
+            max_shortfall=5, required_tickers=["NOTPRIOR"])
+    selected, _ = select_preserved_count_fallback_universe(
+        broad, reference, history, preserved_tickers=["GONE"], target_count=1,
+        max_shortfall=1, required_tickers=["CORE"])
+    assert [row["ticker"] for row in selected] == ["CORE"]
+
+
+def test_fallback_shortfall_limit_and_held_names(tmp_path):
+    import json as _json
+    import refresh_mc57 as rm
+    assert rm.fallback_max_shortfall(3968) == 19 and rm.fallback_max_shortfall(50) == 1
+    (tmp_path / "track-record").mkdir()
+    ledger = tmp_path / "track-record" / "signals.json"
+    ledger.write_text(_json.dumps(
+        {"modeled_portfolio": {"positions": {"mrvl": {}, "AMD": {}}}, "portfolio": {"positions": {"CRWD": {}}}}))
+    assert rm.held_tickers(tmp_path) == ["AMD", "MRVL"]  # the frozen earlier model is not held
+    ledger.write_text(_json.dumps({"portfolio": {"positions": {"CRWD": {}}}}))
+    assert rm.held_tickers(tmp_path) == ["CRWD"]
+    assert rm.held_tickers(tmp_path / "missing") == []
+    ledger.write_text("{truncated")
+    with pytest.raises(ProviderError, match="unreadable"):
+        rm.held_tickers(tmp_path)
+
+
+def test_prior_count_keeps_provisional_target(tmp_path):
+    import json as _json
+    import refresh_mc57 as rm
+    manifest = tmp_path / "latest-manifest.json"
+    manifest.write_text(_json.dumps({"universe": {"active_universe": 3965},
+                                     "provider_status": {"universe_target": 3968}}))
+    assert rm.prior_universe_count(tmp_path, ["A"]) == 3968
+    manifest.write_text(_json.dumps({"universe": {"active_universe": 3970},
+                                     "provider_status": {"universe_target": None}}))
+    assert rm.prior_universe_count(tmp_path, ["A"]) == 3970
