@@ -245,7 +245,9 @@ def test_yahoo_fallback_keeps_held_ticker_outside_prior_universe():
 def test_fallback_shortfall_limit_and_held_names(tmp_path):
     import json as _json
     import refresh_mc57 as rm
-    assert rm.fallback_max_shortfall(3968) == 19 and rm.fallback_max_shortfall(50) == 1
+    assert rm.fallback_max_shortfall(3968) == 119 and rm.fallback_max_shortfall(20) == 1
+    # 2026-10-14: 3939/3968 stopped the publication under the old 0.5% limit.
+    assert 3968 - 3939 <= rm.fallback_max_shortfall(3968)
     (tmp_path / "track-record").mkdir()
     ledger = tmp_path / "track-record" / "signals.json"
     ledger.write_text(_json.dumps(
@@ -269,3 +271,7 @@ def test_prior_count_keeps_provisional_target(tmp_path):
     manifest.write_text(_json.dumps({"universe": {"active_universe": 3970},
                                      "provider_status": {"universe_target": None}}))
     assert rm.prior_universe_count(tmp_path, ["A"]) == 3970
+    # A target the pool fell far below is stale: fall back to the published count.
+    manifest.write_text(_json.dumps({"universe": {"active_universe": 3700},
+                                     "provider_status": {"universe_target": 3968}}))
+    assert rm.prior_universe_count(tmp_path, ["A"]) == 3700

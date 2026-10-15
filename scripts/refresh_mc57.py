@@ -263,9 +263,14 @@ def prior_universe_tickers(root: Path, ohlcv_path: Path) -> list[str]:
     raise ProviderError("Yahoo fallback cannot recover the prior universe ticker list")
 
 
-# A provisional (Yahoo) morning publication may be this many names short of the
+# A provisional (Yahoo) evening publication may be this many names short of the
 # prior universe when no eligible replacement exists; the Massive retry confirms it.
-FALLBACK_MAX_SHORTFALL_PCT = 0.005
+# Massive's free tier rejects (403) the same-day grouped bars at the evening run, so
+# this path runs every session.  Normal daily churn of small caps crossing the
+# price/market-cap floors was 3-29 names (2026-10-12..14; 29 stopped the 10/14
+# publication at the old 0.5% limit), so 3% leaves room for churn while still
+# stopping on a truly broken source (e.g. a partial TradingView universe).
+FALLBACK_MAX_SHORTFALL_PCT = 0.03
 
 
 def fallback_max_shortfall(count: int) -> int:
@@ -300,6 +305,10 @@ def prior_universe_count(root: Path, tickers: list[str]) -> int:
         # A provisional shortfall keeps its original target, so consecutive fallback
         # sessions refill toward it instead of ratcheting the universe down.
         target = int((manifest.get("provider_status") or {}).get("universe_target") or 0)
+        # ...but only while the gap stays within the tolerance: a target the eligible
+        # pool can no longer reach is stale and would stop every later fallback.
+        if count > 0 and target - count > fallback_max_shortfall(target):
+            target = 0
         count = max(count, target)
         return count if count > 0 else len(tickers)
     except Exception:
