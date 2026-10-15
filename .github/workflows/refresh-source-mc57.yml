@@ -45,6 +45,9 @@ jobs:
     if: needs.retry_probe.outputs.run_refresh == 'true' && ( github.actor != 'github-actions[bot]' || github.event_name == 'schedule')
     runs-on: ubuntu-latest
     timeout-minutes: 330
+    outputs:
+      published: ${{ steps.publish.outcome }}
+      failure_code: ${{ steps.acquire.outputs.failure_code }}
     env:
       FRED_API_KEY: ${{ secrets.FRED_API_KEY || secrets.FRED_API || secrets.FRED_KEY || secrets.FRED }}
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}
@@ -127,6 +130,7 @@ jobs:
           if test "$status" -ne 0; then
             code="$(grep '^SOURCE_MC57_FAILURE=' work/refresh.log | tail -n 1)"
             test -n "$code" || code="SOURCE_MC57_FAILURE=UNKNOWN"
+            echo "failure_code=$(printf '%s' "${code#SOURCE_MC57_FAILURE=}" | head -c 300)" >> "$GITHUB_OUTPUT"
             code="${code//'%'/'%25'}"
             echo "::error title=source-mc57 acquisition::${code}"
             exit "$status"
@@ -472,3 +476,48 @@ jobs:
         run: |
           echo "::error title=Phase A-0 preservation failed::Dashboard publication completed, but private preservation failed."
           exit 1
+
+  # Morning (06:45 JST) run did not publish -> open (or comment on) one issue that
+  # mentions the owner, so GitHub's app/email notifies.  The next run that publishes
+  # closes it.  Failures of the later retry runs stay silent.
+  morning_alert:
+    needs: [retry_probe, refresh]
+    if: always() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      IS_MORNING: ${{ github.event.schedule == '45 21 * * 1-5' }}
+      PUBLISHED: ${{ needs.refresh.outputs.published }}
+      REFRESH_RESULT: ${{ needs.refresh.result }}
+      FAILURE_CODE: ${{ needs.refresh.outputs.failure_code }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Notify on morning failure, close on recovery
+        run: |
+          title="[自動通知] ダッシュボード朝の更新に失敗"
+          now="$(TZ=Asia/Tokyo date '+%m/%d %H:%M')"
+          open="$(gh issue list --state open --limit 50 --json number,title \
+            --jq "map(select(.title == \"$title\")) | .[0].number // empty")"
+          if test "$PUBLISHED" = "success"; then
+            if test -n "$open"; then
+              gh issue close "$open" --comment "復旧：${now} JST の更新でダッシュボードが公開されました。
+          $RUN_URL"
+            fi
+            exit 0
+          fi
+          test "$IS_MORNING" = "true" || exit 0
+          reason="${FAILURE_CODE:-データ取得後の工程（検証・公開）で停止（refresh=${REFRESH_RESULT}）}"
+          body="@${OWNER} 朝の更新（${now} JST）でダッシュボードが公開されませんでした。表示は前回分のままです。
+
+          - 原因：${reason}
+          - 次の再試行：14:30 JST（以降2時間おき）。公開されたらこの通知は自動で閉じます
+          - ログ：${RUN_URL}"
+          if test -n "$open"; then
+            gh issue comment "$open" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
