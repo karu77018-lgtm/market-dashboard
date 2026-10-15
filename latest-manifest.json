@@ -1,8 +1,8 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
-  "coverage": 1.0,
-  "generated_at": "2026-10-14T05:59:17Z",
-  "mc57": 24.630215799200293,
+  "coverage": 0.999743062692703,
+  "generated_at": "2026-10-15T05:59:01Z",
+  "mc57": 21.227479351873082,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
   "mcap_coverage": 1.0,
@@ -11,19 +11,21 @@
   "peer_theme_status": "DATA_REQUIRED",
   "positions_status": "DATA_REQUIRED",
   "provider_status": {
-    "adopted_universe_count": 3963,
-    "cross_vendor_coverage": 0.9656825637143578,
+    "adopted_universe_count": 3892,
+    "cross_vendor_coverage": 0.9825282631038027,
     "current_session_provider": "Massive",
     "fred": "READY",
     "fred_required_coverage": 1.0,
     "massive": "READY",
     "massive_confirmation": "scheduled",
-    "massive_current_coverage": 0.9656825637143578,
-    "missing_current_rows": 136,
+    "massive_current_coverage": 0.9827852004110997,
+    "missing_current_rows": 67,
     "publication_state": "confirmed",
-    "universe_shortfall": 5,
-    "universe_target": 3968,
-    "yahoo_substitute": null
+    "universe_shortfall": 0,
+    "universe_target": null,
+    "yahoo_substitute": {
+      "stock_bars_massive": 1
+    }
   },
   "publication_scope": "source-mc57 plus derived data/jev-ranking.json only; V38 and vendor-input data JSON are not committed",
   "schema_version": "v38.acquisition.1",
@@ -34,16 +36,16 @@
     "ticker_resolution_fallback": "FMP only when explicitly available; never substitute unverified price values",
     "timezone": "America/New_York"
   },
-  "session_date": "2026-10-13",
+  "session_date": "2026-10-14",
   "source": "TradingView america/scan + Yahoo Finance/yfinance 0.2.66",
   "status": "READY",
   "structural_clinical_biotech_status": "DATA_REQUIRED",
   "universe": {
-    "active_universe": 3963,
+    "active_universe": 3892,
     "below_floor_rows": 0,
     "biotech_heuristic_applied": false,
-    "broad_tradingview_universe": 3967,
-    "buy_filter_eligible": 1095,
+    "broad_tradingview_universe": 3941,
+    "buy_filter_eligible": 1076,
     "buy_filter_rules": {
       "market_cap_min": 50000000.0,
       "median_adr20_min": 0.025,
@@ -57,47 +59,26 @@
     },
     "duplicate_class_rows": 0,
     "duplicate_symbol_rows": 0,
-    "expansion_candidates": 575,
-    "fallback_cached_massive_session": "2026-10-12",
-    "fallback_dropped_prior": [
-      "ACET",
-      "ALXO",
-      "BOF",
-      "CLNN",
-      "DOMH",
-      "INO",
-      "MBAI",
-      "MYPS",
-      "PAAI",
-      "SLSN",
-      "SNWV",
-      "ZBAO",
-      "ZYBT"
-    ],
-    "fallback_mode": "YAHOO_PRESERVED_COUNT",
-    "fallback_preserved_tickers": 3952,
-    "fallback_replacements": 11,
-    "fallback_shortfall": 5,
-    "fallback_target_count": 3968,
-    "legacy_universe": 3353,
+    "expansion_candidates": 553,
+    "legacy_universe": 3339,
     "malformed_rows": 0,
-    "massive_broad_expansion": 575,
-    "massive_current_coverage": 0.9656825637143578,
-    "massive_current_covered": 3827,
-    "massive_current_missing": 136,
+    "massive_broad_expansion": 553,
+    "massive_current_coverage": 0.9827852004110997,
+    "massive_current_covered": 3825,
+    "massive_current_missing": 67,
     "massive_grouped": {
       "fetched_sessions": [
-        "2026-10-13"
+        "2026-10-14"
       ],
-      "latest_eligible_rows": 5520,
-      "latest_session": "2026-10-13",
+      "latest_eligible_rows": 5548,
+      "latest_session": "2026-10-14",
       "requested_sessions": 20,
       "sessions": 20,
       "status": "READY"
     },
     "massive_reference": {
-      "asof_date": "2026-10-07",
-      "eligible_reference_tickers": 5694,
+      "asof_date": "2026-10-14",
+      "eligible_reference_tickers": 5690,
       "pages": 14,
       "source": "cache",
       "status": "READY"
@@ -107,38 +88,40 @@
       "legacy_route": "market_cap >= 200M and price >= 1",
       "selection_filters_applied": false
     },
-    "response_rows": 3968,
-    "response_total_count": 3968,
+    "response_rows": 3942,
+    "response_total_count": 3942,
     "session_snapshot": {
-      "broad_count": 3967,
-      "captured_at": "2026-10-13T22:07:25Z",
+      "broad_count": 3941,
+      "captured_at": "2026-10-15T05:59:01Z",
       "historical_use": "unverified scanner fundamentals; exclude from point-in-time backtests",
-      "late_capture": false,
+      "late_capture": true,
       "point_in_time_verified": false,
-      "rows_sha256": "a06eb282625ffbe30fefa21aa2acd896c63bc7a1d11db8f5f4494887e6aa87ee",
-      "scanner_observed_at": "2026-10-13T22:07:25Z",
+      "rows_sha256": "87cfba746d5eef11f4de3eff74f62351f0c121d1f280f3d3db5a6bb102249303",
+      "scanner_observed_at": "2026-10-15T05:59:01Z",
       "schema": "source-mc57.session-universe.1",
-      "session_date": "2026-10-13",
-      "ticker_count": 3963
+      "session_date": "2026-10-14",
+      "ticker_count": 3892
     },
     "special_security_rows": 1
   },
   "universe_expansion": {
-    "active": 3963,
-    "added": 575,
-    "buy_filter_eligible": 1095,
-    "legacy": 3353
+    "active": 3892,
+    "added": 553,
+    "buy_filter_eligible": 1076,
+    "legacy": 3339
   },
   "yahoo": {
-    "failed_tickers": [],
-    "history_received": 3963,
+    "failed_tickers": [
+      "SKIN"
+    ],
+    "history_received": 3892,
     "incremental_cache_used": true,
-    "requested": 3963,
-    "target_session_coverage": 1.0,
-    "target_session_fresh": 123,
-    "target_session_massive_substitute": 0,
-    "target_session_received": 3963,
-    "target_session_same_day_cache": 3840,
+    "requested": 3892,
+    "target_session_coverage": 0.999743062692703,
+    "target_session_fresh": 3890,
+    "target_session_massive_substitute": 1,
+    "target_session_received": 3891,
+    "target_session_same_day_cache": 0,
     "yahoo_circuit_open": false
   }
 }
