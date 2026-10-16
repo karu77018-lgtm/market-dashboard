@@ -265,7 +265,7 @@ def card_html(res: dict, health: dict | None = None) -> str:
     for i, r in enumerate(res["sectors"]):
         lift = r["lift"] or 0
         cls = "tt-hot" if lift >= 1.5 else ("tt-cold" if lift <= 0.5 else "")
-        chg = "" if r["chg"] is None else f'{r["chg"] * 100:+.0f}pt'
+        chg = "" if r["chg"] is None else ("±0pt" if round(r["chg"] * 100) == 0 else f'{r["chg"] * 100:+.0f}pt')
         sec_rows.append(
             f'<div class="tt-sec {cls}"><span class="tt-sn" title="{e(r["sector"])}">{e(_short(r["sector"]))}</span>'
             f'<span class="tt-bar"><i style="width:{100 * r["rate"] / best:.0f}%"></i></span>'
