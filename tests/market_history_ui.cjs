@@ -51,6 +51,12 @@ async function verify(page,width){
   assert.equal(await page.locator('#t-port #archive-intro').count(),1,'Core 12 and old rule live in the archive tab');
   assert.equal(await page.locator('#t-alloc .emergency, #t-today #archive-intro').count(),0,'archived cards left Positions/Setups');
   assert.equal(await page.locator('#t-themes #mc57-theme-gate').count(),1,'theme gate lives on Themes');
+  assert.equal(await page.locator('#t-rotation #mc57-trend-leaders').count(),0,'trend template card is not on Rotation');
+  if(await page.locator('#mc57-trend-leaders').count()){
+    assert.equal(await page.locator('#t-themes #mc57-trend-leaders').count(),1,'trend template card lives on Themes');
+    const tt=await page.locator('#mc57-trend-leaders').evaluate(e=>[e.scrollWidth,e.clientWidth]);
+    assert(tt[0]<=tt[1]+1,'trend template card fits the width');
+  }
   assert.equal(await page.locator('#t-record #track-record-card').count(),1,'track record tab present');
   assert.equal(await page.locator('#t-rotation #mc57-theme-gate, #t-rotation #index-internals-divergence').count(),0,'Rotation keeps money-flow cards only');
   assert(await page.locator('#tqqq-rule-card').isVisible(),'TQQQ rule card at the top');

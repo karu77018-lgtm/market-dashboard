@@ -303,6 +303,11 @@ def main() -> int:
         print(f"breakout health skipped: {exc!r}", flush=True)
         health = None
     text = breakout_health.apply_daily(text, health, regime)
+    import trend_leaders
+    try:  # Themes tab card + ledger; display only, never blocks publication
+        text = trend_leaders.run(text, frame, args.session, html_path.resolve().parent, health)
+    except Exception as exc:
+        print(f"trend leaders skipped: {exc!r}", flush=True)
     from pickup_watch import apply as apply_pickup_watch
     text = apply_pickup_watch(text, frame, regime=regime)  # separate watch card, below the swing card
     text = apply_swing_screener(text, frame, walls_fn=fetch_walls, regime=regime, health=health)
