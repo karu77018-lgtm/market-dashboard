@@ -44,8 +44,11 @@ async function verify(page,width){
   const metaHash=await page.locator('meta[name="dashboard-source-sha256"]').getAttribute('content');
   const expectedState=ranking.session_date===mc.session_date&&ranking.source_html_sha256===metaHash?'current':'previous';
   assert.equal(await page.locator('#t-jev').getAttribute('data-ranking-state'),expectedState,'session/hash freshness');
-  const scoreBox=await page.locator('.jev-table tbody tr:first-child .jev-score').boundingBox();
-  assert(scoreBox&&scoreBox.x+scoreBox.width<=width,'Jev expected value initially visible '+width);
+  // a day with no swing candidates has an empty ranking table; only check the layout when a row exists
+  if(await page.locator('.jev-table tbody tr .jev-score').count()){
+    const scoreBox=await page.locator('.jev-table tbody tr:first-child .jev-score').boundingBox();
+    assert(scoreBox&&scoreBox.x+scoreBox.width<=width,'Jev expected value initially visible '+width);
+  }
   assert(await page.locator('.core-table-wrap').count()>=2,'Core 12 tables contained');
   assert.equal(await page.locator('nav a.tabx', {hasText:'Core 12'}).count(),0,'Core 12 tab renamed to archive');
   assert.equal(await page.locator('#t-port #archive-intro').count(),1,'Core 12 and old rule live in the archive tab');
