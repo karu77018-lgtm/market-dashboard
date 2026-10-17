@@ -483,7 +483,8 @@ jobs:
   # closes it.  Failures of the later retry runs stay silent.
   morning_alert:
     needs: [retry_probe, refresh]
-    if: always() && github.event_name == 'schedule'
+    # manual re-runs only close an open notice (IS_MORNING is false for them)
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     permissions:
       issues: write
