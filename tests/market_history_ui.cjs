@@ -64,7 +64,8 @@ async function verify(page,width){
   const savedHolding=savedLedger.modeled_portfolio || savedLedger.current_portfolio || savedLedger.portfolio_history?.at(-1)?.portfolio || savedLedger.portfolio;
   if(savedHolding?.equity?.length>1){
     assert((await page.locator('#tqqq-rule-card .tqr-leg').textContent()).includes('個別株'),'available model holdings must not disappear');
-    assert.match(await page.locator('#tqqq-rule-card .tqr-how').textContent(), /ルール運用の今の保有/);
+    // holding names when the model holds stocks; "今の比率" when it has sold everything (0%)
+    assert.match(await page.locator('#tqqq-rule-card .tqr-how').textContent(), /ルール運用の今の(保有|比率)/);
     assert.match(await page.locator('#tqqq-rule-card .tqr-big').textContent(), /目標配分/);
     assert(!(await page.locator('#tqqq-rule-card').textContent()).includes('SHA'),'no provenance dump in the top card');
   }
