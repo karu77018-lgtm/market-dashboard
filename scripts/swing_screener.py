@@ -38,7 +38,7 @@ import pandas as pd
 
 from swing_allocation import (EFFECTIVE_DATE, INITIAL_LABEL, INITIAL_WEIGHT, MAX_NAMES, RULE_ID,  # noqa: E402
                               SLEEVE_NORMAL, SLEEVE_WEAK, STOCK_CAP_LABEL)
-from backtest_summary import CURRENT as BT  # noqa: E402
+from backtest_summary import CURRENT as BT, PERIOD as BT_PERIOD  # noqa: E402
 
 CARD_ID = "mc57-swing-screener"
 SECTION = '<section id="t-alloc">'
@@ -1041,7 +1041,7 @@ def card_html(result: dict) -> str:
         f'<b>売買</b>：通常スイング最大{MAX_NAMES}銘柄・個別株の合計は総資産の{STOCK_CAP_LABEL}まで（{EFFECTIVE_DATE}適用）。最初は総資産の{INITIAL_LABEL}を買い、−8%で損切り（初回のリスクは総資産の{CORE_RISK:.1%}、窓開け・スリッページを除く）。'
         '終値が買値+10%に届いたら翌営業日の寄りで同額、+20%でもう一度同額を買い増し（1銘柄の上限は資金の40%）。安値21EMAを割って引けたら翌営業日の寄りで手仕舞い。'
         f'余剰資金の{SLEEVE_NORMAL}%はTQQQルール枠（Rulesタブ9）。ブレイク成功度が不調かつQQQが200日線より上の日は{SLEEVE_WEAK}%。'
-        f'2015年1月〜2026年8月の検証（翌営業日の寄りで売買）で年率{BT["cagr"]}%・最大DD{str(BT["dd"]).replace("-", "−")}%（個別株だけなら{BT["stock_cagr"]}%、余剰資金をQQQにすると{BT["qqq_cagr"]}%）。<br/>'
+        f'{BT_PERIOD}の検証（翌営業日の寄りで売買・守りモード等込み）で年率{BT["cagr"]}%・最大DD{str(BT["dd"]).replace("-", "−")}%（個別株だけなら{BT["stock_cagr"]}%、余剰資金をQQQにすると{BT["qqq_cagr"]}%）。<br/>'
         '<b>外した条件</b>：52週安値+30%・10日線+12%以内・高値+25%で建値へ。前の2つを足しても成績はほぼ同じ（個別株だけ28.7%→29.5%）。建値へ動かすルールは効果なし（旧計算）。<br/>'
         '<b>バー</b>：緑の始まりがHL（切り上げた安値・割れたら構造崩れ）、緑の終わりがピボットライン'
         '（直近のLL→HL間の最高値・期間2〜10本で一番狭い構造）、黒い線が今の株価。濃い緑がHL→ラインの50〜75%（好位置）。<br/>'

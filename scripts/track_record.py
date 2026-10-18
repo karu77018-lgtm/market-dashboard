@@ -327,6 +327,7 @@ STYLE = ('<style id="track-record-style">'
          f'#{TAB_ID} .tr-more{{margin-top:12px}}#{TAB_ID} .tr-more summary{{font-size:12.5px;font-weight:700;cursor:pointer}}'
          f'#{TAB_ID} .tr-sec{{font-size:14px;font-weight:800;margin:18px 0 4px;padding-top:10px;border-top:1px solid #e0ddd5;color:#1b1a18}}'
          f'#{TAB_ID} .tr-bt{{width:100%;height:auto;display:block;margin-top:6px}}'
+         f'#{TAB_ID} .tr-sub{{font-size:10.5px;color:#8a877c;font-weight:400}}'
          f'#{TAB_ID} .tr-alt table{{min-width:0;font-size:11.5px}}#{TAB_ID} .tr-alt td,#{TAB_ID} .tr-alt th{{padding:5px 4px}}'
          f'#{TAB_ID} .tr-alt td:first-child{{white-space:normal;text-align:left;max-width:52vw}}'
          f'#{TAB_ID} .tr-alt tr.cur td{{font-weight:800;background:rgba(34,197,94,.10)}}'
@@ -527,7 +528,7 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
         f'<div class="sub">毎日公開した本命を、Rulesタブの資金管理（最大{tp.MAX_NAMES}銘柄・初回{INITIAL_LABEL}・+10%と+20%で同額買い増し・'
         f'1銘柄40%まで・個別株は総資産の{STOCK_CAP_LABEL}まで・余剰資金はTQQQルール枠）で売買した場合のモデル記録。実口座ではありません。</div>'
         + warn + '<div class="tr-sec" style="border-top:0;padding-top:0;margin-top:10px">ルール運用の記録（公開後）</div>'
-        + current_inventory_html(ledger) + backtest_html() + history_html(ledger)
+        + current_inventory_html(ledger) + backtest_html(ledger) + history_html(ledger)
         + '<details class="tr-more"><summary>本命1件ごとのシグナル成績</summary>'
         f'<div class="tr-grid">{grid}</div>'
         '<div class="tr-wrap"><table><tr><th>銘柄</th><th>本命の日</th><th>買値（翌始値）</th><th>現在/売値</th>'
@@ -552,7 +553,119 @@ def _n(v: float) -> str:
     return f"{v:.1f}%".replace("-", "−")
 
 
-def backtest_html() -> str:
+def month_to_date(ledger: dict | None) -> tuple[str, float, str] | None:
+    """(YYYY-MM, return so far this month, base label) of the rule-run model, from its marks."""
+    pf = (ledger or {}).get("modeled_portfolio") or (ledger or {}).get("current_portfolio")
+    eq = [e for e in (pf or {}).get("equity", []) if e[1]]
+    if len(eq) < 2:
+        return None
+    month = str(eq[-1][0])[:7]
+    before = [e for e in eq if str(e[0])[:7] < month]
+    if before:
+        base, label = float(before[-1][1]), "前月末から"
+    else:
+        first = [e for e in eq if str(e[0])[:7] == month][0]
+        base, label = float(first[1]), f'記録開始の{str(first[0])[5:].replace("-", "/")}から'
+    return month, float(eq[-1][1]) / base - 1, label
+
+
+def _monthly_returns(col: int) -> list[tuple[str, float]]:
+    """Complete-month returns of one CURVE column (the last, partial month is left out)."""
+    import backtest_summary as bt
+    pts = bt.CURVE[:-1]
+    return [(pts[i][0], pts[i][col] / pts[i - 1][col] - 1) for i in range(1, len(pts))]
+
+
+def distribution_html(mtd: tuple[str, float, str] | None = None) -> str:
+    """Monthly-return histogram of the current rule (backtest) with this month's model return marked."""
+    import statistics as stx
+    rets = _monthly_returns(1)
+    rs = [r for _, r in rets]
+    n = len(rs)
+    mean, med = sum(rs) / n, stx.median(rs)
+    geo = math.prod(1 + r for r in rs) ** (1 / n) - 1
+    sd = stx.pstdev(rs)
+    w = 0.05
+    cur = mtd[1] if mtd else None
+    lo_b = math.floor(min(rs + ([cur] if cur is not None else [])) / w)
+    hi_b = math.floor(max(rs + ([cur] if cur is not None else [])) / w)
+    bins = [[b * w, (b + 1) * w, []] for b in range(lo_b, hi_b + 1)]
+    for k, r in rets:
+        bins[math.floor(r / w) - lo_b][2].append(k)
+    W, H, L, R, T, B = 680, 260, 26, 8, 44, 34
+    mx = max(len(b[2]) for b in bins) or 1
+    bw = (W - L - R) / len(bins)
+    y = lambda c: T + (H - T - B) * (1 - c / (mx * 1.1))
+    bars = ""
+    for i, (a, b_, ms) in enumerate(bins):
+        x = L + i * bw
+        col = "#18813d" if a >= 0 else "#c62828"
+        tip = f'{a * 100:+.0f}〜{b_ * 100:+.0f}%：{len(ms)}か月' + (f'（{"、".join(m.replace("-", "/") for m in ms[-6:])}）' if ms else "")
+        bars += (f'<rect x="{x + 1:.1f}" y="{y(len(ms)):.1f}" width="{max(bw - 2, 1):.1f}" height="{y(0) - y(len(ms)):.1f}" '
+                 f'fill="{col}" opacity="0.75"><title>{e_(tip)}</title></rect>')
+        if ms:
+            bars += f'<text x="{x + bw / 2:.1f}" y="{y(len(ms)) - 4:.1f}" font-size="17" fill="#565243" text-anchor="middle">{len(ms)}</text>'
+        if i % 3 == 0:
+            bars += f'<text x="{x:.1f}" y="{H - 8}" font-size="18" fill="#8a877c" text-anchor="middle">{a * 100:+.0f}%</text>'
+    zero_x = L + (-lo_b) * bw
+    bars += f'<line x1="{zero_x:.1f}" x2="{zero_x:.1f}" y1="{T}" y2="{H - B}" stroke="#aaa591" stroke-dasharray="3 3"/>'
+    mark = ""
+    if cur is not None:
+        i = math.floor(cur / w) - lo_b
+        cx = L + i * bw + bw / 2
+        cnt = len(bins[i][2])
+        mark = (f'<path d="M{cx:.1f} {y(cnt) - 22:.1f} l-9 -13 h18 z" fill="#1b1a18"/>'
+                f'<text x="{cx:.1f}" y="{y(cnt) - 40:.1f}" font-size="19" font-weight="700" fill="#1b1a18" text-anchor="middle">今月</text>')
+    svg = (f'<svg class="tr-bt" viewBox="0 0 {W} {H}" role="img" aria-label="月ごとの騰落率の分布">{bars}{mark}</svg>')
+    worst = sorted(rets, key=lambda kr: kr[1])[:5]
+    best = sorted(rets, key=lambda kr: -kr[1])[:5]
+    lst = lambda xs: "、".join(f'{k.replace("-", "/")} {r * 100:+.1f}%'.replace("-", "−") for k, r in xs)
+
+    def row(name, col):
+        rr = [r for _, r in _monthly_returns(col)]
+        g = math.prod(1 + r for r in rr) ** (1 / len(rr)) - 1
+        return (f'<tr><td>{e_(name)}</td><td>{_n(stx.median(rr) * 100)}</td><td>{_n(((1 + g) ** 12 - 1) * 100)}</td>'
+                f'<td>{_n(min(rr) * 100)}</td><td>{sum(r < 0 for r in rr) / len(rr):.0%}</td></tr>')
+    now = ""
+    if mtd:
+        k, r, label = mtd
+        below = sum(x < r for x in rs) / n
+        now = (f'<div class="tr-note"><b>今月（{k.replace("-", "/")}・{e_(label)}）はルール運用モデルで{_n(r * 100)}</b>。'
+               f'過去{n}か月のうち{below:.0%}がこれより下（▼の棒）。</div>')
+    return (
+        '<div class="tr-sec">月ごとの騰落率の分布（現行・過去検証）</div>'
+        f'<div class="tr-note" style="margin-top:2px">{n}か月（{rets[0][0].replace("-", "/")}〜{rets[-1][0].replace("-", "/")}）・5%刻み。'
+        f'平均{_n(mean * 100)}・中央値{_n(med * 100)}・幾何平均{_n(geo * 100)}（年率{_n(((1 + geo) ** 12 - 1) * 100)}）・'
+        f'標準偏差{sd * 100:.1f}%・マイナスの月{sum(r < 0 for r in rs) / n:.0%}。棒に触れると月が出る。</div>'
+        + now + svg
+        + '<div class="tr-wrap tr-alt"><table><tr><th>月次</th><th>中央値</th><th>年率換算</th><th>最悪月</th><th>マイナス月</th></tr>'
+        + row("現行", 1) + row("QQQ", 4) + row("TQQQ", 5) + '</table></div>'
+        '<div class="tr-note" style="margin-top:0">QQQ・TQQQは持ちっぱなし。</div>'
+        f'<div class="tr-note">最悪の5か月：{lst(worst)}<br/>最良の5か月：{lst(best)}</div>'
+    )
+
+
+def holding_html() -> str:
+    """Multiple after N years, starting at any month-end: worst / median / best."""
+    import backtest_summary as bt
+    import statistics as stx
+    pts = bt.CURVE[:-1]
+
+    def cell(col, years):
+        k = 12 * years
+        xs = [pts[i + k][col] / pts[i][col] for i in range(len(pts) - k)]
+        if not xs:
+            return "—"
+        return (f'<b>{stx.median(xs):.2f}倍</b><br/><span class="tr-sub">最悪{min(xs):.2f}<br/>最良{max(xs):.2f}</span>')
+    rows = "".join(f'<tr><td>{y}年</td><td>{cell(1, y)}</td><td>{cell(4, y)}</td><td>{cell(5, y)}</td></tr>' for y in (1, 2, 3, 5))
+    return ('<div class="tr-sec">何年持つと何倍か（どの月末に始めても）</div>'
+            '<div class="tr-wrap tr-alt"><table><tr><th>保有</th><th>現行</th><th>QQQ</th><th>TQQQ</th></tr>'
+            f'{rows}</table></div><div class="tr-note" style="margin-top:0">太字＝中央値、下に最悪と最良。QQQ・TQQQは持ちっぱなし。</div>'
+            '<div class="tr-note">過去検証の月末資産から、始める月をずらして数えた倍率。1年だと最悪で資産が減る時期もあるが、'
+            '現行は2年以上持てば過去はどの月に始めてもプラスだった（将来も同じとは限らない）。</div>')
+
+
+def backtest_html(ledger: dict | None = None) -> str:
     """Realistic backtest (next-open fills) of the current rule and its alternatives."""
     import backtest_summary as bt
     import math
@@ -587,7 +700,7 @@ def backtest_html() -> str:
         alt_rows += (f'<tr{cur_cls if g == "現行" else ""}><td>{e_(k)}</td><td>{_n(c)}</td><td>{_n(d)}</td>'
                      f'<td>{_n(h1)}</td><td>{_n(h2)}</td></tr>')
     why = [
-        f"<b>株の上限と枠</b>：個別株を総資産の{STOCK_CAP_LABEL}までにして、余った分を枠{SLEEVE_NORMAL}%でTQQQルールに回すと、上限なし・枠50%より年率が上がり（{_n(bt.ALT['株の上限なし・枠50%/100%（10月12日までの設定）'][0])}→{_n(cur['cagr'])}）、前半・後半とも上、最大DDも少し浅い。"
+        f"<b>株の上限と枠</b>：個別株を総資産の{STOCK_CAP_LABEL}までにして、余った分を枠{SLEEVE_NORMAL}%でTQQQルールに回すと、上限なし・枠50%より年率が上がり（10/13時点の計算で{_n(bt.ALT['株の上限なし・枠50%/100%（10月12日までの設定）'][0])}→{_n(bt.V6['cagr'])}）、前半・後半とも上、最大DDも少し浅い。"
         "株が満杯の日に新しい本命を買えない代わりに、指数側（TQQQルール）の比重が上がる。ただし最悪の年（2022年）は−12.3%→−15.4%と深くなる",
         "<b>1銘柄の大きさ</b>：6銘柄×1/6のまま。5銘柄×20%は「本命の日の終値で買える」前提でだけ上で、実際に買える翌日の寄りでは下回った。8銘柄・10銘柄は下がる",
         f"<b>余剰資金の置き先</b>：TQQQルール枠が年率でQQQより約{round(cur['cagr'] - cur['qqq_cagr'])}pt上",
@@ -600,10 +713,12 @@ def backtest_html() -> str:
         f'<div class="tr-sec">過去検証（{bt.PERIOD}・翌営業日の寄りで売買）</div>'
         f'<div class="tr-note" style="margin-top:2px">サイトの記録と同じ計算（本命は翌営業日の寄りで買い、21EMA割れ・買い増しも翌寄り）に、'
         '過去の本命を流した結果。現存銘柄のみ・手数料と税金なし。</div>'
-        '<div class="tr-wrap tr-alt"><table><tr><th>余剰資金の置き先</th><th>年率</th><th>最大DD</th><th>約11.7年</th></tr>'
+        '<div class="tr-wrap tr-alt"><table><tr><th>余剰資金の置き先</th><th>年率</th><th>最大DD</th><th>倍率</th></tr>'
         f'{totals}</table></div>{chart}'
         f'<div class="tr-note">現行は2015〜20年が年率{_n(cur["h1"])}、2021〜26年が{_n(cur["h2"])}。負けた年は2022年（{_n(cur["worst_year"][1])}）。'
-        f'最大DDは{_n(cur["dd"])}で、許容の−30%を超える。年ごとの数字はRulesタブ「成績（単年）」。</div>'
+        f'最大DDは{_n(cur["dd"])}で、許容の−30%を超える。年内DDは平均{_n(cur["dd_mean"])}・中央値{_n(cur["dd_median"])}。年ごとの数字はRulesタブ「成績（単年）」。</div>'
+        + distribution_html(month_to_date(ledger)) + holding_html()
+        + '<div class="tr-note">現行＝v6＋大底フル・守りモード・利益保護・成功度の戻り線（10/18に手元で再計算）。下の設定比較の「10/13時点」は旧計算で、基準はv6の年率55.0%。</div>'
         '<div class="tr-sec">設定の比較（なぜ今の設定か）</div>'
         '<div class="tr-wrap tr-alt"><table><tr><th>設定</th><th>年率</th><th>最大DD</th><th>15〜20年</th><th>21〜26年</th></tr>'
         f'{alt_rows}</table></div>'

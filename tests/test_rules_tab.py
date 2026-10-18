@@ -20,7 +20,7 @@ def test_rules_tab_replaces_core12_with_swing_rules():
     assert "今日の地合い：新規OK" in out and "QQQ 600.00 / 200日線 550.00" in out
     assert '<section id="t-post1">x</section>' in out and '<section id="t-jev">j</section>' in out
     assert out.count(rules_tab.STYLE) == 1
-    assert "成績（単年）" in out and "+139.4%" in out and "−15.4%" in out and "TQQQ枠込" in out and "9. TQQQルール" in out and "①早期再エントリー" in out and "②信用125%（参考・未採用）" in out and "166倍" in out and "最大6銘柄" in out and "+20%でもう一度同額" in out and "好位置リーダー（検討可）" in out and "7. 余剰資金の配分" in out and "2026*" in out
+    assert "成績（単年）" in out and "+248.3%" in out and "−12.9%" in out and "TQQQ枠込" in out and "9. TQQQルール" in out and "①早期再エントリー" in out and "②信用125%（参考・未採用）" in out and "464倍" in out and "最大6銘柄" in out and "+20%でもう一度同額" in out and "好位置リーダー（検討可）" in out and "7. 余剰資金の配分" in out and "2026*" in out
     assert rules_tab.apply(out, regime={"on": True, "close": 600.0, "ma": 550.0, "date": "2026-10-02"}) == out
 
 
@@ -58,11 +58,11 @@ def test_active_allocation_uses_shared_constants_and_keeps_historical_research()
     assert "資金の40%" in rows["買い増し"]
     assert "安値21EMA" in rows["手仕舞い"] and "翌営業日の寄りで売り" in rows["手仕舞い"]
     assert "最大6銘柄・初回1/6（約16.7%）のルールでの検証" in html and "旧6銘柄" not in html
-    assert "TQQQルール枠（現行）" in html and "年率55.0%" in html and "翌営業日の寄りで売買" in html
+    assert "TQQQルール枠（現行）" in html and "年率68.3%" in html and "翌営業日の寄りで売買" in html
     assert "年率57.0%" not in html
-    assert rules_tab.YEARLY[0] == (2015, 2.8, 10.6, 1.9, 8.7, -6.4)
-    assert rules_tab.YEARLY[-1] == (2026, 75.8, 88.8, 113.7, 16.7, -14.9)
-    assert [entry[1:] for entry in rules_tab.TOTALS] == [(26.5, -29.5, 15), (36.7, -32.5, 38), (55.0, -35.9, 166)]
+    assert rules_tab.YEARLY[0] == (2015, 1.4, 11.4, 4.1, 8.3, -5.8)
+    assert rules_tab.YEARLY[-1] == (2026, 88.8, 103.0, 144.2, 15.5, -17.3)
+    assert [entry[1:] for entry in rules_tab.TOTALS] == [(24.4, -25.2, 13), (37.1, -26.9, 41), (68.3, -39.4, 464)]
 
 
 def test_rule_version_rejects_previous_six_name_cards():
