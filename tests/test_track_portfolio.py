@@ -425,3 +425,19 @@ def test_guard_is_inactive_before_its_start_date():
     bars = {"AAA": pd.DataFrame({"open": [100.0], "low": [99.0], "close": [100.0]}, index=pd.to_datetime(["2026-10-15"]))}
     tp.step(pf, "2026-10-15", "2026-10-14", {"open": 100.0, "close": 100.0}, {"regime": "on", "best": [], "qqq_pct": 60, "guard": True}, bars)
     assert abs(pf["positions"]["AAA"]["shares"] - 0.008) < 1e-12 and "trims" not in pf
+
+
+def test_distribution_and_holding_sections_render_from_curve():
+    import track_record as tr
+    import backtest_summary as bt
+    led = {"modeled_portfolio": {"equity": [["2026-09-30", 1.0, None], ["2026-10-05", 1.1, None], ["2026-10-16", 1.045, None]]}}
+    mtd = tr.month_to_date(led)
+    assert mtd[0] == "2026-10" and abs(mtd[1] - 0.045) < 1e-12 and mtd[2] == "前月末から"
+    first = tr.month_to_date({"modeled_portfolio": {"equity": [["2026-10-05", 1.0, None], ["2026-10-16", 0.9, None]]}})
+    assert first[2] == "記録開始の10/05から" and abs(first[1] + 0.1) < 1e-12
+    h = tr.distribution_html(mtd)
+    assert "月ごとの騰落率の分布" in h and "今月（2026/10・前月末から）" in h and "<title>" in h
+    assert f"{len(bt.CURVE) - 2}か月" in h
+    t = tr.holding_html()
+    assert "何年持つと何倍か" in t and t.count("<tr>") == 5 and "最悪" in t
+    assert tr.month_to_date(None) is None
