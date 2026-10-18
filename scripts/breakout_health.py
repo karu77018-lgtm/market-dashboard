@@ -32,6 +32,12 @@ HORIZON = 10
 WINDOW = 63
 HISTORY = 252
 MIN_SIGNALS = 5
+# 2026-10-18: hysteresis.  Weak (不調) starts when the value goes under 0% and lasts
+# until it is back above +1.5%.  Local test 2015-01..2026-10 (v6 + 大底フル + 守りモード
+# + 利益保護): 66.2% -> 68.3% a year (2015-20 47.8 -> 50.8%, 2021-26 87.6 -> 88.7%),
+# max DD -39.4% unchanged, yearly DD mean -24.2 -> -24.3%.  Every recovery level from
+# +0.2% to +3% beat the plain 0% switch (67.1-69.6%); +4% broke down (max DD -45%).
+RECOVER = 0.015
 CARD_ID = "mc57-breakout-health"
 from rules_tab import RULE_ID  # noqa: E402
 from swing_allocation import EFFECTIVE_DATE, SLEEVE_NORMAL, SLEEVE_WEAK, STOCK_CAP_LABEL  # noqa: E402
@@ -117,16 +123,31 @@ def compute(frame: pd.DataFrame, history: int = HISTORY) -> dict[str, Any] | Non
         val = (cs[a] - cs[b]) / k if k >= MIN_SIGNALS else None
         hist.append((str(dates[d].date()), None if val is None else float(val), int(k)))
     value, count = hist[-1][1], hist[-1][2]
+    states = hysteresis([v for _, v, _ in hist])
     # Days since the current state started.
     since = None
     if value is not None:
-        cur = value >= 0
-        for dt, val, _ in reversed(hist):
-            if val is None or (val >= 0) != cur:
+        cur = states[-1]
+        for (dt, val, _), s in zip(reversed(hist), reversed(states)):
+            if val is None or s != cur:
                 break
             since = dt
     return {"session": str(dates[-1].date()), "value": value, "n": count,
-            "on": None if value is None else value >= 0, "since": since, "history": hist}
+            "on": None if value is None else bool(states[-1]), "since": since, "history": hist,
+            "recover": RECOVER}
+
+
+def hysteresis(values: list) -> list:
+    """好調 (True) / 不調 (False) per value: 不調 below 0%, back to 好調 only above +RECOVER."""
+    good, out = True, []
+    for v in values:
+        if v is not None:
+            if good and v < 0:
+                good = False
+            elif not good and v > RECOVER:
+                good = True
+        out.append(good)
+    return out
 
 
 def allocation(health: dict | None, regime: dict | None, session: str | None = None,
@@ -239,7 +260,8 @@ def _next_switch(health: dict | None, regime: dict | None, pct: int) -> str:
         return f"0%を下回ると（今はあと{gap:.1f}pt）不調に変わり{tail}。"
     if regime.get("on"):
         back = allocation({"on": True, "value": 0.0, "session": health.get("session")}, regime)[0]
-        return f"0%以上に戻ると（今はあと{gap:.1f}pt）好調に戻り、余剰資金は{back}%に戻す。"
+        need = max(0.0, (RECOVER - float(health["value"])) * 100)
+        return f"+{RECOVER * 100:.1f}%を超えると（今はあと{need:.1f}pt）好調に戻り、余剰資金は{back}%に戻す。"
     return f"QQQが200日線を回復したら余剰資金を{SLEEVE_WEAK}%に増やす（不調のままなら）。"
 
 
@@ -270,7 +292,7 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
             + '</div>')
     explain = (
         '<details class="cxpl"><summary>読み方と根拠</summary><div class="cxpl-b"><ul class="bh-ul">'
-        '<li><b>何を測る？</b> 直近63営業日に出た本命が、10日後に平均何%動いたか。0%以上＝好調、マイナス＝不調。'
+        f'<li><b>何を測る？</b> 直近63営業日に出た本命が、10日後に平均何%動いたか。マイナスになったら不調、不調は+{RECOVER * 100:.1f}%を超えるまで続く（2026-10-18から。0%の行き来で戻さない）。'
         '10日後の結果が出たものだけを使うので先読みはない（その分、切り替わりは数週間遅れる。好調・不調は平均54日続く）。</li>'
         '<li><b>何に使う？</b> 余剰資金の置き場所だけ。不調かつQQQが200日線より上の日は'
         f'{SLEEVE_WEAK}%をTQQQルール枠、それ以外は{SLEEVE_NORMAL}%（10月12日の公開分までは50%）。'
@@ -282,7 +304,9 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
         f'現行（6銘柄×1/6・株は資産の{STOCK_CAP_LABEL}まで・枠{SLEEVE_NORMAL}%/{SLEEVE_WEAK}%・翌日の寄りで売買）で年率{BT["cagr"]}%・'
         f'最大DD{str(BT["dd"]).replace("-", "−")}%。'
         '置き先をQQQにした検証（株の上限なし）では、常に50%の年率35.0%→切替39.0%（最大DD−34.1%のまま）。'
-        '平均すると余剰資金の約65%を置く形で、65%固定なら36.9%＝切り替えそのものの上乗せは年+2pt程度（日数・基準を変えた36通り中35通りでプラス＝旧計算）。'
+        '平均すると余剰資金の約65%を置く形で、65%固定なら36.9%＝切り替えそのものの上乗せは年+2pt程度（日数・基準を変えた36通り中35通りでプラス＝旧計算）。<br/>'
+        f'2026-10-18：不調から戻る線を+{RECOVER * 100:.1f}%に（手元検証・大底フル・守りモード・利益保護込み）。年率66.2%→68.3%（2015〜20年47.8→50.8%、2021〜26年87.6→88.7%）、最大DD−39.4%は同じ。'
+        '戻る線を+0.2〜+3%のどこにしても0%のときより上（67.1〜69.6%）、+4%では崩れる。測り方（中央値・勝率・QQQ超過）・期間（5日後・20日後・窓42/126日）・段階的な比率はどれも今の形を上回らなかった。'
         '</div></details></div></details>')
     return (
         f'<div class="card" id="{CARD_ID}" data-rule="{RULE_ID}">' + BH_STYLE
