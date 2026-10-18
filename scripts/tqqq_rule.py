@@ -23,7 +23,10 @@ Rule (validated offline 2000-2026, see Rules tab section 9):
   target is >= 0.75 step away), 0% while QQQ is > 35% above its 200-day line until
   it cools below +10% (overheat alarm), at most 25% while the HY spread is above
   1.1 x its 40-day mean
-* money not in TQQQ: gold while gold's 126-day return is positive, else T-bills.
+* money not in TQQQ: cash (no gold, no T-bills; decided 2026-10-18, traded from the
+  2026-10-19 open).  Until then: gold while gold's 126-day return was positive, else
+  T-bills.  Re-check of the rule alone, 2015-01..2026-08: 46.0% a year / max DD -49.5%
+  with gold/T-bills, 44.8% / -51.0% with cash.
 
 State machines (emergency modes, capitulation hold, overheat alarm, 25% step) are
 carried day to day in the ledger (track-record/tqqq-rule.json), so a short input
@@ -46,6 +49,7 @@ LEDGER = Path("track-record/tqqq-rule.json")
 SCHEMA = "tqqq-rule.1"
 CARD_ID = "tqqq-rule-card"
 RULE_NAME = "TQQQルール"
+CASH_ONLY_FROM = "2026-10-19"  # first session traded with the money outside TQQQ held as plain cash
 STEP = 0.25
 W_SWITCH, W_HOLD = 0.625, 0.375
 STATE_KEYS = ("cap_on", "cap_d", "cap_ent", "md_switch", "md_hold", "alarm", "cur")
@@ -154,7 +158,7 @@ def run(ind: dict[str, np.ndarray], start: int = 0, state: dict | None = None) -
         if wide:
             tgt = min(tgt, 0.25)
         out["switch"][i], out["hold"][i], out["raw"][i], out["step"][i], out["target"][i] = w_s, w_h, raw, st["cur"], tgt
-        out["gold"][i] = (1 - tgt) if bool(ind["gold_up"][i]) else 0.0
+        out["gold"][i] = 0.0  # money not in TQQQ is cash (2026-10-18)
         flags["md_switch"][i], flags["md_hold"][i], flags["alarm"][i] = st["md_switch"], st["md_hold"], st["alarm"]
         flags["cap_hold"][i], flags["hy_wide"][i], flags["trend"][i] = cap_hold, wide, rf
         states[i] = dict(st)
@@ -190,10 +194,10 @@ def known_before(series: pd.Series, idx: pd.DatetimeIndex) -> pd.Series:
 def frame_from_market(market: dict) -> pd.DataFrame | None:
     """Aligned daily inputs on QQQ sessions, or None when a required input is missing.
 
-    Required on the latest session: QQQ, TQQQ, VIX, HY OAS (FRED may lag a few days and
-    is carried forward) and gold (a gold bar within 4 days and 127 observations for the
-    126-day test).  A missing input keeps the last frozen recommendation instead of
-    publishing a different allocation.
+    Required on the latest session: QQQ, TQQQ, VIX and HY OAS (FRED may lag a few days and
+    is carried forward).  Gold is no longer used (the money outside TQQQ is cash since
+    2026-10-18); its price is still recorded when present.  A missing input keeps the last
+    frozen recommendation instead of publishing a different allocation.
     """
     q = _rows(market, "QQQ")
     t = _rows(market, "TQQQ")
@@ -201,7 +205,7 @@ def frame_from_market(market: dict) -> pd.DataFrame | None:
     g = _rows(market, "GC=F")
     hy = _fred(market, "BAMLH0A0HYM2")
     rf = _fred(market, "DGS3MO")
-    if q.empty or t.empty or v.empty or hy.empty or g.empty:
+    if q.empty or t.empty or v.empty or hy.empty:
         return None
     idx = q.index
     f = pd.DataFrame({"qo": q["open"], "qh": q["high"], "ql": q["low"], "qc": q["close"], "qv": q["volume"]}, index=idx)
@@ -211,16 +215,16 @@ def frame_from_market(market: dict) -> pd.DataFrame | None:
     # FRED values are published the next morning: a session uses the last value dated
     # before it (never the same day's value, which was not known at the close).
     f["hy"] = known_before(hy, idx)
-    f["gold"] = g["close"].reindex(idx.union(g.index)).ffill().reindex(idx)
-    f["gopen"] = g["open"].reindex(idx) if "open" in g else np.nan
+    if g.empty:
+        f["gold"], f["gopen"] = np.nan, np.nan
+    else:
+        f["gold"] = g["close"].reindex(idx.union(g.index)).ffill().reindex(idx)
+        f["gopen"] = g["open"].reindex(idx) if "open" in g else np.nan
     f["rf"] = (known_before(rf, idx) / 100.0) if not rf.empty else 0.0
     # FRED history is shorter than the 2-year price window: keep the price rows (200-day
     # line / 52-week high) and only require HY on the latest session.
     f = f[f["tc"].notna() & f["qc"].notna()]
     if len(f) < 260 or pd.isna(f["hy"].iloc[-1]) or pd.isna(f["vix"].iloc[-1]):
-        return None
-    last = f.index[-1]
-    if (last - g.index[g.index <= last].max()).days > 4 or g["close"].loc[:last].notna().sum() < 127:
         return None
     return f
 
@@ -325,7 +329,8 @@ def fund_bars(ledger: dict) -> dict[str, dict[str, float]]:
     open, gold open) and the whole sleeve is marked together, so the day return is the
     weighted sum of TQQQ, gold and T-bill returns; the overnight gap belongs to the
     holdings bought the previous morning.  Without a recorded gold open the gold trade
-    uses the previous close.
+    uses the previous close.  From CASH_ONLY_FROM on, the money outside TQQQ is cash
+    (no gold, no T-bill interest).
     """
     days = sorted(ledger.get("days", {}))
     bars: dict[str, dict[str, float]] = {}
@@ -343,12 +348,15 @@ def fund_bars(ledger: dict) -> dict[str, dict[str, float]]:
         go = _r(r.get("gold_open"), 8) or _r(prev.get("gold_px"), 8) or g1
         nav_open = ut * (to or 0.0) + ug * (go or 0.0) + cash
         wt, wg = float(prev.get("target") or 0), float(prev.get("gold") or 0)
+        cash_only = d >= CASH_ONLY_FROM
+        if cash_only:
+            wg = 0.0
         if not to or (wg > 0 and not go):
             wt, wg = 0.0, 0.0
         ut = wt * nav_open / to if to else 0.0
         ug = wg * nav_open / go if go else 0.0
         cash = nav_open * (1 - wt - wg)
-        rf = float(prev.get("rf") or 0) / 252
+        rf = 0.0 if cash_only else float(prev.get("rf") or 0) / 252
         cash *= 1 + rf
         nav = ut * (t1 or to or 0.0) + ug * (g1 or go or 0.0) + cash
         bars[d] = {"open": nav_open, "close": nav}
@@ -387,15 +395,18 @@ def summary_words(rec: dict) -> tuple[str, str]:
 
 
 def sleeve_split(rec: dict, sleeve_pct: int) -> tuple[float, float, float]:
-    """Shares of the swing rule's idle money: (TQQQ, gold, T-bills/cash)."""
+    """Shares of the swing rule's idle money: (TQQQ, gold, cash).
+
+    Gold is always 0 now (the money outside TQQQ is cash since 2026-10-18); the slot
+    stays so callers keep the same tuple shape.
+    """
     s = sleeve_pct / 100.0
     t = s * float(rec.get("target") or 0)
-    g = s * float(rec.get("gold") or 0)
-    return t, g, max(0.0, 1 - t - g)
+    return t, 0.0, max(0.0, 1 - t)
 
 
 def total_split(rec: dict, sleeve_pct: int, stock: float) -> tuple[float, float, float, float]:
-    """Shares of total assets: (stocks, TQQQ, gold, cash/T-bills) for a stock share."""
+    """Shares of total assets: (stocks, TQQQ, gold (always 0), cash) for a stock share."""
     t, g, _ = sleeve_split(rec, sleeve_pct)
     idle = max(0.0, 1 - stock)
     return stock, idle * t, idle * g, max(0.0, idle * (1 - t - g))
@@ -413,23 +424,22 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
     e = html.escape
     if not rec:
         return (f'<div class="tqr-card" id="{cid}"><div class="tqr-top"><span class="tqr-h">{RULE_NAME}</span>'
-                '<span class="tqr-m">判定不可</span></div><div class="tqr-sub">入力（QQQ・TQQQ・VIX・HY OAS・金）が'
+                '<span class="tqr-m">判定不可</span></div><div class="tqr-sub">入力（QQQ・TQQQ・VIX・HY OAS）が'
                 'そろわないため今日の目標を出していません。前日の比率のまま。</div></div>')
     word, cls = summary_words(rec)
     pct = sleeve_pct if sleeve_pct in SLEEVE_SHARES and sleeve_pct else SLEEVE_NORMAL
     pick = (f'ブレイク成功度で{SLEEVE_NORMAL}%か{SLEEVE_WEAK}%' if pct != 50 else
             f'10月12日の公開分までの通常は50%。10月13日の公開分から{SLEEVE_NORMAL}%（不調なら{SLEEVE_WEAK}%）')
-    tgt, gold = float(rec.get("target") or 0), float(rec.get("gold") or 0)
+    tgt = float(rec.get("target") or 0)
     stale = (f'<div class="tqr-stale">{e(session)}の入力が欠けたため、{e(day or "")}の判定のままです。</div>'
              if session and day and day < session else "")
-    # 1) total assets: stocks / TQQQ / gold / cash
+    # 1) total assets: stocks / TQQQ / cash
     s_pct = float(stock) if stock is not None else None
-    t_in, g_in, c_in = sleeve_split(rec, pct)          # shares of the money not in stocks
-    fill = (f'枠の <b>{_pct(tgt)}</b> をTQQQ' + (f'・<b>{_pct(gold)}</b> を金' if gold > 0 else '')
-            + ('・残りを短期国債' if tgt + gold < 0.999 else ''))
+    t_in, _, c_in = sleeve_split(rec, pct)             # shares of the money not in stocks
+    fill = f'枠の <b>{_pct(tgt)}</b> をTQQQ' + ('・残りは現金' if tgt < 0.999 else '')
     if s_pct is not None:
-        st_, tq, gd, ca = total_split(rec, pct, s_pct)
-        parts = [("stock", "個別株", st_), ("tqqq", "TQQQ", tq), ("gold", "金", gd), ("cash", "現金・短期国債", ca)]
+        st_, tq, _, ca = total_split(rec, pct, s_pct)
+        parts = [("stock", "個別株", st_), ("tqqq", "TQQQ", tq), ("cash", "現金", ca)]
         head = '<div class="tqr-big">資産全体の目標配分（翌営業日）</div>'
         n = len((holdings or {}).get("positions") or [])
         as_of = (holdings or {}).get("as_of")
@@ -447,7 +457,7 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
                    f'（{pick}）→ {fill} ＝ 全体の TQQQ <b>{_pp(tq)}</b>。枠の外は現金。'
                    '自分の個別株比率が違うときは下の表で。</div>')
     else:
-        parts = [("tqqq", "TQQQ", t_in), ("gold", "金", g_in), ("cash", "現金・短期国債", c_in)]
+        parts = [("tqqq", "TQQQ", t_in), ("cash", "現金", c_in)]
         head = ('<div class="tqr-big">個別株以外のお金の配分（今日の目標）</div>'
                 f'<div class="tqr-sub" data-stock-allocation="pending">ルール運用の保有比率が読めないため、資産全体の比率は下の表で。</div>')
         how = (f'<div class="tqr-how">個別株以外のお金の <b>{pct}%</b> が枠（{pick}）→ {fill}。'
@@ -459,10 +469,7 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
         if v > 0.0005 or k in ("stock", "tqqq")) + '</div>'
     # 3) your own stock share
     cols = list(EXAMPLES)
-    rows = [("TQQQ", lambda s: total_split(rec, pct, s)[1])]
-    if gold > 0:
-        rows.append(("金", lambda s: total_split(rec, pct, s)[2]))
-    rows.append(("現金・国債", lambda s: total_split(rec, pct, s)[3]))
+    rows = [("TQQQ", lambda s: total_split(rec, pct, s)[1]), ("現金", lambda s: total_split(rec, pct, s)[3])]
     table = ('<table class="tqr-tab"><tr><th>自分の個別株</th>' + "".join(f'<th>{_pp(c)}</th>' for c in cols) + '</tr>'
              + "".join(f'<tr><td>{n}</td>' + "".join(f'<td>{_pp(fn(c))}</td>' for c in cols) + '</tr>' for n, fn in rows)
              + '</table>')
@@ -575,7 +582,7 @@ def holdings_html(state: dict) -> str:
             f'<div class="tqr-sub">{holdings or "個別株なし"}<br/>'
             f'{e(state["sleeve"])} {state["sleeve_share"]:.1%}・現金 {state["cash"]:.1%}。'
             f'{provenance}'
-            '下のバーのTQQQ・金・現金比率は余剰資金を配分する次営業日の目標です。</div></details></div>')
+            '下のバーのTQQQ・現金比率は余剰資金を配分する次営業日の目標です。</div></details></div>')
 
 
 def stock_share(root: Path) -> float | None:

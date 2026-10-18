@@ -19,8 +19,8 @@ they were first published (track-record/signals.json):
   is weak and QQQ is above its 200-day line; 50% before 2026-10-13); the rest is
   cash at 0%.  From the 2026-10-13 publication (v6) new buys and adds never take
   the stocks above 80% of equity at the open (nothing is sold to get under it).  The sleeve
-  is the TQQQ rule (section 9) marked by tqqq_rule.fund_bars (TQQQ / gold /
-  T-bills at the published weights).  Until October 2026 the sleeve was QQQ;
+  is the TQQQ rule (section 9) marked by tqqq_rule.fund_bars (TQQQ at the published
+  weight, the rest cash at 0%; gold / T-bills until the 2026-10-16 decision).  Until October 2026 the sleeve was QQQ;
   old ledgers are retained separately, never rebuilt as current-rule results;
 * equity is marked at each close.  No fees, slippage, taxes or theme slots.
 
