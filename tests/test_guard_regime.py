@@ -23,7 +23,7 @@ def _write(tmp_path, last_qqq, vix, vix3m):
 
 def test_guard_needs_backwardation_and_qqq_under_50dma(tmp_path, monkeypatch):
     import tqqq_rule
-    monkeypatch.setattr(tqqq_rule, "full_bottom_active", lambda root=None: None)
+    monkeypatch.setattr(tqqq_rule, "full_bottom_active", lambda root=None, session=None: None)
     p, d = _write(tmp_path, 120.0, 20.0, 20.5)          # ts 0.976, QQQ under its 50-day line
     r = ss.regime_from_market(p, d)
     assert r["guard"] and abs(r["ts"] - 20.0 / 20.5) < 1e-12
@@ -31,7 +31,7 @@ def test_guard_needs_backwardation_and_qqq_under_50dma(tmp_path, monkeypatch):
     assert not ss.regime_from_market(p, d)["guard"]
     p, d = _write(tmp_path, 120.0, 18.0, 20.5)          # ts 0.88
     assert not ss.regime_from_market(p, d)["guard"]
-    monkeypatch.setattr(tqqq_rule, "full_bottom_active", lambda root=None: {"day": d, "left": 5})
+    monkeypatch.setattr(tqqq_rule, "full_bottom_active", lambda root=None, session=None: {"day": d, "left": 5})
     p, d = _write(tmp_path, 120.0, 20.0, 20.5)
     r = ss.regime_from_market(p, d)
     assert not r["guard"] and r["guard_raw"] and r["guard_full"]

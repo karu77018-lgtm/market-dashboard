@@ -249,10 +249,15 @@ def frame_from_market(market: dict) -> pd.DataFrame | None:
     return f
 
 
-def full_bottom_active(root: Path | None = None) -> dict | None:
-    """The latest recorded day if 大底フル is on (the sleeve share is then 100%)."""
+def full_bottom_active(root: Path | None = None, session: str | None = None) -> dict | None:
+    """The latest recorded day (on or before ``session`` when given) if 大底フル is on
+    (the sleeve share is then 100%)."""
     root = root or Path(__file__).resolve().parents[1]
-    day, rec = latest(load(root / LEDGER))
+    ledger = load(root / LEDGER)
+    if session and ledger and ledger.get("days"):
+        days = {d: r for d, r in ledger["days"].items() if d <= str(session)[:10]}
+        ledger = {**ledger, "days": days}
+    day, rec = latest(ledger)
     return {"day": day, "left": max(0, int(rec.get("full_left") or 1) - 1)} if rec and rec.get("full") else None
 
 
@@ -457,10 +462,12 @@ def total_split(rec: dict, sleeve_pct: int, stock: float) -> tuple[float, float,
 
 
 # 振り落とし注意 (display only, never changes an order): the rule-run model's equity up more
-# than 50% over 60 sessions.  Local backtest of the current rule (v6, cash outside TQQQ),
-# 2015-01..2026-07: a -12% or deeper fall within 20 sessions on 27% of those days vs 11%
-# otherwise (26% / 27% in 2015-20 / 2021-26), median fall within 20 sessions -8.0% vs -2.9%,
-# yet the median 60-session return after it was +17.6% vs +10.4% -> brace, do not sell.
+# than 50% over 60 sessions.  Local backtest of the current rule (v6 + 大底フル + 守りモード +
+# 利益保護 + hysteresis, cash outside TQQQ), 2015-01..2026-07: a -12% or deeper fall within 20
+# sessions on 17% of those days vs 12% otherwise (13% / 18% in 2015-20 / 2021-26), median fall
+# within 20 sessions -4.1% vs -3.0%, yet the median 60-session return after it was +20.9% vs
+# +11.9% -> brace, do not sell.  (The v6-only run of 10/18 read 27% vs 11%: 守りモード and
+# 利益保護 took most of the post-surge drops, so the warning is weaker now.)
 SURGE_DAYS = 60
 SURGE_LIMIT = 0.50
 SURGE_SEED = Path("track-record/surge-seed.json")  # backtest equity before the model's first day
@@ -513,8 +520,8 @@ def surge_html(state: dict | None) -> str:
         return (f'<div class="tqr-surge tqr-surge-off" data-surge="off">振り落とし注意：なし'
                 f'（ルール運用の資産 {SURGE_DAYS}営業日で{pct}・基準+{SURGE_LIMIT * 100:.0f}%超）{note}</div>')
     return (f'<div class="tqr-surge tqr-surge-on" data-surge="on"><b>振り落とし注意</b>：ルール運用の資産が{SURGE_DAYS}営業日で'
-            f'<b>{pct}</b>（+{SURGE_LIMIT * 100:.0f}%超）。過去はこのあと20日以内に−12%以上下がる確率27%（普段11%）。'
-            'ただし60日後の中央値は+17.6%（普段+10.4%）で、<b>売る合図ではない</b>。ルールどおり続け、下げても慌てない。'
+            f'<b>{pct}</b>（+{SURGE_LIMIT * 100:.0f}%超）。過去はこのあと20日以内に−12%以上下がる確率17%（普段12%）。'
+            'ただし60日後の中央値は+20.9%（普段+11.9%）で、<b>売る合図ではない</b>。ルールどおり続け、下げても慌てない。'
             f'{note}</div>')
 
 

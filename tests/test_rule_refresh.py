@@ -36,3 +36,17 @@ def test_consistent_page_passes(tmp_path: Path):
     (tmp_path / "latest-manifest.json").write_text(json.dumps({"session_date": "2026-10-02"}))
     sys.argv = ["rule_refresh.py", "--root", str(tmp_path)]
     assert rule_refresh.main() == 0
+
+
+def test_card_apply_ignores_css_that_mentions_the_card_id(monkeypatch):
+    import swing_screener
+    called = []
+
+    def boom(frame):
+        called.append(1)
+        raise RuntimeError("stop")
+    monkeypatch.setattr(swing_screener, "evaluate", boom)
+    page = (f'<style>#{swing_screener.CARD_ID} .x{{font-size:10px}}</style>'
+            f'{swing_screener.SECTION}<div class="card"></div></section>')
+    swing_screener.apply(page, None)
+    assert called  # a CSS rule naming the id is not the card itself

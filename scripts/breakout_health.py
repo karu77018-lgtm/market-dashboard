@@ -160,17 +160,17 @@ def allocation(health: dict | None, regime: dict | None, session: str | None = N
     A publication before the v6 cutover (session < EFFECTIVE_DATE) keeps the v5 normal 50%;
     the session defaults to the regime's date, then the health session.
     """
+    session = session or (regime or {}).get("date") or (health or {}).get("session")
     if full is None:
         try:
             import tqqq_rule
-            fb = tqqq_rule.full_bottom_active()
+            fb = tqqq_rule.full_bottom_active(session=session)
         except Exception:
             fb = None
         if fb:
             return SLEEVE_WEAK, f"大底フル（VIX+2σの底確認）であと{fb['left']}営業日"
     elif full:
         return SLEEVE_WEAK, "大底フル（VIX+2σの底確認）"
-    session = session or (regime or {}).get("date") or (health or {}).get("session")
     if session and str(session) < EFFECTIVE_DATE:
         normal = 50
     else:
@@ -293,7 +293,7 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
     explain = (
         '<details class="cxpl"><summary>読み方と根拠</summary><div class="cxpl-b"><ul class="bh-ul">'
         f'<li><b>何を測る？</b> 直近63営業日に出た本命が、10日後に平均何%動いたか。マイナスになったら不調、不調は+{RECOVER * 100:.1f}%を超えるまで続く（2026-10-18から。0%の行き来で戻さない）。'
-        '10日後の結果が出たものだけを使うので先読みはない（その分、切り替わりは数週間遅れる。好調・不調は平均54日続く）。</li>'
+        '10日後の結果が出たものだけを使うので先読みはない（その分、切り替わりは数週間遅れる。一度切り替わると平均3か月ほど続き、2015〜2026/10で不調の日は約半分）。</li>'
         '<li><b>何に使う？</b> 余剰資金の置き場所だけ。不調かつQQQが200日線より上の日は'
         f'{SLEEVE_WEAK}%をTQQQルール枠、それ以外は{SLEEVE_NORMAL}%（10月12日の公開分までは50%）。'
         'QQQが200日線より下では増やさない（2022年のような下げで傷を深くしない）。個別株の新規・損切り・買い増しは変えない。</li>'
@@ -337,7 +337,7 @@ def positions_line(health: dict | None, regime: dict | None) -> str:
 
 def apply_daily(text: str, health: dict | None, regime: dict | None) -> str:
     """Insert the card in the Daily tab just before 'リーダーの強さ'."""
-    if CARD_ID in text or health is None:
+    if f'id="{CARD_ID}"' in text or health is None:
         return text
     i = text.find("<h2>リーダーの強さ")
     if i < 0:

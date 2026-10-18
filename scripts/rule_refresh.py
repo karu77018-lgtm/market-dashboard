@@ -3,7 +3,8 @@
 The lightweight display publication never re-acquires market data, so a rule
 change merged between daily refreshes used to leave the published Rules tab,
 swing card, pickup card and breakout-health card on the old rule.  This step
-rebuilds exactly those cards from the inputs the last refresh saved (Actions
+rebuilds exactly those cards on every display run (not only when the RULE_ID
+differs, since rule details can change under the same id) from the inputs the last refresh saved (Actions
 cache: work/ohlcv.csv and work/market-inputs-cache.json, same session as the
 manifest), reusing the option walls already in the page (no network), and then
 checks that every rule-dependent card carries the current RULE_ID.
@@ -118,17 +119,19 @@ def main() -> int:
             import track_record
             text = track_record.render_only(text, root)
             page.write_text(text, encoding="utf-8")
-    if rules_tab.rule_problems(text):
-        frame = load_frame(root / "work" / "ohlcv.csv", session)
-        if frame is None:
-            print(f"saved OHLCV for {session} unavailable; cannot re-render rule cards", flush=True)
-        else:
-            market = next((p for p in (root / "data" / "market_inputs.json", root / "work" / "market-inputs-cache.json")
-                           if p.is_file()), None)
-            regime = swing_screener.regime_from_market(market, session) if market else None
-            text = regenerate(text, frame, regime, root)
-            page.write_text(text, encoding="utf-8")
-            print(f"re-rendered rule cards for {session} with {rules_tab.RULE_ID}", flush=True)
+    # Always re-render when the saved inputs match the session: a rule detail can change
+    # without a new RULE_ID (e.g. 守りモード / 利益保護 / 大底フル on 2026-10-18), and the
+    # cards must not wait for the next daily refresh to show it.
+    frame = load_frame(root / "work" / "ohlcv.csv", session)
+    if frame is None:
+        print(f"saved OHLCV for {session} unavailable; cannot re-render rule cards", flush=True)
+    else:
+        market = next((p for p in (root / "data" / "market_inputs.json", root / "work" / "market-inputs-cache.json")
+                       if p.is_file()), None)
+        regime = swing_screener.regime_from_market(market, session) if market else None
+        text = regenerate(text, frame, regime, root)
+        page.write_text(text, encoding="utf-8")
+        print(f"re-rendered rule cards for {session} with {rules_tab.RULE_ID}", flush=True)
     problems = rules_tab.rule_problems(text)
     if problems:
         print("rule version mismatch: " + "; ".join(problems), flush=True)
