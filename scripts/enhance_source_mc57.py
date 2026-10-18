@@ -323,6 +323,11 @@ def main() -> int:
         tqqq_rule.update_ledger(html_path.resolve().parent, args.session)
     except Exception as exc:
         print(f"TQQQ rule skipped: {exc!r}", flush=True)
+    try:  # 底アラート ledger (display only)
+        import bottom_alert
+        bottom_alert.update_ledger(html_path.resolve().parent, args.session)
+    except Exception as exc:
+        print(f"bottom alert skipped: {exc!r}", flush=True)
     import track_record
     try:  # display + ledger only; never blocks publication
         text = track_record.run(text, frame, args.session, html_path.resolve().parent)

@@ -419,17 +419,41 @@ def total_split(rec: dict, sleeve_pct: int, stock: float) -> tuple[float, float,
 # yet the median 60-session return after it was +17.6% vs +10.4% -> brace, do not sell.
 SURGE_DAYS = 60
 SURGE_LIMIT = 0.50
+SURGE_SEED = Path("track-record/surge-seed.json")  # backtest equity before the model's first day
+
+
+def load_surge_seed(root: Path) -> dict | None:
+    try:
+        obj = json.loads((root / SURGE_SEED).read_text(encoding="utf-8"))
+        return obj if obj.get("schema") == "surge-seed.1" and obj.get("equity") else None
+    except Exception:
+        return None
 
 
 def surge_state(holdings: dict | None) -> dict | None:
-    """60-session equity change of the rule-run model, or how many sessions are still missing."""
+    """60-session equity change of the rule-run model, or how many sessions are still missing.
+
+    While the model has fewer than 61 marks, the sessions before its first mark come from
+    the backtest seed (scaled to the model's first mark), and the state says so.
+    """
     eq = [e for e in (holdings or {}).get("equity") or [] if e[1]]
     if not eq:
         return None
+    seeded = None
+    seed = (holdings or {}).get("surge_seed") or {}
+    if len(eq) <= SURGE_DAYS and seed.get("equity"):
+        first = eq[0][0]
+        pts = {d: float(v) for d, v in seed["equity"] if v}
+        if first in pts and pts[first] > 0:
+            scale = float(eq[0][1]) / pts[first]
+            before = [[d, v * scale, None] for d, v in sorted(pts.items()) if d < first]
+            if len(before) + len(eq) > SURGE_DAYS:
+                seeded = before[-1][0]
+                eq = before + eq
     if len(eq) <= SURGE_DAYS:
         return {"ready": False, "left": SURGE_DAYS + 1 - len(eq)}
     r = float(eq[-1][1]) / float(eq[-1 - SURGE_DAYS][1]) - 1
-    return {"ready": True, "r60": r, "on": r > SURGE_LIMIT, "as_of": eq[-1][0]}
+    return {"ready": True, "r60": r, "on": r > SURGE_LIMIT, "as_of": eq[-1][0], "seeded_to": seeded}
 
 
 def surge_html(state: dict | None) -> str:
@@ -438,13 +462,16 @@ def surge_html(state: dict | None) -> str:
     if not state["ready"]:
         return (f'<div class="tqr-surge tqr-surge-wait" data-surge="pending">振り落とし注意：ルール運用の記録が'
                 f'{SURGE_DAYS}営業日そろうまで判定なし（あと{state["left"]}営業日）</div>')
-    pct = f'{state["r60"] * 100:+.0f}%'
+    pct = f'{state["r60"] * 100:+.0f}%'.replace("-", "−")
+    note = (f'<span class="tqr-mut">（{state["seeded_to"][5:].replace("-", "/")}以前は現行ルールの過去検証の資産曲線で補完）</span>'
+            if state.get("seeded_to") else "")
     if not state["on"]:
         return (f'<div class="tqr-surge tqr-surge-off" data-surge="off">振り落とし注意：なし'
-                f'（ルール運用の資産 {SURGE_DAYS}営業日で{pct}・基準+{SURGE_LIMIT * 100:.0f}%超）</div>')
+                f'（ルール運用の資産 {SURGE_DAYS}営業日で{pct}・基準+{SURGE_LIMIT * 100:.0f}%超）{note}</div>')
     return (f'<div class="tqr-surge tqr-surge-on" data-surge="on"><b>振り落とし注意</b>：ルール運用の資産が{SURGE_DAYS}営業日で'
             f'<b>{pct}</b>（+{SURGE_LIMIT * 100:.0f}%超）。過去はこのあと20日以内に−12%以上下がる確率27%（普段11%）。'
-            'ただし60日後の中央値は+17.6%（普段+10.4%）で、<b>売る合図ではない</b>。ルールどおり続け、下げても慌てない。</div>')
+            'ただし60日後の中央値は+17.6%（普段+10.4%）で、<b>売る合図ではない</b>。ルールどおり続け、下げても慌てない。'
+            f'{note}</div>')
 
 
 COLORS = {"stock": "#467ed6", "tqqq": "#18813d", "gold": "#c99a2e", "cash": "#b9b5aa"}
@@ -678,8 +705,16 @@ def update_ledger(root: Path, session: str) -> dict:
 def render_only(text: str, root: Path, sleeve_pct: int | None, session: str | None = None) -> str:
     """Render committed targets using the dated primary reconstructed holding model."""
     state = holding_state(root)
-    return apply_top(text, load(root / LEDGER), sleeve_pct, state["stock"] if state else None,
+    if state is not None:
+        state["surge_seed"] = load_surge_seed(root)
+    text = apply_top(text, load(root / LEDGER), sleeve_pct, state["stock"] if state else None,
                      session or page_session(root), holdings=state)
+    try:  # 底アラート card right under this card (display only)
+        import bottom_alert
+        text = bottom_alert.apply(text, bottom_alert.load(root / bottom_alert.LEDGER))
+    except Exception as exc:
+        print(f"bottom alert card skipped: {exc!r}", flush=True)
+    return text
 
 
 if __name__ == "__main__":

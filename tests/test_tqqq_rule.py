@@ -278,3 +278,15 @@ def test_surge_alert_needs_60_sessions_and_never_says_sell():
                         holdings={"equity": [[f"d{i:03d}", 1.0, None] for i in range(10)], "positions": []})
     assert 'data-surge="pending"' in card
     assert tq.surge_html(tq.surge_state(None)) == ""
+
+
+def test_surge_uses_backtest_seed_until_the_model_has_60_sessions():
+    model = [[f"2026-10-{d:02d}", v, None] for d, v in ((5, 1.0), (6, 0.9))]
+    seed = {"equity": [[f"2026-07-{d:02d}", 0.5] for d in range(1, 32)] + [[f"2026-08-{d:02d}", 0.5] for d in range(1, 32)]
+            + [["2026-10-05", 1.0]]}
+    st = tq.surge_state({"equity": model, "surge_seed": seed})
+    assert st["ready"] and abs(st["r60"] - (0.9 / 0.5 - 1)) < 1e-12 and st["on"]
+    assert st["seeded_to"] == "2026-08-31"
+    assert "08/31以前は現行ルールの過去検証" in tq.surge_html(st)
+    full = [[f"d{i:03d}", 1.0, None] for i in range(61)]
+    assert tq.surge_state({"equity": full, "surge_seed": seed})["seeded_to"] is None
