@@ -45,7 +45,7 @@ def test_daily_card_and_positions_line():
     out = bh.apply_daily(page, health, {"on": True})
     assert out.index(bh.CARD_ID) < out.index("リーダーの強さ")
     assert "−2.8%" in out and "不調" in out and '今日の余剰資金：<b class="big">100%</b> をTQQQルール枠へ' in out
-    assert "勢い株が報われていない" in out and "0%以上に戻ると（今はあと2.8pt）" in out and "読み方と根拠" in out
+    assert "勢い株が報われていない" in out and "+1.5%を超えると（今はあと4.3pt）好調に戻り" in out and "読み方と根拠" in out
     assert bh.apply_daily(out, health, {"on": True}) == out
     assert bh.apply_daily("<html></html>", health, None) == "<html></html>"
     line = bh.positions_line(health, {"on": False})
@@ -86,3 +86,8 @@ def test_streak_is_a_lower_bound_at_the_window_edge_and_no_legend_without_chart(
     empty = {**long, "history": [], "since": "2025-10-10"}
     card = bh.daily_card(empty, {"on": True, "date": hist[-1][0]})
     assert "1年分" not in card and "推移はまだ描けない" in card
+
+
+def test_hysteresis_stays_weak_until_above_recover():
+    vals = [0.01, -0.001, 0.005, 0.014, None, 0.016, 0.002, -0.0001]
+    assert bh.hysteresis(vals) == [True, False, False, False, False, True, True, False]
