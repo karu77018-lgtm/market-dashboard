@@ -36,6 +36,7 @@ import math
 import numpy as np
 import pandas as pd
 
+from swing_allocation import GUARD_MA, GUARD_STOCK, GUARD_TS  # noqa: E402
 from swing_allocation import (EFFECTIVE_DATE, INITIAL_LABEL, INITIAL_WEIGHT, MAX_NAMES, RULE_ID,  # noqa: E402
                               SLEEVE_NORMAL, SLEEVE_WEAK, STOCK_CAP_LABEL)
 from backtest_summary import CURRENT as BT, PERIOD as BT_PERIOD  # noqa: E402
@@ -266,7 +267,7 @@ def guard_state(path, pairs: list[tuple[str, float]]) -> dict:
     if guard:
         try:
             import tqqq_rule
-            full = bool(tqqq_rule.full_bottom_active())
+            full = bool(tqqq_rule.full_bottom_active(session=day))
         except Exception:
             full = False
     return {"guard": guard and not full, "guard_raw": guard, "ts": ts, "ma50": ma50, "guard_full": full}
@@ -286,8 +287,6 @@ def _guard_bar(reg: dict | None) -> str:
 
 
 def _regime_bar(reg: dict | None) -> str:
-    if reg and reg.get("guard"):
-        return _regime_bar_base(reg) + _guard_bar(reg)
     return _regime_bar_base(reg) + _guard_bar(reg)
 
 
@@ -1040,7 +1039,9 @@ def card_html(result: dict) -> str:
         '優先S・A×あと1条件 → B×あと1 → S・A×あと2 → その他。残り条件数は「あと1かどうか」だけが効く。<br/>'
         f'<b>売買</b>：通常スイング最大{MAX_NAMES}銘柄・個別株の合計は総資産の{STOCK_CAP_LABEL}まで（{EFFECTIVE_DATE}適用）。最初は総資産の{INITIAL_LABEL}を買い、−8%で損切り（初回のリスクは総資産の{CORE_RISK:.1%}、窓開け・スリッページを除く）。'
         '終値が買値+10%に届いたら翌営業日の寄りで同額、+20%でもう一度同額を買い増し（1銘柄の上限は資金の40%）。安値21EMAを割って引けたら翌営業日の寄りで手仕舞い。'
-        f'余剰資金の{SLEEVE_NORMAL}%はTQQQルール枠（Rulesタブ9）。ブレイク成功度が不調かつQQQが200日線より上の日は{SLEEVE_WEAK}%。'
+        '<b>利益保護</b>：終値が買ってからの最高値の−15%を下回ったら翌営業日の寄りで手仕舞い。'
+        f'<b>守りモード</b>：引けでVIX÷VIX3M {GUARD_TS}以上かつQQQが{GUARD_MA}日線の下なら新規停止、翌営業日の寄りで個別株を総資産の{GUARD_STOCK:.0%}まで比例で減らす（TQQQルールの大底フル中は守らない）。'
+        f'余剰資金の{SLEEVE_NORMAL}%はTQQQルール枠（Rulesタブ9）。ブレイク成功度が不調（マイナスで不調、+1.5%を超えるまで続く）かつQQQが200日線より上の日と、大底フル中は{SLEEVE_WEAK}%。'
         f'{BT_PERIOD}の検証（翌営業日の寄りで売買・守りモード等込み）で年率{BT["cagr"]}%・最大DD{str(BT["dd"]).replace("-", "−")}%（個別株だけなら{BT["stock_cagr"]}%、余剰資金をQQQにすると{BT["qqq_cagr"]}%）。<br/>'
         '<b>外した条件</b>：52週安値+30%・10日線+12%以内・高値+25%で建値へ。前の2つを足しても成績はほぼ同じ（個別株だけ28.7%→29.5%）。建値へ動かすルールは効果なし（旧計算）。<br/>'
         '<b>バー</b>：緑の始まりがHL（切り上げた安値・割れたら構造崩れ）、緑の終わりがピボットライン'
@@ -1065,7 +1066,7 @@ LAST: dict | None = None  # the last evaluated result (same process only)
 def apply(text: str, frame: pd.DataFrame, walls_fn=None, regime: dict | None = None,
           health: dict | None = None) -> str:
     """Insert the card; ``walls_fn(targets, session)`` optionally adds option walls."""
-    if CARD_ID in text or SECTION not in text:
+    if f'id="{CARD_ID}"' in text or SECTION not in text:
         return text
     try:
         result = evaluate(frame)

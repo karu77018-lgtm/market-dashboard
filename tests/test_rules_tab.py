@@ -79,3 +79,10 @@ def test_archive_intro_marks_six_name_results_historical():
     assert "<b>現行</b>（最大6銘柄×1/6" in archive_tab.INTRO and "年率55.0%" in archive_tab.INTRO
     assert "<b>5銘柄×20%</b>" in archive_tab.INTRO and "年率57.0%" not in archive_tab.INTRO
     assert archive_tab.INTRO_MARK != "年率55.1%"
+
+
+def test_rules_tab_states_the_breakout_health_recovery_line():
+    import breakout_health
+    src = Path(rules_tab.__file__).read_text(encoding="utf-8")
+    assert f"+{breakout_health.RECOVER * 100:.1f}%を超えるまで続く" in src
+    assert "0%以上＝好調" not in src and "54日" not in src

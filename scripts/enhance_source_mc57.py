@@ -294,7 +294,6 @@ def main() -> int:
     from swing_screener import apply as apply_swing_screener
     from options_walls import fetch_walls
     from swing_screener import regime_from_market
-    regime = regime_from_market(html_path.resolve().parent / "data" / "market_inputs.json", args.session)
     import tqqq_rule
     try:  # TQQQ rule ledger first: its 大底フル sets the sleeve share every card below publishes
         tqqq_rule.update_ledger(html_path.resolve().parent, args.session)
@@ -305,6 +304,8 @@ def main() -> int:
         bottom_alert.update_ledger(html_path.resolve().parent, args.session)
     except Exception as exc:
         print(f"bottom alert skipped: {exc!r}", flush=True)
+    # after the ledgers: the 守りモード check reads today's 大底フル from the TQQQ ledger
+    regime = regime_from_market(html_path.resolve().parent / "data" / "market_inputs.json", args.session)
     import breakout_health
     try:
         health = breakout_health.compute(frame)

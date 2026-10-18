@@ -318,3 +318,14 @@ def test_full_bottom_words_and_sleeve_share():
     assert word.startswith("大底フル") and "あと20営業日" in word and cls == "on"
     assert bh.allocation({"on": True}, {"on": True}, "2026-10-20", full=True)[0] == 100
     assert bh.allocation({"on": True}, {"on": True}, "2026-10-20", full=False)[0] == 60
+
+
+def test_full_bottom_active_reads_the_session_not_a_later_day(tmp_path):
+    import json as _json
+    led = tq.new_ledger()
+    led["days"] = {"2026-10-14": {"full": True, "full_left": 3}, "2026-10-15": {"full": False}}
+    (tmp_path / tq.LEDGER).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / tq.LEDGER).write_text(_json.dumps(led), encoding="utf-8")
+    assert tq.full_bottom_active(tmp_path) is None
+    assert tq.full_bottom_active(tmp_path, session="2026-10-15") is None
+    assert tq.full_bottom_active(tmp_path, session="2026-10-14") == {"day": "2026-10-14", "left": 2}
