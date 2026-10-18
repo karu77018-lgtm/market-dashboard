@@ -395,3 +395,33 @@ def test_allocation_uses_health_session_when_regime_is_missing():
     import breakout_health as bh
     assert bh.allocation({"on": True, "value": 0.1, "session": "2026-10-12"}, None)[0] == 50
     assert bh.allocation({"on": True, "value": 0.1, "session": "2026-10-13"}, None)[0] == 60
+
+
+def test_guard_trims_stocks_to_40pct_and_trail_exits_after_15pct_giveback():
+    import swing_allocation as sa
+    pf = tp.new_portfolio("2026-10-16")
+    pf["cash"] = 0.2
+    pf["positions"] = {"AAA": {"signal": "2026-10-01", "entry_day": "2026-10-02", "entry": 100.0, "stop": 92.0,
+                               "shares": 0.008, "invested": 0.8, "adds": 0, "unit": 0.8, "triggered": [],
+                               "pending_add": 0, "pending_exit": False, "ema": 90.0, "last": 100.0, "days": 5}}
+    days = ["2026-10-19", "2026-10-20", "2026-10-21"]
+    bars = {"AAA": pd.DataFrame({"open": [100.0, 120.0, 99.0], "low": [99.0, 119.0, 98.0], "close": [125.0, 101.0, 99.0]},
+                                index=pd.to_datetime(days))}
+    q = {"open": 100.0, "close": 100.0}
+    tp.step(pf, days[0], "2026-10-16", q, {"regime": "on", "best": [], "qqq_pct": 60, "guard": True}, bars)
+    held = pf["positions"]["AAA"]["shares"] * 100.0
+    assert abs(held - 0.40) < 1e-9 and pf["trims"][0]["to"] == sa.GUARD_STOCK      # cut to 40% at the open
+    tp.step(pf, days[1], days[0], q, {"regime": "on", "best": [], "qqq_pct": 60}, bars)
+    assert pf["positions"]["AAA"]["pending_exit"]                                    # 101 < 125 x 0.85
+    tp.step(pf, days[2], days[1], q, {"regime": "on", "best": [], "qqq_pct": 60}, bars)
+    assert "AAA" not in pf["positions"] and pf["closed"][-1]["reason"].startswith("高値から−15%")
+
+
+def test_guard_is_inactive_before_its_start_date():
+    pf = tp.new_portfolio("2026-10-14")
+    pf["positions"] = {"AAA": {"signal": "x", "entry_day": "x", "entry": 100.0, "stop": 92.0, "shares": 0.008,
+                               "invested": 0.8, "adds": 0, "unit": 0.8, "triggered": [], "pending_add": 0,
+                               "pending_exit": False, "ema": 90.0, "last": 100.0, "days": 5}}
+    bars = {"AAA": pd.DataFrame({"open": [100.0], "low": [99.0], "close": [100.0]}, index=pd.to_datetime(["2026-10-15"]))}
+    tp.step(pf, "2026-10-15", "2026-10-14", {"open": 100.0, "close": 100.0}, {"regime": "on", "best": [], "qqq_pct": 60, "guard": True}, bars)
+    assert abs(pf["positions"]["AAA"]["shares"] - 0.008) < 1e-12 and "trims" not in pf
