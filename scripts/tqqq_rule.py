@@ -412,6 +412,41 @@ def total_split(rec: dict, sleeve_pct: int, stock: float) -> tuple[float, float,
     return stock, idle * t, idle * g, max(0.0, idle * (1 - t - g))
 
 
+# 振り落とし注意 (display only, never changes an order): the rule-run model's equity up more
+# than 50% over 60 sessions.  Local backtest of the current rule (v6, cash outside TQQQ),
+# 2015-01..2026-07: a -12% or deeper fall within 20 sessions on 27% of those days vs 11%
+# otherwise (26% / 27% in 2015-20 / 2021-26), median fall within 20 sessions -8.0% vs -2.9%,
+# yet the median 60-session return after it was +17.6% vs +10.4% -> brace, do not sell.
+SURGE_DAYS = 60
+SURGE_LIMIT = 0.50
+
+
+def surge_state(holdings: dict | None) -> dict | None:
+    """60-session equity change of the rule-run model, or how many sessions are still missing."""
+    eq = [e for e in (holdings or {}).get("equity") or [] if e[1]]
+    if not eq:
+        return None
+    if len(eq) <= SURGE_DAYS:
+        return {"ready": False, "left": SURGE_DAYS + 1 - len(eq)}
+    r = float(eq[-1][1]) / float(eq[-1 - SURGE_DAYS][1]) - 1
+    return {"ready": True, "r60": r, "on": r > SURGE_LIMIT, "as_of": eq[-1][0]}
+
+
+def surge_html(state: dict | None) -> str:
+    if not state:
+        return ""
+    if not state["ready"]:
+        return (f'<div class="tqr-surge tqr-surge-wait" data-surge="pending">振り落とし注意：ルール運用の記録が'
+                f'{SURGE_DAYS}営業日そろうまで判定なし（あと{state["left"]}営業日）</div>')
+    pct = f'{state["r60"] * 100:+.0f}%'
+    if not state["on"]:
+        return (f'<div class="tqr-surge tqr-surge-off" data-surge="off">振り落とし注意：なし'
+                f'（ルール運用の資産 {SURGE_DAYS}営業日で{pct}・基準+{SURGE_LIMIT * 100:.0f}%超）</div>')
+    return (f'<div class="tqr-surge tqr-surge-on" data-surge="on"><b>振り落とし注意</b>：ルール運用の資産が{SURGE_DAYS}営業日で'
+            f'<b>{pct}</b>（+{SURGE_LIMIT * 100:.0f}%超）。過去はこのあと20日以内に−12%以上下がる確率27%（普段11%）。'
+            'ただし60日後の中央値は+17.6%（普段+10.4%）で、<b>売る合図ではない</b>。ルールどおり続け、下げても慌てない。</div>')
+
+
 COLORS = {"stock": "#467ed6", "tqqq": "#18813d", "gold": "#c99a2e", "cash": "#b9b5aa"}
 EXAMPLES = (0.0, 0.25, 0.5, 0.75)
 
@@ -481,13 +516,14 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
         ("過熱", "警報" if rec.get("alarm") else "なし"),
     ]
     chk = "".join(f'<span class="tqr-chip"><i>{e(k)}</i>{e(v)}</span>' for k, v in checks)
+    surge = surge_html(surge_state(holdings))
     return (f'<div class="tqr-card tqr-{cls}" id="{cid}" data-day="{e(day or "")}">'
             f'<div class="tqr-top"><span class="tqr-h">{RULE_NAME}</span><span class="tqr-m">{e(word)}</span>'
             f'<span class="tqr-d">{e((day or "")[5:].replace("-", "/"))} 終値で判定→翌営業日に執行</span></div>'
             + stale + head + bar + legend + how
             + f'<details class="tqr-more"{" open" if s_pct is None else ""}><summary>自分の個別株比率で読み替え（資産全体の%）</summary>' + table
             + f'<div class="tqr-sub tqr-mut">計算：TQQQ＝（100%−個別株）×枠{pct}%×目標{_pct(tgt)}。ルールはRulesタブ9。</div></details>'
-            f'<div class="tqr-chips">{chk}</div></div>')
+            f'<div class="tqr-chips">{chk}</div>{surge}</div>')
 
 
 STYLE = ('<style id="tqqq-rule-style">.tqr-card{border-radius:12px;padding:10px 14px;margin:8px 0;border:1px solid #d7d3c7;'
@@ -511,7 +547,8 @@ STYLE = ('<style id="tqqq-rule-style">.tqr-card{border-radius:12px;padding:10px 
          '.tqr-sub{font-size:11.5px;color:#565243;line-height:1.55;margin-top:4px}.tqr-mut{color:#8a877c}'
          '.tqr-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}.tqr-chip{font-size:10.5px;background:#fff;'
          'border:1px solid #e0ddd5;border-radius:6px;padding:1px 6px;color:#1b1a18}.tqr-chip i{font-style:normal;'
-         'color:#8a877c;margin-right:4px}</style>')
+         'color:#8a877c;margin-right:4px}.tqr-surge{font-size:11.5px;line-height:1.55;margin-top:6px;color:#6b6858}'
+         '.tqr-surge-on{color:#7a4a00;background:#f3ecd6;border:1px solid #e0cf98;border-radius:8px;padding:5px 8px}</style>')
 
 
 def holding_state(root: Path) -> dict | None:
@@ -544,7 +581,7 @@ def holding_state(root: Path) -> dict | None:
         inherited = not reconstructed and pf.get("inventory_origin", {}).get("rule") != track_record.RULE_ID
         label = ("新ルールで再計算した保有モデル" if reconstructed else
                  "旧ルールの保存保有記録（比較用）" if inherited else "保存済みの保有モデル")
-        return {"as_of": eq[-1][0], "stock": stock, "cash": cash, "sleeve_share": sleeve,
+        return {"as_of": eq[-1][0], "stock": stock, "cash": cash, "sleeve_share": sleeve, "equity": eq,
                 "sleeve": "QQQ" if pf.get("sleeve") == "legacy-qqq" else "TQQQルール枠（NAV）",
                 "positions": positions, "inherited": inherited, "reconstruction": reconstruction,
                 "label": label, "source": "modeled_portfolio" if ledger.get("modeled_portfolio") else "saved-portfolio"}
