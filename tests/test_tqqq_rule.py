@@ -42,17 +42,29 @@ def test_frame_keeps_price_history_and_requires_latest_hy():
     assert tq.frame_from_market(m) is None
 
 
-def test_frame_requires_current_gold():
+def test_frame_does_not_need_gold_and_money_outside_tqqq_is_cash():
     m = market()
     del m["series"]["GC=F"]
-    assert tq.frame_from_market(m) is None                 # no silent switch from gold to T-bills
+    f = tq.frame_from_market(m)                            # gold is no longer an input (2026-10-18)
+    assert f is not None and f["gold"].isna().all()
     m = market()
-    m["series"]["GC=F"] = m["series"]["GC=F"][:-6]          # gold more than 4 days stale
-    assert tq.frame_from_market(m) is None
-    m = market()
-    m["series"]["GC=F"] = m["series"]["GC=F"][-100:]        # too short for the 126-day test
-    assert tq.frame_from_market(m) is None
-    assert tq.frame_from_market(market())["gopen"].notna().all()
+    m["series"]["GC=F"] = m["series"]["GC=F"][:-6]          # stale gold does not block the target
+    assert tq.frame_from_market(m) is not None
+    assert tq.frame_from_market(market())["gopen"].notna().all()  # still recorded when present
+    out, _ = tq.compute_frame(tq.frame_from_market(market()))
+    assert (out["gold"][~np.isnan(out["gold"])] == 0).all()
+
+
+def test_fund_bars_cash_only_from_the_switch_date():
+    led = tq.new_ledger()
+    led["days"] = {
+        "2026-10-16": {"target": 0.25, "gold": 0.75, "tqqq": 100.0, "tqqq_open": 100.0, "gold_px": 10.0, "rf": 0.0428},
+        "2026-10-19": {"target": 0.25, "gold": 0.0, "tqqq": 110.0, "tqqq_open": 100.0,
+                       "gold_open": 10.0, "gold_px": 20.0, "rf": 0.0428},
+    }
+    b = tq.fund_bars(led)
+    # 10-16's frozen gold weight is not bought on 10-19, and the cash earns no interest
+    assert abs(b["2026-10-19"]["close"] - (1 + 0.25 * 0.10)) < 1e-12
 
 
 def test_incremental_ledger_equals_one_shot():
@@ -112,21 +124,22 @@ def test_fund_bars_trade_next_open_and_mark_gold_and_bills():
 
 def test_top_card_states_total_asset_shares(tmp_path: Path):
     led = tq.new_ledger()
-    led["days"] = {"2026-10-07": {"target": 0.75, "gold": 0.25, "trend": True, "hy": 3.0}}
+    led["days"] = {"2026-10-07": {"target": 0.75, "gold": 0.25, "trend": True, "hy": 3.0}}  # old frozen gold is ignored
     page = '<html><head></head><body><div class="wrap"><nav>n</nav></div></body></html>'
     out = tq.apply_top(page, led, 50, stock=0.6, session="2026-10-07")
     assert out.index(tq.CARD_ID) < out.index("<nav") and out.count(f'id="{tq.CARD_ID}"') == 1
-    # idle 40% x sleeve 50% = 20%: TQQQ 75% of it = 15%, gold 5%, cash 20%
+    # idle 40% x sleeve 50% = 20%: TQQQ 75% of it = 15%, cash 25%
     assert "資産全体の目標配分（翌営業日）" in out
-    for name, v in (("個別株", "60%"), ("TQQQ", "15%"), ("金", "5%"), ("現金・短期国債", "20%")):
+    for name, v in (("個別株", "60%"), ("TQQQ", "15%"), ("現金", "25%")):
         assert f"{name} <b>{v}</b>" in out, name
+    assert ">金 <b>" not in out and "短期国債" not in out
     assert "平時" in out and "判定のまま" not in out
     assert tq.apply_top(out, led, 50, stock=0.6, session="2026-10-07") == out
     assert out.count('id="tqqq-rule-style"') == 1
     stale = tq.apply_top(page, led, 50, stock=0.6, session="2026-10-08")
     assert "2026-10-08の入力が欠けたため、2026-10-07の判定のままです" in stale
     plain = tq.apply_top(page, led, 100, stock=None)
-    assert "個別株以外のお金の配分" in plain and "TQQQ <b>75%</b>" in plain and "金 <b>25%</b>" in plain
+    assert "個別株以外のお金の配分" in plain and "TQQQ <b>75%</b>" in plain and "現金 <b>25%</b>" in plain
     assert "<td>37.5%</td>" in plain                          # 50% in stocks -> 50% x 100% x 75%
     led["days"]["2026-10-08"] = {"target": 0.0, "gold": 1.0, "alarm": True}
     out2 = tq.apply_top(out, led, 100, stock=0.5)
@@ -160,7 +173,7 @@ def test_legacy_inventory_is_read_only_and_explicitly_historical(tmp_path):
     assert state['inherited'] and state['sleeve'] == 'QQQ'
     assert abs(state['stock'] + state['cash'] + state['sleeve_share'] - 1) < 1e-12
     text = tq.card_html('2026-10-08', {'target': .25}, 50, top=True, stock=state['stock'], holdings=state)
-    assert 'TQQQ <b>4.1%</b>' in text and '現金・短期国債 <b>28.9%</b>' in text
+    assert 'TQQQ <b>4.1%</b>' in text and '現金 <b>28.9%</b>' in text
     assert '個別株 <b>67%</b>（ルール運用の今の保有1銘柄）' in text
     assert '資産全体の目標配分（翌営業日）' in text and 'SHA' not in text
     assert (tmp_path / tr.LEDGER).read_bytes() == before
@@ -171,7 +184,7 @@ def test_pending_stock_share_shows_idle_money_target_and_explicit_wait():
     out = tq.card_html('2026-10-08', rec, 50, top=True, stock=None)
     assert '資産全体の比率は下の表で' in out
     assert 'TQQQ <b>12.5%</b>' in out
-    assert '現金・短期国債 <b>87.5%</b>' in out
+    assert '現金 <b>87.5%</b>' in out
     assert '資産全体の配分（今日の目標）' not in out
     assert '個別株 <b>' not in out and '80%' not in out
     assert '個別株以外のお金の配分（今日の目標）' in out
@@ -212,7 +225,7 @@ def test_primary_model_preferred_over_old_holdings_with_reconstruction_provenanc
 
     text = tq.card_html('2026-10-08', {'target': .25}, 50, top=True, stock=state['stock'], holdings=state)
     assert '個別株 <b>80.8%</b>（ルール運用の今の保有4銘柄）' in text
-    assert 'TQQQ <b>2.4%</b>' in text and '現金・短期国債 <b>16.8%</b>' in text
+    assert 'TQQQ <b>2.4%</b>' in text and '現金 <b>16.8%</b>' in text
     assert 'width:80.84%' in text  # stock weight is not rounded before residual target math
     assert '目標配分（翌営業日）' in text and 'abc123' not in text
     assert '旧配分から引き継ぎ' not in text and '20%ずつに買い直していません' not in text
