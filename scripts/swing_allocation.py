@@ -22,3 +22,16 @@ SLEEVE_NORMAL = 60
 SLEEVE_WEAK = 100
 SLEEVE_SHARES = (0, 50, SLEEVE_NORMAL, SLEEVE_WEAK)  # 50 = sessions published before v6
 EFFECTIVE_DATE = "2026-10-13"
+
+# 2026-10-18 additions (same rule id; orders from the 2026-10-19 session on):
+# 守りモード: VIX/VIX3M >= 0.95 and QQQ under its 50-day line at the close -> no new
+# 本命 and the stocks are cut to 40% of equity at the next open (pro rata; not while
+# the TQQQ rule's 大底フル is on).  利益保護: a close 15% under the highest close since
+# entry sells at the next open.  Local test 2015-01..2026-10 (v6 + 大底フル):
+# 65.8% / max DD -44.9% / yearly DD mean -25.2%, median -23.5%  ->
+# 66.2% / -39.4% / -24.2%, -22.2% (2015-20 47.2 -> 47.8%, 2021-26 87.6 -> 87.6%).
+GUARD_DATE = "2026-10-19"
+GUARD_TS = 0.95
+GUARD_MA = 50
+GUARD_STOCK = 0.40
+TRAIL = 0.15

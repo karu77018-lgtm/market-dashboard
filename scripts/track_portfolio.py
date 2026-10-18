@@ -36,6 +36,7 @@ from typing import Any
 
 import pandas as pd
 
+from swing_allocation import GUARD_DATE, GUARD_STOCK, TRAIL  # noqa: E402
 from swing_allocation import (RULE_ID, PREVIOUS_RULE_IDS, MAX_NAMES, INITIAL_WEIGHT, EFFECTIVE_DATE,
                               STOCK_CAP, SLEEVE_NORMAL, SLEEVE_SHARES)
 STOP = 0.08
@@ -153,13 +154,28 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
     s = sleeve if sleeve is not None else q
     q_open, q_close = _f(s.get("open")), _f(s.get("close"))
     today = {t: _bar(bars, t, day) for t in pf["positions"]}
+    # 0. 守りモード (published at prev's close; orders from GUARD_DATE): cut stocks to GUARD_STOCK of equity
+    if signal and signal.get("guard") and day >= GUARD_DATE:
+        held = {t: (today[t][0] if today.get(t) else p["last"]) for t, p in pf["positions"].items()}
+        so = sum(p["shares"] * held[t] for t, p in pf["positions"].items())
+        eq_open = pf["cash"] + pf["qqq_sh"] * (q_open or 0.0) + so
+        if so > GUARD_STOCK * eq_open and so > 0:
+            k = (so - GUARD_STOCK * eq_open) / so
+            for t, p in pf["positions"].items():
+                sell = p["shares"] * k
+                pf["cash"] += sell * held[t]
+                p["shares"] -= sell
+                p["invested"] *= 1 - k
+                p["unit"] *= 1 - k
+            pf.setdefault("trims", []).append({"day": day, "signal": prev, "cut": k, "to": GUARD_STOCK})
+            pf["trims"] = pf["trims"][-100:]
     # 1. at the open: confirmed 21-EMA breaks, then gap stops
     for t, b in list(today.items()):
         p = pf["positions"][t]
         if b is None:
             continue
         if p.get("pending_exit"):
-            _sell(pf, t, day, b[0], "安値21EMA割れ（翌始値）")
+            _sell(pf, t, day, b[0], p.get("exit_reason") or "安値21EMA割れ（翌始値）")
         elif b[0] <= p["stop"]:
             _sell(pf, t, day, b[0], "損切り（窓）")
     held_open = {t: today[t][0] for t in pf["positions"] if today.get(t)}
@@ -245,6 +261,12 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
         if b[2] < p["ema"]:
             p["pending_exit"] = True
             continue
+        if day >= GUARD_DATE:  # 利益保護: close 15% under the highest close since entry -> next open
+            p["hi"] = max(float(p.get("hi") or p["entry"]), b[2])
+            if b[2] < p["hi"] * (1 - TRAIL):
+                p["pending_exit"] = True
+                p["exit_reason"] = "高値から−15%（翌始値）"
+                continue
         for n, lvl in enumerate(ADDS):
             if n not in p["triggered"] and round(b[2] / p["entry"] - 1, 9) >= lvl:
                 p["triggered"].append(n)

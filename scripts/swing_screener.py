@@ -231,10 +231,67 @@ def regime_from_market(path, session: str | None = None) -> dict | None:
         return None
     closes = [v for _, v in pairs]
     ma = sum(closes[-REGIME_MA:]) / REGIME_MA
-    return {"on": closes[-1] > ma, "close": closes[-1], "ma": ma, "date": pairs[-1][0]}
+    out = {"on": closes[-1] > ma, "close": closes[-1], "ma": ma, "date": pairs[-1][0]}
+    out.update(guard_state(Path(path), pairs))
+    return out
+
+
+def guard_state(path, pairs: list[tuple[str, float]]) -> dict:
+    """守りモード: VIX/VIX3M >= GUARD_TS and QQQ under its GUARD_MA-day line on the same session.
+
+    Unknown VIX/VIX3M -> no guard (the rule only adds a defence; it never blocks on
+    missing data).  Off while the TQQQ rule's 大底フル is on.
+    """
+    import json
+    from pathlib import Path
+    from swing_allocation import GUARD_MA, GUARD_TS
+    day = pairs[-1][0]
+    closes = [v for _, v in pairs]
+    ma50 = sum(closes[-GUARD_MA:]) / GUARD_MA if len(closes) >= GUARD_MA else None
+    ts = None
+    try:
+        series = json.loads(Path(path).read_text(encoding="utf-8"))["series"]
+
+        def close_on(sym):
+            for r in reversed(series.get(sym) or []):
+                if str(r.get("date"))[:10] == day:
+                    return float(r["close"])
+            return None
+        v, v3 = close_on("^VIX"), close_on("^VIX3M")
+        ts = v / v3 if v and v3 else None
+    except Exception:
+        ts = None
+    guard = bool(ts is not None and ma50 is not None and ts >= GUARD_TS and closes[-1] < ma50)
+    full = False
+    if guard:
+        try:
+            import tqqq_rule
+            full = bool(tqqq_rule.full_bottom_active())
+        except Exception:
+            full = False
+    return {"guard": guard and not full, "guard_raw": guard, "ts": ts, "ma50": ma50, "guard_full": full}
+
+
+def _guard_bar(reg: dict | None) -> str:
+    from swing_allocation import GUARD_STOCK, GUARD_TS, GUARD_MA
+    if not reg or reg.get("ts") is None:
+        return ""
+    ts, ma50 = reg.get("ts"), reg.get("ma50")
+    if reg.get("guard"):
+        return (f'<div class="sw-reg off"><b>守りモード：新規停止・個別株は{GUARD_STOCK:.0%}まで</b>　VIX÷VIX3M {ts:.2f}（{GUARD_TS}以上）'
+                f'かつQQQが{GUARD_MA}日線 {_d(ma50)} の下。翌営業日の寄りで個別株を資産の{GUARD_STOCK:.0%}まで比例で売る</div>')
+    if reg.get("guard_full"):
+        return f'<div class="sw-reg on">守りモードの条件は成立（VIX÷VIX3M {ts:.2f}）だが、TQQQルールの大底フル中なので守らない</div>'
+    return ""
 
 
 def _regime_bar(reg: dict | None) -> str:
+    if reg and reg.get("guard"):
+        return _regime_bar_base(reg) + _guard_bar(reg)
+    return _regime_bar_base(reg) + _guard_bar(reg)
+
+
+def _regime_bar_base(reg: dict | None) -> str:
     if not reg:
         return ('<div class="sw-reg off"><b>地合い：判定不可</b>　QQQの終値が取れないか、日付が今日と一致しません。'
                 '確認できるまで本命は出さず監視だけ（持ち株は通常どおり手仕舞いのルール）</div>')
@@ -854,7 +911,7 @@ def card_html(result: dict) -> str:
     core, watch, ep = result["core"], result["watch"], result["ep"]
     late = result.get("late", [])
     reg = result.get("regime")
-    stopped = not reg or reg.get("on") is not True  # unknown regime = stopped (fail closed)
+    stopped = not reg or reg.get("on") is not True or bool(reg.get("guard"))  # unknown regime = stopped (fail closed)
     best = [r for r in core if buyable(r) and not stopped]
     waiting = [r for r in core if not buyable(r) or stopped]
     other_watch = watch
@@ -945,7 +1002,8 @@ def card_html(result: dict) -> str:
                        ("テーマ", len(ep), ""), ("買わない", len(waiting) + len(late_low), "")))
     return (
         f'<div class="card" id="{CARD_ID}" data-source-improvement="swing-screener" data-rule="{RULE_ID}"'
-        f' data-session="{e(result["session"])}" data-regime="{"unknown" if not reg else ("on" if reg.get("on") else "off")}">'
+        f' data-session="{e(result["session"])}" data-regime="{"unknown" if not reg else ("on" if reg.get("on") else "off")}"'
+        f' data-guard="{"on" if reg and reg.get("guard") else "off"}">'
         '<div class="chd"><h2>スイング候補（新ルール）<span class="h2en">Swing Screener</span></h2>'
         f'<div class="chd-now" style="color:#23824d"><b>{len(best)}</b><span>本命</span></div></div>'
         f'<div class="sub">{e(result["session"])} 終値基準・流動性あり{result["universe"]}銘柄から選定'

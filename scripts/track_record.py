@@ -81,6 +81,11 @@ def published_best(text: str) -> tuple[str, list[str]]:
     return "no_section", []
 
 
+def card_guard(text: str) -> bool:
+    m = re.search(r'id="mc57-swing-screener"[^>]*data-guard="([a-z]+)"', text)
+    return bool(m and m.group(1) == "on")
+
+
 def card_regime(text: str) -> str | None:
     m = re.search(r'id="mc57-swing-screener"[^>]*data-regime="([a-z]+)"', text)
     return m.group(1) if m else None
@@ -134,7 +139,7 @@ def record(ledger: dict, text: str, session: str, closes: dict[str, float], now:
     rows = [{"t": t, "close": closes.get(t), "r189": (r189 or {}).get(t)} for t in best]
     if entry is None:
         ledger["sessions"][session] = {"recorded_at": now, "best": rows, "regime": card_regime(text),
-                                       "qqq_pct": tp.published_qqq_pct(text), "rule": RULE_ID if session >= EFFECTIVE_DATE else (ledger.get("rule") if ledger.get("rule") != RULE_ID else "pre-v4-unversioned"), "revisions": 0}
+                                       "qqq_pct": tp.published_qqq_pct(text), "guard": card_guard(text), "rule": RULE_ID if session >= EFFECTIVE_DATE else (ledger.get("rule") if ledger.get("rule") != RULE_ID else "pre-v4-unversioned"), "revisions": 0}
     elif [r["t"] for r in entry.get("latest", entry["best"])] != best:
         entry["latest"] = rows
         entry["revisions"] = int(entry.get("revisions", 0)) + 1
