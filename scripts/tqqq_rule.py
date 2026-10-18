@@ -23,6 +23,12 @@ Rule (validated offline 2000-2026, see Rules tab section 9):
   target is >= 0.75 step away), 0% while QQQ is > 35% above its 200-day line until
   it cools below +10% (overheat alarm), at most 25% while the HY spread is above
   1.1 x its 40-day mean
+* 大底フル (2026-10-18): on the 底アラート 大 day (VIX+2σ then the VIX-high WMA5/10
+  crossunder) when the VIX close was under 20 within the last 30 sessions (a fresh
+  shock, not a long credit-type fear), TQQQ 100% and the idle-money sleeve 100% for
+  that day and the next 20 sessions, whatever the other parts say.  Local test of the
+  rule alone: 2000-12 10.4% -> 17.3% a year, 2013-26 48.5% -> 51.7% (max DD -56% both,
+  -51% -> -56% in 2013-26); whole v6 system 2015-26 57.3% -> 65.8%, max DD -37.1% -> -44.9%.
 * money not in TQQQ: cash (no gold, no T-bills; decided 2026-10-18, traded from the
   2026-10-19 open).  Until then: gold while gold's 126-day return was positive, else
   T-bills.  Re-check of the rule alone, 2015-01..2026-08: 46.0% a year / max DD -49.5%
@@ -52,7 +58,9 @@ RULE_NAME = "TQQQルール"
 CASH_ONLY_FROM = "2026-10-19"  # first session traded with the money outside TQQQ held as plain cash
 STEP = 0.25
 W_SWITCH, W_HOLD = 0.625, 0.375
-STATE_KEYS = ("cap_on", "cap_d", "cap_ent", "md_switch", "md_hold", "alarm", "cur")
+STATE_KEYS = ("cap_on", "cap_d", "cap_ent", "md_switch", "md_hold", "alarm", "cur", "full")
+FULL_DAYS = 20       # 大底フル: sessions after the trigger day
+FEAR_MAX = 30        # ... only if the VIX close was under 20 within this many sessions
 
 
 def _sma(x: np.ndarray, n: int) -> np.ndarray:
@@ -97,15 +105,17 @@ def indicators(qo, qh, ql, qc, qv, tqc, vix, hy, gold) -> dict[str, np.ndarray]:
 
 def default_state() -> dict[str, Any]:
     return {"cap_on": False, "cap_d": 0, "cap_ent": 0.0, "md_switch": False, "md_hold": False,
-            "alarm": False, "cur": 0.0}
+            "alarm": False, "cur": 0.0, "full": 0}
 
 
 def run(ind: dict[str, np.ndarray], start: int = 0, state: dict | None = None) -> tuple[dict, dict]:
     """Advance the state machines over rows start..end. Returns (per-row outputs, final state)."""
-    st = dict(default_state() if state is None else state)
+    st = {**default_state(), **(state or {})}
     n = len(ind["vol"])
-    out = {k: np.full(n, np.nan) for k in ("switch", "hold", "raw", "step", "target", "gold")}
-    flags = {k: np.zeros(n, bool) for k in ("md_switch", "md_hold", "alarm", "cap_hold", "hy_wide", "trend")}
+    out = {k: np.full(n, np.nan) for k in ("switch", "hold", "raw", "step", "target", "gold", "full_left")}
+    flags = {k: np.zeros(n, bool) for k in ("md_switch", "md_hold", "alarm", "cap_hold", "hy_wide", "trend", "full")}
+    big = ind.get("big", np.zeros(n, bool))
+    fear_age = ind.get("fear_age", np.full(n, np.inf))
     states: list[dict | None] = [None] * n
     for i in range(start, n):
         vol, dd, rf = ind["vol"][i], ind["dd52"][i], bool(ind["rfast"][i])
@@ -157,6 +167,15 @@ def run(ind: dict[str, np.ndarray], start: int = 0, state: dict | None = None) -
         wide = bool(ind["hy_wide"][i])
         if wide:
             tgt = min(tgt, 0.25)
+        # 大底フル: a fresh-shock VIX+2σ bottom -> TQQQ 100% for the trigger day + FULL_DAYS sessions
+        if bool(big[i]) and fear_age[i] <= FEAR_MAX:
+            st["full"] = FULL_DAYS + 1
+        full = int(st.get("full") or 0) > 0
+        if full:
+            tgt = 1.0
+        flags["full"][i], out["full_left"][i] = full, int(st.get("full") or 0)
+        if full:
+            st["full"] = int(st["full"]) - 1
         out["switch"][i], out["hold"][i], out["raw"][i], out["step"][i], out["target"][i] = w_s, w_h, raw, st["cur"], tgt
         out["gold"][i] = 0.0  # money not in TQQQ is cash (2026-10-18)
         flags["md_switch"][i], flags["md_hold"][i], flags["alarm"][i] = st["md_switch"], st["md_hold"], st["alarm"]
@@ -212,6 +231,7 @@ def frame_from_market(market: dict) -> pd.DataFrame | None:
     f["to"] = t["open"].reindex(idx)
     f["tc"] = t["close"].reindex(idx)
     f["vix"] = v["close"].reindex(idx).ffill()
+    f["vixh"] = (v["high"] if "high" in v else v["close"]).reindex(idx).ffill()
     # FRED values are published the next morning: a session uses the last value dated
     # before it (never the same day's value, which was not known at the close).
     f["hy"] = known_before(hy, idx)
@@ -229,10 +249,30 @@ def frame_from_market(market: dict) -> pd.DataFrame | None:
     return f
 
 
+def full_bottom_active(root: Path | None = None) -> dict | None:
+    """The latest recorded day if 大底フル is on (the sleeve share is then 100%)."""
+    root = root or Path(__file__).resolve().parents[1]
+    day, rec = latest(load(root / LEDGER))
+    return {"day": day, "left": max(0, int(rec.get("full_left") or 1) - 1)} if rec and rec.get("full") else None
+
+
+def full_bottom_inputs(f: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
+    """(大 flags, sessions since the VIX close was under 20) for 大底フル."""
+    import bottom_alert
+    vh = f["vixh"] if "vixh" in f else f["vix"]
+    big = bottom_alert.big_flags(vh, f.index).to_numpy(dtype=bool)
+    below = (f["vix"] < 20).to_numpy()
+    pos = np.arange(len(f), dtype=float)
+    last = pd.Series(np.where(below, pos, np.nan)).ffill().to_numpy()
+    age = np.where(np.isnan(last), np.inf, pos - last)
+    return big, age
+
+
 def compute_frame(f: pd.DataFrame, start: int = 0, state: dict | None = None) -> tuple[dict, dict]:
     ind = indicators(f["qo"].to_numpy(), f["qh"].to_numpy(), f["ql"].to_numpy(), f["qc"].to_numpy(),
                      f["qv"].to_numpy(), f["tc"].to_numpy(), f["vix"].to_numpy(), f["hy"].to_numpy(),
                      f["gold"].to_numpy() if "gold" in f else np.full(len(f), np.nan))
+    ind["big"], ind["fear_age"] = full_bottom_inputs(f)
     return run(ind, start, state)
 
 
@@ -276,11 +316,12 @@ def day_record(f: pd.DataFrame, out: dict, i: int, st: dict) -> dict[str, Any]:
         "switch": _r(out["switch"][i]), "hold": _r(out["hold"][i]),
         "md_switch": bool(out["md_switch"][i]), "md_hold": bool(out["md_hold"][i]),
         "alarm": bool(out["alarm"][i]), "cap_hold": bool(out["cap_hold"][i]), "hy_wide": bool(out["hy_wide"][i]),
-        "trend": bool(out["trend"][i]),
+        "trend": bool(out["trend"][i]), "full": bool(out["full"][i]),
+        "full_left": int(out["full_left"][i]) if not math.isnan(out["full_left"][i]) else 0,
         "qqq": _r(row["qc"], 4), "tqqq_open": _r(row["to"], 4), "tqqq": _r(row["tc"], 4),
         "gold_open": _r(row.get("gopen"), 4), "gold_px": _r(row.get("gold"), 4), "rf": _r(row.get("rf"), 5),
         "hy": _r(row["hy"], 3), "vix": _r(row["vix"], 2),
-        "state": {k: (bool(st[k]) if isinstance(st[k], bool) else _r(st[k], 6)) for k in STATE_KEYS},
+        "state": {k: (bool(st.get(k)) if isinstance(st.get(k), bool) else _r(st.get(k, 0), 6)) for k in STATE_KEYS},
     }
 
 
@@ -385,6 +426,9 @@ def _pp(x: float) -> str:
 
 def summary_words(rec: dict) -> tuple[str, str]:
     """(mode label, css class)."""
+    if rec.get("full"):
+        left = max(0, int(rec.get("full_left") or 1) - 1)
+        return f"大底フル（TQQQ 100%・あと{left}営業日）", "on"
     if rec.get("alarm"):
         return "過熱警報（0%）", "off"
     if rec.get("hy_wide"):
@@ -711,7 +755,7 @@ def render_only(text: str, root: Path, sleeve_pct: int | None, session: str | No
                      session or page_session(root), holdings=state)
     try:  # 底アラート card right under this card (display only)
         import bottom_alert
-        text = bottom_alert.apply(text, bottom_alert.load(root / bottom_alert.LEDGER))
+        text = bottom_alert.apply(text, bottom_alert.load(root / bottom_alert.LEDGER), full=full_bottom_active(root))
     except Exception as exc:
         print(f"bottom alert card skipped: {exc!r}", flush=True)
     return text

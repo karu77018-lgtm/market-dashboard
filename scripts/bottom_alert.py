@@ -94,6 +94,27 @@ def sigma_levels(vix_high: pd.Series) -> pd.DataFrame:
     return pd.DataFrame({"l1": l1, "l2": l2}, index=idx)
 
 
+def big_flags(vix_high: pd.Series, idx: pd.DatetimeIndex) -> pd.Series:
+    """大 (VIX+2σ then WMA5/10 crossunder of VIX highs; re-armed under +1σ) on the sessions ``idx``."""
+    vh = vix_high.reindex(idx).ffill()
+    lv = sigma_levels(vix_high.dropna()).reindex(idx).ffill()
+    w5, w10 = _wma(vh, 5), _wma(vh, 10)
+    cross = (w5 < w10) & (w5.shift(1) >= w10.shift(1))
+    big = pd.Series(False, index=idx)
+    active, armed = False, True
+    for i in range(len(idx)):
+        h, l1, l2 = vh.iloc[i], lv["l1"].iloc[i], lv["l2"].iloc[i]
+        if any(isinstance(x, float) and math.isnan(x) for x in (h, l1, l2)):
+            continue
+        if not active and armed and h >= l2:
+            active = True
+        if active and bool(cross.iloc[i]):
+            big.iloc[i], active, armed = True, False, False
+        if not armed and h < l1:
+            armed = True
+    return big
+
+
 def compute(market: dict) -> pd.DataFrame | None:
     """Per-session readings and the two alerts, or None when QQQ / VIX are missing."""
     q, v = _rows(market, "QQQ"), _rows(market, "^VIX")
@@ -111,20 +132,11 @@ def compute(market: dict) -> pd.DataFrame | None:
     vrel10 = vrel.rolling(10).max()
     mid_raw = cross & (((d52 <= -0.10) & (vmax10 >= lv["l1"])) | ((d52 <= -0.08) & (vrel10 >= 1.5)))
     mid = pd.Series(False, index=idx)
-    big = pd.Series(False, index=idx)
-    last, active, armed = -10 ** 6, False, True
-    for i, d in enumerate(idx):
+    last = -10 ** 6
+    for i in range(len(idx)):
         if bool(mid_raw.iloc[i]) and i - last > COOLDOWN:
             mid.iloc[i], last = True, i
-        h, l1, l2 = vh.iloc[i], lv["l1"].iloc[i], lv["l2"].iloc[i]
-        if any(isinstance(x, float) and math.isnan(x) for x in (h, l1, l2)):
-            continue
-        if not active and armed and h >= l2:
-            active = True
-        if active and bool(cross.iloc[i]):
-            big.iloc[i], active, armed = True, False, False
-        if not armed and h < l1:
-            armed = True
+    big = big_flags(v["high"], idx)
     return pd.DataFrame({"d52": d52, "vix_high": vh, "vix_rel10": vrel10, "vmax10": vmax10,
                          "l1": lv["l1"], "l2": lv["l2"], "cross": cross, "mid": mid, "big": big}, index=idx)
 
@@ -205,7 +217,7 @@ def _md(d: str) -> str:
     return d[5:].replace("-", "/")
 
 
-def card_html(ledger: dict | None) -> str:
+def card_html(ledger: dict | None, full: dict | None = None) -> str:
     e = html.escape
     days = sorted((ledger or {}).get("days", {}))
     if not days:
@@ -215,7 +227,11 @@ def card_html(ledger: dict | None) -> str:
     big = [d for d in recent if ledger["days"][d].get("big")]
     mid = [d for d in recent if ledger["days"][d].get("mid")]
     d52, vh, l1, l2, vr = rec.get("d52"), rec.get("vix_high"), rec.get("l1"), rec.get("l2"), rec.get("vix_rel10")
-    if big:
+    if full:
+        cls, word = "on", f"大底フル発動中（あと{full['left']}営業日）"
+        msg = ('TQQQルールの大底フル：TQQQ 100%・余剰資金の枠100%で持つ（Rulesタブ9）。'
+               'VIX+2σの底確認が、恐怖の始まりから日が浅いショック型の下げで出た。安値を割っても期間中は取り消さない。')
+    elif big:
         cls, word = "on", f"大型急落の底確認（{_md(big[-1])}）"
         msg = ('VIXが+2σまで跳ねたあと反落。2000年以降9回、底の近く（−10〜+20営業日）67%、'
                'QQQの60営業日後は中央値+9.3%（普段+3.8%）、その後の追加下落は中央値−2.6%。')
@@ -254,9 +270,9 @@ STYLE = ('<style id="bottom-alert-style">.bta-card{border-radius:12px;padding:8p
          '.bta-more{margin-top:4px}</style>')
 
 
-def apply(text: str, ledger: dict | None, after_id: str = "tqqq-rule-card") -> str:
+def apply(text: str, ledger: dict | None, after_id: str = "tqqq-rule-card", full: dict | None = None) -> str:
     """Place the card right after the TQQQ card (replacing an existing one)."""
-    card = card_html(ledger)
+    card = card_html(ledger, full)
     text = _remove(text, CARD_ID)
     text = re.sub(r'<style id="bottom-alert-style">.*?</style>', "", text, count=1, flags=re.S)
     if not card:

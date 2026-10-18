@@ -129,12 +129,26 @@ def compute(frame: pd.DataFrame, history: int = HISTORY) -> dict[str, Any] | Non
             "on": None if value is None else value >= 0, "since": since, "history": hist}
 
 
-def allocation(health: dict | None, regime: dict | None, session: str | None = None) -> tuple[int, str]:
+def allocation(health: dict | None, regime: dict | None, session: str | None = None,
+               full: bool | None = None) -> tuple[int, str]:
     """Idle-cash share (%) for the TQQQ-rule sleeve and the reason.
+
+    While the TQQQ rule's 大底フル is on (its latest recorded day), the share is 100%
+    whatever the breakout health says; ``full`` overrides the ledger lookup (tests).
 
     A publication before the v6 cutover (session < EFFECTIVE_DATE) keeps the v5 normal 50%;
     the session defaults to the regime's date, then the health session.
     """
+    if full is None:
+        try:
+            import tqqq_rule
+            fb = tqqq_rule.full_bottom_active()
+        except Exception:
+            fb = None
+        if fb:
+            return SLEEVE_WEAK, f"大底フル（VIX+2σの底確認）であと{fb['left']}営業日"
+    elif full:
+        return SLEEVE_WEAK, "大底フル（VIX+2σの底確認）"
     session = session or (regime or {}).get("date") or (health or {}).get("session")
     if session and str(session) < EFFECTIVE_DATE:
         normal = 50

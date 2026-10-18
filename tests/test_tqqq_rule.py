@@ -290,3 +290,31 @@ def test_surge_uses_backtest_seed_until_the_model_has_60_sessions():
     assert "08/31以前は現行ルールの過去検証" in tq.surge_html(st)
     full = [[f"d{i:03d}", 1.0, None] for i in range(61)]
     assert tq.surge_state({"equity": full, "surge_seed": seed})["seeded_to"] is None
+
+
+def test_full_bottom_runs_21_sessions_only_after_a_fresh_shock():
+    n = 40
+    ind = {"rfast": np.zeros(n, bool), "vol": np.full(n, 0.6), "dd52": np.full(n, -0.3), "ret10": np.zeros(n),
+           "cap": np.zeros(n, bool), "golden": np.zeros(n, bool), "hy_calm": np.zeros(n, bool),
+           "hy_wide": np.ones(n, bool), "d200": np.zeros(n), "gold_up": np.zeros(n, bool), "tqc": np.full(n, 100.0)}
+    big = np.zeros(n, bool); big[5] = True
+    out, st = tq.run({**ind, "big": big, "fear_age": np.full(n, 12.0)})
+    assert out["full"][5:26].all() and not out["full"][:5].any() and not out["full"][26:].any()
+    assert (out["target"][5:26] == 1.0).all() and out["target"][26] <= 0.25      # HY cap again afterwards
+    assert out["full_left"][5] == 21 and st["full"] == 0
+    old, _ = tq.run({**ind, "big": big, "fear_age": np.full(n, 31.0)})          # long fear: no full
+    assert not old["full"].any()
+    # incremental runs carry the countdown through the ledger state
+    a, sa = tq.run({**ind, "big": big, "fear_age": np.full(n, 12.0)}, 0, None)
+    part, s1 = tq.run({k: v[:10] for k, v in {**ind, "big": big, "fear_age": np.full(n, 12.0)}.items()})
+    rest, _ = tq.run({**ind, "big": big, "fear_age": np.full(n, 12.0)}, 10, s1)
+    assert np.array_equal(rest["full"][10:], a["full"][10:])
+    assert tq.run(ind, 0, {"cur": 0.0})[1]["full"] == 0                         # old ledger state without the key
+
+
+def test_full_bottom_words_and_sleeve_share():
+    import breakout_health as bh
+    word, cls = tq.summary_words({"full": True, "full_left": 21, "hy_wide": True})
+    assert word.startswith("大底フル") and "あと20営業日" in word and cls == "on"
+    assert bh.allocation({"on": True}, {"on": True}, "2026-10-20", full=True)[0] == 100
+    assert bh.allocation({"on": True}, {"on": True}, "2026-10-20", full=False)[0] == 60
