@@ -259,3 +259,22 @@ def test_card_dates_older_holdings_and_flags_stale_prices():
     cur = tq.card_html('2026-10-08', {'target': .25, 'gold': 0, 'trend': True}, 50, top=True, stock=.8,
                        holdings={**hold, 'positions': [{'ticker': 'B', 'share': .8, 'stale': False}]})
     assert 'ルール運用の今の保有1銘柄' in cur and '最新の株価' not in cur
+
+
+def test_surge_alert_needs_60_sessions_and_never_says_sell():
+    eq = [[f"d{i:03d}", 1.0, None] for i in range(10)]
+    st = tq.surge_state({"equity": eq})
+    assert st == {"ready": False, "left": 51}
+    assert "あと51営業日" in tq.surge_html(st)
+    eq = [[f"d{i:03d}", 1.0 + (0.6 if i == 60 else 0.0), None] for i in range(61)]
+    on = tq.surge_state({"equity": eq})
+    assert on["ready"] and on["on"] and abs(on["r60"] - 0.6) < 1e-12
+    h = tq.surge_html(on)
+    assert "振り落とし注意" in h and "+60%" in h and "売る合図ではない" in h
+    eq[-1][1] = 1.4
+    off = tq.surge_state({"equity": eq})
+    assert not off["on"] and 'data-surge="off"' in tq.surge_html(off)
+    card = tq.card_html("2026-10-09", {"target": .25, "trend": True}, 60, top=True, stock=0.0,
+                        holdings={"equity": [[f"d{i:03d}", 1.0, None] for i in range(10)], "positions": []})
+    assert 'data-surge="pending"' in card
+    assert tq.surge_html(tq.surge_state(None)) == ""
