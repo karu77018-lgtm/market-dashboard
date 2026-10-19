@@ -329,3 +329,14 @@ def test_full_bottom_active_reads_the_session_not_a_later_day(tmp_path):
     assert tq.full_bottom_active(tmp_path) is None
     assert tq.full_bottom_active(tmp_path, session="2026-10-15") is None
     assert tq.full_bottom_active(tmp_path, session="2026-10-14") == {"day": "2026-10-14", "left": 2}
+
+
+def test_capitulation_chip_states():
+    assert tq.capitulation_word({'trend': True, 'cap_hold': False}) == '対象外（トレンド上）'
+    assert tq.capitulation_word({'trend': False, 'cap_hold': False}) == '待機'
+    rec = {'trend': False, 'cap_hold': True, 'state': {'cap_d': 2.0}}
+    assert tq.capitulation_word(rec) == '保有中 3/15日'
+    assert tq.capitulation_word({**rec, 'hy_wide': True}).endswith('（上限25%）')
+    assert tq.capitulation_word({**rec, 'md_switch': True}).endswith('（緊急モード優先）')
+    out = tq.card_html('2026-10-19', {'target': .25, 'gold': 0, 'trend': True}, 100, top=True, stock=0.0)
+    assert '投げ売り反発' in out and '対象外（トレンド上）' in out

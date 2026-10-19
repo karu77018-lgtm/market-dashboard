@@ -529,6 +529,21 @@ COLORS = {"stock": "#467ed6", "tqqq": "#18813d", "gold": "#c99a2e", "cash": "#b9
 EXAMPLES = (0.0, 0.25, 0.5, 0.75)
 
 
+def capitulation_word(rec: dict) -> str:
+    """State of the capitulation-rebound hold (switch half, outside trend only) for the card chip."""
+    if rec.get("trend"):
+        return "対象外（トレンド上）"
+    if rec.get("cap_hold"):
+        day_n = int(float((rec.get("state") or {}).get("cap_d") or 0)) + 1
+        word = f"保有中 {day_n}/15日"
+        if rec.get("md_switch"):
+            word += "（緊急モード優先）"
+        elif rec.get("hy_wide"):
+            word += "（上限25%）"
+        return word
+    return "待機"
+
+
 def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, top: bool = False,
               stock: float | None = None, session: str | None = None,
               holdings: dict | None = None) -> str:
@@ -592,6 +607,7 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
          "両方" if rec.get("md_switch") and rec.get("md_hold") else "改良案" if rec.get("md_hold") else "なし"),
         ("HY OAS", f'{rec.get("hy"):.2f}%' + ("（拡大）" if rec.get("hy_wide") else "") if rec.get("hy") is not None else "—"),
         ("過熱", "警報" if rec.get("alarm") else "なし"),
+        ("投げ売り反発", capitulation_word(rec)),
     ]
     chk = "".join(f'<span class="tqr-chip"><i>{e(k)}</i>{e(v)}</span>' for k, v in checks)
     surge = surge_html(surge_state(holdings))
