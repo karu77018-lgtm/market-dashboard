@@ -24,7 +24,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 19.54,
-   "ret": 0.0778
+   "ret": 0.0964
   },
   "2026-10-15:SG": {
    "ticker": "SG",
@@ -35,7 +35,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 10.6,
-   "ret": -0.0528
+   "ret": -0.0396
   }
  }
 }
