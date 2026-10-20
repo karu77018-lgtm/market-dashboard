@@ -23,8 +23,8 @@
    "rs": 95,
    "eps_state": "better",
    "status": "保有中",
-   "peak": 19.54,
-   "ret": 0.0964
+   "peak": 19.86,
+   "ret": 0.1195
   },
   "2026-10-15:SG": {
    "ticker": "SG",
@@ -34,8 +34,19 @@
    "rs": 91,
    "eps_state": "worse",
    "status": "保有中",
-   "peak": 10.6,
-   "ret": -0.0396
+   "peak": 10.67,
+   "ret": 0.0066
+  },
+  "2026-10-20:BRZE": {
+   "ticker": "BRZE",
+   "session": "2026-10-20",
+   "entry": 45.57,
+   "depth": 0.5637,
+   "rs": 97,
+   "eps_state": "better",
+   "status": "保有中",
+   "peak": 45.57,
+   "ret": 0.0
   }
  }
 }
