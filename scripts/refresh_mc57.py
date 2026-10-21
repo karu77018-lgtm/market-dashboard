@@ -735,7 +735,10 @@ def main() -> int:
             )
     fred = fetch_fred_inputs(
         fred_key, target_session=target, generated_at=generated_at,
+        cache_path=work / "fred-cache.json", seed_path=root / "seed" / "fred-seed.json",
     )
+    for sub in fred.get("substitutions") or []:
+        print(f"FRED substitute: {sub['series_id']} <- {sub['source']} ({sub['last_date']}, {sub['status']})", flush=True)
     provider_inputs = {
         "schema": "source-mc57.provider-inputs.1", "session_date": target,
         "generated_at": generated_at, "massive": {

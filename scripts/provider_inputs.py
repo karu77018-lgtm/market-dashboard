@@ -621,25 +621,108 @@ def compare_current_closes(
     }
 
 
+TREASURY_CSV = ("https://home.treasury.gov/resource-center/data-chart-center/interest-rates/"
+                "daily-treasury-rates.csv/{year}/all?type={kind}&field_tdr_date_value={year}&page&_format=csv")
+# FRED's constant-maturity and TIPS series are published from these same Treasury curves
+# (DGS* = daily par yield curve, DFII10 = daily real yield curve); T10YIE and T10Y2Y are
+# FRED's own differences of them.  Used only when the FRED API itself fails.
+TREASURY_NOMINAL = {"DGS3MO": "3 Mo", "DGS2": "2 Yr", "DGS10": "10 Yr"}
+TREASURY_REAL = {"DFII10": "10 YR"}
+FRED_CACHE_KEEP = 520  # observations kept per series in the last-good cache
+
+
+def _treasury_curve(client: requests.Session, kind: str, years: Iterable[int]) -> pd.DataFrame:
+    import io
+
+    frames = []
+    for year in sorted(set(years)):
+        response = client.get(TREASURY_CSV.format(year=year, kind=kind), timeout=45)
+        response.raise_for_status()
+        frame = pd.read_csv(io.StringIO(response.text))
+        if "Date" not in frame.columns or frame.empty:
+            raise ProviderError(f"Treasury {kind} {year}: unexpected CSV")
+        frame["Date"] = pd.to_datetime(frame["Date"], format="%m/%d/%Y")
+        frames.append(frame)
+    return pd.concat(frames).drop_duplicates("Date").set_index("Date").sort_index()
+
+
+def treasury_substitute_series(target_session: str, observation_start: str,
+                               client: requests.Session | None = None) -> dict[str, list[dict[str, Any]]]:
+    """DGS3MO/DGS2/DGS10/DFII10/T10YIE/T10Y2Y rebuilt from Treasury's official daily curves."""
+    client = client or requests.Session()
+    years = range(pd.Timestamp(observation_start).year, pd.Timestamp(target_session).year + 1)
+    nominal = _treasury_curve(client, "daily_treasury_yield_curve", years)
+    real = _treasury_curve(client, "daily_treasury_real_yield_curve", years)
+    cols = {sid: pd.to_numeric(nominal[col], errors="coerce") for sid, col in TREASURY_NOMINAL.items()}
+    cols.update({sid: pd.to_numeric(real[col], errors="coerce") for sid, col in TREASURY_REAL.items()})
+    frame = pd.DataFrame(cols)
+    frame["T10YIE"] = (frame["DGS10"] - frame["DFII10"]).round(2)
+    frame["T10Y2Y"] = (frame["DGS10"] - frame["DGS2"]).round(2)
+    frame = frame.loc[observation_start:target_session]
+    out: dict[str, list[dict[str, Any]]] = {}
+    for sid in frame.columns:
+        col = frame[sid].dropna()
+        out[sid] = [{"date": d.strftime("%Y-%m-%d"), "value": float(v)} for d, v in col.items()]
+    return out
+
+
+def _cached_points(paths: Iterable[Path | None], series_id: str) -> list[dict[str, Any]]:
+    """Longest-dated last-good history for a series from the run cache or the committed seed."""
+    best: list[dict[str, Any]] = []
+    for path in paths:
+        if path is None:
+            continue
+        pts = (_read_json(path).get("series") or {}).get(series_id) or []
+        pts = [p for p in pts if isinstance(p, dict) and isinstance(p.get("date"), str) and _finite(p.get("value")) is not None]
+        if pts and (not best or pts[-1]["date"] > best[-1]["date"]):
+            best = pts
+    return best
+
+
+def _fred_row(meta: dict[str, Any], points: list[dict[str, Any]], target_session: str) -> tuple[dict[str, Any], bool]:
+    points = sorted(points, key=lambda p: p["date"])
+    last = points[-1]
+    age_days = (pd.Timestamp(target_session) - pd.Timestamp(last["date"])).days
+    ready = 0 <= age_days <= int(meta["max_age_days"])
+    return {
+        **meta, "status": "READY" if ready else "STALE", "last_date": last["date"],
+        "last_value": last["value"], "age_days": age_days,
+        "change_5_observations": last["value"] - points[-6]["value"] if len(points) >= 6 else None,
+        "change_20_observations": last["value"] - points[-21]["value"] if len(points) >= 21 else None,
+        "history": points[-260:],
+    }, ready
+
+
 def fetch_fred_inputs(
     api_key: str,
     *,
     target_session: str,
     generated_at: str,
+    cache_path: Path | None = None,
+    seed_path: Path | None = None,
 ) -> dict[str, Any]:
+    """FRED observations; if the FRED API fails, Treasury curves and the last good values stand in.
+
+    Substitutes keep the same row shape and age limits (a series older than its
+    ``max_age_days`` is still STALE) and are listed under ``substitutions``.
+    """
     client = requests.Session()
     observation_start = (pd.Timestamp(target_session) - pd.Timedelta(days=450)).strftime("%Y-%m-%d")
     series: dict[str, Any] = {}
-    required_ready = 0
-    required_total = sum(bool(meta["required"]) for meta in FRED_SERIES.values())
-    for series_id, meta in FRED_SERIES.items():
+    fresh: dict[str, list[dict[str, Any]]] = {}
+    failures: dict[str, str] = {}
+    consecutive = 0
+    for series_id in FRED_SERIES:
+        if consecutive >= 2:  # API down (maintenance page / outage): stop burning retries
+            failures[series_id] = "skipped: FRED API unavailable"
+            continue
         try:
             payload = _get_json(client, FRED_BASE, params={
                 "series_id": series_id, "api_key": api_key, "file_type": "json",
                 "observation_start": observation_start, "observation_end": target_session,
                 "sort_order": "asc",
-            })
-            points: list[dict[str, Any]] = []
+            }, attempts=3)
+            points = []
             for item in payload.get("observations") or []:
                 value = _finite(item.get("value")) if isinstance(item, dict) else None
                 day = item.get("date") if isinstance(item, dict) else None
@@ -647,29 +730,63 @@ def fetch_fred_inputs(
                     points.append({"date": day, "value": value})
             if not points:
                 raise ProviderError("no numeric observations")
-            last = points[-1]
-            age_days = (pd.Timestamp(target_session) - pd.Timestamp(last["date"])).days
-            ready = 0 <= age_days <= int(meta["max_age_days"])
-            row = {
-                **meta, "status": "READY" if ready else "STALE", "last_date": last["date"],
-                "last_value": last["value"], "age_days": age_days,
-                "change_5_observations": last["value"] - points[-6]["value"] if len(points) >= 6 else None,
-                "change_20_observations": last["value"] - points[-21]["value"] if len(points) >= 21 else None,
-                "history": points[-260:],
-            }
-            required_ready += int(bool(meta["required"]) and ready)
+            fresh[series_id] = points
+            consecutive = 0
         except Exception as exc:
-            row = {**meta, "status": "ERROR", "reason": str(exc)[:240], "history": []}
+            failures[series_id] = str(exc)[:240]
+            consecutive += 1
+    treasury: dict[str, list[dict[str, Any]]] = {}
+    treasury_error = None
+    if any(sid in failures for sid in (*TREASURY_NOMINAL, *TREASURY_REAL, "T10YIE", "T10Y2Y")):
+        try:
+            treasury = treasury_substitute_series(target_session, observation_start, client)
+        except Exception as exc:
+            treasury_error = str(exc)[:240]
+    required_ready = 0
+    required_total = sum(bool(meta["required"]) for meta in FRED_SERIES.values())
+    substitutions: list[dict[str, Any]] = []
+    for series_id, meta in FRED_SERIES.items():
+        source, points = "FRED", fresh.get(series_id)
+        if not points and treasury.get(series_id):
+            source, points = "US Treasury daily curve", treasury[series_id]
+        if not points:
+            cached = _cached_points((cache_path, seed_path), series_id)
+            if cached:
+                source, points = "last good FRED value (cache)", cached
+        if not points:
+            reason = failures.get(series_id, "no observations")
+            if treasury_error and (series_id in TREASURY_NOMINAL or series_id in TREASURY_REAL
+                                   or series_id in ("T10YIE", "T10Y2Y")):
+                reason += f"; Treasury: {treasury_error}"
+            series[series_id] = {**meta, "status": "ERROR", "reason": reason, "history": []}
+            continue
+        row, ready = _fred_row(meta, points, target_session)
+        if source != "FRED":
+            row["source"] = source
+            row["fred_error"] = failures.get(series_id)
+            substitutions.append({"series_id": series_id, "source": source, "last_date": row["last_date"],
+                                  "status": row["status"]})
         series[series_id] = row
+        required_ready += int(bool(meta["required"]) and ready)
     coverage = required_ready / max(required_total, 1)
     status = "READY" if required_ready == required_total else ("PARTIAL" if coverage >= .70 else "ERROR")
     if status == "ERROR":
         raise ProviderError(f"FRED required-series coverage too low: {required_ready}/{required_total}")
+    if cache_path is not None:
+        keep = _read_json(cache_path).get("series") or {}
+        for sid, pts in fresh.items():
+            keep[sid] = pts[-FRED_CACHE_KEEP:]
+        if fresh:
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
+            cache_path.write_text(json.dumps({"schema": "source-mc57.fred-cache.1", "saved_at": generated_at,
+                                              "series": keep}, separators=(",", ":")), encoding="utf-8")
     return {
         "schema": "source-mc57.fred.1", "status": status, "session_date": target_session,
         "generated_at": generated_at, "required_ready": required_ready,
         "required_total": required_total, "required_coverage": coverage,
-        "source": "Federal Reserve Bank of St. Louis FRED API",
+        "source": ("Federal Reserve Bank of St. Louis FRED API" if not substitutions else
+                   "FRED API with substitutes (US Treasury daily curves / last good FRED values)"),
+        "substitutions": substitutions,
         "series": series,
     }
 
