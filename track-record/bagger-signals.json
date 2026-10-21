@@ -23,8 +23,8 @@
    "rs": 95,
    "eps_state": "better",
    "status": "保有中",
-   "peak": 19.86,
-   "ret": 0.1195
+   "peak": 19.98,
+   "ret": 0.1263
   },
   "2026-10-15:SG": {
    "ticker": "SG",
@@ -35,7 +35,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 10.67,
-   "ret": 0.0066
+   "ret": -0.0415
   },
   "2026-10-20:BRZE": {
    "ticker": "BRZE",
@@ -45,7 +45,18 @@
    "rs": 97,
    "eps_state": "better",
    "status": "保有中",
-   "peak": 45.57,
+   "peak": 45.68,
+   "ret": 0.0024
+  },
+  "2026-10-21:APPN": {
+   "ticker": "APPN",
+   "session": "2026-10-21",
+   "entry": 48.73,
+   "depth": 0.5898,
+   "rs": 98,
+   "eps_state": "worse",
+   "status": "保有中",
+   "peak": 48.73,
    "ret": 0.0
   }
  }
