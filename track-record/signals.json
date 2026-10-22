@@ -252,6 +252,15 @@
    "guard": false,
    "rule": "swing-v6-max6-cap80-sleeve60",
    "revisions": 0
+  },
+  "2026-10-22": {
+   "recorded_at": "2026-10-22T22:29:55Z",
+   "best": [],
+   "regime": "on",
+   "qqq_pct": 100,
+   "guard": false,
+   "rule": "swing-v6-max6-cap80-sleeve60",
+   "revisions": 0
   }
  },
  "trades": {
@@ -1018,7 +1027,7 @@
  },
  "modeled_portfolio": {
   "start": "2026-10-05",
-  "last_day": "2026-10-21",
+  "last_day": "2026-10-22",
   "cash": 0.0,
   "qqq_sh": 0.5542075109768309,
   "qqq_pct": 100,
@@ -1304,6 +1313,11 @@
     "2026-10-21",
     0.869803861064531,
     725.2000122070312
+   ],
+   [
+    "2026-10-22",
+    0.8508672741988075,
+    704.469970703125
    ]
   ],
   "reconstruction": {
