@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   source_published:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       evaluate: ${{ steps.gate.outputs.evaluate }}
     steps:
@@ -37,7 +37,7 @@ jobs:
   evaluate:
     needs: source_published
     if: needs.source_published.outputs.evaluate == 'true' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
       MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY || secrets.MASSIVE_API || secrets.MASSIVE_KEY || secrets.MASSIVE || secrets.POLYGON_API_KEY || secrets.POLYGON_KEY }}

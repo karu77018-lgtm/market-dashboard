@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   retry_probe:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       run_refresh: ${{ steps.probe.outputs.run_refresh }}
     steps:
@@ -43,7 +43,7 @@ jobs:
   refresh:
     needs: retry_probe
     if: needs.retry_probe.outputs.run_refresh == 'true' && ( github.actor != 'github-actions[bot]' || github.event_name == 'schedule')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 330
     outputs:
       published: ${{ steps.publish.outcome }}
@@ -487,7 +487,7 @@ jobs:
     needs: [retry_probe, refresh]
     # manual re-runs only close an open notice (IS_MORNING is false for them)
     if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       issues: write
     env:
