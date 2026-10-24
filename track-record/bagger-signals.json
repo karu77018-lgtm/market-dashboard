@@ -24,7 +24,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 20.46,
-   "ret": 0.1533
+   "ret": 0.1387
   },
   "2026-10-15:SG": {
    "ticker": "SG",
@@ -35,7 +35,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 10.67,
-   "ret": -0.0358
+   "ret": -0.0736
   },
   "2026-10-20:BRZE": {
    "ticker": "BRZE",
@@ -45,8 +45,8 @@
    "rs": 97,
    "eps_state": "better",
    "status": "保有中",
-   "peak": 45.86,
-   "ret": 0.0064
+   "peak": 45.88,
+   "ret": 0.0068
   },
   "2026-10-21:APPN": {
    "ticker": "APPN",
@@ -56,8 +56,8 @@
    "rs": 98,
    "eps_state": "worse",
    "status": "保有中",
-   "peak": 51.15,
-   "ret": 0.0497
+   "peak": 52.35,
+   "ret": 0.0743
   },
   "2026-10-22:HURN": {
    "ticker": "HURN",
@@ -67,8 +67,8 @@
    "rs": 92,
    "eps_state": "na",
    "status": "保有中",
-   "peak": 193.35,
-   "ret": 0.0
+   "peak": 195.69,
+   "ret": 0.0121
   },
   "2026-10-22:KSS": {
    "ticker": "KSS",
@@ -79,6 +79,28 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 24.78,
+   "ret": -0.0081
+  },
+  "2026-10-23:INTA": {
+   "ticker": "INTA",
+   "session": "2026-10-23",
+   "entry": 47.99,
+   "depth": 0.5985,
+   "rs": 93,
+   "eps_state": "worse",
+   "status": "保有中",
+   "peak": 47.99,
+   "ret": 0.0
+  },
+  "2026-10-23:NTSK": {
+   "ticker": "NTSK",
+   "session": "2026-10-23",
+   "entry": 24.28,
+   "depth": 0.6814,
+   "rs": 97,
+   "eps_state": "better",
+   "status": "保有中",
+   "peak": 24.28,
    "ret": 0.0
   }
  }
