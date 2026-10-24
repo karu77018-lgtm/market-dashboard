@@ -1,7 +1,7 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
-  "coverage": 1.0,
-  "generated_at": "2026-10-23T06:00:51Z",
+  "coverage": 0.999743062692703,
+  "generated_at": "2026-10-24T00:02:04Z",
   "mc57": 20.44319983400251,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
@@ -12,7 +12,7 @@
   "positions_status": "DATA_REQUIRED",
   "provider_status": {
     "adopted_universe_count": 3892,
-    "cross_vendor_coverage": 0.9701952723535457,
+    "cross_vendor_coverage": 0.9699383350462487,
     "current_session_provider": "Massive",
     "fred": "READY",
     "fred_required_coverage": 1.0,
@@ -86,9 +86,7 @@
     "massive_current_covered": 3776,
     "massive_current_missing": 116,
     "massive_grouped": {
-      "fetched_sessions": [
-        "2026-10-22"
-      ],
+      "fetched_sessions": [],
       "latest_eligible_rows": 5533,
       "latest_session": "2026-10-22",
       "requested_sessions": 20,
@@ -130,15 +128,17 @@
     "legacy": 3331
   },
   "yahoo": {
-    "failed_tickers": [],
+    "failed_tickers": [
+      "PERF"
+    ],
     "history_received": 3892,
     "incremental_cache_used": true,
     "requested": 3892,
-    "target_session_coverage": 1.0,
-    "target_session_fresh": 86,
+    "target_session_coverage": 0.999743062692703,
+    "target_session_fresh": 9,
     "target_session_massive_substitute": 0,
-    "target_session_received": 3892,
-    "target_session_same_day_cache": 3806,
+    "target_session_received": 3891,
+    "target_session_same_day_cache": 3882,
     "yahoo_circuit_open": false
   }
 }
