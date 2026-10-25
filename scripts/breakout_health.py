@@ -30,7 +30,8 @@ import pandas as pd
 
 HORIZON = 10
 WINDOW = 63
-HISTORY = 252
+HISTORY = 252  # 好調/不調の判定・続いた日数に使う窓（変えない）
+CHART = 504  # 推移グラフの横軸：Dailyタブの他のグラフと同じ約2年
 MIN_SIGNALS = 5
 # 2026-10-18: hysteresis.  Weak (不調) starts when the value goes under 0% and lasts
 # until it is back above +1.5%.  Local test 2015-01..2026-10 (v6 + 大底フル + 守りモード
@@ -91,11 +92,13 @@ def compute(frame: pd.DataFrame, history: int = HISTORY) -> dict[str, Any] | Non
     if n < need + 1:
         return None
     history = max(1, min(history, n - need))
+    show = min(CHART, n)  # chart slots (same 2-year span as the other Daily charts)
+    comp = max(history, min(show, n - need))  # sessions with enough data for a value
     state = _states(c, h, l, v)
     cv, hv, lv = c.to_numpy(float), h.to_numpy(float), l.to_numpy(float)
     col = {t: i for i, t in enumerate(c.columns)}
     dates = c.index
-    first_sig = n - 1 - HORIZON - (WINDOW - 1) - (history - 1)
+    first_sig = n - 1 - HORIZON - (WINDOW - 1) - (comp - 1)
     sums = np.zeros(n)
     cnts = np.zeros(n)
     sar_cache: dict = {}
@@ -116,12 +119,13 @@ def compute(frame: pd.DataFrame, history: int = HISTORY) -> dict[str, Any] | Non
             sums[s] += fut / px - 1
             cnts[s] += 1
     cs, ck = np.cumsum(sums), np.cumsum(cnts)
-    hist = []
-    for d in range(n - history, n):
+    chart = [(str(dates[d].date()), None, 0) for d in range(n - show, n - comp)]
+    for d in range(n - comp, n):
         a, b = d - HORIZON, d - HORIZON - WINDOW
         k = ck[a] - ck[b]
         val = (cs[a] - cs[b]) / k if k >= MIN_SIGNALS else None
-        hist.append((str(dates[d].date()), None if val is None else float(val), int(k)))
+        chart.append((str(dates[d].date()), None if val is None else float(val), int(k)))
+    hist = chart[-history:]
     value, count = hist[-1][1], hist[-1][2]
     states = hysteresis([v for _, v, _ in hist])
     # Days since the current state started.
@@ -133,7 +137,7 @@ def compute(frame: pd.DataFrame, history: int = HISTORY) -> dict[str, Any] | Non
                 break
             since = dt
     return {"session": str(dates[-1].date()), "value": value, "n": count,
-            "on": None if value is None else bool(states[-1]), "since": since, "history": hist,
+            "on": None if value is None else bool(states[-1]), "since": since, "history": hist, "chart": chart,
             "recover": RECOVER}
 
 
@@ -211,7 +215,10 @@ def _spark(hist: list) -> str:
     line = " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in pts)
     lx, ly = x(pts[-1][0]), y(pts[-1][1])
     last = len(hist) - 1
-    ticks = [f'<span>{hist[round(last * q / 4)][0][2:7].replace("-", "/")}</span>' for q in range(5)]
+    ticks = []
+    for q in sorted({round(last * f) for f in (0, .25, .5, .75, 1)}):
+        yy, mm = hist[q][0][2:4], int(hist[q][0][5:7])
+        ticks.append(f'<span>{yy}/{mm}</span>')
     return ('<div class="chart"><svg preserveaspectratio="none" viewbox="0 0 680 180">'
             f'<rect fill="#25c25f" opacity="0.08" x="6" y="6" width="668" height="{max(zero - 6, 0):.1f}"></rect>'
             f'<rect fill="#df5454" opacity="0.08" x="6" y="{zero:.1f}" width="668" height="{max(174 - zero, 0):.1f}"></rect>'
@@ -279,7 +286,7 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
     hist = health.get("history", []) if health else []
     # a state that began before the shown year is at least that long, not exactly
     truncated = bool(since and hist and since == hist[0][0])
-    spark = _spark(hist) if health else ""
+    spark = _spark(health.get("chart") or hist) if health else ""
     since_txt = f'{since[5:].replace("-", "/")}から' if since else ""
     action = (f'<div class="bh-act {cls}">今日の余剰資金：<b class="big">{pct}%</b> をTQQQルール枠へ'
               f'<div class="bh-why">{html.escape(WHY_TEXT.get(why, why))}。残りは現金。個別株の売買ルールは変えない。</div></div>')
@@ -315,7 +322,7 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
         f'<div class="bh-q">{html.escape(meaning)}</div>'
         + action + grid
         + f'<div class="bh-next"><b>次の切り替え</b>：{html.escape(_next_switch(health, regime, pct))}</div>'
-        + (f'{spark}<div class="sub" style="margin-top:2px">線＝その日の値（上の緑＝好調、下の赤＝不調）。1年分。</div>'
+        + (f'{spark}<div class="sub" style="margin-top:2px">線＝その日の値（上の緑＝好調、下の赤＝不調）。2年分（他のグラフと同じ期間）。</div>'
            if spark else '<div class="sub" style="margin-top:2px">推移はまだ描けない（計算できた日が足りない）。</div>')
         + explain + '</div>'
     )
