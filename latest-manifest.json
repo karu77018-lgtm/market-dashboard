@@ -1,7 +1,7 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
   "coverage": 0.9946043165467626,
-  "generated_at": "2026-10-28T23:13:44Z",
+  "generated_at": "2026-10-29T01:15:08Z",
   "mc57": 30.385341651224117,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
@@ -88,7 +88,7 @@
       "asof_date": "2026-10-28",
       "eligible_reference_tickers": 5690,
       "pages": 14,
-      "source": "api",
+      "source": "cache",
       "status": "READY"
     },
     "research_universe_rules": {
@@ -146,10 +146,10 @@
     "incremental_cache_used": true,
     "requested": 3892,
     "target_session_coverage": 0.9946043165467626,
-    "target_session_fresh": 3871,
+    "target_session_fresh": 0,
     "target_session_massive_substitute": 0,
     "target_session_received": 3871,
-    "target_session_same_day_cache": 0,
+    "target_session_same_day_cache": 3871,
     "yahoo_circuit_open": false
   }
 }
