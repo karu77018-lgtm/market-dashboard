@@ -263,6 +263,9 @@ def guard_state(path, pairs: list[tuple[str, float]]) -> dict:
     except Exception:
         ts = None
     guard = bool(ts is not None and ma50 is not None and ts >= GUARD_TS and closes[-1] < ma50)
+    from swing_allocation import GUARD_OFF_FROM
+    if day >= GUARD_OFF_FROM:  # 守りモード retired on 2026-10-29 (no robust effect)
+        return {"guard": False, "guard_raw": False, "ts": ts, "ma50": ma50, "guard_full": False}
     full = False
     if guard:
         try:
@@ -1040,9 +1043,9 @@ def card_html(result: dict) -> str:
         f'<b>売買</b>：通常スイング最大{MAX_NAMES}銘柄・個別株の合計は総資産の{STOCK_CAP_LABEL}まで（{EFFECTIVE_DATE}適用）。最初は総資産の{INITIAL_LABEL}を買い、−8%で損切り（初回のリスクは総資産の{CORE_RISK:.1%}、窓開け・スリッページを除く）。'
         '終値が買値+10%に届いたら翌営業日の寄りで同額、+20%でもう一度同額を買い増し（1銘柄の上限は資金の40%）。安値21EMAを割って引けたら翌営業日の寄りで手仕舞い。'
         '<b>利益保護</b>：終値が買ってからの最高値の−15%を下回ったら翌営業日の寄りで手仕舞い。'
-        f'<b>守りモード</b>：引けでVIX÷VIX3M {GUARD_TS}以上かつQQQが{GUARD_MA}日線の下なら新規停止、翌営業日の寄りで個別株を総資産の{GUARD_STOCK:.0%}まで比例で減らす（TQQQルールの大底フル中は守らない）。'
+        '<b>守りモード</b>は2026-10-29で廃止（条件を動かすと効果が五分五分だったため）。'
         f'余剰資金の{SLEEVE_NORMAL}%はTQQQルール枠（Rulesタブ9）。ブレイク成功度が不調（マイナスで不調、+1.5%を超えるまで続く）かつQQQが200日線より上の日と、大底フル中は{SLEEVE_WEAK}%。'
-        f'{BT_PERIOD}の検証（翌営業日の寄りで売買・守りモード等込み）で年率{BT["cagr"]}%・最大DD{str(BT["dd"]).replace("-", "−")}%（個別株だけなら{BT["stock_cagr"]}%、余剰資金をQQQにすると{BT["qqq_cagr"]}%）。<br/>'
+        f'{BT_PERIOD}の検証（翌営業日の寄りで売買・今のルール）で年率{BT["cagr"]}%・最大DD{str(BT["dd"]).replace("-", "−")}%（個別株だけなら{BT["stock_cagr"]}%、余剰資金をQQQにすると{BT["qqq_cagr"]}%）。<br/>'
         '<b>外した条件</b>：52週安値+30%・10日線+12%以内・高値+25%で建値へ。前の2つを足しても成績はほぼ同じ（個別株だけ28.7%→29.5%）。建値へ動かすルールは効果なし（旧計算）。<br/>'
         '<b>バー</b>：緑の始まりがHL（切り上げた安値・割れたら構造崩れ）、緑の終わりがピボットライン'
         '（直近のLL→HL間の最高値・期間2〜10本で一番狭い構造）、黒い線が今の株価。濃い緑がHL→ラインの50〜75%（好位置）。<br/>'

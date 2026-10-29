@@ -36,7 +36,7 @@ from typing import Any
 
 import pandas as pd
 
-from swing_allocation import GUARD_DATE, GUARD_STOCK, TRAIL  # noqa: E402
+from swing_allocation import GUARD_DATE, GUARD_OFF_FROM, GUARD_STOCK, TRAIL, normal_share  # noqa: E402
 from swing_allocation import (RULE_ID, PREVIOUS_RULE_IDS, MAX_NAMES, INITIAL_WEIGHT, EFFECTIVE_DATE,
                               STOCK_CAP, SLEEVE_NORMAL, SLEEVE_SHARES)
 STOP = 0.08
@@ -155,7 +155,7 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
     q_open, q_close = _f(s.get("open")), _f(s.get("close"))
     today = {t: _bar(bars, t, day) for t in pf["positions"]}
     # 0. 守りモード (published at prev's close; orders from GUARD_DATE): cut stocks to GUARD_STOCK of equity
-    if signal and signal.get("guard") and day >= GUARD_DATE:
+    if signal and signal.get("guard") and day >= GUARD_DATE and prev < GUARD_OFF_FROM:
         held = {t: (today[t][0] if today.get(t) else p["last"]) for t, p in pf["positions"].items()}
         so = sum(p["shares"] * held[t] for t, p in pf["positions"].items())
         eq_open = pf["cash"] + pf["qqq_sh"] * (q_open or 0.0) + so
@@ -240,7 +240,7 @@ def step(pf: dict, day: str, prev: str, q: dict, signal: dict | None, bars: dict
         pf["qqq_pct"] = signal["qqq_pct"]
     elif prev >= EFFECTIVE_DATE:
         # no published share (or no session record) after v6 = the normal share, as breakout_health.allocation
-        pf["qqq_pct"] = SLEEVE_NORMAL
+        pf["qqq_pct"] = normal_share(prev)
     idle = pf["cash"] + pf["qqq_sh"] * q_open
     pf["qqq_sh"] = idle * pf["qqq_pct"] / 100 / q_open
     pf["cash"] = idle - pf["qqq_sh"] * q_open

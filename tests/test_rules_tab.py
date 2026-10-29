@@ -20,7 +20,7 @@ def test_rules_tab_replaces_core12_with_swing_rules():
     assert "今日の地合い：新規OK" in out and "QQQ 600.00 / 200日線 550.00" in out
     assert '<section id="t-post1">x</section>' in out and '<section id="t-jev">j</section>' in out
     assert out.count(rules_tab.STYLE) == 1
-    assert "成績（単年）" in out and "+248.3%" in out and "−12.9%" in out and "TQQQ枠込" in out and "9. TQQQルール" in out and "①早期再エントリー" in out and "②信用125%（参考・未採用）" in out and "464倍" in out and "最大6銘柄" in out and "+20%でもう一度同額" in out and "好位置リーダー（検討可）" in out and "7. 余剰資金の配分" in out and "2026*" in out
+    assert "成績（単年）" in out and "+256.4%" in out and "−15.0%" in out and "TQQQ枠込" in out and "9. TQQQルール" in out and "①早期再エントリー" in out and "②信用125%（参考・未採用）" in out and "452倍" in out and "切替型だけに" in out and "30営業日はTQQQ 100%" in out and "×1.075" in out and "2026-10-29で廃止" in out and "最大6銘柄" in out and "+20%でもう一度同額" in out and "好位置リーダー（検討可）" in out and "7. 余剰資金の配分" in out and "2026*" in out
     assert rules_tab.apply(out, regime={"on": True, "close": 600.0, "ma": 550.0, "date": "2026-10-02"}) == out
 
 
@@ -51,18 +51,18 @@ def test_active_allocation_uses_shared_constants_and_keeps_historical_research()
     assert "翌営業日の寄り付き" in rows["買い"]
     assert EFFECTIVE_DATE in html
     assert "通常スイングの6枠に含める" in html
-    assert "60%をTQQQルール枠" in rows["余剰資金"] and "100%" in rows["余剰資金"]
+    assert "50%をTQQQルール枠" in rows["余剰資金"] and "100%" in rows["余剰資金"]
     assert "個別株の合計は総資産の80%まで" in rows["株の上限"] and "売って減らしはしない" in rows["株の上限"]
     assert "買値−8%" in rows["損切り"]
     assert "翌営業日の寄りで同額、+20%でもう一度同額" in rows["買い増し"]
     assert "資金の40%" in rows["買い増し"]
     assert "安値21EMA" in rows["手仕舞い"] and "翌営業日の寄りで売り" in rows["手仕舞い"]
     assert "最大6銘柄・初回1/6（約16.7%）のルールでの検証" in html and "旧6銘柄" not in html
-    assert "TQQQルール枠（現行）" in html and "年率68.3%" in html and "翌営業日の寄りで売買" in html
+    assert "TQQQルール枠（現行）" in html and "年率68.1%" in html and "翌営業日の寄りで売買" in html
     assert "年率57.0%" not in html
-    assert rules_tab.YEARLY[0] == (2015, 1.4, 11.4, 4.1, 8.3, -5.8)
-    assert rules_tab.YEARLY[-1] == (2026, 88.8, 103.0, 144.2, 15.5, -17.3)
-    assert [entry[1:] for entry in rules_tab.TOTALS] == [(24.4, -25.2, 13), (37.1, -26.9, 41), (68.3, -39.4, 464)]
+    assert rules_tab.YEARLY[0] == (2015, -1.6, 8.1, 25.5, 9.8, -6.0)
+    assert rules_tab.YEARLY[-1] == (2026, 81.8, 100.4, 116.5, 18.5, -17.8)
+    assert [entry[1:] for entry in rules_tab.TOTALS] == [(26.7, -25.5, 16), (39.0, -25.7, 48), (68.1, -37.0, 452)]
 
 
 def test_rule_version_rejects_previous_six_name_cards():

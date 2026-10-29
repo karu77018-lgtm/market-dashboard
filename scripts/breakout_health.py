@@ -175,10 +175,8 @@ def allocation(health: dict | None, regime: dict | None, session: str | None = N
             return SLEEVE_WEAK, f"大底フル（VIX+2σの底確認）であと{fb['left']}営業日"
     elif full:
         return SLEEVE_WEAK, "大底フル（VIX+2σの底確認）"
-    if session and str(session) < EFFECTIVE_DATE:
-        normal = 50
-    else:
-        normal = SLEEVE_NORMAL
+    from swing_allocation import normal_share
+    normal = normal_share(session)
     if not health or health.get("on") is None:
         return normal, "ブレイク成功度が計算できないため通常どおり"
     if regime is None:
@@ -302,7 +300,7 @@ def daily_card(health: dict | None, regime: dict | None) -> str:
         f'<li><b>何を測る？</b> 直近63営業日に出た本命が、10日後に平均何%動いたか。マイナスになったら不調、不調は+{RECOVER * 100:.1f}%を超えるまで続く（2026-10-18から。0%の行き来で戻さない）。'
         '10日後の結果が出たものだけを使うので先読みはない（その分、切り替わりは数週間遅れる。一度切り替わると平均3か月ほど続き、2015〜2026/10で不調の日は約半分）。</li>'
         '<li><b>何に使う？</b> 余剰資金の置き場所だけ。不調かつQQQが200日線より上の日は'
-        f'{SLEEVE_WEAK}%をTQQQルール枠、それ以外は{SLEEVE_NORMAL}%（10月12日の公開分までは50%）。'
+        f'{SLEEVE_WEAK}%をTQQQルール枠、それ以外は{SLEEVE_NORMAL}%（10月13〜28日の公開分は60%）。'
         'QQQが200日線より下では増やさない（2022年のような下げで傷を深くしない）。個別株の新規・損切り・買い増しは変えない。</li>'
         '<li><b>なぜ効く？</b> 指数は上がるのに勢い株が伸びない「退屈な年」（2016・2021・2023年）を不調と判定し、その年を指数側で取りにいく。'
         '退屈な年は不調判定が約3分の2、好調だった2020・2026年は約5%。</li>'
