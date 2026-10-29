@@ -9,6 +9,10 @@ on:
         type: string
   schedule:
     - cron: "45 21 * * 1-5"
+    # Backup slots for a late-started main run (GitHub delays busy schedules by 1-2h).
+    # They go through retry_probe, so they only refresh when the page is still a session behind.
+    - cron: "10 22 * * 1-5"
+    - cron: "50 22 * * 1-5"
     - cron: "30 5-19/2 * * 2-6"
 
 permissions:
