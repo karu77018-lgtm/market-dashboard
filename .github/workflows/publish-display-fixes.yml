@@ -42,6 +42,7 @@ jobs:
           path: |
             work/mc57-prices.csv
             work/market-inputs-cache.json
+            work/fred-cache.json
             work/massive-etf-grouped.json
           key: source-mc57-fallback-display-${{ github.run_id }}
           restore-keys: source-mc57-fallback-
