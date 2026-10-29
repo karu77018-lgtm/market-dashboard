@@ -1,7 +1,7 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
-  "coverage": 0.9946043165467626,
-  "generated_at": "2026-10-29T01:15:08Z",
+  "coverage": 1.0,
+  "generated_at": "2026-10-29T11:41:10Z",
   "mc57": 30.385341651224117,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
@@ -12,15 +12,15 @@
   "positions_status": "DATA_REQUIRED",
   "provider_status": {
     "adopted_universe_count": 3892,
-    "cross_vendor_coverage": null,
-    "current_session_provider": "Yahoo Finance",
+    "cross_vendor_coverage": 0.9663412127440905,
+    "current_session_provider": "Massive",
     "fred": "READY",
     "fred_required_coverage": 1.0,
-    "massive": "FALLBACK_YAHOO",
+    "massive": "READY",
     "massive_confirmation": "scheduled",
-    "massive_current_coverage": null,
-    "missing_current_rows": 21,
-    "publication_state": "provisional",
+    "massive_current_coverage": 0.9663412127440905,
+    "missing_current_rows": 131,
+    "publication_state": "confirmed",
     "universe_shortfall": 0,
     "universe_target": 3892,
     "yahoo_substitute": null
@@ -73,16 +73,18 @@
     "legacy_universe": 3338,
     "malformed_rows": 0,
     "massive_broad_expansion": 540,
-    "massive_current_coverage": 0.0,
-    "massive_current_covered": 0,
-    "massive_current_missing": 3892,
+    "massive_current_coverage": 0.9663412127440905,
+    "massive_current_covered": 3761,
+    "massive_current_missing": 131,
     "massive_grouped": {
-      "fetched_sessions": [],
-      "latest_session": "2026-10-27",
-      "reason": "provider request rejected: https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/2026-10-28 (status=403)",
+      "fetched_sessions": [
+        "2026-10-28"
+      ],
+      "latest_eligible_rows": 5526,
+      "latest_session": "2026-10-28",
       "requested_sessions": 20,
       "sessions": 20,
-      "status": "YAHOO_FALLBACK"
+      "status": "READY"
     },
     "massive_reference": {
       "asof_date": "2026-10-28",
@@ -119,36 +121,14 @@
     "legacy": 3338
   },
   "yahoo": {
-    "failed_tickers": [
-      "AAC",
-      "AKA",
-      "BEBE",
-      "COPL",
-      "DIT",
-      "ELLO",
-      "ETSS",
-      "GLED",
-      "IOR",
-      "IRAB",
-      "KPET",
-      "LUD",
-      "MTAL",
-      "MTNE",
-      "OCAC",
-      "PNAQ",
-      "SAMO",
-      "UAC",
-      "VECA",
-      "XFLH",
-      "YCY"
-    ],
+    "failed_tickers": [],
     "history_received": 3892,
     "incremental_cache_used": true,
     "requested": 3892,
-    "target_session_coverage": 0.9946043165467626,
-    "target_session_fresh": 0,
+    "target_session_coverage": 1.0,
+    "target_session_fresh": 21,
     "target_session_massive_substitute": 0,
-    "target_session_received": 3871,
+    "target_session_received": 3892,
     "target_session_same_day_cache": 3871,
     "yahoo_circuit_open": false
   }
