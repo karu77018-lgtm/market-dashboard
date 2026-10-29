@@ -130,8 +130,8 @@ def test_inside_structure_is_listed_first():
     assert "初回のリスクは総資産の1.3%" in html
     assert "同時3銘柄（通常スイングとの合計最大9）" in html
     assert "通常スイングの6枠に含める" in html
-    assert "年率68.1%" in html and "年率53.4%・最大DD" not in html and "翌営業日の寄りで買い" in html
-    assert "個別株の合計は総資産の80%まで" in html and "余剰資金の50%はTQQQルール枠" in html and "守りモード</b>は2026-10-29で廃止" in html
+    assert "年率73.2%" in html and "年率53.4%・最大DD" not in html and "翌営業日の寄りで買い" in html
+    assert "個別株の合計は総資産の80%まで" in html and "不調（マイナスで不調、+1.5%を超えるまで続く）なら100%をTQQQルール枠" in html and "好調なら0%（現金のまま）" in html and "守りモード</b>は2026-10-29で廃止" in html
     assert "本日の終値で買い" not in html
     assert 'data-rule="swing-v6-max6-cap80-sleeve60"' in html
 

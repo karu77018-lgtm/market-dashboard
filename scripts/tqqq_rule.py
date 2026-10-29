@@ -469,11 +469,11 @@ def total_split(rec: dict, sleeve_pct: int, stock: float) -> tuple[float, float,
 
 
 # 振り落とし注意 (display only, never changes an order): the rule-run model's equity up more
-# than 50% over 60 sessions.  Local backtest of the current rule (2026-10-29 version: TQQQ rule
-# switch half only + 大底フル 30 days, sleeve 50% / 100%, 利益保護, no 守りモード, cash outside
-# TQQQ), 2015-01..2026-10: a -12% or deeper fall within 20 sessions on 14% of those days vs 9%
-# otherwise, median fall within 20 sessions -3.8% vs -2.2%, yet the median 60-session return
-# after it was +19.9% vs +9.3% -> brace, do not sell.  (10/18 rule: 17% vs 12%, +20.9% vs +11.9%.)
+# than 50% over 60 sessions.  Local backtest of the current rule (2026-10-30 version: TQQQ rule
+# switch half only + 大底フル 30 days, sleeve 好調 0% / 不調 100%, 利益保護, no 守りモード, cash
+# outside TQQQ), 2015-01..2026-10: a -12% or deeper fall within 20 sessions on 7% of those days
+# vs 6% otherwise, median fall within 20 sessions -3.2% vs -1.6%, and the median 60-session
+# return after it was +18.8% vs +11.0% -> brace, do not sell.  (10/18 rule: 17% vs 12%.)
 SURGE_DAYS = 60
 SURGE_LIMIT = 0.50
 SURGE_SEED = Path("track-record/surge-seed.json")  # backtest equity before the model's first day
@@ -526,8 +526,8 @@ def surge_html(state: dict | None) -> str:
         return (f'<div class="tqr-surge tqr-surge-off" data-surge="off">振り落とし注意：なし'
                 f'（ルール運用の資産 {SURGE_DAYS}営業日で{pct}・基準+{SURGE_LIMIT * 100:.0f}%超）{note}</div>')
     return (f'<div class="tqr-surge tqr-surge-on" data-surge="on"><b>振り落とし注意</b>：ルール運用の資産が{SURGE_DAYS}営業日で'
-            f'<b>{pct}</b>（+{SURGE_LIMIT * 100:.0f}%超）。過去はこのあと20日以内に−12%以上下がる確率14%（普段9%）。'
-            'ただし60日後の中央値は+19.9%（普段+9.3%）で、<b>売る合図ではない</b>。ルールどおり続け、下げても慌てない。'
+            f'<b>{pct}</b>（+{SURGE_LIMIT * 100:.0f}%超）。過去はこのあと20日以内に−12%以上下がる確率7%（普段6%）。'
+            '60日後の中央値は+18.8%（普段+11.0%）で、<b>売る合図ではない</b>。ルールどおり続け、下げても慌てない。'
             f'{note}</div>')
 
 
@@ -561,9 +561,9 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
                 '<span class="tqr-m">判定不可</span></div><div class="tqr-sub">入力（QQQ・TQQQ・VIX・HY OAS）が'
                 'そろわないため今日の目標を出していません。前日の比率のまま。</div></div>')
     word, cls = summary_words(rec)
-    pct = sleeve_pct if sleeve_pct in SLEEVE_SHARES and sleeve_pct else SLEEVE_NORMAL
-    pick = (f'ブレイク成功度で{SLEEVE_NORMAL}%か{SLEEVE_WEAK}%' if pct in (SLEEVE_NORMAL, SLEEVE_WEAK) else
-            f'10月13〜28日の公開分の通常は{pct}%。10月29日の公開分から{SLEEVE_NORMAL}%（不調なら{SLEEVE_WEAK}%）')
+    pct = sleeve_pct if sleeve_pct in SLEEVE_SHARES else SLEEVE_NORMAL
+    pick = (f'ブレイク成功度が好調なら{SLEEVE_NORMAL}%・不調なら{SLEEVE_WEAK}%' if pct in (SLEEVE_NORMAL, SLEEVE_WEAK) else
+            f'10月30日の公開分から好調{SLEEVE_NORMAL}%・不調{SLEEVE_WEAK}%（この日の公開は{pct}%）')
     tgt = float(rec.get("target") or 0)
     stale = (f'<div class="tqr-stale">{e(session)}の入力が欠けたため、{e(day or "")}の判定のままです。</div>'
              if session and day and day < session else "")
@@ -585,6 +585,10 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
         if 1 - st_ < 0.005:
             how = (f'<div class="tqr-how">個別株が <b>{_pp(st_)}</b>{held}で、今は余剰資金がありません。'
                    f'個別株を売ってお金が空いたら、その <b>{pct}%</b> を枠に入れ、{fill}。'
+                   '自分の個別株比率が違うときは下の表で。</div>')
+        elif pct == 0:
+            how = (f'<div class="tqr-how">ブレイク成功度が好調なので枠は <b>0%</b>：個別株 <b>{_pp(st_)}</b>{held}以外の <b>{_pp(1 - st_)}</b> は現金のまま。'
+                   f'不調に変わったら余剰資金の{SLEEVE_WEAK}%を枠に入れ、枠の中はこのルールの目標（今は{_pct(tgt)}）でTQQQ。'
                    '自分の個別株比率が違うときは下の表で。</div>')
         else:
             how = (f'<div class="tqr-how">個別株 <b>{_pp(st_)}</b>{held}以外の <b>{_pp(1 - st_)}</b> のうち <b>{pct}%</b> が枠'

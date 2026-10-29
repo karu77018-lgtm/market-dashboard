@@ -17,6 +17,15 @@ lower shares a shallower DD), 守りモード retired (no robust effect), TQQQ r
 (tqqq_rule.py).  Local next-open backtest 2015-01..2026-10-28: 65.1% / max DD -41.1% (10/18
 settings) -> 68.1% / -37.0%; with every TQQQ-rule parameter and the trail jittered +-25%
 (40 draws) the median went 63.1% / -41.4% -> 66.9% / -37.1%.
+
+2026-10-30 (same rule id; publications from the 2026-10-30 session on): breakout health
+decides the sleeve alone -> 好調 0% (idle money stays cash), 不調 100% whatever the QQQ
+200-day line (大底フル still 100%).  37 health gauges were compared and the current one
+(本命 10-day mean, 63 sessions) stayed best; what changed is how it is used.  Local test
+2015-01..2026-10-28, medians over neighbouring gauge settings: 67.0% / max DD -37.0% ->
+70.1% / -30.0% (2015-20 51.3 -> 56.5%, 2021-26 84.7 -> 85.2%); over TQQQ-rule jitter
+66.3% / -38.0% -> 72.4% / -30.0%.  Better in 93% of all 3-year windows.  A 好調 sleeve
+share from 50% down to 0% kept the CAGR flat and the max DD fell steadily.
 """
 RULE_ID = "swing-v6-max6-cap80-sleeve60"
 PREVIOUS_RULE_IDS = ("swing-v5-max6-tqqq-sleeve",)  # same sizing; a running model continues under v6
@@ -25,11 +34,13 @@ INITIAL_WEIGHT = 1 / 6
 INITIAL_LABEL = "1/6（約16.7%）"
 STOCK_CAP = 0.80
 STOCK_CAP_LABEL = "80%"
-SLEEVE_NORMAL = 50   # 2026-10-29 (60 for the publications 2026-10-13 .. 2026-10-28, 50 before)
-SLEEVE_V6 = 60
+SLEEVE_NORMAL = 0    # 2026-10-30: idle money stays cash while breakout health is 好調
+SLEEVE_V6 = 60       # publications 2026-10-13 .. 2026-10-28
+SLEEVE_V7 = 50       # publication 2026-10-29
 SLEEVE_50_FROM = "2026-10-29"  # first publication with the 50% normal share
+SLEEVE_0_FROM = "2026-10-30"   # first publication with 0% when 好調 and 100% when 不調 whatever the QQQ 200-day line
 SLEEVE_WEAK = 100
-SLEEVE_SHARES = (0, SLEEVE_NORMAL, SLEEVE_V6, SLEEVE_WEAK)  # 60 = publications 2026-10-13 .. 2026-10-28
+SLEEVE_SHARES = (0, SLEEVE_V7, SLEEVE_V6, SLEEVE_WEAK)  # 50 = v5 and 2026-10-29, 60 = 2026-10-13 .. 2026-10-28
 EFFECTIVE_DATE = "2026-10-13"
 
 # 2026-10-18 additions (same rule id; orders from the 2026-10-19 session on):
@@ -57,4 +68,11 @@ def normal_share(session: str | None) -> int:
         return 50
     if session and str(session) < SLEEVE_50_FROM:
         return SLEEVE_V6
+    if session and str(session) < SLEEVE_0_FROM:
+        return SLEEVE_V7
     return SLEEVE_NORMAL
+
+
+def momentum_rule_v8(session: str | None) -> bool:
+    """True for publications that use the 2026-10-30 rule (好調 0% / 不調 100% regardless of the 200-day line)."""
+    return not session or str(session) >= SLEEVE_0_FROM
