@@ -31,14 +31,19 @@ def test_weekly_sar_lookup_matches_truncated_state():
 
 def test_allocation_rule():
     on, off = {"on": True, "value": 0.05}, {"on": False, "value": -0.02}
-    assert bh.allocation(off, {"on": True})[0] == 100
-    assert bh.allocation(off, {"on": False})[0] == 50
-    assert bh.allocation(off, {"on": False}, "2026-10-28")[0] == 60     # v6 publications kept 60%
-    assert bh.allocation(off, {"on": False}, "2026-10-29")[0] == 50
-    assert bh.allocation(on, {"on": True})[0] == 50
-    assert bh.allocation(None, {"on": True})[0] == 50
-    assert bh.allocation(off, None)[0] == 50
-    assert bh.allocation(on, {"on": True}, "2026-10-20")[0] == 60
+    # 2026-10-30 rule: 不調 100% whatever the 200-day line, 好調 0% (cash)
+    assert bh.allocation(off, {"on": True}, "2026-10-30", full=False)[0] == 100
+    assert bh.allocation(off, {"on": False}, "2026-10-30", full=False)[0] == 100
+    assert bh.allocation(off, None, "2026-10-30", full=False)[0] == 100
+    assert bh.allocation(on, {"on": True}, "2026-10-30", full=False)[0] == 0
+    assert bh.allocation(None, {"on": True}, "2026-10-30", full=False)[0] == 0
+    # earlier publications keep the rule they were published with
+    assert bh.allocation(off, {"on": True}, "2026-10-28", full=False)[0] == 100
+    assert bh.allocation(off, {"on": False}, "2026-10-28", full=False)[0] == 60     # v6 kept 60% under the 200-day line
+    assert bh.allocation(off, {"on": False}, "2026-10-29", full=False)[0] == 50
+    assert bh.allocation(on, {"on": True}, "2026-10-20", full=False)[0] == 60
+    assert bh.allocation(on, {"on": True}, "2026-10-29", full=False)[0] == 50
+    assert bh.allocation(on, {"on": True}, "2026-10-30", full=True)[0] == 100       # 大底フル
 
 
 def test_daily_card_and_positions_line():

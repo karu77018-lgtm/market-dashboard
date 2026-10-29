@@ -448,7 +448,8 @@ def test_distribution_and_holding_sections_render_from_curve():
 def test_normal_share_by_publication_date():
     assert tp.normal_share("2026-10-12") == 50                 # v5
     assert tp.normal_share("2026-10-13") == tp.normal_share("2026-10-28") == 60   # v6
-    assert tp.normal_share("2026-10-29") == tp.SLEEVE_NORMAL == 50           # 2026-10-29 review
+    assert tp.normal_share("2026-10-29") == 50                                # 2026-10-29 review
+    assert tp.normal_share("2026-10-30") == tp.SLEEVE_NORMAL == 0             # 2026-10-30: 好調 = cash
 
 
 def test_guard_flag_is_ignored_from_its_retirement():
