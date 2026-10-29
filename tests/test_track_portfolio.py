@@ -10,6 +10,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import track_portfolio as tp  # noqa: E402
+from swing_allocation import normal_share  # noqa: E402
+tp.normal_share = normal_share
 import track_record as tr  # noqa: E402
 
 D = [d.date().isoformat() for d in pd.bdate_range(end=tp.EFFECTIVE_DATE, periods=30).append(
@@ -83,7 +85,7 @@ def test_slots_ranked_by_189_day_return():
 def test_regime_off_buys_nothing_and_unknown_pct_keeps_last():
     pf = run(["AAA"], {"AAA": [(100, 99.9, 100)]}, 1, regime="off", pct=None)
     # after the v6 cutover an unpublished share moves the v5 normal 50% to the v6 normal 60%
-    assert pf["positions"] == {} and abs(pf["qqq_sh"] * 100 - tp.SLEEVE_NORMAL / 100) < 1e-12
+    assert pf["positions"] == {} and abs(pf["qqq_sh"] * 100 - tp.normal_share(S) / 100) < 1e-12 and tp.normal_share(S) == 60
     pf = run(["AAA"], {"AAA": [(100, 99.9, 100)]}, 1, regime="off", pct=100)
     assert abs(pf["qqq_sh"] * 100 - 1.0) < 1e-12
 
@@ -144,7 +146,7 @@ def test_waits_for_missing_sleeve_nav_and_sleeve_moves_with_the_fund():
     fund[D[31]] = {"open": 100, "close": 120}         # sleeve +20% while QQQ is flat
     pf = tp.advance(pf, sessions(["AAA"]), f, q, D[31], fund=fund)
     idle = 1 - W
-    share = tp.SLEEVE_NORMAL / 100                     # D[30] has no session record -> the v6 normal share
+    share = tp.normal_share(D[30]) / 100               # D[30] has no session record -> the v6 normal share (60%)
     assert pf["last_day"] == D[31] and "waiting" not in pf
     assert abs(pf["equity"][-1][1] - (W + idle * share * 1.2 + idle * (1 - share))) < 1e-12
     assert pf["equity"][-1][2] == 100                  # benchmark column stays QQQ
@@ -349,7 +351,7 @@ def test_missing_share_after_v6_falls_back_to_normal_and_v5_portfolio_is_carried
     pf["qqq_pct"] = 100                                    # a weak-health day before the outage
     q = qqq(31)
     out = tp.advance(pf, sessions(["AAA"], pct=None), frame({"AAA": [(100, 99.9, 100)]}), q, D[30], fund=q)
-    assert out["qqq_pct"] == tp.SLEEVE_NORMAL
+    assert out["qqq_pct"] == tp.normal_share(S) == 60
     v5 = tp.new_portfolio(S)
     v5["rule"] = tp.PREVIOUS_RULE_IDS[0]
     led = {"rule": v5["rule"], "portfolio": v5, "sessions": {S: {"rule": tr.RULE_ID}}}
@@ -441,3 +443,25 @@ def test_distribution_and_holding_sections_render_from_curve():
     t = tr.holding_html()
     assert "何年持つと何倍か" in t and t.count("<tr>") == 5 and "最悪" in t
     assert tr.month_to_date(None) is None
+
+
+def test_normal_share_by_publication_date():
+    assert tp.normal_share("2026-10-12") == 50                 # v5
+    assert tp.normal_share("2026-10-13") == tp.normal_share("2026-10-28") == 60   # v6
+    assert tp.normal_share("2026-10-29") == tp.SLEEVE_NORMAL == 50           # 2026-10-29 review
+
+
+def test_guard_flag_is_ignored_from_its_retirement():
+    bars = {"AAA": pd.DataFrame({"open": [100.0, 100.0], "low": [100.0, 100.0], "close": [100.0, 100.0]},
+                                index=pd.to_datetime(["2026-10-29", "2026-10-30"]))}
+    pf = tp.new_portfolio("2026-10-28")
+    pf["cash"], pf["positions"] = 0.2, {"AAA": {"signal": "2026-10-20", "entry_day": "2026-10-21", "entry": 100.0, "stop": 92.0,
+                                                "shares": 0.008, "invested": 0.8, "adds": 0, "unit": 0.8, "triggered": [],
+                                                "pending_add": 0, "pending_exit": False, "ema": 90.0, "last": 100.0, "days": 5}}
+    q = {"open": 100.0, "close": 100.0}
+    tp.step(pf, "2026-10-29", "2026-10-28", q, {"regime": "on", "best": [], "qqq_pct": 60, "guard": True}, bars, q)
+    assert pf.get("trims")                                  # published 10/28: still the old rule
+    pf2 = tp.new_portfolio("2026-10-29")
+    pf2["cash"], pf2["positions"] = 0.2, {"AAA": dict(pf["positions"]["AAA"], shares=0.008, invested=0.8)}
+    tp.step(pf2, "2026-10-30", "2026-10-29", q, {"regime": "on", "best": [], "qqq_pct": 50, "guard": True}, bars, q)
+    assert not pf2.get("trims")                             # published 10/29 or later: ignored

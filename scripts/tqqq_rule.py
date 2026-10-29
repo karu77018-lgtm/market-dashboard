@@ -4,35 +4,35 @@ Display + ledger only.  It never changes MC57, V38, Massive, FRED or publication
 logic; it only reads inputs the refresh already acquired (data/market_inputs.json:
 QQQ / TQQQ / ^VIX / GC=F daily rows and FRED BAMLH0A0HYM2).
 
-Rule (validated offline 2000-2026, see Rules tab section 9):
+Rule (2026-10-29 robust version; sessions from 2026-10-29 on, frozen ledger days before it
+keep the rule they were published with):
 
-* two halves on QQQ signals, executed in TQQQ
-  - 切替型 (switch): hold while QQQ > 200-day line, or QQQ > EMA21 with EMA21 rising
-    (5 days); out of trend, buy capitulation rebounds (VIX>=28 in the last 10 days
-    and VIX below its 5-day mean and QQQ up, or volume > 1.5x the 20-day mean,
-    close in the upper half and QQQ > 8% below its 20-day high) for at most
-    15 days / -15% on TQQQ
-  - 改良案 (hold): always hold
-  - both size by TQQQ 20-day realized vol: min(1, 100% / vol)
-  - emergency mode (switch: QQQ <= -15% from its 52-week high or -10% in 10 days;
-    hold: -25%): weight = trend-on x min(1, 1 + drawdown / 30%) x min(1, 70% / vol).
-    Leaves on golden cross (50 > 200-day), on a return near the high (switch -5%,
-    hold -10%), or when the HY spread is below its 40-day mean and 10% below its
-    10-day high
-* target = 0.625 x switch + 0.375 x hold, in 25% steps (moves only when the raw
-  target is >= 0.75 step away), 0% while QQQ is > 35% above its 200-day line until
-  it cools below +10% (overheat alarm), at most 25% while the HY spread is above
-  1.1 x its 40-day mean
-* 大底フル (2026-10-18): on the 底アラート 大 day (VIX+2σ then the VIX-high WMA5/10
-  crossunder) when the VIX close was under 20 within the last 30 sessions (a fresh
-  shock, not a long credit-type fear), TQQQ 100% and the idle-money sleeve 100% for
-  that day and the next 20 sessions, whatever the other parts say.  Local test of the
-  rule alone: 2000-12 10.4% -> 17.3% a year, 2013-26 48.5% -> 51.7% (max DD -56% both,
-  -51% -> -56% in 2013-26); whole v6 system 2015-26 57.3% -> 65.8%, max DD -37.1% -> -44.9%.
+* QQQ signals, executed in TQQQ (the old 改良案 "always hold" half and the capitulation-rebound
+  hold were dropped on 2026-10-29; see below)
+  - hold while QQQ > 200-day line, or QQQ > EMA21 with EMA21 rising (5 days)
+  - size by TQQQ 20-day realized vol: min(1, 100% / vol)
+  - emergency mode: QQQ <= -15% from its 52-week high or -10% in 10 days ->
+    weight = trend-on x min(1, 1 + drawdown / 25%) x min(1, 70% / vol).
+    Leaves on golden cross (50 > 200-day) or a return near the high (-5%).  The HY-spread
+    early exit (①) was dropped on 2026-10-29
+* target in 25% steps (moves only when the raw target is >= 0.75 step away), 0% while QQQ
+  is > 35% above its 200-day line until it cools below +10% (overheat alarm), at most 25%
+  while the HY spread is above 1.075 x its 40-day mean (1.10 until 2026-10-28)
+* 大底フル (2026-10-18; 30 sessions from 2026-10-29, 20 before): on the 底アラート 大 day
+  (VIX+2σ then the VIX-high WMA5/10 crossunder) when the VIX close was under 20 within the
+  last 30 sessions (a fresh shock, not a long credit-type fear), TQQQ 100% and the
+  idle-money sleeve 100% for that day and the next 30 sessions, whatever the other parts say.
 * money not in TQQQ: cash (no gold, no T-bills; decided 2026-10-18, traded from the
-  2026-10-19 open).  Until then: gold while gold's 126-day return was positive, else
-  T-bills.  Re-check of the rule alone, 2015-01..2026-08: 46.0% a year / max DD -49.5%
-  with gold/T-bills, 44.8% / -51.0% with cash.
+  2026-10-19 open).
+
+2026-10-29 robustness review (local, 2000-03..2026-10, synthetic TQQQ before 2010, next-open
+fills): every parameter jittered +-25% at once, 80-200 draws.  The 10/18 rule sat in the top
+4% of its own neighbourhood (34.3% a year as published, 29.3% median when jittered).  The
+256 on/off combinations of its parts were ranked by the jittered median; the version above
+(capitulation hold, HY early exit and the hold half dropped) ranked 6th in 2013-26 when chosen
+on 2000-12 only, and 9th the other way round.  Centres moved only where fits on both halves
+agreed (HY cap 1.075x, 大底フル 30 days, emergency scale 25%).  Jittered median 2000-26:
+29.3% / max DD -60.0% -> 34.4% / -47.3%, better in 2000-09, 2010-17 and 2018-26.
 
 State machines (emergency modes, capitulation hold, overheat alarm, 25% step) are
 carried day to day in the ledger (track-record/tqqq-rule.json), so a short input
@@ -57,10 +57,15 @@ CARD_ID = "tqqq-rule-card"
 RULE_NAME = "TQQQルール"
 CASH_ONLY_FROM = "2026-10-19"  # first session traded with the money outside TQQQ held as plain cash
 STEP = 0.25
-W_SWITCH, W_HOLD = 0.625, 0.375
+W_SWITCH, W_HOLD = 1.0, 0.0   # 2026-10-29: the 改良案 (always hold) half dropped (was 0.625 / 0.375)
 STATE_KEYS = ("cap_on", "cap_d", "cap_ent", "md_switch", "md_hold", "alarm", "cur", "full")
-FULL_DAYS = 20       # 大底フル: sessions after the trigger day
+FULL_DAYS = 30       # 大底フル: sessions after the trigger day (20 until 2026-10-28)
 FEAR_MAX = 30        # ... only if the VIX close was under 20 within this many sessions
+HY_WIDE = 1.075      # HY OAS above this x its 40-day mean caps TQQQ at 25% (1.10 until 2026-10-28)
+EMERG_SCALE = 0.25   # emergency weight = 1 + drawdown / EMERG_SCALE (0.30 until 2026-10-28)
+USE_CAPITULATION = False  # capitulation-rebound hold (dropped 2026-10-29)
+USE_HY_CALM = False       # ① HY early exit from emergency mode (dropped 2026-10-29)
+SIMPLIFIED_FROM = "2026-10-29"  # first session computed with the 2026-10-29 rule
 
 
 def _sma(x: np.ndarray, n: int) -> np.ndarray:
@@ -95,7 +100,7 @@ def indicators(qo, qh, ql, qc, qv, tqc, vix, hy, gold) -> dict[str, np.ndarray]:
         hy_ma = _sma(hy, 40)
         hy_max10 = pd.Series(hy).rolling(10).max().to_numpy()
         hy_calm = (hy < hy_ma) & (hy < hy_max10 * 0.9)
-        hy_wide = hy > hy_ma * 1.10
+        hy_wide = hy > hy_ma * HY_WIDE
         d200 = qc / s200 - 1
         gold_up = np.nan_to_num(gold / _shift(gold, 126) - 1) > 0
     return {"rfast": rfast, "vol": vol, "dd52": dd52, "ret10": ret10, "cap": cap_vix | cap_vol,
@@ -120,7 +125,7 @@ def run(ind: dict[str, np.ndarray], start: int = 0, state: dict | None = None) -
     for i in range(start, n):
         vol, dd, rf = ind["vol"][i], ind["dd52"][i], bool(ind["rfast"][i])
         vt = min(1.0, 1.0 / vol) if vol > 0 else 0.0
-        emerg = (min(1.0, max(0.0, 1 + dd / 0.30)) * min(1.0, 0.7 / vol)) if rf and vol > 0 else 0.0
+        emerg = (min(1.0, max(0.0, 1 + dd / EMERG_SCALE)) * min(1.0, 0.7 / vol)) if rf and vol > 0 else 0.0
         # capitulation hold (switch half only, outside trend)
         if rf:
             st["cap_on"], cap_hold = False, False
@@ -131,10 +136,12 @@ def run(ind: dict[str, np.ndarray], start: int = 0, state: dict | None = None) -
                 if st["cap_d"] > 15 or ind["tqc"][i] < st["cap_ent"] * (1 - 0.15):
                     st["cap_on"], ended = False, True
             # no new entry on the bar a hold expired or was stopped (keeps the 15-day / -15% limits)
-            if not st["cap_on"] and not ended and bool(ind["cap"][i]):
+            if USE_CAPITULATION and not st["cap_on"] and not ended and bool(ind["cap"][i]):
                 st["cap_on"], st["cap_d"], st["cap_ent"] = True, 0, float(ind["tqc"][i])
+            if not USE_CAPITULATION:
+                st["cap_on"] = False
             cap_hold = st["cap_on"]
-        calm = bool(ind["hy_calm"][i])
+        calm = USE_HY_CALM and bool(ind["hy_calm"][i])
         golden = bool(ind["golden"][i])
         # emergency modes
         trig_s = dd <= -0.15 or ind["ret10"][i] <= -0.10
@@ -438,7 +445,7 @@ def summary_words(rec: dict) -> tuple[str, str]:
         return "過熱警報（0%）", "off"
     if rec.get("hy_wide"):
         return "信用スプレッド拡大（上限25%）", "warn"
-    if rec.get("md_switch") or rec.get("md_hold"):
+    if rec.get("md_switch"):
         return "緊急モード", "warn"
     return "平時", "on"
 
@@ -462,12 +469,11 @@ def total_split(rec: dict, sleeve_pct: int, stock: float) -> tuple[float, float,
 
 
 # 振り落とし注意 (display only, never changes an order): the rule-run model's equity up more
-# than 50% over 60 sessions.  Local backtest of the current rule (v6 + 大底フル + 守りモード +
-# 利益保護 + hysteresis, cash outside TQQQ), 2015-01..2026-07: a -12% or deeper fall within 20
-# sessions on 17% of those days vs 12% otherwise (13% / 18% in 2015-20 / 2021-26), median fall
-# within 20 sessions -4.1% vs -3.0%, yet the median 60-session return after it was +20.9% vs
-# +11.9% -> brace, do not sell.  (The v6-only run of 10/18 read 27% vs 11%: 守りモード and
-# 利益保護 took most of the post-surge drops, so the warning is weaker now.)
+# than 50% over 60 sessions.  Local backtest of the current rule (2026-10-29 version: TQQQ rule
+# switch half only + 大底フル 30 days, sleeve 50% / 100%, 利益保護, no 守りモード, cash outside
+# TQQQ), 2015-01..2026-10: a -12% or deeper fall within 20 sessions on 14% of those days vs 9%
+# otherwise, median fall within 20 sessions -3.8% vs -2.2%, yet the median 60-session return
+# after it was +19.9% vs +9.3% -> brace, do not sell.  (10/18 rule: 17% vs 12%, +20.9% vs +11.9%.)
 SURGE_DAYS = 60
 SURGE_LIMIT = 0.50
 SURGE_SEED = Path("track-record/surge-seed.json")  # backtest equity before the model's first day
@@ -520,8 +526,8 @@ def surge_html(state: dict | None) -> str:
         return (f'<div class="tqr-surge tqr-surge-off" data-surge="off">振り落とし注意：なし'
                 f'（ルール運用の資産 {SURGE_DAYS}営業日で{pct}・基準+{SURGE_LIMIT * 100:.0f}%超）{note}</div>')
     return (f'<div class="tqr-surge tqr-surge-on" data-surge="on"><b>振り落とし注意</b>：ルール運用の資産が{SURGE_DAYS}営業日で'
-            f'<b>{pct}</b>（+{SURGE_LIMIT * 100:.0f}%超）。過去はこのあと20日以内に−12%以上下がる確率17%（普段12%）。'
-            'ただし60日後の中央値は+20.9%（普段+11.9%）で、<b>売る合図ではない</b>。ルールどおり続け、下げても慌てない。'
+            f'<b>{pct}</b>（+{SURGE_LIMIT * 100:.0f}%超）。過去はこのあと20日以内に−12%以上下がる確率14%（普段9%）。'
+            'ただし60日後の中央値は+19.9%（普段+9.3%）で、<b>売る合図ではない</b>。ルールどおり続け、下げても慌てない。'
             f'{note}</div>')
 
 
@@ -556,8 +562,8 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
                 'そろわないため今日の目標を出していません。前日の比率のまま。</div></div>')
     word, cls = summary_words(rec)
     pct = sleeve_pct if sleeve_pct in SLEEVE_SHARES and sleeve_pct else SLEEVE_NORMAL
-    pick = (f'ブレイク成功度で{SLEEVE_NORMAL}%か{SLEEVE_WEAK}%' if pct != 50 else
-            f'10月12日の公開分までの通常は50%。10月13日の公開分から{SLEEVE_NORMAL}%（不調なら{SLEEVE_WEAK}%）')
+    pick = (f'ブレイク成功度で{SLEEVE_NORMAL}%か{SLEEVE_WEAK}%' if pct in (SLEEVE_NORMAL, SLEEVE_WEAK) else
+            f'10月13〜28日の公開分の通常は{pct}%。10月29日の公開分から{SLEEVE_NORMAL}%（不調なら{SLEEVE_WEAK}%）')
     tgt = float(rec.get("target") or 0)
     stale = (f'<div class="tqr-stale">{e(session)}の入力が欠けたため、{e(day or "")}の判定のままです。</div>'
              if session and day and day < session else "")
@@ -603,11 +609,9 @@ def card_html(day: str | None, rec: dict | None, sleeve_pct: int | None = None, 
              + '</table>')
     checks = [
         ("トレンド", "上" if rec.get("trend") else "下"),
-        ("緊急", "切替型" if rec.get("md_switch") and not rec.get("md_hold") else
-         "両方" if rec.get("md_switch") and rec.get("md_hold") else "改良案" if rec.get("md_hold") else "なし"),
+        ("緊急", "あり" if rec.get("md_switch") else "なし"),
         ("HY OAS", f'{rec.get("hy"):.2f}%' + ("（拡大）" if rec.get("hy_wide") else "") if rec.get("hy") is not None else "—"),
         ("過熱", "警報" if rec.get("alarm") else "なし"),
-        ("投げ売り反発", capitulation_word(rec)),
     ]
     chk = "".join(f'<span class="tqr-chip"><i>{e(k)}</i>{e(v)}</span>' for k, v in checks)
     surge = surge_html(surge_state(holdings))

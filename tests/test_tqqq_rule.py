@@ -87,7 +87,29 @@ def test_update_never_restarts_a_ledger_it_cannot_join():
     assert tq.update(copy.deepcopy(led), gap, DAYS[-1]) == frozen
 
 
-def test_capitulation_hold_does_not_reenter_on_its_exit_bar():
+def test_capitulation_hold_is_retired(monkeypatch):
+    n = 40
+    ind = {"rfast": np.zeros(n, bool), "vol": np.full(n, 0.5), "dd52": np.zeros(n), "ret10": np.zeros(n),
+           "cap": np.ones(n, bool), "golden": np.ones(n, bool), "hy_calm": np.zeros(n, bool),
+           "hy_wide": np.zeros(n, bool), "d200": np.zeros(n), "gold_up": np.zeros(n, bool), "tqc": np.full(n, 100.0)}
+    out, st = tq.run(ind, 0, {"cap_on": True, "cap_d": 3, "cap_ent": 100.0})   # an old hold in the ledger state ends
+    assert not out["cap_hold"].any() and not st["cap_on"] and (out["target"] == 0).all()
+
+
+def test_switch_half_only_and_new_thresholds():
+    assert (tq.W_SWITCH, tq.W_HOLD) == (1.0, 0.0) and tq.FULL_DAYS == 30
+    assert tq.HY_WIDE == 1.075 and tq.EMERG_SCALE == 0.25
+    n = 30
+    ind = {"rfast": np.ones(n, bool), "vol": np.full(n, 0.5), "dd52": np.full(n, -0.20), "ret10": np.zeros(n),
+           "cap": np.zeros(n, bool), "golden": np.zeros(n, bool), "hy_calm": np.ones(n, bool),
+           "hy_wide": np.zeros(n, bool), "d200": np.zeros(n), "gold_up": np.zeros(n, bool), "tqc": np.full(n, 100.0)}
+    out, _ = tq.run(ind)
+    # emergency (-20% from the high): 1 - 0.20/0.25 = 0.2 -> the 25% step; the HY calm no longer ends it
+    assert out["md_switch"].all() and (out["target"] == 0.25).all()
+
+
+def test_capitulation_hold_does_not_reenter_on_its_exit_bar(monkeypatch):
+    monkeypatch.setattr(tq, "USE_CAPITULATION", True)       # the retired part still behaves as before
     n = 40
     ind = {"rfast": np.zeros(n, bool), "vol": np.full(n, 0.5), "dd52": np.zeros(n), "ret10": np.zeros(n),
            "cap": np.zeros(n, bool), "golden": np.ones(n, bool), "hy_calm": np.zeros(n, bool),
@@ -292,16 +314,16 @@ def test_surge_uses_backtest_seed_until_the_model_has_60_sessions():
     assert tq.surge_state({"equity": full, "surge_seed": seed})["seeded_to"] is None
 
 
-def test_full_bottom_runs_21_sessions_only_after_a_fresh_shock():
+def test_full_bottom_runs_31_sessions_only_after_a_fresh_shock():
     n = 40
     ind = {"rfast": np.zeros(n, bool), "vol": np.full(n, 0.6), "dd52": np.full(n, -0.3), "ret10": np.zeros(n),
            "cap": np.zeros(n, bool), "golden": np.zeros(n, bool), "hy_calm": np.zeros(n, bool),
            "hy_wide": np.ones(n, bool), "d200": np.zeros(n), "gold_up": np.zeros(n, bool), "tqc": np.full(n, 100.0)}
     big = np.zeros(n, bool); big[5] = True
     out, st = tq.run({**ind, "big": big, "fear_age": np.full(n, 12.0)})
-    assert out["full"][5:26].all() and not out["full"][:5].any() and not out["full"][26:].any()
-    assert (out["target"][5:26] == 1.0).all() and out["target"][26] <= 0.25      # HY cap again afterwards
-    assert out["full_left"][5] == 21 and st["full"] == 0
+    assert out["full"][5:36].all() and not out["full"][:5].any() and not out["full"][36:].any()
+    assert (out["target"][5:36] == 1.0).all() and out["target"][36] <= 0.25      # HY cap again afterwards
+    assert out["full_left"][5] == 31 and st["full"] == 0
     old, _ = tq.run({**ind, "big": big, "fear_age": np.full(n, 31.0)})          # long fear: no full
     assert not old["full"].any()
     # incremental runs carry the countdown through the ledger state
@@ -318,6 +340,7 @@ def test_full_bottom_words_and_sleeve_share():
     assert word.startswith("大底フル") and "あと20営業日" in word and cls == "on"
     assert bh.allocation({"on": True}, {"on": True}, "2026-10-20", full=True)[0] == 100
     assert bh.allocation({"on": True}, {"on": True}, "2026-10-20", full=False)[0] == 60
+    assert bh.allocation({"on": True}, {"on": True}, "2026-10-29", full=False)[0] == 50
 
 
 def test_full_bottom_active_reads_the_session_not_a_later_day(tmp_path):
@@ -339,4 +362,4 @@ def test_capitulation_chip_states():
     assert tq.capitulation_word({**rec, 'hy_wide': True}).endswith('（上限25%）')
     assert tq.capitulation_word({**rec, 'md_switch': True}).endswith('（緊急モード優先）')
     out = tq.card_html('2026-10-19', {'target': .25, 'gold': 0, 'trend': True}, 100, top=True, stock=0.0)
-    assert '投げ売り反発' in out and '対象外（トレンド上）' in out
+    assert '投げ売り反発' not in out and '改良案' not in out          # retired parts are not shown on the card
