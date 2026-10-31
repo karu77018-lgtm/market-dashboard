@@ -1,7 +1,7 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
   "coverage": 0.9696813977389517,
-  "generated_at": "2026-10-30T22:40:12Z",
+  "generated_at": "2026-10-31T01:04:29Z",
   "mc57": 25.92683434860435,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
@@ -255,10 +255,10 @@
     "incremental_cache_used": true,
     "requested": 3892,
     "target_session_coverage": 0.9696813977389517,
-    "target_session_fresh": 3774,
+    "target_session_fresh": 0,
     "target_session_massive_substitute": 0,
     "target_session_received": 3774,
-    "target_session_same_day_cache": 0,
+    "target_session_same_day_cache": 3774,
     "yahoo_circuit_open": false
   }
 }
