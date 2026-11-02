@@ -1,0 +1,14 @@
+{
+  "code_sha": "7ddbcfdbca0aae9187cb4b03e930349a6152ed85",
+  "copy_status": "success",
+  "github_run_attempt": 1,
+  "github_run_id": "41544101328",
+  "manifest_sha256": "f29c24e9eaaa40b716baeee47e287f981de44a7cd98ffa7f518ee137f238a9e6",
+  "month": "2026-11",
+  "preservation_reference": "1n-liQnFMTB6Cqz_3IRK4ytjZWZAzt7Zn",
+  "preservation_source": "google_drive_live",
+  "schema_version": "phase-a0-monthly-full-v1",
+  "session_date": "2026-11-02",
+  "snapshot_mode": "full",
+  "snapshot_sha256": "a2265fcf9232f1c9315d71f1c26fb18ea310ceda19bd811bba7c245e35acdc81"
+}
