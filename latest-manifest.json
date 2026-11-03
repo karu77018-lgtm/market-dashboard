@@ -1,7 +1,7 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
   "coverage": 1.0,
-  "generated_at": "2026-11-03T03:05:50Z",
+  "generated_at": "2026-11-03T12:57:43Z",
   "mc57": 22.284353265634813,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
@@ -12,15 +12,15 @@
   "positions_status": "DATA_REQUIRED",
   "provider_status": {
     "adopted_universe_count": 3892,
-    "cross_vendor_coverage": null,
-    "current_session_provider": "Yahoo Finance",
+    "cross_vendor_coverage": 0.9683967112024666,
+    "current_session_provider": "Massive",
     "fred": "READY",
     "fred_required_coverage": 1.0,
-    "massive": "FALLBACK_YAHOO",
+    "massive": "READY",
     "massive_confirmation": "scheduled",
-    "massive_current_coverage": null,
-    "missing_current_rows": 0,
-    "publication_state": "provisional",
+    "massive_current_coverage": 0.9683967112024666,
+    "missing_current_rows": 123,
+    "publication_state": "confirmed",
     "universe_shortfall": 0,
     "universe_target": 3892,
     "yahoo_substitute": null
@@ -86,16 +86,18 @@
     "legacy_universe": 3304,
     "malformed_rows": 0,
     "massive_broad_expansion": 549,
-    "massive_current_coverage": 0.0,
-    "massive_current_covered": 0,
-    "massive_current_missing": 3892,
+    "massive_current_coverage": 0.9683967112024666,
+    "massive_current_covered": 3769,
+    "massive_current_missing": 123,
     "massive_grouped": {
-      "fetched_sessions": [],
-      "latest_session": "2026-10-30",
-      "reason": "provider request rejected: https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/2026-11-02 (status=403)",
+      "fetched_sessions": [
+        "2026-11-02"
+      ],
+      "latest_eligible_rows": 5531,
+      "latest_session": "2026-11-02",
       "requested_sessions": 20,
       "sessions": 20,
-      "status": "YAHOO_FALLBACK"
+      "status": "READY"
     },
     "massive_reference": {
       "asof_date": "2026-10-28",
@@ -137,10 +139,10 @@
     "incremental_cache_used": true,
     "requested": 3892,
     "target_session_coverage": 1.0,
-    "target_session_fresh": 103,
+    "target_session_fresh": 0,
     "target_session_massive_substitute": 0,
     "target_session_received": 3892,
-    "target_session_same_day_cache": 3789,
+    "target_session_same_day_cache": 3892,
     "yahoo_circuit_open": false
   }
 }
