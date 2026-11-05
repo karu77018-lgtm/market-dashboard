@@ -1,0 +1,19 @@
+{
+  "available_at": "2026-11-05T13:46:37.001Z",
+  "code_sha": "2f093f0f2b7aa146995963906f81233b576f1e2b",
+  "copy_status": "success",
+  "drive_created_at": "2026-11-05T13:46:37.001Z",
+  "drive_file_id": "1JSBMM3e2st7YMRY8KB3mj_aTOWgiJ4lx",
+  "drive_file_name": "snapshot-2026-11-04-42035564675-52f2f80eedb0.tar.gz",
+  "github_actions_started_at": "2026-11-05T13:25:02Z",
+  "github_run_attempt": 1,
+  "github_run_id": "42035564675",
+  "manifest_sha256": "ca6a872d163e04c6163d97181e324f8ef365c954b07dda763ac52c548b5c4e87",
+  "recorded_at": "2026-11-05T13:46:17Z",
+  "repository": "karu77018-lgtm/market-dashboard",
+  "session_date": "2026-11-04",
+  "sha256": "52f2f80eedb03be8894287f3a334997e8c643b6181eb3199192ee2d2a5905353",
+  "snapshot_mode": "delta",
+  "source": "google_drive_live",
+  "workflow_ref": "karu77018-lgtm/market-dashboard/.github/workflows/refresh-source-mc57.yml@refs/heads/main"
+}
