@@ -24,7 +24,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 21.94,
-   "ret": 0.1392
+   "ret": 0.1172
   },
   "2026-10-15:SG": {
    "ticker": "SG",
@@ -34,8 +34,8 @@
    "rs": 91,
    "eps_state": "worse",
    "status": "保有中",
-   "peak": 11.8,
-   "ret": 0.0896
+   "peak": 12.01,
+   "ret": 0.133
   },
   "2026-10-20:BRZE": {
    "ticker": "BRZE",
@@ -46,7 +46,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 46.1,
-   "ret": 0.0053
+   "ret": 0.0048
   },
   "2026-10-21:APPN": {
    "ticker": "APPN",
@@ -57,7 +57,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 54.03,
-   "ret": 0.1088
+   "ret": 0.0589
   },
   "2026-10-22:HURN": {
    "ticker": "HURN",
@@ -68,7 +68,7 @@
    "eps_state": "na",
    "status": "保有中",
    "peak": 198.48,
-   "ret": -0.0911
+   "ret": -0.1372
   },
   "2026-10-22:KSS": {
    "ticker": "KSS",
@@ -79,7 +79,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 25.36,
-   "ret": -0.0355
+   "ret": -0.0702
   },
   "2026-10-23:INTA": {
    "ticker": "INTA",
@@ -90,7 +90,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 47.99,
-   "ret": -0.0811
+   "ret": -0.0889
   },
   "2026-10-23:NTSK": {
    "ticker": "NTSK",
@@ -101,7 +101,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 26.52,
-   "ret": -0.1075
+   "ret": -0.1227
   },
   "2026-10-28:ABSI": {
    "ticker": "ABSI",
@@ -112,7 +112,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 12.1,
-   "ret": -0.2096
+   "ret": -0.1439
   },
   "2026-10-28:REPL": {
    "ticker": "REPL",
@@ -122,8 +122,8 @@
    "rs": 99,
    "eps_state": "better",
    "status": "保有中",
-   "peak": 20.69,
-   "ret": 0.2466
+   "peak": 21.62,
+   "ret": 0.3462
   },
   "2026-11-05:CERT": {
    "ticker": "CERT",
@@ -134,6 +134,17 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 12.18,
+   "ret": -0.0107
+  },
+  "2026-11-06:U": {
+   "ticker": "U",
+   "session": "2026-11-06",
+   "entry": 51.49,
+   "depth": 0.6537,
+   "rs": 94,
+   "eps_state": "turn",
+   "status": "保有中",
+   "peak": 51.49,
    "ret": 0.0
   }
  }

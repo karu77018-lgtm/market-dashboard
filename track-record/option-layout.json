@@ -4621,7 +4621,8 @@
      "pw": 600.0,
      "pwp": -0.013320137989041525,
      "gf": 603.84,
-     "gfp": -0.0070000903933048475
+     "gfp": -0.0070000903933048475,
+     "r20": -0.26157
     },
     {
      "t": "BE",
@@ -4636,7 +4637,8 @@
      "pw": 260.0,
      "pwp": -0.07308377896613194,
      "gf": 267.79,
-     "gfp": -0.04532433809662706
+     "gfp": -0.04532433809662706,
+     "r20": -0.38239
     },
     {
      "t": "DELL",
@@ -4651,7 +4653,8 @@
      "pw": 550.0,
      "pwp": -0.06152953231548364,
      "gf": 528.34,
-     "gfp": -0.09849495404568953
+     "gfp": -0.09849495404568953,
+     "r20": -0.43943
     },
     {
      "t": "ANET",
@@ -4666,7 +4669,8 @@
      "pw": 210.0,
      "pwp": -0.031097191669014146,
      "gf": 196.93,
-     "gfp": -0.09139046381402416
+     "gfp": -0.09139046381402416,
+     "r20": -0.21196
     },
     {
      "t": "HPE",
@@ -4681,7 +4685,8 @@
      "pw": 70.0,
      "pwp": -0.047100450960991136,
      "gf": 57.65,
-     "gfp": -0.21527102423560884
+     "gfp": -0.21527102423560884,
+     "r20": -0.39055
     },
     {
      "t": "MRNA",
@@ -4697,7 +4702,8 @@
      "pw": 180.0,
      "pwp": -0.19999999999999996,
      "gf": 178.2,
-     "gfp": -0.20801497323584273
+     "gfp": -0.20801497323584273,
+     "r20": 0.12973
     },
     {
      "t": "MRVL",
@@ -4713,7 +4719,8 @@
      "pw": 250.0,
      "pwp": -0.09183376522594677,
      "gf": 248.25,
-     "gfp": -0.0982008474886703
+     "gfp": -0.0982008474886703,
+     "r20": -0.48707
     },
     {
      "t": "LITE",
@@ -4729,7 +4736,8 @@
      "pw": 1000.0,
      "pwp": -0.09367337103498696,
      "gf": 1022.96,
-     "gfp": -0.07286657304677979
+     "gfp": -0.07286657304677979,
+     "r20": -0.51186
     },
     {
      "t": "CRWD",
@@ -4744,7 +4752,8 @@
      "pw": 255.0,
      "pwp": -0.07286215794909989,
      "gf": 254.96,
-     "gfp": -0.07302303630315332
+     "gfp": -0.07302303630315332,
+     "r20": -0.21139
     },
     {
      "t": "PANW",
@@ -4759,7 +4768,8 @@
      "pw": 390.0,
      "pwp": -0.06872343202442277,
      "gf": 382.58,
-     "gfp": -0.08644089842077007
+     "gfp": -0.08644089842077007,
+     "r20": -0.25059
     },
     {
      "t": "VLO",
@@ -4774,7 +4784,8 @@
      "pw": 400.0,
      "pwp": -0.0778097982708934,
      "gf": 403.65,
-     "gfp": -0.06939076445714054
+     "gfp": -0.06939076445714054,
+     "r20": -0.20127
     },
     {
      "t": "SMTC",
@@ -4789,7 +4800,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.44896
     },
     {
      "t": "TER",
@@ -4804,7 +4816,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.45809
     },
     {
      "t": "COHU",
@@ -4819,7 +4832,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.43555
     },
     {
      "t": "FORM",
@@ -4834,7 +4848,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.4192
     },
     {
      "t": "IOVA",
@@ -4849,7 +4864,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.45007
     },
     {
      "t": "IBRX",
@@ -4864,7 +4880,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.1784
     },
     {
      "t": "TXG",
@@ -4879,7 +4896,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.26497
     },
     {
      "t": "QMCO",
@@ -4894,7 +4912,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.5244
     },
     {
      "t": "PENG",
@@ -4909,7 +4928,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.45163
     },
     {
      "t": "KOD",
@@ -4924,7 +4944,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.00571
     },
     {
      "t": "CDNA",
@@ -4939,7 +4960,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.23386
     },
     {
      "t": "PLSE",
@@ -4954,7 +4976,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.00966
     },
     {
      "t": "CORT",
@@ -4969,7 +4992,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.39954
     },
     {
      "t": "ABCL",
@@ -4984,7 +5008,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.05301
     },
     {
      "t": "ABSI",
@@ -4999,7 +5024,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.00098
     },
     {
      "t": "FSLY",
@@ -5014,7 +5040,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.45904
     },
     {
      "t": "ECO",
@@ -5029,7 +5056,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.10579
     },
     {
      "t": "CLMT",
@@ -5044,7 +5072,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.29741
     },
     {
      "t": "RNG",
@@ -5059,7 +5088,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.09083
     },
     {
      "t": "PBF",
@@ -5074,7 +5104,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.20173
     },
     {
      "t": "FRO",
@@ -5089,7 +5120,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.19037
     },
     {
      "t": "MPC",
@@ -5104,7 +5136,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.18085
     },
     {
      "t": "INSW",
@@ -5119,7 +5152,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.18194
     },
     {
      "t": "FTNT",
@@ -5134,7 +5168,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.38978
     },
     {
      "t": "DK",
@@ -5149,7 +5184,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.14173
     },
     {
      "t": "OKTA",
@@ -5164,7 +5200,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.2733
     },
     {
      "t": "CVI",
@@ -5179,7 +5216,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.34281
     },
     {
      "t": "DINO",
@@ -5194,7 +5232,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.19885
     },
     {
      "t": "LIND",
@@ -5209,7 +5248,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.05137
     },
     {
      "t": "P",
@@ -5224,7 +5264,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.37375
     },
     {
      "t": "AMN",
@@ -5239,7 +5280,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.00904
     },
     {
      "t": "TH",
@@ -5254,7 +5296,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.38294
     },
     {
      "t": "NTAP",
@@ -5269,7 +5312,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.28657
     },
     {
      "t": "DDOG",
@@ -5284,7 +5328,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.38948
     },
     {
      "t": "VSTS",
@@ -5299,7 +5344,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.00495
     },
     {
      "t": "LPG",
@@ -5314,7 +5360,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.1924
     },
     {
      "t": "ACHC",
@@ -5329,7 +5376,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.26496
     },
     {
      "t": "PARR",
@@ -5344,7 +5392,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.16889
     },
     {
      "t": "TWLO",
@@ -5359,7 +5408,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.3021
     },
     {
      "t": "HNGE",
@@ -5374,7 +5424,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.12498
     },
     {
      "t": "DHT",
@@ -5389,7 +5440,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.16071
     },
     {
      "t": "SM",
@@ -5404,7 +5456,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.19135
     }
    ]
   },
@@ -18385,6 +18438,626 @@
      "t": "FIGS",
      "role": "RS上位",
      "close": 20.209999084472656,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    }
+   ]
+  },
+  "2026-11-06": {
+   "rows": [
+    {
+     "t": "MRNA",
+     "role": "次の候補",
+     "close": 254.19000244140625,
+     "ok": false,
+     "why": [
+      "上値の壁が近い（+2.3%）",
+      "支えが遠い（−21.3%）"
+     ],
+     "cw": 260.0,
+     "cwp": 0.022856908229240913,
+     "pw": 200.0,
+     "pwp": -0.21318699366981464,
+     "gf": 213.64,
+     "gfp": -0.1595081171167999
+    },
+    {
+     "t": "BRZE",
+     "role": "好位置",
+     "close": 45.790000915527344,
+     "ok": false,
+     "why": [
+      "上値の壁が近い（+3.7%）"
+     ],
+     "cw": 47.5,
+     "cwp": 0.03734437759953835,
+     "pw": 45.0,
+     "pwp": -0.017252694905700583,
+     "gf": 44.6,
+     "gfp": -0.02601810937491511
+    },
+    {
+     "t": "KOD",
+     "role": "RS上位",
+     "close": 99.3000030517578,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "CDNA",
+     "role": "RS上位",
+     "close": 78.55999755859375,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "ETON",
+     "role": "RS上位",
+     "close": 56.459999084472656,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "ABSI",
+     "role": "RS上位",
+     "close": 10.170000076293944,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "HNGE",
+     "role": "RS上位",
+     "close": 115.76000213623048,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "ORKA",
+     "role": "RS上位",
+     "close": 102.86000061035156,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "XNCR",
+     "role": "RS上位",
+     "close": 35.75,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "ANDG",
+     "role": "RS上位",
+     "close": 65.0,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "SYRE",
+     "role": "RS上位",
+     "close": 103.86000061035156,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "REPL",
+     "role": "RS上位",
+     "close": 21.6200008392334,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "ACHC",
+     "role": "RS上位",
+     "close": 37.0,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "PRCH",
+     "role": "RS上位",
+     "close": 19.729999542236328,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "PLSE",
+     "role": "RS上位",
+     "close": 53.290000915527344,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "MGNI",
+     "role": "RS上位",
+     "close": 27.38999938964844,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "NAVN",
+     "role": "RS上位",
+     "close": 25.479999542236328,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "AMPL",
+     "role": "RS上位",
+     "close": 16.700000762939453,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "HUM",
+     "role": "RS上位",
+     "close": 433.739990234375,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "SDGR",
+     "role": "RS上位",
+     "close": 29.81999969482422,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "KNSA",
+     "role": "RS上位",
+     "close": 93.86000061035156,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "XERS",
+     "role": "RS上位",
+     "close": 15.199999809265137,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "VRNS",
+     "role": "RS上位",
+     "close": 48.79999923706055,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "PVLA",
+     "role": "RS上位",
+     "close": 175.9199981689453,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "FROG",
+     "role": "RS上位",
+     "close": 100.9800033569336,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "RLAY",
+     "role": "RS上位",
+     "close": 18.600000381469727,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "TGTX",
+     "role": "RS上位",
+     "close": 59.82500076293945,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "VAC",
+     "role": "RS上位",
+     "close": 110.41999816894533,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "APPN",
+     "role": "RS上位",
+     "close": 51.59999847412109,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "HAE",
+     "role": "RS上位",
+     "close": 119.93000030517578,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "LFST",
+     "role": "RS上位",
+     "close": 13.770000457763672,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "GKOS",
+     "role": "RS上位",
+     "close": 224.41000366210932,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "TENB",
+     "role": "RS上位",
+     "close": 42.130001068115234,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "ECPG",
+     "role": "RS上位",
+     "close": 114.13999938964844,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "SG",
+     "role": "RS上位",
+     "close": 12.010000228881836,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "FA",
+     "role": "RS上位",
+     "close": 23.530000686645508,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "PD",
+     "role": "RS上位",
+     "close": 15.68000030517578,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "CBRL",
+     "role": "RS上位",
+     "close": 64.80999755859375,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "FLYW",
+     "role": "RS上位",
+     "close": 21.56999969482422,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "SN",
+     "role": "RS上位",
+     "close": 222.9499969482422,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "CHPT",
+     "role": "RS上位",
+     "close": 11.59000015258789,
      "ok": false,
      "why": [
       "オプションなし"
