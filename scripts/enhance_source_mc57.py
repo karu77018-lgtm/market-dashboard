@@ -327,6 +327,11 @@ def main() -> int:
         text = option_layout.run(text, frame, args.session, html_path.resolve().parent, walls_fn=fetch_walls)
     except Exception as exc:
         print(f"option layout skipped: {exc!r}", flush=True)
+    import etf_walls
+    try:  # SOXL/TQQQ/QQQ walls: ledger only (weekly study), never blocks publication
+        etf_walls.run(html_path.resolve().parent, args.session)
+    except Exception as exc:
+        print(f"etf walls skipped: {exc!r}", flush=True)
     from rules_tab import apply as apply_rules_tab
     text = apply_rules_tab(text, regime=regime, health=health)
     import tqqq_rule
