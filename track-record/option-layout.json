@@ -5476,7 +5476,8 @@
      "pw": 580.0,
      "pwp": -0.023963365758603028,
      "gf": 591.04,
-     "gfp": -0.005388876337066639
+     "gfp": -0.005388876337066639,
+     "r20": -0.14415
     },
     {
      "t": "DELL",
@@ -5491,7 +5492,8 @@
      "pw": 550.0,
      "pwp": -0.04639713106409604,
      "gf": 538.95,
-     "gfp": -0.06555912303527245
+     "gfp": -0.06555912303527245,
+     "r20": -0.39956
     },
     {
      "t": "ANET",
@@ -5506,7 +5508,8 @@
      "pw": 210.0,
      "pwp": -0.004173012435681245,
      "gf": 199.52,
-     "gfp": -0.05388831138125327
+     "gfp": -0.05388831138125327,
+     "r20": -0.11718
     },
     {
      "t": "LITE",
@@ -5522,7 +5525,8 @@
      "pw": 950.0,
      "pwp": -0.04561936726540894,
      "gf": 1031.98,
-     "gfp": 0.03673608923405047
+     "gfp": 0.03673608923405047,
+     "r20": -0.40109
     },
     {
      "t": "CRWD",
@@ -5537,7 +5541,8 @@
      "pw": 250.0,
      "pwp": -0.04946583507303981,
      "gf": 255.18,
-     "gfp": -0.029755550220037175
+     "gfp": -0.029755550220037175,
+     "r20": -0.13091
     },
     {
      "t": "PANW",
@@ -5550,7 +5555,8 @@
      "pw": 390.0,
      "pwp": -0.034247052056870286,
      "gf": 381.44,
-     "gfp": -0.055440281666476854
+     "gfp": -0.055440281666476854,
+     "r20": -0.18062
     },
     {
      "t": "HPE",
@@ -5565,7 +5571,8 @@
      "pw": 70.0,
      "pwp": -0.004692191418498859,
      "gf": 60.62,
-     "gfp": -0.138125843267351
+     "gfp": -0.138125843267351,
+     "r20": -0.32404
     },
     {
      "t": "MRNA",
@@ -5580,7 +5587,8 @@
      "pw": 200.0,
      "pwp": -0.0642837332274866,
      "gf": 182.12,
-     "gfp": -0.14793816374656177
+     "gfp": -0.14793816374656177,
+     "r20": 0.25854
     },
     {
      "t": "MRVL",
@@ -5593,7 +5601,8 @@
      "pw": 250.0,
      "pwp": -0.059655405948322415,
      "gf": 245.91,
-     "gfp": -0.07504310931108915
+     "gfp": -0.07504310931108915,
+     "r20": -0.41849
     },
     {
      "t": "VLO",
@@ -5608,7 +5617,8 @@
      "pw": 420.0,
      "pwp": -0.03669724770642202,
      "gf": 408.24,
-     "gfp": -0.06366812300923919
+     "gfp": -0.06366812300923919,
+     "r20": -0.18177
     },
     {
      "t": "MU",
@@ -5624,7 +5634,8 @@
      "pw": 980.0,
      "pwp": -0.0091401543195192,
      "gf": 1005.44,
-     "gfp": 0.01658428313443472
+     "gfp": 0.01658428313443472,
+     "r20": -0.25873
     },
     {
      "t": "LIND",
@@ -5639,7 +5650,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.01463
     },
     {
      "t": "IOVA",
@@ -5654,7 +5666,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.43887
     },
     {
      "t": "IBRX",
@@ -5669,7 +5682,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.29743
     },
     {
      "t": "PENG",
@@ -5684,7 +5698,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.42265
     },
     {
      "t": "CDNA",
@@ -5699,7 +5714,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.33745
     },
     {
      "t": "QMCO",
@@ -5714,7 +5730,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.38241
     },
     {
      "t": "PLSE",
@@ -5729,7 +5746,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.10906
     },
     {
      "t": "KOD",
@@ -5744,7 +5762,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.07898
     },
     {
      "t": "CORT",
@@ -5759,7 +5778,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.38093
     },
     {
      "t": "ECO",
@@ -5774,7 +5794,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.16648
     },
     {
      "t": "ABCL",
@@ -5789,7 +5810,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.01068
     },
     {
      "t": "CLMT",
@@ -5804,7 +5826,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.36925
     },
     {
      "t": "FSLY",
@@ -5819,7 +5842,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.39538
     },
     {
      "t": "FRO",
@@ -5834,7 +5858,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.25173
     },
     {
      "t": "PBF",
@@ -5849,7 +5874,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.18196
     },
     {
      "t": "MPC",
@@ -5864,7 +5890,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.15024
     },
     {
      "t": "RNG",
@@ -5879,7 +5906,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.06895
     },
     {
      "t": "INSW",
@@ -5894,7 +5922,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.22356
     },
     {
      "t": "CVI",
@@ -5909,7 +5938,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.33628
     },
     {
      "t": "DK",
@@ -5924,7 +5954,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.15945
     },
     {
      "t": "DINO",
@@ -5939,7 +5970,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.18835
     },
     {
      "t": "OKTA",
@@ -5954,7 +5986,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.21803
     },
     {
      "t": "FTNT",
@@ -5969,7 +6002,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.36524
     },
     {
      "t": "COHU",
@@ -5984,7 +6018,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.33446
     },
     {
      "t": "AMN",
@@ -5999,7 +6034,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.03942
     },
     {
      "t": "P",
@@ -6014,7 +6050,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.33784
     },
     {
      "t": "LPG",
@@ -6029,7 +6066,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.21051
     },
     {
      "t": "NTAP",
@@ -6044,7 +6082,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.26386
     },
     {
      "t": "DDOG",
@@ -6059,7 +6098,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.37478
     },
     {
      "t": "TH",
@@ -6074,7 +6114,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.41295
     },
     {
      "t": "PARR",
@@ -6089,7 +6130,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.17457
     },
     {
      "t": "ACHC",
@@ -6104,7 +6146,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.28358
     },
     {
      "t": "DHT",
@@ -6119,7 +6162,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.21587
     },
     {
      "t": "VSTS",
@@ -6134,7 +6178,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.01614
     },
     {
      "t": "HNGE",
@@ -6149,7 +6194,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.16571
     },
     {
      "t": "SM",
@@ -6164,7 +6210,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.22791
     },
     {
      "t": "SMTC",
@@ -6179,7 +6226,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.308
     },
     {
      "t": "TWLO",
@@ -6194,7 +6242,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.26895
     },
     {
      "t": "PSX",
@@ -6209,7 +6258,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": -0.10108
     },
     {
      "t": "CBRL",
@@ -6224,7 +6274,8 @@
      "pw": null,
      "pwp": null,
      "gf": null,
-     "gfp": null
+     "gfp": null,
+     "r20": 0.13977
     }
    ]
   },
@@ -19058,6 +19109,630 @@
      "t": "CHPT",
      "role": "RS上位",
      "close": 11.59000015258789,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    }
+   ]
+  },
+  "2026-11-09": {
+   "rows": [
+    {
+     "t": "MRNA",
+     "role": "次の候補",
+     "close": 269.0,
+     "ok": false,
+     "why": [
+      "上値の壁が近い（+4.1%）",
+      "支えが遠い（−25.7%）"
+     ],
+     "cw": 280.0,
+     "cwp": 0.040892193308550207,
+     "pw": 200.0,
+     "pwp": -0.2565055762081785,
+     "gf": 217.28,
+     "gfp": -0.19226208054885152
+    },
+    {
+     "t": "KOD",
+     "role": "RS上位",
+     "close": 107.0999984741211,
+     "ok": false,
+     "why": [
+      "上値の壁が近い（+2.7%）",
+      "支えが遠い（−25.3%）"
+     ],
+     "cw": 110.0,
+     "cwp": 0.027077512298748108,
+     "pw": 80.0,
+     "pwp": -0.2530345365100014,
+     "gf": 85.2,
+     "gfp": -0.2044477175051962
+    },
+    {
+     "t": "ETON",
+     "role": "RS上位",
+     "close": 64.3499984741211,
+     "ok": false,
+     "why": [
+      "建玉が薄い",
+      "上値の壁が近い（+1.0%）",
+      "支えが遠い（−30.1%）",
+      "境目不明"
+     ],
+     "cw": 65.0,
+     "cwp": 0.010101034052709679,
+     "pw": 45.0,
+     "pwp": -0.3006992841173549,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "CDNA",
+     "role": "RS上位",
+     "close": 84.41999816894531,
+     "ok": false,
+     "why": [
+      "支えが遠い（−46.7%）"
+     ],
+     "cw": 95.0,
+     "cwp": 0.12532577659953859,
+     "pw": 45.0,
+     "pwp": -0.46695094792653435,
+     "gf": 83.86,
+     "gfp": -0.006669935351314771
+    },
+    {
+     "t": "ABSI",
+     "role": "RS上位",
+     "close": 10.800000190734863,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "ABCL",
+     "role": "RS上位",
+     "close": 12.5,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "HNGE",
+     "role": "RS上位",
+     "close": 122.19000244140624,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "XNCR",
+     "role": "RS上位",
+     "close": 38.59000015258789,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "SYRE",
+     "role": "RS上位",
+     "close": 109.0,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "ORKA",
+     "role": "RS上位",
+     "close": 104.55999755859376,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "ANDG",
+     "role": "RS上位",
+     "close": 65.80000305175781,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "REPL",
+     "role": "RS上位",
+     "close": 22.26000022888184,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "ACHC",
+     "role": "RS上位",
+     "close": 38.61000061035156,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "PRCH",
+     "role": "RS上位",
+     "close": 20.63999938964844,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "BRZE",
+     "role": "RS上位",
+     "close": 46.08000183105469,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "OSCR",
+     "role": "RS上位",
+     "close": 32.13999938964844,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "MGNI",
+     "role": "RS上位",
+     "close": 29.040000915527344,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "SDGR",
+     "role": "RS上位",
+     "close": 33.38999938964844,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "PLSE",
+     "role": "RS上位",
+     "close": 58.16999816894531,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "NAVN",
+     "role": "RS上位",
+     "close": 26.07999992370605,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "AMPL",
+     "role": "RS上位",
+     "close": 17.31999969482422,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "SG",
+     "role": "RS上位",
+     "close": 13.359999656677246,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "RLAY",
+     "role": "RS上位",
+     "close": 20.38999938964844,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "XERS",
+     "role": "RS上位",
+     "close": 15.859999656677246,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "HUM",
+     "role": "RS上位",
+     "close": 423.2200012207031,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "PVLA",
+     "role": "RS上位",
+     "close": 174.0800018310547,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "KNSA",
+     "role": "RS上位",
+     "close": 98.76000213623048,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "VAC",
+     "role": "RS上位",
+     "close": 115.12999725341795,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "LFST",
+     "role": "RS上位",
+     "close": 14.600000381469728,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "TGTX",
+     "role": "RS上位",
+     "close": 63.380001068115234,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "FROG",
+     "role": "RS上位",
+     "close": 108.18000030517578,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "GKOS",
+     "role": "RS上位",
+     "close": 238.7400054931641,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "VIA",
+     "role": "RS上位",
+     "close": 42.54999923706055,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "FA",
+     "role": "RS上位",
+     "close": 23.520000457763672,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "RVMD",
+     "role": "RS上位",
+     "close": 200.1499938964844,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "NIQ",
+     "role": "RS上位",
+     "close": 21.420000076293945,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "HAE",
+     "role": "RS上位",
+     "close": 118.20999908447266,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "APPN",
+     "role": "RS上位",
+     "close": 51.150001525878906,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "FIGS",
+     "role": "RS上位",
+     "close": 21.57999992370605,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "CBRL",
+     "role": "RS上位",
+     "close": 66.94999694824219,
+     "ok": false,
+     "why": [
+      "オプションなし"
+     ],
+     "cw": null,
+     "cwp": null,
+     "pw": null,
+     "pwp": null,
+     "gf": null,
+     "gfp": null
+    },
+    {
+     "t": "PD",
+     "role": "RS上位",
+     "close": 15.65999984741211,
      "ok": false,
      "why": [
       "オプションなし"
