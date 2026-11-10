@@ -23,8 +23,8 @@
    "rs": 95,
    "eps_state": "better",
    "status": "保有中",
-   "peak": 21.94,
-   "ret": 0.2165
+   "peak": 22.39,
+   "ret": 0.2621
   },
   "2026-10-15:SG": {
    "ticker": "SG",
@@ -35,7 +35,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 13.36,
-   "ret": 0.2604
+   "ret": 0.2491
   },
   "2026-10-20:BRZE": {
    "ticker": "BRZE",
@@ -45,8 +45,8 @@
    "rs": 97,
    "eps_state": "better",
    "status": "保有中",
-   "peak": 46.1,
-   "ret": 0.0112
+   "peak": 46.24,
+   "ret": 0.0147
   },
   "2026-10-21:APPN": {
    "ticker": "APPN",
@@ -57,7 +57,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 54.03,
-   "ret": 0.0497
+   "ret": 0.0743
   },
   "2026-10-22:HURN": {
    "ticker": "HURN",
@@ -68,7 +68,7 @@
    "eps_state": "na",
    "status": "保有中",
    "peak": 198.48,
-   "ret": -0.1644
+   "ret": -0.139
   },
   "2026-10-22:KSS": {
    "ticker": "KSS",
@@ -79,7 +79,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 25.36,
-   "ret": 0.0056
+   "ret": -0.0012
   },
   "2026-10-23:INTA": {
    "ticker": "INTA",
@@ -90,7 +90,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 47.99,
-   "ret": -0.0733
+   "ret": -0.054
   },
   "2026-10-23:NTSK": {
    "ticker": "NTSK",
@@ -101,7 +101,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 26.52,
-   "ret": -0.0737
+   "ret": -0.117
   },
   "2026-10-28:ABSI": {
    "ticker": "ABSI",
@@ -112,7 +112,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 12.1,
-   "ret": -0.0909
+   "ret": -0.1608
   },
   "2026-10-28:REPL": {
    "ticker": "REPL",
@@ -122,8 +122,8 @@
    "rs": 99,
    "eps_state": "better",
    "status": "保有中",
-   "peak": 22.26,
-   "ret": 0.3861
+   "peak": 23.28,
+   "ret": 0.4496
   },
   "2026-11-05:CERT": {
    "ticker": "CERT",
@@ -134,7 +134,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 12.22,
-   "ret": 0.0033
+   "ret": -0.0045
   },
   "2026-11-06:U": {
    "ticker": "U",
@@ -145,7 +145,7 @@
    "eps_state": "turn",
    "status": "保有中",
    "peak": 51.49,
-   "ret": -0.0012
+   "ret": -0.0223
   },
   "2026-11-09:SDGR": {
    "ticker": "SDGR",
@@ -156,7 +156,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 33.39,
-   "ret": 0.0
+   "ret": -0.0294
   }
  }
 }
