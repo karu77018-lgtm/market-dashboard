@@ -87,7 +87,13 @@ def apply(text: str, root: Path) -> str:
             note = soup.new_tag('div', attrs={'id': 'mc57-correction-note', 'class': 'sub'})
             note.string = f"訂正公開 {c['published_at']}：{c['previous_mc57']:.2f} → {c['corrected_mc57']:.2f}。理由：{c['reason']}"
             target.append(note)
-    return str(soup).replace('<footer class="disc">', "<footer class='disc'>")
+    text = str(soup).replace('<footer class="disc">', "<footer class='disc'>")
+    try:  # 今回の下げの分解: re-render from the state stored in the page (display only)
+        import decline_anatomy
+        text = decline_anatomy.rerender(text, root)
+    except Exception as exc:
+        print(f"decline anatomy re-render skipped: {exc!r}", flush=True)
+    return text
 
 
 if __name__ == '__main__':
