@@ -141,3 +141,56 @@ def test_run_persists_and_tab_is_idempotent(tmp_path: Path):
     again = tr.render_only(out, tmp_path)
     assert again.count('id="t-record"') == 1 and again.count('<a class="tabx" href="#t-record"') == 1
     assert tr.render_only(again, tmp_path) == again
+
+
+def _pf(rets: list[float], closed=(), positions=None, **extra) -> dict:
+    eq, v = [["2026-01-01", 1.0, 100.0]], 1.0
+    for k, r in enumerate(rets):
+        v *= 1 + r
+        eq.append([D[k + 1], v, 100.0])
+    return {"start": D[0], "last_day": D[len(rets)], "cash": 0.0, "qqq_sh": 0.0, "sleeve": tr.tp.SLEEVE, "rule": tr.RULE_ID,
+            "max_names": 6, "positions": positions or {}, "closed": list(closed), "skipped": [], "equity": eq, **extra}
+
+
+def test_start_rank_reads_the_fresh_start_table():
+    import backtest_summary as bt
+    n, worst, q = bt.START_ENVELOPE[30]
+    assert tr.start_rank(19, -0.5) is None and tr.start_rank(max(bt.START_ENVELOPE) + 1, 0.1) is None
+    bad = tr.start_rank(30, (q[0] - 1) / 100)
+    assert bad["label"] == "想定外に悪い" and bad["pct"] is None and bad["n"] == n and bad["worst"] == worst
+    assert tr.start_rank(30, q[bt.START_Q.index(5)] / 100)["label"] == "想定の下限"
+    mid = tr.start_rank(30, q[bt.START_Q.index(50)] / 100)
+    assert mid["label"] == "想定内" and abs(mid["pct"] - 50) < 1e-9
+    assert tr.start_rank(30, (q[-1] + 1) / 100)["label"] == "想定より良い"
+    # between two stored horizons the percentile values are interpolated
+    a, b = bt.START_ENVELOPE[25][2][6], bt.START_ENVELOPE[30][2][6]
+    assert abs(tr.start_rank(27, 0.0)["median"] - (a + (b - a) * 0.4)) < 1e-9
+    for h, (_, w, qq) in bt.START_ENVELOPE.items():
+        assert list(qq) == sorted(qq) and w <= qq[0] and len(qq) == len(bt.START_Q), h
+
+
+def test_loss_split_adds_up_and_skips_trimmed_records():
+    closed = [{"pnl": -0.02}, {"pnl": 0.005}]
+    pos = {"AAA": {"shares": 0.001, "last": 110.0, "invested": 0.1}}
+    pf = _pf([-0.01] * 25, closed, pos)
+    stock, idle = tr.loss_split(pf)
+    assert abs(stock - (-0.015 + 0.01)) < 1e-12 and abs(stock + idle - (pf["equity"][-1][1] - 1)) < 1e-12
+    assert tr.loss_split({**pf, "trims": [{"day": D[3]}]}) is None
+    assert tr.loss_split(_pf([])) is None
+
+
+def _trade(pnl: float) -> dict:
+    return {"t": "AAA", "signal": D[0], "entry_day": D[1], "entry": 100.0, "exit_day": D[2], "exit": 92.0,
+            "reason": "損切り −8%", "adds": 0, "invested": 1 / 6, "pnl": pnl, "ret": pnl * 6, "days": 1}
+
+
+def test_context_block_only_on_the_current_record():
+    pf = _pf([-0.012] * 25, [_trade(-0.1)])
+    out = tr.portfolio_html(pf, context=True)
+    assert "想定とのくらべ" in out and "想定外に悪い" in out and "どこで増減したか" in out and "その後" in out
+    assert out.index("想定とのくらべ") < out.index("保有中")
+    assert "想定とのくらべ" not in tr.portfolio_html(pf)                    # old-rule records keep their plain table
+    short = tr.portfolio_html(_pf([-0.012] * 5, [_trade(-0.01)]), context=True)
+    assert "想定とのくらべ" not in short and "どこで増減したか" in short    # under 20 sessions: no verdict yet
+    good = tr.portfolio_html(_pf([0.002] * 25), context=True)
+    assert "想定内" in good and "その後" not in good and "過去検証で30営業日に" not in good

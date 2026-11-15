@@ -333,6 +333,12 @@ STYLE = ('<style id="track-record-style">'
          f'#{TAB_ID} .tr-alt tr.cur td{{font-weight:800;background:rgba(34,197,94,.10)}}'
          f'#{TAB_ID} .tr-alt tr.grp td{{font-size:10.5px;color:#706e64;font-weight:700;background:#f2f1ee;text-align:left}}'
          f'#{TAB_ID} ul.tr-why{{margin:6px 0 0 18px;padding:0;font-size:12px;line-height:1.65;color:#3d3a32}}'
+         f'#{TAB_ID} .tr-two{{grid-template-columns:repeat(2,minmax(0,1fr))}}'
+         f'#{TAB_ID} .tr-ctx{{font-size:12.5px;line-height:1.6;border-radius:10px;padding:8px 10px;margin:6px 0;background:#f2f1ee;border:1px solid #e3e1db;color:#3d3a32}}'
+         f'#{TAB_ID} .tr-ctx b{{display:inline-block;margin-right:8px;font-size:13.5px}}'
+         f'#{TAB_ID} .tr-ctx-bad{{background:#f6e3dc;border-color:#e3b4a3;color:#8a2f1d}}'
+         f'#{TAB_ID} .tr-ctx-low{{background:#f7efd9;border-color:#e3d3a0;color:#6b5210}}'
+         f'#{TAB_ID} .tr-ctx-good{{background:rgba(34,197,94,.10);border-color:#b9dcc4;color:#18613a}}'
          f'#{TAB_ID} .tr-warn{{font-size:11.5px;background:#f6e3dc;color:#8a2f1d;border:1px solid #e3b4a3;border-radius:8px;padding:6px 9px;margin:6px 0}}'
          f'body:has(#{TAB_ID}:target) nav a.tabx{{background:#ebeae5;color:#5a5850;border-color:#575342}}'
          f'body:has(#{TAB_ID}:target) nav a[href="#{TAB_ID}"]{{background:#3774d3;color:#f1f0ef;border-color:#eef3fb}}'
@@ -418,7 +424,102 @@ def history_html(ledger: dict) -> str:
 
 
 
-def portfolio_html(pf: dict | None, pending: bool = False) -> str:
+START_MIN_DAYS = 20  # a shorter record is too noisy to judge
+
+
+def start_rank(days: int, ret: float) -> dict | None:
+    """Where a return ``ret`` after ``days`` sessions sits among the backtest's fresh starts
+    (backtest_summary.START_ENVELOPE; values interpolated between the stored horizons).
+    Display only.  None outside the stored horizons or for a record shorter than START_MIN_DAYS."""
+    import backtest_summary as bt
+    hs = sorted(bt.START_ENVELOPE)
+    if days < max(START_MIN_DAYS, hs[0]) or days > hs[-1]:
+        return None
+    lo, hi = max(h for h in hs if h <= days), min(h for h in hs if h >= days)
+    w = 0.0 if hi == lo else (days - lo) / (hi - lo)
+    (n0, m0, q0), (n1, m1, q1) = bt.START_ENVELOPE[lo], bt.START_ENVELOPE[hi]
+    qv = [a + (b - a) * w for a, b in zip(q0, q1)]
+    r, qs = ret * 100, bt.START_Q
+    if r < qv[0]:
+        pct = None  # below the lowest stored percentile
+    elif r >= qv[-1]:
+        pct = float(qs[-1])
+    else:
+        k = max(i for i in range(len(qv) - 1) if qv[i] <= r)
+        span = qv[k + 1] - qv[k]
+        pct = qs[k] + (qs[k + 1] - qs[k]) * ((r - qv[k]) / span if span > 0 else 0.0)
+    if pct is None or pct < 1:
+        label, cls = "想定外に悪い", "bad"
+    elif pct < 10:
+        label, cls = "想定の下限", "low"
+    elif pct > 90:
+        label, cls = "想定より良い", "good"
+    else:
+        label, cls = "想定内", "ok"
+    if pct is None:
+        where = f"下位{qs[0]:g}%未満"
+    elif pct >= qs[-1]:
+        where = f"上位{100 - qs[-1]:g}%以内"
+    elif pct < 50:
+        where = f"下から{pct:.1f}%の位置" if pct < 10 else f"下から{pct:.0f}%の位置"
+    else:
+        where = f"上から{100 - pct:.0f}%の位置"
+    return {"pct": pct, "label": label, "cls": cls, "where": where, "n": min(n0, n1),
+            "median": qv[qs.index(50)], "p5": qv[qs.index(5)], "worst": m0 + (m1 - m0) * w}
+
+
+def loss_split(pf: dict) -> tuple[float, float] | None:
+    """(stocks, idle money) share of the record's result, in units of the starting capital.
+
+    Stocks = the closed trades plus the open positions' unrealized result; idle money (the
+    sleeve; cash earns 0%) = the rest.  None when stocks were ever sold pro rata (守りモード
+    trims are not in the trade list, so the split would be wrong)."""
+    eq = [e for e in pf.get("equity", []) if e[1] is not None]
+    if len(eq) < 2 or pf.get("trims"):
+        return None
+    stock = (sum(c["pnl"] for c in pf.get("closed", []))
+             + sum(p["shares"] * p["last"] - p["invested"] for p in pf.get("positions", {}).values()))
+    return stock, eq[-1][1] - eq[0][1] - stock
+
+
+def context_html(pf: dict) -> str:
+    """Reading aids under the live record: is it inside what the backtest's fresh starts did,
+    and did the result come from the stocks or from the idle-money sleeve.  Display only."""
+    import backtest_summary as bt
+    st = tp.stats(pf)
+    out = ""
+    rank = start_rank(st.get("days", 0), st["ret"]) if "ret" in st else None
+    if rank:
+        seg = "記録の最初は旧ルールなので、厳密な比較ではありません。" if _segment_note(pf) else ""
+        out += (
+            '<div class="tr-h">想定とのくらべ</div>'
+            f'<div class="tr-ctx tr-ctx-{rank["cls"]}"><b>{rank["label"]}</b>開始から{st["days"]}営業日で{_sn(st["ret"] * 100)}。'
+            f'過去検証で同じ日数だけ運用した{rank["n"]:,}通りの{rank["where"]}。</div>'
+            f'<div class="tr-note" style="margin-top:2px">過去検証＝{bt.START_PERIOD}の1日おきに新しく始めた場合（今のルール・翌営業日の寄りで売買）。'
+            f'同じ日数での中央値{_sn(rank["median"])}・下位5%{_sn(rank["p5"])}・最悪{_sn(rank["worst"])}。{seg}</div>')
+        if rank["cls"] in ("bad", "low") and st["ret"] <= -0.10:
+            n, eps, later = bt.START_BAD
+            parts = "、".join(f'{d}営業日後は中央値{_sn(m)}（開始時の資産を上回ったのは{up}%・最悪{_sn(wr)}）'
+                             for d, (m, up, wr) in sorted(later.items()))
+            out += (f'<div class="tr-note" style="margin-top:2px">開始後30営業日で−10%以下だった{n}通り（{eps}局面）のその後：{parts}。'
+                    '将来も同じとは限りません。</div>')
+    split = loss_split(pf)
+    if split:
+        stock, idle = split
+        name = "TQQQルール枠" if pf.get("sleeve") == tp.SLEEVE else "QQQ"
+        eps, sk, sv, more, none = bt.LOSS_SPLIT
+        past = (f'過去検証で30営業日に10%以上負けた{eps}局面の平均は個別株{_n(sk)}・余剰資金{_n(sv)}で、'
+                f'余剰資金の負けのほうが大きかったのは{more}局面。') if stock + idle < 0 else ""
+        out += (
+            '<div class="tr-h">どこで増減したか</div>'
+            f'<div class="tr-grid tr-two"><div><i>個別株</i><b>{_p(stock)}</b></div>'
+            f'<div><i>余剰資金（{name}）</i><b>{_p(idle)}</b></div></div>'
+            '<div class="tr-note" style="margin-top:2px">開始時の資産を100%とした増減。個別株＝確定した売買と保有中の損益の合計、'
+            f'余剰資金＝残り（現金は金利0%）。{past}</div>')
+    return out
+
+
+def portfolio_html(pf: dict | None, pending: bool = False, context: bool = False) -> str:
     if pending:
         return PENDING_HTML
     if not pf or len(pf.get("equity", [])) < 2:
@@ -458,6 +559,7 @@ def portfolio_html(pf: dict | None, pending: bool = False) -> str:
         skip = f'<div class="tr-note">買えなかった本命 {len(skipped)}件。直近：{recent}</div>'
     return (
         f'<div class="tr-grid">{grid}</div>' + _spark(pf["equity"])
+        + (context_html(pf) if context else "")
         + '<div class="tr-h">保有中</div><div class="tr-wrap tr-pf"><table><tr><th>銘柄</th><th>買った日</th>'
         f'<th>損益</th><th>増し</th><th>資金比</th><th>状態</th></tr>{hrows}</table></div>'
         '<div class="tr-h">確定した売買</div><div class="tr-wrap tr-pf"><table><tr><th>銘柄</th><th>買い</th><th>売り</th>'
@@ -482,11 +584,11 @@ def current_inventory_html(ledger: dict) -> str:
         r = pf.get("reconstruction") or {}
         note = (f'<div class="tr-note">{e_(pf.get("start", ""))}〜{e_(r["as_of"])}は公開済みの本命に当時のルールを当てはめた再計算、'
                 f'その翌営業日からは毎日の記録です。{_segment_note(pf)}</div>') if r.get("as_of") else ""
-        return note + portfolio_html(pf)
+        return note + portfolio_html(pf, context=True)
     pf = ledger.get("portfolio")
     if pf and pf.get("rule") in (RULE_ID, *tp.PREVIOUS_RULE_IDS) and pf.get("sleeve") == tp.SLEEVE:
         seg = _segment_note(pf)
-        return (f'<div class="tr-note">{seg}</div>' if seg else "") + portfolio_html(pf)
+        return (f'<div class="tr-note">{seg}</div>' if seg else "") + portfolio_html(pf, context=True)
     return PENDING_HTML
 
 
@@ -553,6 +655,11 @@ def tab_html(ledger: dict | None, trades: list[dict], error: str | None = None) 
 
 def _n(v: float) -> str:
     return f"{v:.1f}%".replace("-", "−")
+
+
+def _sn(v: float) -> str:
+    """Signed percent (+2.7% / −8.1%)."""
+    return f"{v:+.1f}%".replace("-", "−")
 
 
 def month_to_date(ledger: dict | None) -> tuple[str, float, str] | None:
