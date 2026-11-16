@@ -114,7 +114,7 @@ def test_card_is_placed_before_the_change_log_and_is_stable():
     assert da.embedded_state(out) == state
     soup = str(BeautifulSoup(out, "html.parser"))                               # other adapters re-serialise the page
     assert da.CARD_RE.search(soup).group(0) == da.CARD_RE.search(out).group(0)
-    for words in ("いつもと違う点", "景気後退チェック", "過熱チェック", "期間で変わる傾向", "中身が近い年", "売買ルールは変えません"):
+    for words in ("いつもと違う点", "景気後退チェック", "過熱チェック", "期間で変わる傾向", "下げの中身が近い過去の下げ", "売買ルールは変えません"):
         assert words in out
     assert da.apply(PAGE.replace('<div class="card ch-card"', '<div class="card"'), state).count(da.CARD_ID) == 0
     assert da.apply(PAGE, None) == PAGE
@@ -143,3 +143,42 @@ def test_run_computes_from_the_refresh_inputs(tmp_path):
     out = da.run(PAGE, tmp_path, str(DAYS[-1].date()), getter=lambda u: (_ for _ in ()).throw(OSError()))
     state = da.embedded_state(out)
     assert state["active"] and state["session"] == str(DAYS[-1].date()) and "ハイテク単独安" in out
+
+
+def test_now_like_matches_older_weeks_only():
+    state = da.build_state(_market(), _slow())
+    like, today = state["now_like"], pd.Timestamp(state["session"])
+    assert len(like) == 3 and like == sorted(like, key=lambda r: r["dist"])
+    weeks = [pd.Timestamp(r["week"]) for r in like]
+    assert all(w <= today - pd.Timedelta(days=da.NOW_EXCLUDE) for w in weeks)
+    assert all(abs((a - b).days) > da.NOW_GAP for i, a in enumerate(weeks) for b in weeks[i + 1:])
+    ref, feats = da._load_state_ref()
+    assert len(ref) > 1000 and set(feats) <= set(da.state_frame(da._closes(_market()), _slow()).columns)
+    assert all(pd.Timestamp(r["week"]) in ref.index for r in like)
+
+
+def test_stale_inputs_and_saved_series(tmp_path):
+    slow = _slow()  # monthly, last 2026-01-01
+    assert da.stale_inputs(slow, "2026-01-10") == []
+    late = {r["key"] for r in da.stale_inputs(slow, "2026-04-15")}
+    assert {"margin", "cape", "mmf", "baa"} == late
+    assert da.stale_inputs({}, "2026-01-20")[0]["last"] is None
+    assert da.save_slow(tmp_path, slow, "2026-01-02") and not da.save_slow(tmp_path, slow, "2026-01-03")
+    saved = json.loads((tmp_path / da.SLOW_SEED).read_text())
+    assert saved["saved"] == "2026-01-02" and len(saved["series"]["cape"]) == da.SLOW_KEEP["cape"]
+    grown = {**slow, "margin": {**slow["margin"], "2026-02-28": 9.0}}
+    assert da.save_slow(tmp_path, grown, "2026-03-20") and da.load_slow(tmp_path)["margin"]["2026-02-28"] == 9.0
+
+
+def test_card_shows_the_period_match_and_stale_warning():
+    state = da.build_state(_market(), _slow())
+    out = da.card_html(state)
+    assert "今の相場にいちばん近い時期" in out and "近い時期のその後" in out and "下げの中身がいちばん近い過去の下げ" in out
+    assert out.index("今の相場にいちばん近い時期") < out.index("いつもと違う点")
+    assert "更新が止まっているデータ" not in out
+    warned = da.card_html({**state, "stale": da.stale_inputs(_slow(), "2026-04-15")})
+    assert "更新が止まっているデータ" in warned and "信用買い残（FINRA）" in warned and "日前" in warned
+    calm = da.card_html({**da.build_state(_market(drop=-0.05), _slow()), "stale": []})
+    assert "今の相場に近い時期" in calm and "今の相場にいちばん近い時期" in calm and "更新が止まっている" not in calm
+    old = {k: v for k, v in state.items() if k not in ("now_like", "stale")}   # cards saved before this change
+    assert "いつもと違う点" in da.card_html(old) and "いちばん近い時期" not in da.card_html(old)

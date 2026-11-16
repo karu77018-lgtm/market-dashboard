@@ -135,6 +135,17 @@ def load_market(root: Path) -> dict | None:
 
 
 def _get(url: str, timeout: int = 20) -> str:
+    """Browser-like fetch.  FINRA answers 403 to plain HTTP clients, so curl_cffi (installed with
+    yfinance in the refresh) is tried first; urllib is the fallback."""
+    try:
+        from curl_cffi import requests as cr
+    except ImportError:
+        cr = None
+    if cr is not None:
+        r = cr.get(url, impersonate="chrome", timeout=timeout)
+        if r.status_code != 200:
+            raise OSError(f"HTTP {r.status_code}")
+        return r.text
     req = urllib.request.Request(url, headers={
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,text/csv;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9"})
@@ -204,6 +215,46 @@ def refresh_slow(slow: dict[str, dict[str, float]], getter=_get) -> dict[str, di
             continue
         if len(fresh) >= 6:
             out.setdefault(key, {}).update(fresh)
+    return out
+
+
+# how much of each series the saved file keeps, and when it counts as stale (days since the last
+# observation, against the session): FINRA publishes about three weeks after month end, multpl
+# updates CAPE daily from the latest month, FRED's weekly money-fund series often runs a month or
+# more behind (so 60 days), the Baa spread is daily.
+SLOW_KEEP = {"cape": 40, "margin": 40, "mmf": 130, "baa": 520, "dgs10": 760, "dtb3": 760}
+STALE = {"margin": ("信用買い残（FINRA）", 80), "cape": ("CAPE（multpl）", 45),
+         "mmf": ("個人向けMMF残高（FRED）", 60), "baa": ("信用スプレッド（FRED）", 14)}
+
+
+def trim_slow(slow: dict[str, dict[str, float]]) -> dict[str, dict[str, float]]:
+    return {k: dict(sorted(v.items())[-SLOW_KEEP.get(k, len(v)):]) for k, v in sorted(slow.items()) if v}
+
+
+def save_slow(root: Path, slow: dict[str, dict[str, float]], saved: str) -> bool:
+    """Write the merged series back to the seed file (committed by the refresh) when they grew."""
+    path = root / SLOW_SEED
+    try:
+        old = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        old = {}
+    new = trim_slow(slow)
+    if new == old.get("series"):
+        return False
+    doc = {**{k: v for k, v in old.items() if k != "series"}, "schema": "decline-slow.1", "saved": saved, "series": new}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":"), sort_keys=True), encoding="utf-8")
+    return True
+
+
+def stale_inputs(slow: dict, session: str) -> list[dict]:
+    day = pd.Timestamp(session)
+    out = []
+    for key, (label, limit) in STALE.items():
+        last = max(slow[key]) if slow.get(key) else None
+        age = None if last is None else int((day - pd.Timestamp(last)).days)
+        if age is None or age > limit:
+            out.append({"key": key, "label": label, "last": last, "days": age})
     return out
 
 
@@ -355,6 +406,93 @@ def analogs(f: dict, k: int = 3) -> list[dict]:
     return sorted(out, key=lambda r: r["dist"])[:k]
 
 
+STATE_REF = Path(__file__).with_name("state_reference.json")
+NOW_WEEKS = 4        # match the last 4 weekly states (steadier than one week)
+NOW_EXCLUDE = 365    # never match the last year (it would match itself)
+NOW_GAP = 26 * 7     # one pick per half year
+
+
+def _load_state_ref() -> tuple[pd.DataFrame, list[str]] | None:
+    try:
+        doc = json.loads(STATE_REF.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    cols = doc["columns"]
+    f = pd.DataFrame({k: v for k, v in cols.items() if k != "date"}, index=pd.to_datetime(cols["date"]), dtype=float)
+    return f, list(doc["features"])
+
+
+def state_frame(px: pd.DataFrame, slow: dict) -> pd.DataFrame:
+    """Daily market state with the reference's definitions (QQQ / SPY / IWM / SOXX stand in for the
+    Nasdaq-100 / S&P 500 / Russell 2000 / SOX indices)."""
+    q = px[INDEX]
+
+    def ch(sym: str, n: int = 63) -> pd.Series:
+        return (px[sym] / px[sym].shift(n) - 1) * 100 if sym in px else pd.Series(np.nan, index=px.index)
+
+    f = pd.DataFrame(index=px.index)
+    f["dd"] = (q / q.rolling(252, min_periods=200).max() - 1) * 100
+    f["r63"], f["r252"] = ch(INDEX), ch(INDEX, 252)
+    f["v200"] = (q / q.rolling(200, min_periods=200).mean() - 1) * 100
+    f["rv20"] = q.pct_change().rolling(20).std() * math.sqrt(252) * 100
+    f["vix"] = px["^VIX"] if "^VIX" in px else np.nan
+    f["sox"], f["spx"], f["small"] = ch("SOXX") - f["r63"], ch("SPY") - f["r63"], ch("IWM") - ch("SPY")
+    f["eqw"], f["gv"] = ch("RSP") - ch("SPY"), ch("IWF") - ch("IWD")
+    f["dfn"] = (ch("XLP") + ch("XLU")) / 2 - ch("SPY")
+    f["fin"], f["ene"] = ch("XLF") - ch("SPY"), ch("XLE") - ch("SPY")
+    if all(s in px for s in SECTORS):
+        ma = {s: px[s].rolling(50, min_periods=50).mean() for s in SECTORS}
+        f["sec50"] = sum((px[s] > ma[s]).astype(float).where(ma[s].notna()) for s in SECTORS)
+    else:
+        f["sec50"] = np.nan
+    f["d10"] = (px["^TNX"] - px["^TNX"].shift(63)) * 100 if "^TNX" in px else np.nan
+    baa = _series(slow, "baa")
+    if len(baa):
+        b = pd.Series(baa.reindex(px.index.union(baa.index)).ffill().reindex(px.index).to_numpy(), index=px.index)
+        f["cred"] = (b - b.shift(63)) * 100
+    else:
+        f["cred"] = np.nan
+    f["usd"] = ch("DX-Y.NYB")
+    return f
+
+
+def now_like(px: pd.DataFrame, slow: dict, k: int = 3) -> list[dict]:
+    """Past weeks whose last 4 weekly market states are closest to today's (z-scored distance)."""
+    ref = _load_state_ref()
+    if ref is None:
+        return []
+    R, feats = ref
+    today = px.index[-1]
+    weekly = state_frame(px, slow)[feats].groupby(px.index.to_period("W-FRI")).tail(1).iloc[-NOW_WEEKS:]
+    if len(weekly) < NOW_WEEKS:
+        return []
+    pool = R[R.index <= today - pd.Timedelta(days=NOW_EXCLUDE)]
+    mu, sd = pool[feats].mean(), pool[feats].std()
+    Z, z = ((R[feats] - mu) / sd).to_numpy(), ((weekly - mu) / sd).to_numpy()
+    n_pool = len(pool)
+    cand = np.arange(NOW_WEEKS - 1, n_pool)
+    D, C = np.zeros(len(cand)), np.zeros(len(cand))
+    for lag in range(NOW_WEEKS):
+        a, b = Z[cand - lag], z[NOW_WEEKS - 1 - lag]
+        m = ~np.isnan(a) & ~np.isnan(b)
+        D += np.where(m, (a - b) ** 2, 0).sum(1)
+        C += m.sum(1)
+    ok = C >= 12 * NOW_WEEKS
+    if not ok.any():
+        return []
+    d = np.sqrt(D[ok] / C[ok])
+    out: list[dict] = []
+    for j, v in sorted(zip(cand[ok], d), key=lambda x: x[1]):
+        day = R.index[j]
+        if all(abs((day - pd.Timestamp(o["week"])).days) > NOW_GAP for o in out):
+            row = R.iloc[j]
+            out.append({"week": str(day.date()), "dist": round(float(v), 2),
+                        **{h: (None if pd.isna(row[h]) else float(row[h])) for h in ("f20", "f60", "f120", "f250")}})
+        if len(out) == k:
+            break
+    return out
+
+
 def build_state(market: dict, slow: dict, session: str | None = None) -> dict | None:
     """Everything the card shows, JSON-serialisable.  None when the index history is missing."""
     px = _closes(market)
@@ -364,7 +502,8 @@ def build_state(market: dict, slow: dict, session: str | None = None) -> dict | 
         px = px[px.index <= pd.Timestamp(session)]
     ep = find_episode(px[INDEX])
     state: dict[str, Any] = {"session": str(px.index[-1].date()), "index": INDEX, "active": bool(ep.get("active")),
-                             "dd_now": round(ep["dd_now"], 1)}
+                             "dd_now": round(ep["dd_now"], 1), "now_like": now_like(px, slow),
+                             "stale": stale_inputs(slow, str(px.index[-1].date()))}
     if "peak" not in ep:
         return state
     peak, trig = ep["peak"], ep["trigger"]
@@ -481,6 +620,12 @@ STYLE = (
     '.da-card details{margin:8px 0 0}'
     '.da-card summary{font-size:12.5px;font-weight:800;cursor:pointer;color:var(--ds-accent,#2659ab);padding:3px 0}'
     '.da-card .da-end{display:none}'
+    '.da-card .da-warn{font-size:12.5px;line-height:1.6;font-weight:700;color:var(--ds-warn,#8a5a12);background:#f7efd9;'
+    'border:1px solid #e3d3a0;border-radius:10px;padding:7px 10px;margin:4px 0 8px}'
+    '.da-card .da-like{background:var(--ds-inset,#efede7);border:1px solid var(--ds-line,#dedbd2);border-radius:10px;padding:8px 10px;margin:6px 0 2px}'
+    '.da-card .da-like i{display:block;font-style:normal;font-size:11.5px;font-weight:700;color:var(--ds-muted,#6b685e)}'
+    '.da-card .da-like b{font-size:18px;font-weight:800;color:var(--ds-ink,#1c1b19);margin-right:10px}'
+    '.da-card .da-like span{font-size:12.5px;color:var(--ds-ink-2,#46443d)}'
     '@media(max-width:420px){.da-card .da-chk{grid-template-columns:minmax(0,1fr)}}'
     '</style>'
 )
@@ -491,24 +636,61 @@ def _state_tag(state: dict) -> str:
     return f'<script id="{STATE_ID}" type="application/json">{raw}</script>'
 
 
-def _open(inner: str) -> str:
-    return (f'<div class="card da-card" id="{CARD_ID}"><div class="chd"><h2>今回の下げの分解'
-            f'<span class="h2en">Decline Anatomy</span></h2></div>{inner}<span class="da-end"></span></div>')
+def _open(inner: str, title: str = "今回の下げの分解", en: str = "Decline Anatomy") -> str:
+    return (f'<div class="card da-card" id="{CARD_ID}"><div class="chd"><h2>{title}'
+            f'<span class="h2en">{en}</span></h2></div>{inner}<span class="da-end"></span></div>')
+
+
+def stale_html(state: dict) -> str:
+    rows = state.get("stale") or []
+    if not rows:
+        return ""
+    parts = []
+    for r in rows:
+        age = "" if r["days"] is None else f'・{r["days"]}日前'
+        parts.append(f'{html.escape(r["label"])}（最終 {r["last"] or "なし"}{age}）')
+    items = "、".join(parts)
+    return (f'<div class="da-warn">⚠ 更新が止まっているデータがあります：{items}。'
+            'この項目を使う判定は古い値のままです。</div>')
+
+
+def like_html(state: dict) -> str:
+    like = state.get("now_like") or []
+    if not like:
+        return ""
+    first, rest = like[0], like[1:]
+    sub = "・".join(_ym(x["week"]) for x in rest)
+    rows = "".join(f'<li><b>{_ym(x["week"])}</b>：その後 20日 {_pct(x["f20"])}・60日 {_pct(x["f60"])}・'
+                   f'120日 {_pct(x["f120"])}・250日 {_pct(x["f250"])}</li>' for x in like)
+    signs = {x["f120"] > 0 for x in like if x.get("f120") is not None}
+    split = "近い時期どうしで、その後が割れています。" if len(signs) > 1 else ""
+    return (f'<div class="da-like"><i>今の相場にいちばん近い時期</i><b>{_ym(first["week"])}</b>'
+            + (f'<span>次点 {sub}</span>' if sub else "") + '</div>'
+            '<details><summary>近い時期のその後</summary>'
+            f'<ul>{rows}</ul><div class="sub">{split}直近4週の相場の状態（下落率・勢い・荒さ・VIX・何が買われ何が売られたか・金利・信用・ドル）を、'
+            '1999年以降の毎週と比べて毎日自動で判定しています（直近1年は除外）。検証では、近い時期からその後を当てる方法は'
+            '過去平均より当たりませんでした。今の相場の説明として見てください。</div></details>')
 
 
 def card_html(state: dict) -> str:
     e = html.escape
     tag = _state_tag(state)
+    warn, like = stale_html(state), like_html(state)
     if not state.get("active") or "factors" not in state:
         last = ""
         if state.get("peak"):
             last = f'直近の調整は{_ym(state["peak"])}の高値からの下げ（{e(state.get("type", ""))}）でした。'
         return _open(
-            f'<div class="da-lead">いまはNasdaq100（QQQ）の調整局面ではありません（高値から{_num(state.get("dd_now"), unit="%", nd=1)}）。'
+            warn + like
+            + f'<div class="da-lead">いまはNasdaq100（QQQ）の調整局面ではありません（高値から{_num(state.get("dd_now"), unit="%", nd=1)}）。'
             f'高値から−10%に達すると、その下げを要因に分解してここに表示します。{last}</div>'
-            f'<div class="sub">{e(state.get("session", ""))} 終値時点。表示のみで、売買ルールは変えません。</div>{tag}')
+            f'<div class="sub">{e(state.get("session", ""))} 終値時点。表示のみで、売買ルールは変えません。</div>{tag}',
+            "今の相場に近い時期", "Market Look-alike")
     f, kind = state["factors"], state["type"]
     n_all = len(EPISODES)
+    al = state.get("analogs") or []
+    near_top = (f'<div class="da-lead">下げの中身がいちばん近い過去の下げ：<b>{_ym(al[0]["peak"])}</b>'
+                + (f'（次点 {"・".join(_ym(a["peak"]) for a in al[1:])}）' if len(al) > 1 else "") + '</div>') if al else ""
     head = (f'<div class="da-type">{e(kind)}</div>'
             f'<div class="da-lead">{e(TYPES[kind])}Nasdaq100（QQQ）は{_md(state["peak"])}の高値から{_num(state["dd_now"], unit="%", nd=1)}'
             f'（{state["days_now"]}営業日目）。−10%に達した{_md(state["trigger"])}時点の中身を、1990年以降の同じ場面{n_all}回と比べています。</div>')
@@ -580,13 +762,12 @@ def card_html(state: dict) -> str:
         '<div class="sub">その後のNasdaq100の騰落率の中央値（営業日）。上段＝当てはまった回、「他」＝当てはまらなかった回。太字が今回の側。'
         '※は2000年前後の6回を除くと長期の差がほぼ消える項目です。</div></details>')
     # analogs
-    al = state.get("analogs") or []
     if al:
         rows = "".join(f'<li><b>{_ym(a["peak"])}</b>（{e(a["type"])}）：その後の最大下落 {_num(a["more"], unit="%", nd=1)}、'
                        f'60営業日後 {_pct(a["r60"])}、120営業日後 {_pct(a["r120"])}</li>' for a in al)
         signs = {a["r120"] > 0 for a in al if a.get("r120") is not None}
         split = "近い年どうしで結果が割れています。" if len(signs) > 1 else ""
-        near = (f'<details><summary>中身が近い年</summary><ul>{rows}</ul>'
+        near = (f'<details><summary>下げの中身が近い過去の下げ</summary><ul>{rows}</ul>'
                 f'<div class="sub">{split}検証では、近い年からその後を当てる方法は、全{n_all}回の平均を使うより外れました。'
                 '「どんな下げか」の説明として見てください。</div></details>')
     else:
@@ -596,7 +777,8 @@ def card_html(state: dict) -> str:
     note = (f'<div class="sub">{e(state["session"])} 終値時点（{stamp}までの公表値）。予測ではなく、下げの中身の説明です。'
             '過去の集計は40回前後と少なく、偶然を含みます。過去比較はNasdaq100指数、今回の計算はQQQと各ETFです。'
             '表示のみで、売買ルールは変えません。</div>')
-    return _open(head + unusual + f'<div class="da-chk">{rec_box}{heat_box}</div>' + same_type + horizon + near + note + tag)
+    return _open(warn + head + near_top + like + unusual + f'<div class="da-chk">{rec_box}{heat_box}</div>'
+                 + same_type + horizon + near + note + tag)
 
 
 CARD_RE = re.compile(rf'<div class="card da-card" id="{CARD_ID}">.*?<span class="da-end"></span></div>', re.S)
@@ -662,11 +844,20 @@ def run(text: str, root: Path, session: str, getter=_get) -> str:
     if market is None:
         print("decline anatomy: market inputs not found; keeping the page as is", flush=True)
         return rerender(text, root)
-    state = build_state(market, refresh_slow(load_slow(root), getter), session)
+    slow = refresh_slow(load_slow(root), getter)
+    try:
+        if save_slow(root, slow, session):
+            print("decline anatomy: saved newer public series to " + SLOW_SEED, flush=True)
+    except OSError as exc:
+        print(f"decline anatomy: could not save the public series ({exc!r})", flush=True)
+    state = build_state(market, slow, session)
     if state is None:
         print("decline anatomy: index history incomplete; keeping the page as is", flush=True)
         return rerender(text, root)
-    print(f"decline anatomy: active={state['active']} type={state.get('type')} dd={state['dd_now']}", flush=True)
+    print(f"decline anatomy: active={state['active']} type={state.get('type')} dd={state['dd_now']} "
+          f"like={[x['week'] for x in state.get('now_like') or []]}", flush=True)
+    for r in state.get("stale") or []:  # GitHub Actions annotation; the morning check reports it too
+        print(f"::warning title=decline anatomy::{r['label']} has not updated since {r['last']} ({r['days']} days)", flush=True)
     return apply(text, state)
 
 
