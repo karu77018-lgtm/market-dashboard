@@ -368,6 +368,11 @@ def main() -> int:
         print(f"bagger watch skipped: {exc!r}", flush=True)
     import audit_display
     text = audit_display.apply(text, html_path.resolve().parent, args.session)
+    try:  # 今回の下げの分解 (Market tab); display only, never blocks publication
+        import decline_anatomy
+        text = decline_anatomy.run(text, html_path.resolve().parent, args.session)
+    except Exception as exc:
+        print(f"decline anatomy skipped: {exc!r}", flush=True)
     from archive_tab import apply as apply_archive_tab
     text = apply_archive_tab(text)  # Core 12 / old W30 rule -> アーカイブ tab (display only)
     from setups_curate import apply as curate_setups
