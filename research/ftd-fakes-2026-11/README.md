@@ -42,4 +42,19 @@ Swing candidates (本命, 2015-, `ftd_stock.py`) in the 10 sessions after a QQQ 
 differ consistently with the warnings (the sign flipped between 2015-20 and 2021-26), so the
 warnings are not a filter for stock entries.
 
+Entry when the FTD close cannot be traded (`ftd_entry2.py`): orders go in after the close, so
+entries are at a later open; exits at the next open after a close below the FTD-day low, or a
+stop order at the FTD-day low.
+| style (close-based exit) | mean | 1993-2009 | 2010- | worst |
+| FTD close (reference) | +1.2% | +0.8% | +1.7% | -11.0% |
+| next open, no stop | +2.1% | -0.4% | +4.6% | -39.3% |
+| next open, all | +1.2% | +0.8% | +1.6% | -11.6% |
+| next open, half on Day4-7/16+ | +1.1% | +0.7% | +1.5% | -11.6% |
+| half next open, rest the open after if the next day is up | +0.9% | +0.3% | +1.4% | -12.6% |
+| all the open after if the next day is up | +0.6% | -0.2% | +1.3% | -13.6% |
+| day-4 open if no warning at day 3 | +0.3% | -0.4% | +1.0% | -14.1% |
+The next open is on average where the FTD closed (gap mean +0.04%), so the ranking is unchanged
+(QQQ and SPY alike). Stop order at the FTD-day low, next open, all: +1.1%, worst 2010- -4.3%.
+3x: next open with exit +3.8% (worst -34%), no exit +5.9% (worst -83%).
+
 Shown under the FTD card by `scripts/ftd_check.py` (display only).
