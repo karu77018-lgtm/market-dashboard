@@ -19,6 +19,7 @@ BLOCK_ID = "reg-history"
 STATE_ID = "reg-history-state"
 STYLE_ID = "reg-history-style"
 STATE_SEED = "seed/reg-history-state.json"
+ARCHIVE = "seed/reg-history-weekly.json"
 SESSIONS = 252
 
 # build_dashboard_4 constants (names kept)
@@ -192,6 +193,10 @@ STYLE = (
     '.rgh .rgr-warn{border-left-color:var(--ds-warn,#8a5a12)}.rgh .rgr-ok{border-left-color:var(--ds-up,#17703f)}'
     '.rgh .rgr-mid{border-left-color:var(--ds-down,#b3362c)}'
     '.rgh .mk-clear{fill:var(--ds-up,#17703f)}.rgh .mk-calm{fill:var(--ds-warn,#8a5a12)}.rgh .mk-wash{fill:var(--ds-down,#b3362c)}'
+    '.rgh .rgh-tabs{display:flex;gap:6px;margin:4px 0 6px}'
+    '.rgh .rgh-tab{flex:1;font-size:12px;font-weight:700;padding:6px 4px;border-radius:6px;border:1px solid var(--ds-line,#dedbd2);'
+    'background:var(--ds-surface,#fff);color:var(--ds-ink-2,#46443d)}'
+    '.rgh .rgh-tab.on{background:var(--ds-ink,#1c1b19);color:var(--ds-surface,#fff);border-color:var(--ds-ink,#1c1b19)}'
     '.rgh .rgh-end{display:none}'
     '</style>'
 )
@@ -220,39 +225,101 @@ def _hi(state: dict) -> float:
     return float(min(1.0, np.ceil(top_v * 10 + 0.5) / 10))
 
 
-def chart_svg(state: dict) -> str:
-    dates = state["dates"]
+def weekly_from_daily(series: dict) -> dict:
+    """Each week: the lamps' average, QQQ's last close, and the week's marks (any day calm / washout / recovery start)."""
+    sg = signals(series)
+    out: dict[str, list] = {k: [] for k in ("dates", "f1", "f2", "f3", "qqq", "calm", "wash", "clear")}
+    weeks: dict[str, list[int]] = {}
+    for i, d in enumerate(series["dates"]):
+        y, w, _ = pd.Timestamp(d).isocalendar()
+        weeks.setdefault(f"{y}-{w:02d}", []).append(i)
+    for idx in weeks.values():
+        i = idx[-1]
+        out["dates"].append(series["dates"][i])
+        for k in ("f1", "f2", "f3"):
+            vals = [series[k][j] for j in idx if series[k][j] is not None]
+            out[k].append(round(sum(vals) / len(vals), 3) if vals else None)
+        out["qqq"].append((series.get("qqq") or [None] * len(series["dates"]))[i])
+        out["calm"].append(int(any(sg["calm"][j] for j in idx)))
+        out["wash"].append(int(any(sg["wash"][j] for j in idx)))
+        out["clear"].append(int(any(sg["clear_first"][j] for j in idx)))
+    return out
+
+
+def merge_weekly(archive: dict | None, daily: dict) -> dict:
+    """Archive weeks before the daily window, then the daily window sampled weekly."""
+    recent = weekly_from_daily(daily)
+    if not archive or not archive.get("dates"):
+        return recent
+    first = recent["dates"][0] if recent["dates"] else "9999"
+    y0, w0, _ = pd.Timestamp(first).isocalendar()
+    keep = [i for i, d in enumerate(archive["dates"]) if tuple(pd.Timestamp(d).isocalendar())[:2] < (y0, w0)]
+    out = {k: [archive[k][i] for i in keep] + recent[k] for k in recent}
+    if archive.get("note"):
+        out["note"] = archive["note"]
+        out["live_from"] = archive.get("live_from") or first
+    return out
+
+
+def load_archive(root: Path) -> dict | None:
+    try:
+        return json.loads((root / ARCHIVE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def save_archive(root: Path, weekly: dict) -> bool:
+    """Keep every week in the committed archive so the long chart grows beyond the two-year download."""
+    path = root / ARCHIVE
+    old = load_archive(root)
+    if old == weekly:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(weekly, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
+    return True
+
+
+def _marks(series: dict) -> tuple[list, list, list]:
+    if "calm" in series:
+        return series["calm"], series["wash"], series["clear"]
+    sg = signals(series)
+    return sg["calm"], sg["wash"], sg["clear_first"]
+
+
+def chart_svg(state: dict, series: dict | None = None, key: str = "d") -> str:
+    ser = series or state
+    dates = ser["dates"]
     n = len(dates)
     gap = 18
-    panels = [(k, name, w, b) for k, name, w, b in LAMPS] + ([("qqq", "QQQ（参考）", None, None)] if state.get("qqq") else [])
-    height = len(panels) * (PH + gap) + 22
-    parts = [f'<svg viewBox="0 0 {W_} {height}" role="img" aria-label="F1〜F3の推移">']
+    panels = [(k, name, w, b) for k, name, w, b in LAMPS] + ([("qqq", "QQQ（参考）", None, None)] if any(v is not None for v in ser.get("qqq") or []) else [])
+    height = len(panels) * (PH + gap) + 30
+    parts = [f'<svg data-k="{key}" viewBox="0 0 {W_} {height}" role="img" aria-label="F1〜F3の推移">']
     x0, x1 = PAD_L, W_ - PAD_R
+    top_hi = _hi(ser)
     for j, (k, name, warn, bad) in enumerate(panels):
         top = j * (PH + gap) + 14
-        vals = state[k]
+        vals = ser[k]
         parts.append(f'<text class="rgh-k" x="{x0}" y="{top - 4}">{html.escape(name)}</text>')
         if k == "qqq":
             q = [v for v in vals if v is not None]
             lo, hi = min(q) * 0.98, max(q) * 1.02
-            last = q[-1]
-            parts.append(f'<text class="rgh-v" x="{x1 + 2}" y="{top + 10}">{last:.0f}</text>')
+            parts.append(f'<text class="rgh-v" x="{x1 + 2}" y="{top + 10}">{q[-1]:.0f}</text>')
             parts.append(f'<line class="rgh-th" x1="{x0}" x2="{x1}" y1="{top + PH}" y2="{top + PH}"/>')
             for seg in _pts(vals, lo, hi, top):
                 parts.append(f'<polyline class="rgh-q" points="{" ".join(seg)}"/>')
-            sg = signals(state)
+            calm, wash, clear = _marks(ser)
             step = (x1 - x0) / max(n - 1, 1)
             for i in range(n):
                 x = x0 + step * i
-                if sg["calm"][i]:
+                if calm[i]:
                     parts.append(f'<rect class="mk-calm" x="{x - step / 2:.1f}" y="{top + PH + 2}" width="{max(step, 1):.1f}" height="4"/>')
-                if sg["wash"][i]:
+                if wash[i]:
                     parts.append(f'<rect class="mk-wash" x="{x - step / 2:.1f}" y="{top + PH + 7}" width="{max(step, 1):.1f}" height="4"/>')
-                if sg["clear_first"][i] and vals[i] is not None:
+                if clear[i] and vals[i] is not None:
                     y = top + PH - (vals[i] - lo) / (hi - lo) * PH
-                    parts.append(f'<path class="mk-clear" d="M{x:.1f},{y + 4:.1f} l-5,9 h10 z"/>')
+                    parts.append(f'<path class="mk-clear" d="M{x:.1f},{y + 4:.1f} l-4,8 h8 z"/>')
             continue
-        lo, hi = 0.0, _hi(state)
+        lo, hi = 0.0, top_hi
 
         def y_of(v, top=top, hi=hi):
             return top + PH - (min(v, hi) - lo) / (hi - lo) * PH
@@ -271,15 +338,22 @@ def chart_svg(state: dict) -> str:
         parts.append(f'<text class="rgh-v" x="{x1 + 2}" y="{ly:.1f}">{last * 100:.0f}%</text>')
         if lab:
             parts.append(f'<text class="rgh-t" x="{x1 + 2}" y="{ly + 11:.1f}">{lab}</text>')
-    # month ticks
-    yb = len(panels) * (PH + gap) + 12
+    yb = len(panels) * (PH + gap) + 20
     seen = None
     for i, d in enumerate(dates):
-        m = d[:7]
-        if m != seen and i > 0 and int(d[5:7]) % 2 == 1:
-            x = x0 + (x1 - x0) * i / max(n - 1, 1)
-            parts.append(f'<text class="rgh-t" x="{x:.1f}" y="{yb}" text-anchor="middle">{int(d[5:7])}月</text>')
-        seen = m
+        if key == "d":
+            m = d[:7]
+            if m != seen and i > 0 and int(d[5:7]) % 2 == 1:
+                x = x0 + (x1 - x0) * i / max(n - 1, 1)
+                parts.append(f'<text class="rgh-t" x="{x:.1f}" y="{yb}" text-anchor="middle">{int(d[5:7])}月</text>')
+            seen = m
+        else:
+            y = d[:4]
+            if y != seen and i > 0 and int(y) % 2 == 0:
+                x = x0 + (x1 - x0) * i / max(n - 1, 1)
+                parts.append(f'<line class="rgh-th" x1="{x:.1f}" x2="{x:.1f}" y1="14" y2="{yb - 10}"/>'
+                             f'<text class="rgh-t" x="{x:.1f}" y="{yb}" text-anchor="middle">{y}</text>')
+            seen = y
     parts.append(f'<line class="rgh-x" x1="0" x2="0" y1="10" y2="{yb - 8}"/>')
     parts.append(f'<rect x="{x0}" y="0" width="{x1 - x0}" height="{height}" fill="transparent" class="rgh-hit"/>')
     parts.append("</svg>")
@@ -289,20 +363,24 @@ def chart_svg(state: dict) -> str:
 SCRIPT = (
     "<script>(function(){var b=document.getElementById('reg-history');if(!b)return;"
     "var s=JSON.parse(document.getElementById('reg-history-state').textContent);"
-    "var svg=b.querySelector('svg'),ln=b.querySelector('.rgh-x'),tip=b.querySelector('.rgh-tip');"
-    "var n=s.dates.length,x0=30,x1=310,W=340;"
+    "var tip=b.querySelector('.rgh-tip'),x0=30,x1=310,W=340;"
     "function pc(v){return v==null?'—':Math.round(v*100)+'%';}"
+    "b.querySelectorAll('.rgh-tab').forEach(function(t){t.addEventListener('click',function(){"
+    "b.querySelectorAll('.rgh-tab').forEach(function(u){u.classList.toggle('on',u===t);});"
+    "b.querySelectorAll('.rgh-pane').forEach(function(p){p.style.display=p.dataset.k===t.dataset.k?'':'none';});});});"
+    "b.querySelectorAll('svg[data-k]').forEach(function(svg){"
+    "var d=svg.dataset.k==='w'?s.weekly:s;if(!d)return;var ln=svg.querySelector('.rgh-x'),n=d.dates.length;"
     "function show(ev){var r=svg.getBoundingClientRect(),p=(ev.touches?ev.touches[0]:ev);"
     "var x=(p.clientX-r.left)/r.width*W;var i=Math.round((x-x0)/(x1-x0)*(n-1));if(i<0)i=0;if(i>n-1)i=n-1;"
     "var gx=x0+(x1-x0)*i/(n-1);ln.setAttribute('x1',gx);ln.setAttribute('x2',gx);ln.style.opacity=1;"
-    "var q=s.qqq?s.qqq[i]:null;tip.innerHTML='<b>'+s.dates[i]+'</b><br>F1 '+pc(s.f1[i])+'・F2 '+pc(s.f2[i])+'・F3 '+pc(s.f3[i])"
+    "var q=d.qqq?d.qqq[i]:null;tip.innerHTML='<b>'+d.dates[i]+(svg.dataset.k==='w'?'までの週の平均':'')+'</b><br>F1 '+pc(d.f1[i])+'・F2 '+pc(d.f2[i])+'・F3 '+pc(d.f3[i])"
     "+(q!=null?'<br>QQQ '+q.toFixed(0):'');tip.style.display='block';"
-    "var bx=b.getBoundingClientRect(),left=p.clientX-bx.left+10;if(left>bx.width-150)left=p.clientX-bx.left-160;"
+    "var bx=b.getBoundingClientRect(),left=p.clientX-bx.left+10;if(left>bx.width-160)left=p.clientX-bx.left-170;"
     "tip.style.left=Math.max(0,left)+'px';tip.style.top=(p.clientY-bx.top-50)+'px';}"
     "function hide(){tip.style.display='none';ln.style.opacity=0;}"
     "svg.addEventListener('mousemove',show);svg.addEventListener('touchstart',show,{passive:true});"
     "svg.addEventListener('touchmove',show,{passive:true});svg.addEventListener('mouseleave',hide);"
-    "svg.addEventListener('touchend',function(){setTimeout(hide,1500);});})();</script>"
+    "svg.addEventListener('touchend',function(){setTimeout(hide,1500);});});})();</script>"
 )
 
 
@@ -315,12 +393,21 @@ def block_html(state: dict) -> str:
         legend = ('下段QQQの印：<span style="color:var(--ds-up,#17703f)">▲</span>F3の回復の合図、'
                   '<span style="color:var(--ds-warn,#8a5a12)">■</span>全灯平常、'
                   '<span style="color:var(--ds-down,#b3362c)">■</span>200日線下でF3≥60%。')
+    wk = state.get("weekly")
+    tabs, long_pane = "", ""
+    if wk and len(wk.get("dates") or []) > 60:
+        note = html.escape(wk.get("note") or "")
+        tabs = ('<div class="rgh-tabs"><button class="rgh-tab on" data-k="d" type="button">1年（日足）</button>'
+                f'<button class="rgh-tab" data-k="w" type="button">{wk["dates"][0][:4]}年〜（週足）</button></div>')
+        long_pane = (f'<div class="rgh-pane" data-k="w" style="display:none"><div class="rgh-s">{wk["dates"][0]}〜{wk["dates"][-1]}の週足'
+                     f'（各週の平均）。縦軸は3つとも0〜{_hi(wk) * 100:.0f}%。印はその週に1日でもあれば表示。{note}</div>'
+                     f'{chart_svg(state, wk, "w")}</div>')
     return (f'<div class="rgh" id="{BLOCK_ID}"><div class="rgh-h">今の読み方</div>'
             f'<div class="rgr {cls}"><b>{html.escape(head)}</b>{html.escape(body)}</div>'
-            '<div class="rgh-h">F1〜F3の推移</div>'
-            f'<div class="rgh-s">{first}〜{last}（約1年）。薄い黄＝注意、薄い赤＝警戒の水準。'
+            f'<div class="rgh-h">F1〜F3の推移</div>{tabs}'
+            f'<div class="rgh-pane" data-k="d"><div class="rgh-s">{first}〜{last}（約1年）。薄い黄＝注意、薄い赤＝警戒の水準。'
             f'縦軸は3つとも0〜{_hi(state) * 100:.0f}%。{legend}タップで日付と値。</div>'
-            f'{chart_svg(state)}<div class="rgh-tip"></div>'
+            f'{chart_svg(state)}</div>{long_pane}<div class="rgh-tip"></div>'
             f'<script id="{STATE_ID}" type="application/json">{raw}</script>{SCRIPT}<span class="rgh-end"></span></div>')
 
 
@@ -379,6 +466,8 @@ def rerender(text: str, root: Path) -> str:
         if seed.get("session") != manifest.get("session_date"):
             return apply(text, None)
         state = seed
+    if not state.get("weekly"):
+        state = {**state, "weekly": merge_weekly(load_archive(root), state)}
     return apply(text, state)
 
 
@@ -392,5 +481,11 @@ def run(text: str, root: Path, ohlcv_csv: Path, session: str) -> str:
     if state is None or state["session"] != session:
         print(f"regime history: series ends {state and state['session']} not {session}; keeping the page", flush=True)
         return rerender(text, root)
+    state["weekly"] = merge_weekly(load_archive(root), state)
+    try:
+        if save_archive(root, state["weekly"]):
+            print("regime history: weekly archive updated (" + ARCHIVE + ")", flush=True)
+    except OSError as exc:
+        print(f"regime history: could not save the weekly archive ({exc!r})", flush=True)
     print(f"regime history: {len(state['dates'])} sessions, last F1 {state['f1'][-1]} F2 {state['f2'][-1]} F3 {state['f3'][-1]}", flush=True)
     return apply(text, state)
