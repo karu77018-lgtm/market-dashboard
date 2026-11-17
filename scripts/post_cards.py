@@ -296,7 +296,7 @@ def apply(text: str) -> str:
     if BLOCK_RE.search(text):
         out = BLOCK_RE.sub(lambda _: block, text, count=1)
     else:
-        m = re.search(r'<div[^>]*\bid="t-post1"[^>]*>', text)
+        m = re.search(r'<(?:div|section)\b[^>]*\bid="t-post1"[^>]*>', text)
         if not m:
             print("post cards: Publish tab not found; cards not inserted", flush=True)
             return text
