@@ -400,7 +400,7 @@ def main() -> int:
         print(f"sector heat skipped: {exc!r}", flush=True)
     try:  # SNS用の画像カード on the Publish tab (from the states stored above)
         import post_cards
-        text = post_cards.run(text, html_path.resolve().parent, args.session)
+        text = post_cards.run(text, html_path.resolve().parent, args.session, health)
     except Exception as exc:
         print(f"post cards skipped: {exc!r}", flush=True)
     try:  # notice when an added card missed this close

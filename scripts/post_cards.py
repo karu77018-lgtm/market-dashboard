@@ -1,10 +1,16 @@
-"""SNS用カード「地合いと本命」 (Publish tab, display only), in the same frame and style as the original share cards.
+"""SNS用カード「地合いと本命」 (Publish tab, display only), in the frame, style and density of the original share cards.
 
-A 1680x1080 card in an iframe (full-screen button; fits and rotates like the originals): QQQ over two years on the
-market pulse's bands with the number of 本命 (swing picks) per day under it, the market now, how often picks appeared
-by market band, the last 60 sessions, breadth and sector strength.  Counts only: no names, no rule details.
-QQQ comes from the refresh (seed/post-cards-state.json); the pulse from data/mc57.json; counts from
-seed/honmei-counts.json (local replay of the production rule) and track-record/signals.json.
+1680x1080 card in an iframe (full-screen button; fits and rotates like the originals).  It shows the market as the
+swing rule sees it and how many 本命 (swing picks) came out, with counts only: no names and no rule details.
+- 新規の可否: the entry gate today, its last 60 sessions and how far QQQ is from re-opening it
+- 候補の流れ: today's funnel (liquid names -> selected -> each list of the screener)
+- ブレイク成功度: are momentum entries paying now (two years)
+- 地合いと本命の推移: QQQ over two years on the gate, the market pulse strip and the picks per day
+- 本命の出方, 月別, 本命のセクター構成, 地合いの中身 (pulse, breadth, sector strength)
+
+Inputs: the refresh stores QQQ, the gate and the breakout-health line in seed/post-cards-state.json; counts come from
+seed/honmei-counts.json (local replay before the gate, gated here) and track-record/signals.json (live record); the
+pulse and breadth from data/mc57.json; today's funnel from the swing screener card on the page.
 """
 from __future__ import annotations
 
@@ -20,11 +26,17 @@ STATE_ID = "post-cards-state"
 STYLE_ID = "post-cards-style"
 SEED = "seed/post-cards-state.json"
 COUNTS = "seed/honmei-counts.json"
+SECTOR_MAP = "seed/sector-map.json"
 DAYS = 504
-COL = {"ink": "#1B1D1C", "mut": "#727569", "line": "#D5D1C6", "acc": "#17685C", "pos": "#1E7A4D", "posbg": "#DBEBDF",
-       "neg": "#B23A2E", "negbg": "#F1DED9", "warn": "#B07A16", "warnbg": "#F0E6CF", "neubg": "#E6E3DB"}
+GATE_MA = 200
+WEAK, GOOD = 40.0, 55.0          # the site's own bands for the market pulse (弱い <40, 良好 >=55)
+COL = {"ink": "#1B1D1C", "mut": "#727569", "line": "#D5D1C6", "acc": "#17685C", "acc2": "#2A9384", "pos": "#1E7A4D",
+       "posbg": "#DBEBDF", "neg": "#B23A2E", "negbg": "#F1DED9", "warn": "#B07A16", "warnbg": "#F0E6CF", "neubg": "#E6E3DB"}
 SANS = "-apple-system,'Helvetica Neue',Arial,'Hiragino Sans','Noto Sans JP',sans-serif"
 MONO = "ui-monospace,'SF Mono',Menlo,monospace"
+JA = {"Technology": "テクノロジー", "Financial Services": "金融", "Healthcare": "ヘルスケア", "Industrials": "資本財",
+      "Consumer Cyclical": "一般消費財", "Real Estate": "不動産", "Energy": "エネルギー", "Basic Materials": "素材",
+      "Consumer Defensive": "生活必需品", "Communication Services": "通信", "Utilities": "公益"}
 
 
 def _e(s) -> str:
@@ -35,286 +47,448 @@ def _md(day: str | None) -> str:
     return f"{int(day[5:7])}/{int(day[8:10])}" if day else ""
 
 
-def _ym(day: str) -> str:
-    return f"{day[:4]}年{int(day[5:7])}月"
-
-
 def _sg(v: float | None, nd: int = 1) -> str:
     return "—" if v is None else f"{v:+.{nd}f}".replace("-", "−")
-
-
-# ---------------------------------------------------------------- state
-WEAK, GOOD = 40.0, 55.0          # the site's own bands for the market pulse (market_internals_ui: 弱い <40, 良好 >=55)
-BANDS = (("good", "良好", COL["posbg"], COL["pos"]), ("mixed", "混在", COL["neubg"], COL["mut"]), ("weak", "弱い", COL["negbg"], COL["neg"]))
 
 
 def band_of(v: float | None) -> str | None:
     return None if v is None else "weak" if v < WEAK else "good" if v >= GOOD else "mixed"
 
 
-def load_counts(root: Path, session: str) -> dict[str, int]:
-    out: dict[str, int] = {}
-    try:
-        out.update(json.loads((root / COUNTS).read_text(encoding="utf-8")).get("counts", {}))
-    except (OSError, ValueError):
-        pass
-    try:
-        ses = json.loads((root / "track-record" / "signals.json").read_text(encoding="utf-8")).get("sessions", {})
-        for d, s in ses.items():
-            if d <= session:
-                out[d] = len(s.get("best") or [])
-    except (OSError, ValueError, AttributeError):
-        pass
-    return dict(sorted((d, v) for d, v in out.items() if d <= session))
+# ---------------------------------------------------------------- refresh-side state
+def build_state(q: pd.Series, root: Path, session: str, health: dict | None = None) -> dict:
+    q = q[q.index <= pd.Timestamp(session)].dropna()
+    gate = (q > q.rolling(GATE_MA, min_periods=GATE_MA).mean()).iloc[-DAYS:]
+    q = q.iloc[-DAYS:]
+    bh = [[str(d)[:10], None if v is None else round(float(v), 5)] for d, v, *_ in (health or {}).get("chart") or []]
+    return {"session": session, "q_dates": [str(d.date()) for d in q.index], "q": [round(float(v), 2) for v in q],
+            "gate": [bool(g) for g in gate], "bh": bh}
 
 
-def load_pulse(root: Path) -> dict[str, dict]:
-    """date -> {pulse, a50, a200} from data/mc57.json (the market pulse and its breadth, two years)."""
+# ---------------------------------------------------------------- inputs on both paths
+def _json(path: Path) -> dict:
     try:
-        hist = json.loads((root / "data" / "mc57.json").read_text(encoding="utf-8")).get("history") or []
+        return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
-    out = {}
-    for r in hist:
-        m = r.get("metrics") or {}
-        out[str(r.get("date"))[:10]] = {"pulse": r.get("mc57"), "a50": m.get("close_gt_sma50"), "a200": m.get("close_gt_sma200"),
-                                         "a20": m.get("close_gt_sma20")}
-    return out
-
-
-def build_state(q: pd.Series, root: Path, session: str) -> dict:
-    q = q[q.index <= pd.Timestamp(session)].dropna().iloc[-DAYS:]
-    return {"session": session, "q_dates": [str(d.date()) for d in q.index], "q": [round(float(v), 2) for v in q]}
 
 
 def series(st: dict, root: Path) -> dict:
-    """QQQ, the pulse, its breadth and the pick counts on the QQQ sessions."""
-    pulse = load_pulse(root)
-    counts = load_counts(root, st["session"])
+    """Everything on the QQQ sessions of the state: gate, pulse, breadth, picks (gated), picks by sector."""
     d = st["q_dates"]
-    pv = [(pulse.get(x) or {}).get("pulse") for x in d]
-    return {"d": d, "q": st["q"], "pulse": pv, "band": [band_of(v) for v in pv],
-            "a50": [(pulse.get(x) or {}).get("a50") for x in d], "a200": [(pulse.get(x) or {}).get("a200") for x in d],
-            "c": [counts.get(x) for x in d]}
+    seed = _json(root / COUNTS)
+    raw, raw_sec = seed.get("counts", {}), seed.get("sectors", {})
+    live = (_json(root / "track-record" / "signals.json").get("sessions") or {})
+    smap = (_json(root / SECTOR_MAP).get("sectors") or {})
+    pulse = {}
+    for r in _json(root / "data" / "mc57.json").get("history") or []:
+        m = r.get("metrics") or {}
+        pulse[str(r.get("date"))[:10]] = (r.get("mc57"), m.get("close_gt_sma50"), m.get("close_gt_sma200"))
+    gate, c, sec = [], [], []
+    for day, g in zip(d, st["gate"]):
+        if day in live:
+            s = live[day]
+            on = s.get("regime", "on" if g else "off") == "on"
+            names = [x.get("t") if isinstance(x, dict) else x for x in (s.get("best") or [])]
+            by: dict[str, int] = {}
+            for n in names:
+                k = smap.get(n, "?")
+                by[k] = by.get(k, 0) + 1
+            gate.append(on), c.append(len(names)), sec.append(by)
+        elif day in raw:
+            gate.append(g), c.append(raw[day] if g else 0), sec.append(raw_sec.get(day, {}) if g else {})
+        else:
+            gate.append(g), c.append(None), sec.append({})
+    pv = [pulse.get(x, (None, None, None)) for x in d]
+    bh = {a: b for a, b in st.get("bh") or []}
+    return {"d": d, "q": st["q"], "gate": gate, "c": c, "sec": sec, "pulse": [p[0] for p in pv], "a50": [p[1] for p in pv],
+            "a200": [p[2] for p in pv], "band": [band_of(p[0]) for p in pv], "bh": [bh.get(x) for x in d]}
 
 
-# ---------------------------------------------------------------- drawing
-def _months(d: list[str], X, y: float) -> str:
-    out = ""
-    for i, day in enumerate(d):
-        if i and day[:7] != d[i - 1][:7] and int(day[5:7]) in (1, 4, 7, 10):
-            lab = f"{day[:4]}年" if day[5:7] == "01" else f"{int(day[5:7])}月"
-            out += f'<text x="{X(i):.1f}" y="{y}" font-family="{SANS}" font-size="11" fill="{COL["mut"]}" text-anchor="middle">{lab}</text>'
+def screener_today(page: str) -> dict:
+    """Today's counts and gate line from the swing screener card (display text; no names)."""
+    out: dict = {}
+    i = page.find('id="mc57-swing-screener"')
+    seg = page[i:i + 8000] if i >= 0 else ""
+    m = re.search(r"流動性あり(\d+)銘柄から選定(\d+)銘柄", seg)
+    if m:
+        out["liquid"], out["selected"] = int(m.group(1)), int(m.group(2))
+    for name, n in re.findall(r'<span class="[^"]*">([^<]+)<b>(\d+)</b></span>', seg[:3000]):
+        out.setdefault("lists", {})[name] = int(n)
+    m = re.search(r"QQQ \$([\d,.]+) が200日線 \$([\d,.]+)", seg)
+    if m:
+        qv, ma = float(m.group(1).replace(",", "")), float(m.group(2).replace(",", ""))
+        out["to_gate"] = (ma / qv - 1) * 100
+    m = re.search(r"ブレイク成功度 <b>([−\-+\d.]+)%</b>（([^）]+)）", seg)
+    if m:
+        out["bh_now"], out["bh_word"] = float(m.group(1).replace("−", "-")), m.group(2)
+    j = page.find('id="mc57-breakout-health"')
+    bseg = page[j:j + 20000] if j >= 0 else ""
+    m = re.search(r"数えた本命<b>(\d+)件</b>", bseg)
+    if m:
+        out["bh_n"] = int(m.group(1))
+    m = re.search(r"が続いて<b>(\d+)営業日</b>(\d+/\d+)から", bseg)
+    if m:
+        out["bh_days"], out["bh_since"] = int(m.group(1)), m.group(2)
     return out
 
 
+def universe(page: str) -> dict:
+    """対象 / 適格 / 監視上位 from the original market card's header."""
+    m = re.search(r"対象 <b>(\d+)</b>銘柄 ・ 適格 <b>(\d+)</b> ・ 監視上位 <b>(\d+)</b>", html.unescape(page))
+    return {"all": int(m.group(1)), "ok": int(m.group(2)), "top": int(m.group(3))} if m else {}
+
+
+# ---------------------------------------------------------------- drawing helpers
 def _main_chart(s: dict, w: int, h: int) -> str:
-    """QQQ on the market pulse's bands (top) and the picks per day (bottom), one time axis."""
+    """QQQ on the entry gate (top), the market pulse strip and the picks per day (bottom), one time axis."""
     q, d, n = s["q"], s["d"], len(s["q"])
-    pl, pr = 46, 64
-    top_h, gap, bar_h, axis = 370, 34, 186, 22
+    pl, pr = 44, 56
+    top_h, strip_y, strip_h, bars_y, bar_h = 228, 244, 14, 280, 108
     step = (w - pl - pr) / max(n - 1, 1)
     X = lambda i: pl + step * i  # noqa: E731
     lo, hi = min(q) * 0.97, max(q) * 1.02
-    Y = lambda v: 6 + (top_h - 6) * (1 - (v - lo) / (hi - lo))  # noqa: E731
-    fill = {k: f for k, _, f, _ in BANDS}
+    Y = lambda v: 4 + (top_h - 4) * (1 - (v - lo) / (hi - lo))  # noqa: E731
     out = [f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}">']
-    i = 0
-    while i < n:
-        j = i
-        while j + 1 < n and s["band"][j + 1] == s["band"][i]:
-            j += 1
-        if s["band"][i]:
-            x0, x1 = max(X(i) - step / 2, pl), min(X(j) + step / 2, w - pr)
-            for y0, hh in ((6, top_h - 6), (top_h + gap, bar_h)):
-                out.append(f'<rect x="{x0:.1f}" y="{y0}" width="{x1 - x0:.1f}" height="{hh}" fill="{fill[s["band"][i]]}"/>')
-        i = j + 1
+
+    def runs(vals):
+        i = 0
+        while i < n:
+            j = i
+            while j + 1 < n and vals[j + 1] == vals[i]:
+                j += 1
+            yield i, j, vals[i]
+            i = j + 1
+    for i, j, g in runs(s["gate"]):
+        x0, x1 = max(X(i) - step / 2, pl), min(X(j) + step / 2, w - pr)
+        f = COL["posbg"] if g else COL["negbg"]
+        out.append(f'<rect x="{x0:.1f}" y="4" width="{x1 - x0:.1f}" height="{top_h - 4}" fill="{f}"/>'
+                   f'<rect x="{x0:.1f}" y="{bars_y}" width="{x1 - x0:.1f}" height="{bar_h}" fill="{f}" opacity=".55"/>')
+    pc = {"good": COL["pos"], "mixed": "#B9B5A8", "weak": COL["neg"], None: COL["neubg"]}
+    for i, j, b in runs(s["band"]):
+        x0, x1 = max(X(i) - step / 2, pl), min(X(j) + step / 2, w - pr)
+        out.append(f'<rect x="{x0:.1f}" y="{strip_y}" width="{x1 - x0:.1f}" height="{strip_h}" fill="{pc[b]}"/>')
     for k in range(4):
         v = lo + (hi - lo) * (k + .5) / 4
         out.append(f'<line x1="{pl}" x2="{w - pr}" y1="{Y(v):.1f}" y2="{Y(v):.1f}" stroke="{COL["line"]}" stroke-dasharray="2 3"/>'
-                   f'<text x="{pl - 6}" y="{Y(v) + 4:.1f}" font-family="{MONO}" font-size="11" fill="{COL["mut"]}" text-anchor="end">{v:.0f}</text>')
+                   f'<text x="{pl - 5}" y="{Y(v) + 4:.1f}" font-family="{MONO}" font-size="10.5" fill="{COL["mut"]}" text-anchor="end">{v:.0f}</text>')
     pts = " ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in enumerate(q))
-    out.append(f'<polyline points="{pts}" fill="none" stroke="{COL["ink"]}" stroke-width="2" stroke-linejoin="round"/>')
+    out.append(f'<polyline points="{pts}" fill="none" stroke="{COL["ink"]}" stroke-width="1.8" stroke-linejoin="round"/>')
     x, y = X(n - 1), Y(q[-1])
-    out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4.5" fill="{COL["ink"]}" stroke="#fff" stroke-width="2"/>'
-               f'<text x="{x + 8:.1f}" y="{y + 4:.1f}" font-family="{MONO}" font-size="12" font-weight="800" fill="{COL["ink"]}">{q[-1]:.0f}</text>')
-    out.append(f'<text x="{pl + 6}" y="22" font-family="{SANS}" font-size="12" font-weight="800" fill="{COL["ink"]}">QQQ</text>')
-    # picks per day
+    out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4" fill="{COL["ink"]}" stroke="#fff" stroke-width="2"/>'
+               f'<text x="{x + 7:.1f}" y="{y + 4:.1f}" font-family="{MONO}" font-size="11.5" font-weight="800" fill="{COL["ink"]}">{q[-1]:.0f}</text>')
+    lab = lambda x0, y0, t: f'<text x="{x0}" y="{y0}" font-family="{SANS}" font-size="11" font-weight="800" fill="{COL["ink"]}">{t}</text>'  # noqa: E731
+    out.append(lab(pl + 6, 18, "QQQ"))
+    out.append(f'<text x="{w - pr + 6}" y="{strip_y + 11}" font-family="{SANS}" font-size="10" font-weight="700" fill="{COL["mut"]}">内部</text>')
     c = [v or 0 for v in s["c"]]
     cmax = max(max(c), 1)
-    base = top_h + gap + bar_h
+    base = bars_y + bar_h
     for k in sorted({0, cmax}):
         yy = base - bar_h * k / cmax
-        out.append(f'<line x1="{pl}" x2="{w - pr}" y1="{yy:.1f}" y2="{yy:.1f}" stroke="{COL["line"]}" stroke-dasharray="2 3"/>'
-                   f'<text x="{pl - 6}" y="{yy + 4:.1f}" font-family="{MONO}" font-size="11" fill="{COL["mut"]}" text-anchor="end">{k}</text>')
-    bw = max(step - .5, .8)
+        out.append(f'<text x="{pl - 5}" y="{yy + 4:.1f}" font-family="{MONO}" font-size="10.5" fill="{COL["mut"]}" text-anchor="end">{k}</text>')
+    bw = max(step - .45, .8)
     for i, v in enumerate(c):
         if v:
             bh = bar_h * v / cmax
             out.append(f'<rect x="{X(i) - bw / 2:.2f}" y="{base - bh:.1f}" width="{bw:.2f}" height="{bh:.1f}" fill="{COL["acc"]}"/>')
-    out.append(f'<text x="{pl + 6}" y="{top_h + gap + 16}" font-family="{SANS}" font-size="12" font-weight="800" fill="{COL["ink"]}">本命の数（日ごと）</text>')
-    out.append(_months(d, X, h - 4))
+    out.append(lab(pl + 6, bars_y + 14, "本命の数"))
+    for i, day in enumerate(d):
+        if i and day[:7] != d[i - 1][:7] and int(day[5:7]) in (1, 4, 7, 10):
+            t = f"{day[:4]}年" if day[5:7] == "01" else f"{int(day[5:7])}月"
+            out.append(f'<line x1="{X(i):.1f}" x2="{X(i):.1f}" y1="{base}" y2="{base + 4}" stroke="{COL["mut"]}"/>'
+                       f'<text x="{X(i):.1f}" y="{h - 3}" font-family="{SANS}" font-size="10.5" fill="{COL["mut"]}" text-anchor="middle">{t}</text>')
     out.append("</svg>")
     return "".join(out)
 
 
-def _spark(vals: list, w: int, h: int, col: str) -> str:
+def _line(vals: list, w: int, h: int, col: str, zero: bool = False, lo: float | None = None, hi: float | None = None) -> str:
     pts = [(i, v) for i, v in enumerate(vals) if v is not None]
+    if len(pts) < 2:
+        return f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}"></svg>'
+    vs = [v for _, v in pts]
+    lo = min(vs) if lo is None else lo
+    hi = max(vs) if hi is None else hi
+    if zero:
+        lo, hi = min(lo, -abs(hi) * .2), max(hi, abs(lo) * .2)
+    pad = (hi - lo) * .08 or 1
+    lo, hi = lo - pad, hi + pad
     n = len(vals)
-    X = lambda i: w * i / max(n - 1, 1)  # noqa: E731
-    Y = lambda v: 2 + (h - 4) * (1 - v / 100)  # noqa: E731
+    X = lambda i: 2 + (w - 4) * i / max(n - 1, 1)  # noqa: E731
+    Y = lambda v: 2 + (h - 4) * (hi - v) / (hi - lo)  # noqa: E731
+    out = f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}">'
+    if zero:
+        z = Y(0)
+        out += (f'<rect x="0" y="0" width="{w}" height="{z:.1f}" fill="{COL["posbg"]}" opacity=".7"/>'
+                f'<rect x="0" y="{z:.1f}" width="{w}" height="{h - z:.1f}" fill="{COL["negbg"]}" opacity=".7"/>'
+                f'<line x1="0" x2="{w}" y1="{z:.1f}" y2="{z:.1f}" stroke="{COL["mut"]}" stroke-dasharray="3 3"/>')
     line = " ".join(f"{X(i):.1f},{Y(v):.1f}" for i, v in pts)
-    return (f'<svg viewBox="0 0 {w} {h}" width="{w}" height="{h}"><line x1="0" x2="{w}" y1="{Y(50):.1f}" y2="{Y(50):.1f}" '
-            f'stroke="{COL["line"]}" stroke-dasharray="2 3"/><polyline points="{line}" fill="none" stroke="{col}" stroke-width="1.8"/></svg>')
+    x, y = X(pts[-1][0]), Y(pts[-1][1])
+    return out + (f'<polyline points="{line}" fill="none" stroke="{col}" stroke-width="1.8" stroke-linejoin="round"/>'
+                  f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="{col}"/></svg>')
 
 
 CSS = """
 *{box-sizing:border-box;margin:0;padding:0}html{-webkit-text-size-adjust:100%;height:100%}
 body{background:#E9E7DF;font-family:-apple-system,'Helvetica Neue',Arial,'Hiragino Sans','Noto Sans JP',sans-serif;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;color:#1B1D1C}
 .stage{width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}.scaler{transform-origin:center center;flex:none}
-.card{width:1680px;height:1080px;background:#E9E7DF;color:#1B1D1C;padding:22px 26px 14px;display:flex;flex-direction:column;
+.card{width:1680px;height:1080px;background:#E9E7DF;color:#1B1D1C;padding:20px 26px 12px;display:flex;flex-direction:column;
 --ink:#1B1D1C;--mut:#727569;--line:#D5D1C6;--card:#F6F4EE;--accent:#17685C;--pos:#1E7A4D;--posbg:#DBEBDF;--neg:#B23A2E;--negbg:#F1DED9;
---warn:#B07A16;--warnbg:#F0E6CF;--neubg:#E6E3DB;--fnum:ui-monospace,'SF Mono',Menlo,monospace}
-.num{font-family:var(--fnum);font-variant-numeric:tabular-nums;letter-spacing:-.01em}.pos{color:var(--pos)}.neg{color:var(--neg)}.mut{color:var(--mut)}
+--warn:#B07A16;--warnbg:#F0E6CF;--neubg:#E6E3DB;--fnum:ui-monospace,'SF Mono',Menlo,monospace;font-size:13px}
+.num{font-family:var(--fnum);font-variant-numeric:tabular-nums;letter-spacing:-.01em}.pos{color:var(--pos)}.neg{color:var(--neg)}.mut{color:var(--mut)}.wrn{color:var(--warn)}
 .hd{display:flex;align-items:center;gap:12px;margin-bottom:8px}.hd .bar{width:5px;height:24px;background:var(--accent);border-radius:3px}
-.hd h1{font-size:24px;font-weight:800;letter-spacing:-.02em}.hd .state{font-size:13px;font-weight:800;border:1.5px solid;border-radius:8px;padding:3px 12px}
-.hd .stats{font-size:12.5px;color:var(--mut);font-weight:700}.hd .stats b{color:var(--ink)}.hd .date{margin-left:auto;font-size:14px;color:var(--mut);font-weight:700}
-.read{font-size:15px;font-weight:700;color:#33352E;margin-bottom:10px;line-height:1.4;padding:9px 12px;background:var(--card);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:8px}
-.read b{color:var(--accent)}.read .dn{color:var(--neg)}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:1fr 262px;gap:10px;flex:1;min-height:0}.sp3{grid-column:span 3}
+.hd h1{font-size:24px;font-weight:800;letter-spacing:-.02em}.hd h1 small{font-size:13px;font-weight:600;color:var(--mut);letter-spacing:.02em;margin-left:4px}
+.hd .state{font-size:13px;font-weight:800;border:1.5px solid;border-radius:8px;padding:3px 12px}
+.hd .stats{font-size:12.5px;color:var(--mut);font-weight:700}.hd .stats b{color:var(--ink);font-family:var(--fnum)}.hd .date{margin-left:auto;font-size:14px;color:var(--mut);font-weight:700}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:212px 1fr 318px;gap:10px;flex:1;min-height:0}.sp2{grid-column:span 2}.sp3{grid-column:span 3}
 .t{background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 12px;min-height:0;overflow:hidden;display:flex;flex-direction:column}
-.th{display:flex;align-items:center;gap:6px;margin-bottom:6px;white-space:nowrap}.th h4{font-size:13.5px;font-weight:800;letter-spacing:-.01em}
-.th h4 .en{font-size:9px;font-weight:600;color:var(--mut);margin-left:5px;letter-spacing:.02em}.th .s{font-size:10.5px;color:var(--mut);font-weight:700}
-.lg{display:flex;gap:10px;font-size:11px;color:var(--mut);font-weight:700;margin-left:auto}.lg i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:4px;vertical-align:-1px}
-.k{font-size:12px;color:var(--mut);font-weight:700;margin-bottom:3px}.big{display:flex;align-items:baseline;gap:4px}
-.big .v{font-size:64px;font-weight:800;line-height:1;font-family:var(--fnum);letter-spacing:-.03em}.big .u{font-size:20px;font-weight:800;color:var(--mut)}
-.big .w{font-size:16px;font-weight:800;margin-left:8px}.gauge{position:relative;height:12px;border-radius:6px;margin:10px 0 4px;
-background:linear-gradient(90deg,var(--negbg) 0 40%,var(--neubg) 40% 55%,var(--posbg) 55% 100%)}
-.gauge i{position:absolute;top:-5px;width:4px;height:22px;border-radius:2px;background:var(--ink);transform:translateX(-2px)}
-.gl{display:flex;justify-content:space-between;font-size:10.5px;color:var(--mut);font-weight:700}
-.sep{border-top:1px solid var(--line);margin:12px 0 10px}
-.steps{display:flex;gap:3px;margin-top:4px}.steps span{flex:1;text-align:center;font-size:11.5px;font-weight:800;padding:6px 0;border-radius:6px;background:var(--neubg);color:var(--mut)}
-.steps span.on{background:var(--ink);color:#fff}
-.rate{display:grid;grid-template-columns:44px 1fr 52px;align-items:center;gap:8px;margin:9px 0}.rate .n{font-size:13px;font-weight:800}
-.rate .b{height:22px;border-radius:5px;background:var(--neubg);overflow:hidden}.rate .b i{display:block;height:100%;border-radius:5px}
-.rate .p{font-family:var(--fnum);font-weight:800;font-size:17px;text-align:right}
-.sub{font-size:11.5px;color:var(--mut);font-weight:700;line-height:1.5;margin-top:auto}.sub b{color:var(--ink)}
-.cal{display:grid;grid-template-columns:repeat(15,1fr);gap:4px;margin-top:4px}.cal span{height:30px;border-radius:5px;display:flex;align-items:center;justify-content:center;
-font-family:var(--fnum);font-size:12px;font-weight:800;color:var(--acc2,#17685C)}.cal span.z{color:transparent}
-.br{display:grid;grid-template-columns:96px 1fr 50px;align-items:center;gap:8px;margin:8px 0}.br .n{font-size:12.5px;font-weight:800;line-height:1.15}
-.br .n small{display:block;font-size:10px;color:var(--mut)}.br .v{font-family:var(--fnum);font-weight:800;font-size:17px;text-align:right}
-.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:2px}.chips span{font-size:14px;font-weight:800;padding:6px 11px;border-radius:7px;background:var(--neubg);color:var(--mut)}
+.th{display:flex;align-items:baseline;gap:6px;margin-bottom:7px;white-space:nowrap}.th h4{font-size:13.5px;font-weight:800;letter-spacing:-.01em}
+.th h4 .en{font-size:9px;font-weight:600;color:var(--mut);margin-left:5px;letter-spacing:.02em}.th .s{font-size:10.5px;color:var(--mut);font-weight:700;overflow:hidden;text-overflow:ellipsis}
+.th .g{margin-left:auto;color:var(--mut);opacity:.5;font-size:11px}
+.lg{display:flex;gap:9px;font-size:10.5px;color:var(--mut);font-weight:700;margin-left:auto}.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:3px;vertical-align:-1px}
+.big{display:flex;align-items:baseline;gap:6px}.big .v{font-size:34px;font-weight:800;line-height:1;letter-spacing:-.02em}.big .u{font-size:15px;font-weight:800;color:var(--mut)}
+.big .tag{font-size:11.5px;font-weight:800;border:1.5px solid;border-radius:6px;padding:1px 7px;margin-left:4px}
+.k{font-size:11.5px;color:var(--mut);font-weight:700}.k b{color:var(--ink);font-family:var(--fnum)}
+.strip{display:grid;grid-template-columns:repeat(60,1fr);gap:2px;margin:10px 0 6px}.strip i{height:16px;border-radius:2px}
+.foot2{margin-top:auto;padding-top:7px;border-top:1px solid var(--line);font-size:11.5px;font-weight:700;color:var(--mut)}.foot2 b{color:var(--ink);font-family:var(--fnum)}
+.fun{display:flex;align-items:stretch;gap:0;margin:2px 0 8px}.fun div{flex:1;text-align:center;padding:8px 2px 7px;background:var(--neubg);position:relative;
+clip-path:polygon(0 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,0 100%,12px 50%)}.fun div:first-child{clip-path:polygon(0 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,0 100%)}
+.fun div b{display:block;font-family:var(--fnum);font-size:24px;font-weight:800;line-height:1.05}.fun div span{font-size:10.5px;font-weight:800;color:var(--mut)}
+.fun div.z b{color:var(--mut)}.fun div.hit{background:var(--posbg)}.fun div.hit b{color:var(--pos)}
+.lists{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}.lists div{background:#fff;border:1px solid var(--line);border-radius:7px;padding:5px 7px}
+.lists div span{display:block;font-size:10.5px;font-weight:800;color:var(--mut)}.lists div b{font-family:var(--fnum);font-size:19px;font-weight:800}.lists div.on{border-color:var(--accent)}.lists div.on b{color:var(--accent)}
+.kv{display:grid;grid-template-columns:1fr auto;gap:0 10px;font-size:12px;font-weight:700}.kv div{padding:5px 0;border-bottom:1px solid var(--line)}
+.kv div:nth-child(even){text-align:right;font-family:var(--fnum);font-weight:800}.kv div:nth-last-child(-n+2){border-bottom:0}.kv small{color:var(--mut);font-weight:700;font-size:10.5px}
+.bnd{display:grid;grid-template-columns:40px 1fr 40px;gap:6px;align-items:center;margin:5px 0;font-size:12px;font-weight:800}
+.bnd .b{height:14px;border-radius:4px;background:var(--neubg);overflow:hidden}.bnd .b i{display:block;height:100%}.bnd .p{text-align:right;font-family:var(--fnum)}
+table.mt{width:100%;border-collapse:collapse;font-size:11.5px}table.mt th{font-size:10.5px;color:var(--mut);font-weight:700;text-align:right;padding:3px 6px;border-bottom:1.5px solid var(--line);white-space:nowrap}
+table.mt td{padding:1.5px 6px;text-align:right;border-bottom:1px solid var(--line);font-family:var(--fnum);font-weight:700;white-space:nowrap}
+table.mt th:first-child,table.mt td:first-child{text-align:left}table.mt td.l{text-align:left;font-family:-apple-system,'Hiragino Sans',sans-serif}
+table.mt td .hb{display:inline-block;height:9px;border-radius:2px;background:var(--accent);vertical-align:0;margin-right:5px}
+table.mt td.c{padding:2px 4px}table.mt td.c span{display:block;border-radius:4px;padding:1px 0;text-align:center}
+.sec{display:grid;grid-template-columns:76px 1fr 38px 26px;gap:6px;align-items:center;margin:2.2px 0;font-size:12px;font-weight:800}.sec .r{text-align:center;font-family:var(--fnum);font-size:11px;border-radius:4px;background:var(--neubg);color:var(--mut);padding:1px 0}.sec .r.h{background:var(--posbg);color:var(--pos)}.sec .r.l{background:var(--negbg);color:var(--neg)}
+.sec .b{height:13px;border-radius:3px;background:var(--neubg);overflow:hidden}.sec .b i{display:block;height:100%;background:var(--accent)}
+.sec .p{text-align:right;font-family:var(--fnum);font-size:11.5px}
+.gauge{position:relative;height:10px;border-radius:5px;margin:7px 0 3px;background:linear-gradient(90deg,var(--negbg) 0 40%,var(--neubg) 40% 55%,var(--posbg) 55% 100%)}
+.gauge i{position:absolute;top:-4px;width:4px;height:18px;border-radius:2px;background:var(--ink);transform:translateX(-2px)}
+.chips{display:flex;flex-wrap:wrap;gap:4px}.chips span{font-size:11px;font-weight:800;padding:3px 7px;border-radius:6px;background:var(--neubg);color:var(--mut)}
 .chips span.h{background:var(--posbg);color:var(--pos)}.chips span.l{background:var(--negbg);color:var(--neg)}
-.foot{font-size:10.5px;color:var(--mut);font-weight:700;margin-top:7px;display:flex}.foot span{margin-left:auto;color:var(--accent);font-weight:800}
+.foot{font-size:10.5px;color:var(--mut);font-weight:700;margin-top:6px;display:flex}.foot span{margin-left:auto;color:var(--accent);font-weight:800}
 """
 FIT = ("<script>function fit(){var s=document.getElementById('scaler');var W=window.innerWidth,H=window.innerHeight,cw=1680,ch=1080;"
        "if(H>W){var sc=Math.min(W/ch,H/cw);s.style.transform='rotate(90deg) scale('+sc+')';}else{var sc=Math.min(W/cw,H/ch);"
        "s.style.transform='scale('+sc+')';}s.style.width=cw+'px';s.style.height=ch+'px';}fit();window.addEventListener('resize',fit);</script>")
 
 
+def _streak(vals: list, pred) -> int:
+    k = 0
+    for v in reversed(vals):
+        if not pred(v):
+            break
+        k += 1
+    return k
+
+
+def _longest(vals: list, pred) -> tuple[int, int]:
+    best, cur, end = 0, 0, 0
+    for i, v in enumerate(vals):
+        cur = cur + 1 if pred(v) else 0
+        if cur > best:
+            best, end = cur, i
+    return best, end
+
+
+def stats(s: dict) -> dict:
+    d, c, g = s["d"], s["c"], s["gate"]
+    known = [(day, v, gg) for day, v, gg in zip(d, c, g) if v is not None]
+    y1 = known[-252:]
+    picked = [v for _, v, _ in y1 if v]
+    on_days = [v for _, v, gg in y1 if gg]
+    lz, end = _longest([v for _, v, _ in known], lambda v: v == 0)
+    mx = max(known, key=lambda x: x[1]) if known else (None, 0, None)
+    out = {"share": round(len(picked) / max(len(y1), 1) * 100), "total": sum(picked), "per": (sum(picked) / len(picked)) if picked else 0,
+           "max": mx[1], "max_day": mx[0], "longest": lz, "longest_end": known[end][0] if known else None,
+           "zero": _streak([v for _, v, _ in known], lambda v: v == 0), "on_share": round(len(on_days) / max(len(y1), 1) * 100),
+           "hit_on": round(sum(1 for v in on_days if v) / max(len(on_days), 1) * 100),
+           "gate_now": g[-1], "gate_days": _streak(g, lambda x: x == g[-1])}
+    rows = []
+    for k, name, col in (("good", "良好", COL["pos"]), ("mixed", "混在", "#8F8B7E"), ("weak", "弱い", COL["neg"])):
+        days = [v for v, b in zip(c, s["band"]) if b == k and v is not None]
+        rows.append((name, col, round(sum(1 for v in days if v) / len(days) * 100) if days else None))
+    out["bands"] = rows
+    return out
+
+
+def monthly(s: dict, months: int = 12) -> list[dict]:
+    df = pd.DataFrame({"d": pd.to_datetime(s["d"]), "q": s["q"], "c": s["c"], "g": s["gate"], "p": s["pulse"]})
+    df["m"] = df.d.dt.strftime("%Y-%m")
+    out = []
+    prev = None
+    for m, g in df.groupby("m"):
+        known = g.c.dropna()
+        secs: dict[str, int] = {}
+        for i in g.index:
+            for k, v in s["sec"][i].items():
+                secs[k] = secs.get(k, 0) + v
+        top = max(secs.items(), key=lambda x: x[1])[0] if secs else None
+        ret = None if prev is None else (g.q.iloc[-1] / prev - 1) * 100
+        prev = g.q.iloc[-1]
+        p = g.p.dropna()
+        out.append({"m": m, "n": len(g), "on": int(g.g.sum()), "days": int((known > 0).sum()), "total": int(known.sum()),
+                    "top": top, "qqq": ret, "pulse": None if p.empty else float(p.mean()), "partial": len(known) < len(g)})
+    return out[-months:]
+
+
+def sectors_1y(s: dict) -> list[tuple[str, int]]:
+    tot: dict[str, int] = {}
+    for by in s["sec"][-252:]:
+        for k, v in by.items():
+            tot[k] = tot.get(k, 0) + v
+    return sorted(((k, v) for k, v in tot.items() if k in JA), key=lambda x: -x[1])
+
+
 def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
     import phase_check as pc
     import sector_heat as sh
     s = series(st, root)
+    sc = screener_today(page)
+    un = universe(page)
     ph = pc.embedded_state(page) or {}
     heat = sh.embedded_state(page)
-    q = ph.get("qqq") or {}
+    a = stats(s)
     kind = pc.phase_of(ph) if ph else None
     pulse = next((v for v in reversed(s["pulse"]) if v is not None), None)
-    i5 = max(len(s["pulse"]) - 6, 0)
-    p5 = s["pulse"][i5]
     band = band_of(pulse)
-    bname = {k: n for k, n, _, _ in BANDS}.get(band, "—")
-    bcol = {"good": "pos", "mixed": "mut", "weak": "neg"}.get(band, "mut")
-    c = [v for v in s["c"] if v is not None]
-    today = c[-1] if c else 0
-    zero = 0
-    for v in reversed(c):
-        if v:
-            break
-        zero += 1
-    last = c[-252:]
-    share = round(sum(1 for v in last if v) / max(len(last), 1) * 100)
-    # how often picks appeared, by band (the same two years)
-    rows = []
-    for k, name, _, col in BANDS:
-        days = [cv for cv, b in zip(s["c"], s["band"]) if b == k and cv is not None]
-        rows.append((k, name, col, len(days), round(sum(1 for v in days if v) / len(days) * 100) if days else None))
-    good_p = next((r[4] for r in rows if r[0] == "good"), None)
-    weak_p = next((r[4] for r in rows if r[0] == "weak"), None)
+    bname = {"good": "良好", "mixed": "混在", "weak": "弱い"}.get(band, "—")
+    on = a["gate_now"]
+    today = s["c"][-1] or 0
     cap = []
-    # header and reading
-    stats = f'マーケットパルス <b class="num">{pulse:.0f}</b>/100' if pulse is not None else ""
-    stats += f' ・ 本命 <b class="num">{today}</b>件'
-    if q.get("dd") is not None:
-        stats += f' ・ QQQ 高値から <b class="num">{_sg(q["dd"])}%</b>'
-    if zero:
-        read = (f'市場内部は<span class="{"dn" if band == "weak" else ""}">{bname}</span>（マーケットパルス{pulse:.0f}）。'
-                f'本命は<b>{zero}日連続ゼロ</b>、地合いが整うまで新規は待ち。')
-        cap.append(f"市場内部は{bname}（マーケットパルス{pulse:.0f}/100）。本命は{zero}日連続ゼロ、待ちの局面。")
+    # ---- header
+    stats_html = (f'本命 <b>{today}</b>件 ・ 過去1年で本命が出た日 <b>{a["share"]}%</b> ・ マーケットパルス <b>{pulse:.0f}</b>/100'
+                  if pulse is not None else f'本命 <b>{today}</b>件')
+    # ---- 新規の可否
+    last60 = s["gate"][-60:]
+    stops, run_ = [], 0
+    for g in s["gate"] + [True]:
+        if not g:
+            run_ += 1
+        elif run_:
+            stops.append(run_)
+            run_ = 0
+    strip = "".join(f'<i style="background:{COL["pos"] if g else COL["neg"]};opacity:{.85 if g else .75}"></i>' for g in last60)
+    gword = "新規OK" if on else "新規停止"
+    gcol = "pos" if on else "neg"
+    to_gate = sc.get("to_gate")
+    gate_txt = (f'再開まで QQQ <b>{_sg(to_gate)}%</b>' if (not on and to_gate is not None and to_gate > 0)
+                else f'停止まで QQQ <b>{_sg(-abs(to_gate))}%</b>' if (on and to_gate is not None) else "")
+    t1 = (f'<div class="t"><div class="th"><h4>新規の可否<span class="en">Entry Gate</span></h4><span class="s">サイトの地合いルール</span><span class="g">⚙</span></div>'
+          f'<div class="big"><span class="v {gcol}">{gword}</span><span class="tag {gcol}">{a["gate_days"]}日目</span></div>'
+          f'<div class="strip">{strip}</div>'
+          f'<div class="k">直近60日：新規OK <b>{sum(last60)}</b> / 停止 <b>{60 - sum(last60)}</b></div>'
+          f'<div class="k" style="margin-top:5px">過去2年の停止 <b>{len(stops)}</b>回・平均 <b>{(sum(stops) / len(stops)) if stops else 0:.0f}</b>日・最長 <b>{max(stops) if stops else 0}</b>日</div>'
+          f'<div class="foot2">{gate_txt}{" ・ " if gate_txt else ""}過去1年の新規OK <b>{a["on_share"]}%</b></div></div>')
+    cap.append(f"新規の可否：{gword}（{a['gate_days']}日目）。" + (f"再開までQQQ {_sg(to_gate)}%。" if not on and to_gate else ""))
+    # ---- 候補の流れ
+    li = sc.get("lists", {})
+    steps = []
+    if un:
+        steps += [("対象", un["all"]), ("適格", un["ok"])]
+    if "liquid" in sc:
+        steps += [("流動性あり", sc["liquid"]), ("選定", sc["selected"])]
+    steps.append(("本命", li.get("本命", today)))
+    fun = "".join(f'<div class="{"hit" if (k == "本命" and v) else "z" if not v else ""}"><b>{v:,}</b><span>{k}</span></div>' for k, v in steps)
+    lst = "".join(f'<div class="{"on" if v else ""}"><span>{_e(k)}</span><b>{v}</b></div>' for k, v in li.items())
+    t2 = (f'<div class="t sp2"><div class="th"><h4>候補の流れ<span class="en">Pick Funnel · Today</span></h4>'
+          f'<span class="s">米国株全体から毎日しぼり込み（条件は非公開）</span><span class="g">⚙</span></div><div class="fun">{fun}</div>'
+          f'<div class="lists">{lst}</div></div>')
+    # ---- ブレイク成功度
+    bh_now = sc.get("bh_now")
+    bh_word = sc.get("bh_word", "")
+    bcol = "pos" if bh_word == "好調" else "neg" if bh_word == "不調" else "mut"
+    t3 = (f'<div class="t"><div class="th"><h4>ブレイク成功度<span class="en">Breakout Health</span></h4><span class="s">勢い株は報われているか</span></div>'
+          f'<div class="big"><span class="v num {bcol}">{_sg(bh_now)}</span><span class="u">%</span><span class="tag {bcol}">{_e(bh_word or "—")}</span>'
+          f'<span class="k" style="margin-left:auto">{sc.get("bh_days", "—")}営業日目</span></div>'
+          f'{_line([None if v is None else v * 100 for v in s["bh"]], 372, 76, COL["ink"], zero=True)}'
+          f'<div class="foot2">候補の10日後の平均 ・ 直近63日 <b>{sc.get("bh_n", "—")}</b>件</div></div>')
+    if bh_now is not None:
+        cap.append(f"ブレイク成功度 {_sg(bh_now)}%（{bh_word}）。")
+    # ---- main chart
+    lg = (f'<span><i style="background:{COL["posbg"]}"></i>新規OK</span><span><i style="background:{COL["negbg"]}"></i>新規停止</span>'
+          f'<span><i style="background:{COL["pos"]}"></i>内部良好</span><span><i style="background:#B9B5A8"></i>混在</span>'
+          f'<span><i style="background:{COL["neg"]}"></i>弱い</span>')
+    t4 = (f'<div class="t sp3"><div class="th"><h4>地合いと本命の推移<span class="en">Gate · Market Pulse · Picks (2Y)</span></h4>'
+          f'<span class="lg">{lg}</span></div>{_main_chart(s, 1204, 408)}</div>')
+    # ---- 本命の出方
+    bands = "".join(f'<div class="bnd"><span style="color:{col}">{n}</span><div class="b"><i style="width:{p or 0}%;background:{col}"></i></div>'
+                    f'<span class="p">{"—" if p is None else f"{p}%"}</span></div>' for n, col, p in a["bands"])
+    t5 = (f'<div class="t"><div class="th"><h4>本命の出方<span class="en">Pick Stats</span></h4><span class="s">過去1年</span></div><div class="kv">'
+          f'<div>本命が出た日</div><div>{a["share"]}%</div>'
+          f'<div>新規OKの日のうち出た日</div><div>{a["hit_on"]}%</div>'
+          f'<div>延べ件数<small>（出た日の平均）</small></div><div>{a["total"]}件<small>（{a["per"]:.1f}）</small></div>'
+          f'<div>1日の最多<small>（{_md(a["max_day"])}）</small></div><div>{a["max"]}件</div>'
+          f'<div>最長の連続ゼロ<small>（〜{_md(a["longest_end"])}）</small></div><div>{a["longest"]}日</div>'
+          f'<div>いまの連続ゼロ</div><div class="{"neg" if a["zero"] else ""}">{a["zero"]}日</div></div>'
+          f'<div class="k" style="margin:9px 0 2px">市場内部別：本命が出た日（2年）</div>{bands}</div>')
+    if a["zero"]:
+        cap.append(f"本命は{a['zero']}日連続ゼロ。過去1年で本命が出たのは{a['share']}%の日だけ。")
     else:
-        read = f'市場内部は<b>{bname}</b>（マーケットパルス{pulse:.0f}）。本命は今日<b>{today}件</b>。'
-        cap.append(f"市場内部は{bname}（マーケットパルス{pulse:.0f}/100）。本命は今日{today}件。")
-    if kind:
-        read += f'QQQは「{dict(pc.PHASES)[kind]}」。'
-    if good_p is not None and weak_p is not None:
-        cap.append(f"過去2年、内部が良好な日は{good_p}%の日で本命が出たのに対し、弱い日は{weak_p}%。")
-    # main chart
-    lg = "".join(f'<span><i style="background:{f}"></i>内部{n}</span>' for _, n, f, _ in BANDS)
-    t1 = (f'<div class="t sp3"><div class="th"><h4>地合いと本命の推移<span class="en">Market Pulse × Swing Picks (2Y)</span></h4>'
-          f'<span class="s">背景＝その日の市場内部（マーケットパルス）</span><span class="lg">{lg}</span></div>{_main_chart(s, 1204, 636)}</div>')
-    # now
-    steps = "".join(f'<span class="{"on" if k == kind else ""}">{t}</span>' for k, t in pc.PHASES) if kind else ""
-    pos = min(max(pulse or 0, 0), 100)
-    t2 = (f'<div class="t"><div class="th"><h4>いまの地合い<span class="en">Now</span></h4></div>'
-          f'<div class="k">マーケットパルス（市場内部・0〜100）</div><div class="big"><span class="v {bcol}">{pulse:.0f}</span>'
-          f'<span class="u">/100</span><span class="w {bcol}">内部{bname}</span></div>'
-          f'<div class="gauge"><i style="left:{pos:.1f}%"></i></div><div class="gl"><span>弱い</span><span>混在</span><span>良好</span></div>'
-          f'<div class="k" style="margin-top:6px">5日前から <b class="num" style="color:var(--ink)">{_sg(pulse - p5 if p5 is not None else None)}</b></div>'
-          '<div class="sep"></div><div class="k">本命（今日）</div>'
-          f'<div class="big"><span class="v">{today}</span><span class="u">件</span>'
-          + (f'<span class="w neg">{zero}日連続ゼロ</span>' if zero else "") + '</div>'
-          + f'<div class="k" style="margin-top:8px">過去1年で本命が出た日 <b class="num" style="color:var(--ink)">{share}%</b></div>'
-          + (f'<div class="sep"></div><div class="k">QQQの局面</div><div class="steps">{steps}</div>' if steps else "")
-          + '</div>')
-    # picks by band
-    rr = "".join(f'<div class="rate"><div class="n" style="color:{col}">{name}</div><div class="b"><i style="width:{p or 0}%;background:{col}"></i></div>'
-                 f'<div class="p">{"—" if p is None else f"{p}%"}</div></div>' for _, name, col, n, p in rows)
-    t3 = (f'<div class="t"><div class="th"><h4>本命が出た日の割合<span class="en">Picks by Market</span></h4><span class="s">市場内部別・過去2年</span></div>'
-          f'{rr}<div class="sub">地合いが悪いほど本命は出にくい。<b>数を追わず、出る日だけ動く</b>。</div></div>')
-    # last 60 sessions
-    cells = ""
-    fill = {k: f for k, _, f, _ in BANDS}
-    for cv, b, d in list(zip(s["c"], s["band"], s["d"]))[-60:]:
-        cells += f'<span class="{"" if cv else "z"}" style="background:{fill.get(b, COL["neubg"])}" title="{d}">{cv or 0}</span>'
-    t4 = (f'<div class="t"><div class="th"><h4>直近60日<span class="en">Last 60 Sessions</span></h4><span class="s">色＝市場内部・数字＝本命の数</span></div>'
-          f'<div class="cal">{cells}</div><div class="sub">{_md(s["d"][-60])}〜{_md(s["d"][-1])}・左上から古い順</div></div>')
-    # breadth
-    br = ""
-    for key, name, sub in (("a50", "50日線より上", "中期の広がり"), ("a200", "200日線より上", "長期の広がり")):
-        v = next((x for x in reversed(s[key]) if x is not None), None)
-        col = COL["neg"] if v is not None and v < 40 else COL["pos"] if v is not None and v >= 60 else COL["warn"]
-        br += (f'<div class="br"><div class="n">{name}<small>{sub}</small></div>{_spark(s[key][-252:], 190, 40, col)}'
-               f'<div class="v" style="color:{col}">{"—" if v is None else f"{v:.0f}%"}</div></div>')
-    t5 = (f'<div class="t"><div class="th"><h4>広がり<span class="en">Breadth (1Y)</span></h4><span class="s">主要57銘柄のうち線より上の割合</span></div>{br}</div>')
-    # sector strength
+        cap.append(f"本命は今日{today}件。過去1年で本命が出たのは{a['share']}%の日。")
+    # ---- monthly
+    rows = monthly(s)
+    mx_total = max([r["total"] for r in rows] + [1])
+    trs = ""
+    for r in rows:
+        pcol = {"good": COL["posbg"], "mixed": COL["neubg"], "weak": COL["negbg"]}.get(band_of(r["pulse"]), "transparent")
+        qcol = "" if r["qqq"] is None else ("pos" if r["qqq"] >= 0 else "neg")
+        trs += (f'<tr><td>{r["m"][:4]}/{r["m"][5:]}{"*" if r["m"] == rows[-1]["m"] else ""}</td><td>{r["on"]}/{r["n"]}</td><td>{r["days"]}</td>'
+                f'<td class="l"><span class="hb" style="width:{70 * r["total"] / mx_total:.0f}px"></span>{r["total"]}</td>'
+                f'<td class="l">{_e(JA.get(r["top"], "—"))}</td><td class="{qcol}">{_sg(r["qqq"])}%</td>'
+                f'<td class="c"><span style="background:{pcol}">{"—" if r["pulse"] is None else f"{r["pulse"]:.0f}"}</span></td></tr>')
+    t6 = (f'<div class="t sp2"><div class="th"><h4>月別の本命<span class="en">Monthly</span></h4><span class="s">過去12か月・*は今月（途中）</span><span class="g">⚙</span></div>'
+          f'<table class="mt"><tr><th>月</th><th>新規OK日</th><th>出た日</th><th>延べ件数</th><th>最多セクター</th><th>QQQ</th><th>パルス平均</th></tr>{trs}</table></div>')
+    # ---- sectors of picks
+    secs = sectors_1y(s)
+    tot = sum(v for _, v in secs) or 1
+    rank = {x["name"]: i + 1 for i, x in enumerate(heat["sectors"])} if heat else {}
+    share = dict(secs)
+    order = sorted(JA, key=lambda k: (-share.get(k, 0), rank.get(k, 99)))
+    top = max(share.values()) if share else 1
+    sb = "".join(f'<div class="sec"><span>{_e(JA[k])}</span><div class="b"><i style="width:{share.get(k, 0) / top * 100:.0f}%"></i></div>'
+                 f'<span class="p">{share.get(k, 0) / tot * 100:.0f}%</span>'
+                 f'<span class="r {"h" if rank.get(k, 99) <= 3 else "l" if rank.get(k, 0) >= 9 else ""}">{rank.get(k, "—")}</span></div>' for k in order)
+    t7 = (f'<div class="t"><div class="th"><h4>本命のセクター構成<span class="en">Picks by Sector</span></h4><span class="s">過去1年{tot}件・右＝今の勢い順位</span></div>{sb}</div>')
+    if secs:
+        cap.append("過去1年の本命はセクター別に " + "・".join(f"{JA[k]}{v / tot * 100:.0f}%" for k, v in secs[:3]) + "。")
+    # ---- market inside
+    a50 = next((v for v in reversed(s["a50"]) if v is not None), None)
+    a200 = next((v for v in reversed(s["a200"]) if v is not None), None)
+    p5 = s["pulse"][-6] if len(s["pulse"]) > 6 else None
     chips = ""
     if heat:
-        secs = heat["sectors"]
-        chips = "".join(f'<span class="{"h" if i < 3 else "l" if i >= len(secs) - 3 else ""}">{_e(x["ja"])}</span>' for i, x in enumerate(secs))
-        cap.append("資金が向かうセクター：" + "・".join(x["ja"] for x in secs[:3]) + "。")
-    t6 = (f'<div class="t"><div class="th"><h4>資金の向き先<span class="en">Sector Strength</span></h4><span class="s">左ほど強い</span></div>'
-          f'<div class="chips">{chips}</div></div>')
-    stc = {"good": "pos", "mixed": "mut", "weak": "neg"}.get(band, "mut")
+        sl = heat["sectors"]
+        chips = "".join(f'<span class="{"h" if i < 3 else "l" if i >= len(sl) - 3 else ""}">{_e(x["ja"])}</span>' for i, x in enumerate(sl))
+    pcls = {"good": "pos", "mixed": "mut", "weak": "neg"}.get(band, "mut")
+    phase = dict(pc.PHASES).get(kind, "—") if kind else "—"
+    t8 = (f'<div class="t"><div class="th"><h4>地合いの中身<span class="en">Market Inside</span></h4></div>'
+          f'<div class="big"><span class="v num {pcls}">{"—" if pulse is None else f"{pulse:.0f}"}</span><span class="u">/100</span>'
+          f'<span class="tag {pcls}">内部{bname}</span><span class="k" style="margin-left:auto">5日 <b>{_sg(None if p5 is None or pulse is None else pulse - p5)}</b></span></div>'
+          f'<div class="gauge"><i style="left:{min(max(pulse or 0, 0), 100):.0f}%"></i></div>'
+          f'{_line(s["pulse"][-252:], 372, 40, COL["ink"], lo=0, hi=100)}'
+          f'<div class="kv" style="margin-top:4px"><div>50日線より上<small>（主要57銘柄）</small></div><div>{"—" if a50 is None else f"{a50:.0f}%"}</div>'
+          f'<div>200日線より上</div><div>{"—" if a200 is None else f"{a200:.0f}%"}</div>'
+          f'<div>QQQの局面</div><div style="font-family:inherit">{_e(phase)}</div></div>'
+          f'<div class="k" style="margin:6px 0 4px">セクターの勢い（左ほど強い）</div><div class="chips">{chips}</div></div>')
+    cap.append(f"市場内部は{bname}（マーケットパルス{pulse:.0f}/100）。" if pulse is not None else "")
+    st_col = "pos" if on else "neg"
     doc = (f'<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/>'
            f'<title>地合いと本命</title><style>{CSS}</style></head><body><div class="stage"><div class="scaler" id="scaler"><div class="card">'
-           '<div class="hd"><span class="bar"></span><h1>地合いと本命 <span style="font-size:13px;font-weight:600;color:var(--mut);letter-spacing:.02em">Market &amp; Picks</span></h1>'
-           f'<span class="state" style="color:var(--{stc})">内部{bname}</span><span class="stats">{stats}</span>'
-           f'<span class="date num">米国 {_e(st["session"])} 終値</span></div><div class="read">{read}</div><div class="grid">'
-           f'{t1}{t2}{t3}{t4}{t5}{t6}</div>'
-           '<div class="foot">本命＝MC57 Dashboardのルールで毎日選ぶスイング候補（銘柄とルールは非公開）。売買の推奨ではありません。<span>MC57 Dashboard</span></div>'
+           f'<div class="hd"><span class="bar"></span><h1>地合いと本命<small>Market &amp; Picks</small></h1>'
+           f'<span class="state" style="color:var(--{st_col})">{gword}</span><span class="stats">{stats_html}</span>'
+           f'<span class="date num">米国 {_e(st["session"])} 終値</span></div><div class="grid">'
+           f'{t1}{t2}{t3}{t4}{t5}{t6}{t7}{t8}</div>'
+           '<div class="foot">本命＝MC57 Dashboardが毎日しぼり込むスイング候補（銘柄・条件は非公開）。2026年10月より前は同じルールで再計算した値。売買の推奨ではありません。'
+           '<span>MC57 Dashboard</span></div>'
            f'</div></div></div>{FIT}</body></html>')
-    text = f"【米国株 地合いと本命 {_md(st['session'])}】\n" + "\n".join(cap) + "\n#米国株 #ナスダック"
+    text = f"【米国株 地合いと本命 {_md(st['session'])}】\n" + "\n".join(x for x in cap if x) + "\n#米国株 #ナスダック"
     return doc, text
 
 
@@ -378,9 +552,9 @@ def _insert_at(text: str) -> int | None:
 def apply(text: str, root: Path, state: dict | None = None) -> str:
     st = state or embedded_state(text)
     seed = _seed(root)
-    if seed and (not st or seed.get("session", "") > st.get("session", "")):
+    if seed and (not st or seed.get("session", "") >= st.get("session", "")):
         st = seed
-    if not st:
+    if not st or "gate" not in st:
         return text
     out = BLOCK_RE.sub("", text)
     at = _insert_at(out)
@@ -396,14 +570,14 @@ def rerender(text: str, root: Path) -> str:
     return apply(text, root)
 
 
-def run(text: str, root: Path, session: str) -> str:
+def run(text: str, root: Path, session: str, health: dict | None = None) -> str:
     import decline_anatomy as da
     market = da.load_market(root)
     px = da._closes(market) if market else None
     if px is None or da.INDEX not in px:
         print("post cards: market inputs not usable; keeping the stored card", flush=True)
         return apply(text, root)
-    st = build_state(px[da.INDEX], root, session)
+    st = build_state(px[da.INDEX], root, session, health)
     try:
         (root / SEED).write_text(json.dumps(st, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     except OSError as exc:
