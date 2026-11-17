@@ -398,6 +398,11 @@ def main() -> int:
         text = display_health.apply(text, html_path.resolve().parent)
     except Exception as exc:
         print(f"display health skipped: {exc!r}", flush=True)
+    try:  # phone notices for changes in the cards above (the workflow's market_alert job posts them)
+        import market_alerts
+        market_alerts.run(text, html_path.resolve().parent, args.session)
+    except Exception as exc:
+        print(f"market alerts skipped: {exc!r}", flush=True)
     from archive_tab import apply as apply_archive_tab
     text = apply_archive_tab(text)  # Core 12 / old W30 rule -> アーカイブ tab (display only)
     from setups_curate import apply as curate_setups

@@ -45,3 +45,9 @@ Second round (`ud5.py`, `fg.py`, 2026-11-17)
 - Combinations: an FTD inside the sign bands added nothing (lower, if anything); F3 recovery at rally starts:
   5 events. Production engine with the TQQQ sleeve set by the signs: 3-4 signs -> 100% no change
   (66.5% -> 66.6% a year), 0-1 signs -> 0% much worse (66.5% -> 50.1%): the signs stay display only.
+
+Third round (2026-11-17): TradingView S5FI (S&P 500 share above the 50-day line, weekly closes from 2006-12-29 in
+`s5fi_weekly_close_2006-12-29.txt`). Nasdaq-100 rally starts: level above 25% 55% / 50% vs 36% / 33%; 4-week change
+above -17 points 58% / 54% vs 31% / 31% (halves split 2018-12); inside the 1-2 sign band 53% (17) vs 11% (9).
+S&P 500 rally starts: no consistent split. S&P 500 decline starts: higher breadth and a smaller 4-week drop went
+with more -10% outcomes (n 5-11 per cell). About 50 events since 2007: not kept, worth rechecking later.
