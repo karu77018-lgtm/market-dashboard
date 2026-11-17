@@ -49,7 +49,7 @@ def test_not_in_decline_and_spy_start():
     s = pc.spy_phase(px)
     assert s["event"]["status"] == "open" and s["event"]["vix"] == 25.0
     html = pc.card_html({"session": "2025-02-28", "qqq": q, "spy": s})
-    assert "下げの初動" in html and "44%" in html and "高値圏・通常" in html
+    assert "下げの初動" in html and "44<small>%" in html and pc.phase_of({"qqq": q, "spy": s}) == "down_start"
 
 
 def test_card_text_matches_reference():
@@ -59,7 +59,7 @@ def test_card_text_matches_reference():
     if up5:
         band = pc._band(up5["score"])
         n, ok = pc.REF_UP5[band][:2]
-        assert f"{round(ok / n * 100)}%" in html and f'{up5["score"]}/3' in html
+        assert f"{round(ok / n * 100)}<small>%" in html and f'○{up5["score"]}つ' in html and f"{n}回のうち{ok}回" in html
     for ref in (pc.REF_UP5, pc.REF_UP10, pc.REF_DOWN):
         for n, ok, h1, h2 in ref.values():
             assert h1[0] + h2[0] == n and h1[1] + h2[1] == ok
@@ -83,3 +83,16 @@ def test_card_placement_stability_and_hash(tmp_path):
     (tmp_path / "latest-manifest.json").write_text(json.dumps({"session_date": st["session"]}), encoding="utf-8")
     assert pc.CARD_ID in pc.rerender(PAGE, tmp_path)
     assert pc.apply("<html><body>none</body></html>", st) == "<html><body>none</body></html>"
+
+
+def test_clear_layout():
+    st = json.loads((ROOT / pc.STATE_SEED).read_text(encoding="utf-8"))
+    html = pc.card_html(st)
+    ph = pc.phase_of(st)
+    assert html.count("pc-on") == 1 and dict(pc.PHASES)[ph] in html
+    if ph in ("up5", "up10"):
+        assert "本物の底になる率" in html and "pc-lad" in html and f'{st["qqq"]["low_close"]:.2f}' in html
+        assert "くわしく" in html and html.index("pc-big") < html.index("くわしく") < html.index("<table")
+    calm = {"session": "x", "qqq": {"dd": -1.0, "in_decline": False, "last_end": None, "close": 1, "high": 1, "ma50": 1},
+            "spy": {"dd": -1.0, "event": None, "close": 1, "high": 1}}
+    assert pc.phase_of(calm) == "high" and "特別な局面ではない" in pc.card_html(calm)
