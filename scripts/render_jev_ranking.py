@@ -145,6 +145,8 @@ def source_hash(text: str) -> str:
     text = re.sub(r'<style id="(?:decline-anatomy|refresh-help|ftd-check|reg-history|phase-check|prediction-log|sector-heat|post-cards)-style">.*?</style>', '', text, flags=re.S)
     text = re.sub(r'<style id="fold-style">.*?</style>', '', text, flags=re.S)
     text = re.sub(r'<script id="fold-script">.*?</script>', '', text, flags=re.S)
+    text = re.sub(r'<style id="xfold-style">.*?</style>', '', text, flags=re.S)
+    text = re.sub(r'<script id="xfold-script">.*?</script>', '', text, flags=re.S)
     text = re.sub(r'<div class="ftd-chk" id="ftd-check">.*?<span class="fc-end"></span></div>', '', text, flags=re.S)
     text = re.sub(r'<div class="rgh" id="reg-history">.*?<span class="rgh-end"></span></div>', '', text, flags=re.S)
     text = re.sub(r'<div class="card pc-card" id="phase-check">.*?<span class="pc-end"></span></div>', '', text, flags=re.S)

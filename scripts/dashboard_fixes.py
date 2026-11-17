@@ -133,6 +133,11 @@ def apply(text: str, root: Path) -> str:
         text = display_health.apply(text, root)
     except Exception as exc:
         print(f"display health skipped: {exc!r}", flush=True)
+    try:  # fold the explanations and internal notes on every tab (screenshot-clean)
+        import explain_fold
+        text = explain_fold.apply(text)
+    except Exception as exc:
+        print(f"explain fold skipped: {exc!r}", flush=True)
     return text
 
 
