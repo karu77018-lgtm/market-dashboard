@@ -373,6 +373,11 @@ def main() -> int:
         text = decline_anatomy.run(text, html_path.resolve().parent, args.session)
     except Exception as exc:
         print(f"decline anatomy skipped: {exc!r}", flush=True)
+    try:  # 局面チェック (above the decline card; uses the public series the decline card just refreshed)
+        import phase_check
+        text = phase_check.run(text, html_path.resolve().parent, args.session)
+    except Exception as exc:
+        print(f"phase check skipped: {exc!r}", flush=True)
     try:  # FTDの騙しチェック (inside the FTD card); display only
         import ftd_check
         text = ftd_check.run(text, html_path.resolve().parent, args.session)

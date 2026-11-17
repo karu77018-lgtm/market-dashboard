@@ -1,0 +1,38 @@
+{
+ "qqq": {
+  "dd": -12.9,
+  "failed": [],
+  "from_low": 2.3,
+  "in_decline": true,
+  "last_end": {
+   "date": "2026-08-13",
+   "low": "2026-07-29"
+  },
+  "low": "2026-11-05",
+  "low_close": 647.05,
+  "peak": "2026-10-06",
+  "up10": null,
+  "up5": {
+   "above50": false,
+   "date": "2026-11-11",
+   "days": 4,
+   "maxday": 3.54,
+   "score": 2,
+   "signs": [
+    false,
+    true,
+    true
+   ]
+  }
+ },
+ "session": "2026-11-16",
+ "spy": {
+  "dd": -5.0,
+  "event": {
+   "date": "2026-11-05",
+   "end": null,
+   "status": "open",
+   "vix": 28.2
+  }
+ }
+}
