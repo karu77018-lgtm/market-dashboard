@@ -142,8 +142,9 @@ def source_hash(text: str) -> str:
     text = re.sub(r'<style id="ds-style">.*?</style>', '', text, flags=re.S)
     text = re.sub(r'<script id="ds-script">.*?</script>', '', text, flags=re.S)
     # Display-only blocks (decline_anatomy.py, refresh_help.py) are not evidence either.
-    text = re.sub(r'<style id="(?:decline-anatomy|refresh-help|ftd-check)-style">.*?</style>', '', text, flags=re.S)
+    text = re.sub(r'<style id="(?:decline-anatomy|refresh-help|ftd-check|reg-history)-style">.*?</style>', '', text, flags=re.S)
     text = re.sub(r'<div class="ftd-chk" id="ftd-check">.*?<span class="fc-end"></span></div>', '', text, flags=re.S)
+    text = re.sub(r'<div class="rgh" id="reg-history">.*?<span class="rgh-end"></span></div>', '', text, flags=re.S)
     text = re.sub(r'<div class="card da-card" id="decline-anatomy">.*?<span class="da-end"></span></div>', '', text, flags=re.S)
     text = re.sub(r'<div data-closes="[^"]*" data-grace="[^"]*" data-session="[^"]*" id="refresh-help">.*?</script></div>', '', text, flags=re.S)
     # Jev's section is independent of source evidence.

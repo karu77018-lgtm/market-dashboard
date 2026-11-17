@@ -58,3 +58,18 @@ The next open is on average where the FTD closed (gap mean +0.04%), so the ranki
 3x: next open with exit +3.8% (worst -34%), no exit +5.9% (worst -83%).
 
 Shown under the FTD card by `scripts/ftd_check.py` (display only).
+
+Choosing entries with the fakes' factors (`ftd_entry3.py`; next open, close-based exit). Headwinds
+known by the next open: Day4-7/16+, long bonds -0.07% or worse on the FTD day, dollar index +0.45% or
+more over the prior 20 sessions (both cuts fixed on 1993-2009).
+| headwinds | FTDs | mean | 1993-2009 | 2010- |
+| 0 | 17 | +6.9% | +4.2% | +9.8% |
+| 1 | 88 | +2.4% | +1.5% | +3.7% |
+| 2 | 101 | -0.3% | 0.0% | -0.5% |
+| 3 | 33 | -0.5% | -1.2% | +0.1% |
+Skipping 2+ headwinds: +1.38% per FTD (all: +1.20%), 1993-2009 +0.96% (+0.82%), 2010- +1.81% (+1.60%),
+worst 2010- -5.0% (-9.7%), exposure 26% (46%); 3x +4.4% (+3.8%), worst 2010- -16% (-28%).
+0-1 beat 2-3 in 7 of 8 five-year blocks. Half size instead of skipping: +1.29%. Sizing in steps by
+the count: +1.05%. Exits on post-entry warnings added almost nothing (+1.22%). About ten styles
+were tried, so the best one is somewhat flattered; QQQ and SPY FTDs often coincide. Skipped big
+winners: QQQ 2012-01-03 (+19%), QQQ 2002-10-11 (+18%), SPY 2009-03-12 (+24%; QQQ 2009-03-18 was taken).

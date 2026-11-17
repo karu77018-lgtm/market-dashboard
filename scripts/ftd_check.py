@@ -36,6 +36,30 @@ WARNINGS = {0: 31, 1: 48, 2: 74}                                                
 BOND = (62, 49)      # long bonds down on the FTD day: fake share with / without
 DOLLAR = (65, 48)    # dollar up over the prior 20 sessions
 BOND_CUT, DOLLAR_CUT = -0.07, 0.45
+# next-open entry, exit on a close below the FTD-day low; mean per FTD by number of headwinds
+BY_HEADWINDS = {0: 6.9, 1: 2.4, 2: -0.3, 3: -0.5}
+SKIP_AT = 2          # skip the entry with this many headwinds or more
+
+
+def headwinds(r: dict) -> list[str]:
+    """Headwinds known by the next open (cuts for bonds and the dollar fixed on 1993-2009)."""
+    out = []
+    if r["risky"]:
+        out.append(f'Day{r["day"]}')
+    if r.get("bond") is not None and r["bond"] <= BOND_CUT:
+        out.append(f'当日の長期債安{r["bond"]:+.1f}%'.replace("-", "−"))
+    if r.get("usd") is not None and r["usd"] >= DOLLAR_CUT:
+        out.append(f'20日のドル高{r["usd"]:+.1f}%'.replace("-", "−"))
+    return out
+
+
+def call_html(r: dict) -> str:
+    hw = headwinds(r)
+    n = len(hw)
+    what = "（" + "・".join(hw) + "）" if hw else ""
+    avg = f"{BY_HEADWINDS[n]:+.1f}%".replace("-", "−")
+    act = '<b class="fc-hi">見送り</b>' if n >= SKIP_AT else '<b class="fc-lo">翌日の寄りで入る</b>'
+    return f'<span class="fc-s fc-call">判定：逆風{n}/3{what} → {act}（過去の平均{avg}）</span>'
 
 
 def _frame(market: dict, sym: str) -> pd.DataFrame | None:
@@ -227,13 +251,7 @@ def row_html(row: dict) -> str:
         signs.append("翌日" + ("マイナス" if r["next_down"] else "プラス"))
     if r.get("dist") is not None:
         signs.append("売り抜け日" + ("あり" if r["dist"] else "なし"))
-    extra = []
-    if r.get("bond") is not None and r["bond"] <= BOND_CUT:
-        extra.append(f'FTD当日に長期債が下落（{r["bond"]:+.1f}%）'.replace("-", "−"))
-    if r.get("usd") is not None and r["usd"] >= DOLLAR_CUT:
-        extra.append(f'直前20日でドル高（{r["usd"]:+.1f}%）'.replace("-", "−"))
-    ref = (f'<span class="fc-s">参考の逆風：{"、".join(extra)}。過去は長期債安で騙し{BOND[0]}%（他{BOND[1]}%）、'
-           f'ドル高で{DOLLAR[0]}%（他{DOLLAR[1]}%）。</span>' if extra else "")
+    ref = call_html(r)
     return head + (f'<span class="fc-p {cls}">騙し {p}%</span>{when}（{r["age"]}日目）'
                    f'<span class="fc-s">根拠：{e(basis)}{"・" + "・".join(signs) if signs and "翌日" not in basis else ""}。'
                    f'撤退の目安＝FTD日の安値 {r["low"]:.2f} を終値で割ったら。</span>{ref}</div></div>')
@@ -241,12 +259,17 @@ def row_html(row: dict) -> str:
 
 ENTRY = (
     '<details><summary>FTD後の入り方（過去の検証）</summary><ul>'
+    f'<li><b>逆風の数で選ぶ</b>：①Day4〜7かDay16以降 ②FTD当日に長期債（TLT）が−0.07%以下 ③直前20日でドル指数が+0.45%以上。'
+    f'どれもFTDの夜に分かる。翌日寄りで入った場合の平均は逆風0：+{BY_HEADWINDS[0]}%、1：+{BY_HEADWINDS[1]}%、2：{BY_HEADWINDS[2]}%、3：{BY_HEADWINDS[3]}%。'
+    '2つ以上を見送ると平均+1.38%（全部入ると+1.20%）、2010年以降の最悪−5.0%（同−9.7%）、投資期間は46%→26%。'
+    '前半・後半とも改善、5年ごとでも8区間中7区間で逆風0〜1が上。②③の境目は1993〜2009年だけで決めた。'
+    '見送りで2012年1月・2002年10月の上昇（+18〜19%）は逃した。</li>'
     '<li>FTDは引けで確定するので、入るのは翌日の寄り。平均で良かったのは「翌日の寄りで入り、終値でFTD日の安値を割ったら次の寄りで撤退」。'
     '指数で1回あたり平均+1.2%、最悪−11.6%（撤退しないと平均+2.1%・最悪−39%）。FTD日の終値で入れた場合とほぼ同じでした。</li>'
     '<li>撤退をFTD日安値の逆指値にしても平均+1.1%。2010年以降の最悪は−4.3%（終値で判断すると−9.7%）。</li>'
     '<li>確認を待つ（翌日プラスなら翌々日に入る、3日目に警告なしなら4日目に入る）と、負けは減るが取り逃しのほうが大きく、平均は+0.3〜+0.6%に下がった（前半・後半とも）。</li>'
-    '<li>騙しになりやすいDay4〜7・Day16以降は量を半分にすると、平均+1.1%のまま、投資している期間が3分の2に減った（効率が最も良い）。</li>'
-    '<li>3倍（TQQQ相当）では、撤退ありの最悪−34%、撤退なしは−83%。レバレッジでは撤退ラインが必須。</li>'
+    '<li>入った後の警告（翌日マイナス＋売り抜け日）で早めに降りるのは、ほとんど効かなかった。選ぶなら入る前。</li>'
+    '<li>3倍（TQQQ相当）では、撤退ありの最悪−34%、撤退なしは−83%。逆風2つ以上を見送ると平均+3.8%→+4.4%、2010年以降の最悪−28%→−16%。</li>'
     '<li>スイング候補（本命）の個別株は、FTD後の警告の有無で成績が一貫して変わらなかった。個別株はこれまでのルールのまま。</li>'
     '</ul></details>'
 )

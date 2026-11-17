@@ -93,6 +93,11 @@ def apply(text: str, root: Path) -> str:
         text = refresh_help.apply(text, root)
     except Exception as exc:
         print(f"refresh help skipped: {exc!r}", flush=True)
+    try:  # F1〜F3の推移: re-render from the state stored in the page (display only)
+        import regime_history
+        text = regime_history.rerender(text, root)
+    except Exception as exc:
+        print(f"regime history re-render skipped: {exc!r}", flush=True)
     try:  # FTDの騙しチェック: re-render from the state stored in the page (display only)
         import ftd_check
         text = ftd_check.rerender(text, root)

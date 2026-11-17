@@ -82,7 +82,7 @@ def test_rows_text():
     live = {"sym": "QQQ", "label": "NASDAQ100", "ftd": {"date": "2026-11-11", "day": 4, "pct": 2.3, "low": 683.56, "close": 690.38,
             "risky": True, "age": 1, "broken": None, "next_down": True, "dist": False, "warnings": None, "bond": -0.4, "usd": 1.0}}
     t = fc.row_html(live)
-    assert "騙し 77%" in t and "683.56" in t and "長期債が下落" in t and "ドル高" in t and "fc-hi" in t
+    assert "騙し 77%" in t and "683.56" in t and "長期債安" in t and "ドル高" in t and "逆風3/3" in t and "見送り" in t
     broke = {**live, "ftd": {**live["ftd"], "broken": {"date": "2026-11-13", "after": 2, "why": "low"}}}
     assert ">騙し</span>" in fc.row_html(broke) and "2営業日後" in fc.row_html(broke)
     assert "FTDはありません" in fc.row_html({"sym": "SPY", "label": "S&P500", "ftd": None})
@@ -97,3 +97,13 @@ def test_display_path_uses_seed_of_the_same_session_only(tmp_path):
     (tmp_path / "latest-manifest.json").write_text(json.dumps({"session_date": seed["session"]}), encoding="utf-8")
     out = fc.rerender(PAGE, tmp_path)
     assert fc.BLOCK_ID in out and fc.rerender(out, tmp_path) == out
+
+
+def test_headwind_call():
+    base = {"day": 9, "risky": False, "bond": 0.2, "usd": 0.1}
+    assert fc.headwinds(base) == [] and "翌日の寄りで入る" in fc.call_html(base) and "+6.9%" in fc.call_html(base)
+    one = {**base, "day": 4, "risky": True}
+    assert len(fc.headwinds(one)) == 1 and "入る" in fc.call_html(one)
+    two = {**one, "usd": 0.45}
+    assert len(fc.headwinds(two)) == 2 and "見送り" in fc.call_html(two) and "−0.3%" in fc.call_html(two)
+    assert fc.headwinds({**base, "bond": None, "usd": None}) == []
