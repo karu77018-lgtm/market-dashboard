@@ -274,7 +274,7 @@ def _rally_parts(q: dict, kind: str) -> tuple[str, str, str]:
            f'過去に○が同じ数だった{n}回のうち{ok}回が本物の底だった（全体では{_pct(base[0], base[1])}%）。')
     watch = (f'終値で安値<b>{q["low_close"]:.2f}</b>を割ると失敗。'
              + (f'安値から+10%（<b>{nxt:.2f}</b>）に届いたら、もう一度判定する。' if nxt else "")
-             + f'高値の−2%（<b>{q["high"] * 0.98:.2f}</b>）まで戻れば本物の底。')
+             + (f'高値の−2%（<b>{q["high"] * 0.98:.2f}</b>）まで戻れば本物の底。' if q.get("high") else "高値から−2%以内まで戻れば本物の底。"))
     detail = (_odds_table(ref, band) + f'<div class="pc-p pc-mut">最近の例（○＝本物の底）：{html.escape(EXAMPLES[kind][band])}</div>')
     if kind == "up10" and r.get("type"):
         detail += (f'<div class="pc-p"><b>上げの中身：{html.escape(r["type"])}</b>　{html.escape(TYPES[r["type"]])}'
@@ -409,14 +409,21 @@ def embedded_state(text: str) -> dict | None:
 
 
 def rerender(text: str, root: Path) -> str:
+    """Display path: the state stored in the page; the committed seed when it is of the same session
+    (it may carry fields an older page lacks) or when the page has none."""
     state = embedded_state(text)
+    try:
+        seed = json.loads((root / STATE_SEED).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        seed = None
+    if seed and state and seed.get("session") == state.get("session"):
+        state = seed
     if state is None:
         try:
-            seed = json.loads((root / STATE_SEED).read_text(encoding="utf-8"))
             manifest = json.loads((root / "latest-manifest.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return text
-        if seed.get("session") != manifest.get("session_date"):
+        if not seed or seed.get("session") != manifest.get("session_date"):
             return text
         state = seed
     return apply(text, state)
