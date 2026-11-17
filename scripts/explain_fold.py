@@ -16,9 +16,9 @@ import re
 STYLE_ID = "xfold-style"
 SCRIPT_ID = "xfold-script"
 NOTE_CLASSES = ("note", "rnote", "tr-note", "mbnote", "mh-history-note", "pfoot", "foot", "em-foot", "sn-note", "cmt-note",
-                "lbnote", "rrg-desc", "sw-hint", "pw-note", "fc-note", "rk-note", "tr-why", "jev-explain", "bh-why", "postnote")
+                "lbnote", "rrg-desc", "sw-hint", "pw-note", "fc-note", "rk-note", "tr-why", "bh-why", "postnote")
 KEEP_CLASSES = ("read", "mkt20-read", "mbread", "da-lead", "bh-q", "pc-sub", "msec-q", "msec-l", "fold-k", "pq-cap",
-                "rgr-head", "pl-sum", "ccrow", "bh-next", "sw-reg", "rwarn")
+                "rgr-head", "pl-sum", "jev-asof", "ccrow", "bh-next", "sw-reg", "rwarn")
 PROSE_OFF = ("t-rules",)       # the Rules tab's sentences are the rules themselves: only its note classes fold
 
 STYLE = (
