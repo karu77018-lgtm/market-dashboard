@@ -20,6 +20,7 @@ from typing import Any
 import pandas as pd
 
 import decline_anatomy as da
+import fold
 
 CARD_ID = "phase-check"
 STATE_ID = "phase-check-state"
@@ -283,6 +284,24 @@ def _rally_parts(q: dict, kind: str) -> tuple[str, str, str]:
         f'<div class="pc-h">ここを見る（QQQ）</div>{_ladder(q, nxt)}<div class="pc-p">{watch}</div>', detail
 
 
+def key_of(state: dict) -> str:
+    """One line for the folded card: the phase and its number."""
+    q, s = state["qqq"], state.get("spy") or {}
+    ph = phase_of(state)
+    out = [dict(PHASES)[ph]]
+    if ph in ("up5", "up10"):
+        ref = REF_UP5 if ph == "up5" else REF_UP10
+        n, ok = ref[_band(q[ph]["score"])][:2]
+        out.append(f"本物の底になる率 {_pct(n, ok)}%")
+    elif ph == "down":
+        out.append(f'高値から{_signed(q["dd"])}%')
+    ev = s.get("event") or {}
+    if ev.get("status") == "open":
+        n, hit = REF_DOWN["hi" if ev.get("vix") is not None and ev["vix"] >= VIX_CUT else "lo"][:2]
+        out.append(f"S&P500が−10%まで {_pct(n, hit)}%")
+    return "｜".join(out)
+
+
 def card_html(state: dict) -> str:
     q, s = state["qqq"], state.get("spy") or {}
     ph = phase_of(state)
@@ -320,8 +339,7 @@ def card_html(state: dict) -> str:
                    f'<div class="pc-p pc-mut">1990〜2007 {_pct(*h1)}%、2008〜2026 {_pct(*h2)}%。最近の例（○＝到達）：{html.escape(EXAMPLES["down"][k])}。'
                    'Nasdaq100では見分けられる要素がなかったため、S&P500で見ている。</div></div>')
     raw = json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).replace("</", "<\\/")
-    return (f'<div class="card pc-card" id="{CARD_ID}"><div class="chd"><h2>局面チェック<span class="h2en">Phase Check</span></h2></div>'
-            f'<div class="pc-steps">{steps}</div><div class="pc-head">{head}</div>{main}{watch}{spy_box}'
+    body = (f'<div class="pc-steps">{steps}</div><div class="pc-head">{head}</div>{main}{watch}{spy_box}'
             f'<details class="pc-def"><summary>くわしく（過去の率・判定のしかた）</summary>{detail}<ul>'
             '<li><b>下げ</b>：Nasdaq100（QQQ）が252日の高値から−10%以下。高値から−2%以内に戻るまで続く。</li>'
             '<li><b>上げの初動</b>：その途中で、それまでの最安値（終値）から+5%戻した最初の日。新しい安値を付けたら判定し直す。'
@@ -332,8 +350,10 @@ def card_html(state: dict) -> str:
             'FTDがあった+10%の戻りは65%、なかった戻りは29%（2000年以降）。</li>'
             '<li><b>下げの初動</b>：S&P500が高値から−5%に入った最初の日（−2%以内に戻ると再判定）。−10%まで行ったのは全体で26%。</li>'
             '<li>数字はNasdaq100・S&P500指数での検証（research/phase-starts-2026-11）。表示のみで、売買ルールは変えません。</li>'
-            f'</ul></details><div class="sub">{html.escape(state["session"])} 終値時点。</div>'
-            f'<script id="{STATE_ID}" type="application/json">{raw}</script><span class="pc-end"></span></div>')
+            f'</ul></details><div class="sub">{html.escape(state["session"])} 終値時点。</div>')
+    return (f'<div class="card pc-card" id="{CARD_ID}">'
+            + fold.card("phase-check", '<h2>局面チェック<span class="h2en">Phase Check</span></h2>', key_of(state), body)
+            + f'<script id="{STATE_ID}" type="application/json">{raw}</script><span class="pc-end"></span></div>')
 
 
 STYLE = (
@@ -395,7 +415,8 @@ def apply(text: str, state: dict | None) -> str:
             return text
         out = text[:at] + card + text[at:]
     out = STYLE_RE.sub("", out)
-    return out.replace("</head>", STYLE + "</head>", 1) if "</head>" in out else out
+    out = out.replace("</head>", STYLE + "</head>", 1) if "</head>" in out else out
+    return fold.ensure(out)
 
 
 def embedded_state(text: str) -> dict | None:

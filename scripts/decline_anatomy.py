@@ -33,6 +33,7 @@ import numpy as np
 import pandas as pd
 
 from decline_reference import EPISODES
+import fold
 
 CARD_ID = "decline-anatomy"
 STATE_ID = "decline-anatomy-state"
@@ -636,9 +637,19 @@ def _state_tag(state: dict) -> str:
     return f'<script id="{STATE_ID}" type="application/json">{raw}</script>'
 
 
-def _open(inner: str, title: str = "今回の下げの分解", en: str = "Decline Anatomy") -> str:
-    return (f'<div class="card da-card" id="{CARD_ID}"><div class="chd"><h2>{title}'
-            f'<span class="h2en">{en}</span></h2></div>{inner}<span class="da-end"></span></div>')
+def _open(inner: str, title: str = "今回の下げの分解", en: str = "Decline Anatomy", key: str = "") -> str:
+    return (f'<div class="card da-card" id="{CARD_ID}">'
+            + fold.card("decline-anatomy", f'<h2>{title}<span class="h2en">{en}</span></h2>', key, inner)
+            + '<span class="da-end"></span></div>')
+
+
+def key_of(state: dict) -> str:
+    """One line for the folded card."""
+    like = "・".join(_ym(x["week"]) for x in (state.get("now_like") or [])[:3])
+    like = f"今に近い時期：{like}" if like else ""
+    if state.get("active") and "factors" in state:
+        return "｜".join(x for x in (f'{state["type"]}', f'高値から{_num(state.get("dd_now"), unit="%", nd=1)}', like) if x)
+    return like or f'調整局面ではない（高値から{_num(state.get("dd_now"), unit="%", nd=1)}）'
 
 
 def stale_html(state: dict) -> str:
@@ -685,7 +696,7 @@ def card_html(state: dict) -> str:
             + f'<div class="da-lead">いまはNasdaq100（QQQ）の調整局面ではありません（高値から{_num(state.get("dd_now"), unit="%", nd=1)}）。'
             f'高値から−10%に達すると、その下げを要因に分解してここに表示します。{last}</div>'
             f'<div class="sub">{e(state.get("session", ""))} 終値時点。表示のみで、売買ルールは変えません。</div>{tag}',
-            "今の相場に近い時期", "Market Look-alike")
+            "今の相場に近い時期", "Market Look-alike", key_of(state))
     f, kind = state["factors"], state["type"]
     n_all = len(EPISODES)
     al = state.get("analogs") or []
@@ -778,7 +789,7 @@ def card_html(state: dict) -> str:
             '過去の集計は40回前後と少なく、偶然を含みます。過去比較はNasdaq100指数、今回の計算はQQQと各ETFです。'
             '表示のみで、売買ルールは変えません。</div>')
     return _open(warn + head + near_top + like + unusual + f'<div class="da-chk">{rec_box}{heat_box}</div>'
-                 + same_type + horizon + near + note + tag)
+                 + same_type + horizon + near + note + tag, key=key_of(state))
 
 
 CARD_RE = re.compile(rf'<div class="card da-card" id="{CARD_ID}">.*?<span class="da-end"></span></div>', re.S)
@@ -801,7 +812,8 @@ def apply(text: str, state: dict | None) -> str:
             return text
         out = text[:at] + card + text[at:]
     out = STYLE_RE.sub("", out)
-    return out.replace("</head>", STYLE + "</head>", 1) if "</head>" in out else out
+    out = out.replace("</head>", STYLE + "</head>", 1) if "</head>" in out else out
+    return fold.ensure(out)
 
 
 def embedded_state(text: str) -> dict | None:

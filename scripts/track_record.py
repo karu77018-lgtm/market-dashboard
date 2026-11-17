@@ -519,6 +519,16 @@ def context_html(pf: dict) -> str:
     return out
 
 
+def _fold_context(ctx: str) -> str:
+    """The reading aids fold away; the summary keeps the verdict (e.g. 想定の範囲外)."""
+    if not ctx:
+        return ""
+    import fold
+    m = re.search(r'<div class="tr-ctx[^"]*"><b>(.*?)</b>', ctx)
+    title = "・".join(re.findall(r'<div class="tr-h">(.*?)</div>', ctx)) or "くわしく"
+    return fold.sub("record-context", title, m.group(1) if m else "", ctx)
+
+
 def portfolio_html(pf: dict | None, pending: bool = False, context: bool = False) -> str:
     if pending:
         return PENDING_HTML
@@ -559,7 +569,7 @@ def portfolio_html(pf: dict | None, pending: bool = False, context: bool = False
         skip = f'<div class="tr-note">買えなかった本命 {len(skipped)}件。直近：{recent}</div>'
     return (
         f'<div class="tr-grid">{grid}</div>' + _spark(pf["equity"])
-        + (context_html(pf) if context else "")
+        + (_fold_context(context_html(pf)) if context else "")
         + '<div class="tr-h">保有中</div><div class="tr-wrap tr-pf"><table><tr><th>銘柄</th><th>買った日</th>'
         f'<th>損益</th><th>増し</th><th>資金比</th><th>状態</th></tr>{hrows}</table></div>'
         '<div class="tr-h">確定した売買</div><div class="tr-wrap tr-pf"><table><tr><th>銘柄</th><th>買い</th><th>売り</th>'
@@ -867,7 +877,8 @@ def apply(text: str, ledger: dict | None, trades: list[dict], error: str | None 
             text = text[:m.end()] + link + text[m.end():]
     text = re.sub(r'<style id="track-record-style">.*?</style>', '', text, count=1, flags=re.S)
     text = text.replace("</head>", STYLE + "</head>", 1)
-    return apply_rules(text, ledger, error)
+    import fold
+    return fold.ensure(apply_rules(text, ledger, error))
 
 
 RULES_BLOCK_ID = "rules-live-record"

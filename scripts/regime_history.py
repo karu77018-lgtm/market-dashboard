@@ -15,6 +15,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+import fold
+
 BLOCK_ID = "reg-history"
 STATE_ID = "reg-history-state"
 STYLE_ID = "reg-history-style"
@@ -164,7 +166,29 @@ def revise_action(text: str) -> str:
     end = text.find('<div class="card', h + 10)
     region = text[h:end if end > 0 else len(text)]
     new = ACTION_RE.sub(lambda _: ACTION, region, count=1)
+    new = _fold_notes(new)
     return text[:h] + new + text[h + len(region):]
+
+
+NOTES_FOLD = 'data-fold="reg-notes"'
+
+
+def _fold_notes(region: str) -> str:
+    """Tuck the card's long explanation (3灯の説明・行動) into a fold; once."""
+    if NOTES_FOLD in region:
+        return region
+    i = region.find('<div class="note">')
+    if i < 0:
+        return region
+    depth, j = 0, None
+    for m in re.finditer(r"<(/?)div\b[^>]*>", region[i:]):
+        depth += -1 if m.group(1) else 1
+        if depth == 0:
+            j = i + m.end()
+            break
+    if j is None:
+        return region
+    return region[:i] + fold.sub("reg-notes", "3つの灯の説明と使い方", "", region[i:j]) + region[j:]
 
 
 # ---------------------------------------------------------------- rendering
@@ -412,13 +436,13 @@ def block_html(state: dict) -> str:
                           f'（各週の平均）。縦軸は3つとも0〜{_hi(sub) * 100:.0f}%。印はその週に1日でもあれば表示。{older}</div>'
                           f'{chart_svg(state, sub, key, start, step)}</div>')
         tabs = f'<div class="rgh-tabs">{"".join(btn)}</div>'
-    return (f'<div class="rgh" id="{BLOCK_ID}"><div class="rgh-h">今の読み方</div>'
-            f'<div class="rgr {cls}"><b>{html.escape(head)}</b>{html.escape(body)}</div>'
+    inner = (f'<div class="rgr {cls}"><b>{html.escape(head)}</b>{html.escape(body)}</div>'
             f'<div class="rgh-h">F1〜F3の推移</div>{tabs}'
             f'<div class="rgh-pane" data-k="d"><div class="rgh-s">{first}〜{last}（約1年・日足）。薄い黄＝注意、薄い赤＝警戒の水準。'
             f'縦軸は3つとも0〜{_hi(state) * 100:.0f}%。{legend}タップで日付と値。</div>'
-            f'{chart_svg(state)}</div>{long_pane}<div class="rgh-tip"></div>'
-            f'<script id="{STATE_ID}" type="application/json">{raw}</script>{SCRIPT}<span class="rgh-end"></span></div>')
+            f'{chart_svg(state)}</div>{long_pane}<div class="rgh-tip"></div>')
+    return (f'<div class="rgh" id="{BLOCK_ID}">' + fold.sub("reg-history", "今の読み方・F1〜F3の推移", html.escape(head), inner)
+            + f'<script id="{STATE_ID}" type="application/json">{raw}</script>{SCRIPT}<span class="rgh-end"></span></div>')
 
 
 BLOCK_RE = re.compile(rf'<div class="rgh" id="{BLOCK_ID}">.*?<span class="rgh-end"></span></div>', re.S)
@@ -431,7 +455,9 @@ def _insert_at(text: str) -> int | None:
     h = text.find('<div class="card reg-card')
     if h < 0:
         return None
-    note = text.find('<div class="note">', h)
+    note = text.find(f'<details class="fold fold-sub" {NOTES_FOLD}>', h)
+    if note < 0:
+        note = text.find('<div class="note">', h)
     nxt = text.find('<div class="card', h + 10)
     if note < 0 or (0 < nxt < note):
         return None
@@ -452,7 +478,8 @@ def apply(text: str, state: dict | None) -> str:
             return text
         out = text[:at] + block + text[at:]
     out = STYLE_RE.sub("", out)
-    return out.replace("</head>", STYLE + "</head>", 1) if "</head>" in out else out
+    out = out.replace("</head>", STYLE + "</head>", 1) if "</head>" in out else out
+    return fold.ensure(out)
 
 
 def embedded_state(text: str) -> dict | None:
