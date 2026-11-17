@@ -98,6 +98,11 @@ def apply(text: str, root: Path) -> str:
         text = phase_check.rerender(text, root)
     except Exception as exc:
         print(f"phase check re-render skipped: {exc!r}", flush=True)
+    try:  # 予測の答え合わせ: re-render from the committed log (display only)
+        import prediction_log
+        text = prediction_log.rerender(text, root)
+    except Exception as exc:
+        print(f"prediction log re-render skipped: {exc!r}", flush=True)
     try:  # F1〜F3の推移: re-render from the state stored in the page (display only)
         import regime_history
         text = regime_history.rerender(text, root)
@@ -113,6 +118,11 @@ def apply(text: str, root: Path) -> str:
         text = decline_anatomy.rerender(text, root)
     except Exception as exc:
         print(f"decline anatomy re-render skipped: {exc!r}", flush=True)
+    try:  # notice when an added card missed the latest close
+        import display_health
+        text = display_health.apply(text, root)
+    except Exception as exc:
+        print(f"display health skipped: {exc!r}", flush=True)
     return text
 
 

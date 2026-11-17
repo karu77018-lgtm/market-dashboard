@@ -2,6 +2,7 @@
  "qqq": {
   "close": 661.75,
   "dd": -12.9,
+  "decline_type": "ハイテク単独安（資金移動）型",
   "failed": [],
   "from_low": 2.3,
   "high": 759.66,
@@ -19,7 +20,9 @@
    "above50": false,
    "date": "2026-11-11",
    "days": 4,
+   "ease": false,
    "maxday": 3.54,
+   "nfci4": 0.032,
    "score": 2,
    "signs": [
     false,

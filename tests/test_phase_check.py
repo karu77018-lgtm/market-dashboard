@@ -57,9 +57,8 @@ def test_card_text_matches_reference():
     html = pc.card_html(st)
     up5 = st["qqq"]["up5"]
     if up5:
-        band = pc._band(up5["score"])
-        n, ok = pc.REF_UP5[band][:2]
-        assert f"{round(ok / n * 100)}<small>%" in html and f'○{up5["score"]}つ' in html and f"{n}回のうち{ok}回" in html
+        n, ok, basis = pc.rate_of(up5, "up5")
+        assert f"{round(ok / n * 100)}<small>%" in html and basis in html and f'○{up5["score"]}つ' in html and f"{n}回のうち{ok}回" in html
     for ref in (pc.REF_UP5, pc.REF_UP10, pc.REF_DOWN):
         for n, ok, h1, h2 in ref.values():
             assert h1[0] + h2[0] == n and h1[1] + h2[1] == ok
@@ -110,3 +109,17 @@ def test_older_page_state_is_upgraded_from_the_same_session_seed(tmp_path):
     assert pc.embedded_state(out) == seed
     newer = {**old, "session": "2099-01-01"}
     assert pc.embedded_state(pc.rerender(pc.apply(PAGE, newer), tmp_path)) == newer   # a newer page keeps its own state
+
+
+def test_refined_rate_and_credit_note():
+    r = {"score": 2, "signs": [False, True, True], "ease": True, "nfci4": -0.01, "date": "2026-11-11", "days": 4, "maxday": 3.5}
+    assert pc.rate_of(r, "up5") == (18, 12, "○2つ・金融環境○")
+    assert pc.rate_of({**r, "ease": None}, "up5")[:2] == pc.REF_UP5["1-2"][:2]
+    assert pc.rate_of({**r, "score": 0, "ease": True}, "up5")[:2] == pc.REF_UP5["0"][:2]      # cell too small (3)
+    for kind in ("up5", "up10"):
+        for v in pc.EASE_ALL[kind].values():
+            assert v[2][0] + v[3][0] == v[0] and v[2][1] + v[3][1] == v[1]
+    q = {"in_decline": True, "low": "2026-11-05", "low_close": 647.05, "from_low": 2.3, "dd": -12.9, "high": 759.6,
+         "close": 661.75, "up5": r, "up10": None, "decline_type": pc.CREDIT_TYPE}
+    html = pc.card_html({"session": "x", "qqq": q, "spy": {}})
+    assert "信用不安型" in html and "金融環境が引き締まっていない" in html and "67<small>%" in html
