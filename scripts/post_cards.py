@@ -442,7 +442,7 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
         trs += (f'<tr><td>{r["m"][:4]}/{r["m"][5:]}{"*" if r["m"] == rows[-1]["m"] else ""}</td><td>{r["on"]}/{r["n"]}</td><td>{r["days"]}</td>'
                 f'<td class="l"><span class="hb" style="width:{70 * r["total"] / mx_total:.0f}px"></span>{r["total"]}</td>'
                 f'<td class="l">{_e(JA.get(r["top"], "—"))}</td><td class="{qcol}">{_sg(r["qqq"])}%</td>'
-                f'<td class="c"><span style="background:{pcol}">{"—" if r["pulse"] is None else f"{r["pulse"]:.0f}"}</span></td></tr>')
+                f'<td class="c"><span style="background:{pcol}">{"—" if r["pulse"] is None else round(r["pulse"])}</span></td></tr>')
     t6 = (f'<div class="t sp2"><div class="th"><h4>月別の本命<span class="en">Monthly</span></h4><span class="s">過去12か月・*は今月（途中）</span><span class="g">⚙</span></div>'
           f'<table class="mt"><tr><th>月</th><th>新規OK日</th><th>出た日</th><th>延べ件数</th><th>最多セクター</th><th>QQQ</th><th>パルス平均</th></tr>{trs}</table></div>')
     # ---- sectors of picks
