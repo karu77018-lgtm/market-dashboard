@@ -98,6 +98,11 @@ def apply(text: str, root: Path) -> str:
         text = phase_check.rerender(text, root)
     except Exception as exc:
         print(f"phase check re-render skipped: {exc!r}", flush=True)
+    try:  # 過熱セクターの目印: re-render from the state stored in the page (display only)
+        import sector_heat
+        text = sector_heat.rerender(text, root)
+    except Exception as exc:
+        print(f"sector heat re-render skipped: {exc!r}", flush=True)
     try:  # 予測の答え合わせ: re-render from the committed log (display only)
         import prediction_log
         text = prediction_log.rerender(text, root)

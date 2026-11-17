@@ -17,6 +17,7 @@ CHECKS = (  # (label, module, field holding the session)
     ("今回の下げの分解", "decline_anatomy", "session"),
     ("FTDの騙しチェック", "ftd_check", "session"),
     ("F1〜F3の推移", "regime_history", "session"),
+    ("過熱セクターの目印", "sector_heat", "session"),
 )
 BLOCK_RE = re.compile(rf'<div class="dh-note" id="{BLOCK_ID}"[^>]*>.*?</div>', re.S)
 
