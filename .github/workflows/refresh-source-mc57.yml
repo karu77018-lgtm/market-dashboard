@@ -465,6 +465,7 @@ jobs:
           if test -f track-record/trend-template.json; then git add -- track-record/trend-template.json; fi
           if test -f seed/decline-slow.json; then git add -- seed/decline-slow.json; fi
           if test -f seed/reg-history-weekly.json; then git add -- seed/reg-history-weekly.json; fi
+          if test -f seed/prediction-log.json; then git add -- seed/prediction-log.json; fi
           git add -f -- data/listing-dates.json
           if test -n "$FULL_MARKER_PATH"; then git add -- "$FULL_MARKER_PATH"; fi
           if git diff --cached --quiet; then echo "No publication change"; exit 0; fi

@@ -383,11 +383,21 @@ def main() -> int:
         text = ftd_check.run(text, html_path.resolve().parent, args.session)
     except Exception as exc:
         print(f"ftd check skipped: {exc!r}", flush=True)
+    try:  # 予測の答え合わせ (records what the cards above state, checks it later); display only
+        import prediction_log
+        text = prediction_log.run(text, html_path.resolve().parent, args.session)
+    except Exception as exc:
+        print(f"prediction log skipped: {exc!r}", flush=True)
     try:  # F1〜F3の推移 (inside the レジーム警戒灯 card); display only
         import regime_history
         text = regime_history.run(text, html_path.resolve().parent, csv_path, args.session)
     except Exception as exc:
         print(f"regime history skipped: {exc!r}", flush=True)
+    try:  # notice when an added card missed this close
+        import display_health
+        text = display_health.apply(text, html_path.resolve().parent)
+    except Exception as exc:
+        print(f"display health skipped: {exc!r}", flush=True)
     from archive_tab import apply as apply_archive_tab
     text = apply_archive_tab(text)  # Core 12 / old W30 rule -> アーカイブ tab (display only)
     from setups_curate import apply as curate_setups

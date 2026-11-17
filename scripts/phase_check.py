@@ -36,6 +36,16 @@ DOWN_START, VIX_CUT = -0.05, 23.0
 REF_UP5 = {"0": (45, 9, (25, 2), (20, 7)), "1-2": (49, 25, (24, 15), (25, 10)), "3": (11, 10, (7, 6), (4, 4))}
 REF_UP10 = {"0": (20, 6, (13, 2), (7, 4)), "1-2": (13, 8, (6, 4), (7, 4)), "3": (20, 19, (12, 12), (8, 7))}
 BASE_UP5, BASE_UP10 = (105, 44), (53, 33)
+# 4th sign (research/phase-starts-2026-11/ud5.py): financial conditions (Chicago Fed NFCI) not tightening
+# over the 4 weeks before the day (change <= 0; values as known a week earlier).  (events, real bottoms)
+EASE_CELLS = {"up5": {("0", True): (3, 1), ("0", False): (42, 8), ("1-2", True): (18, 12), ("1-2", False): (31, 13),
+                      ("3", True): (4, 4), ("3", False): (7, 6)},
+              "up10": {("1-2", True): (4, 3), ("1-2", False): (9, 5), ("3", True): (14, 14), ("3", False): (6, 5),
+                       ("0", False): (20, 6)}}
+EASE_ALL = {"up5": {True: (25, 17, (18, 12), (7, 5)), False: (80, 27, (38, 11), (42, 16))},
+            "up10": {True: (18, 17, (10, 10), (8, 7)), False: (35, 16, (21, 8), (14, 8))}}
+CELL_MIN = 10
+CREDIT_TYPE = "信用不安・質への逃避型"   # +5% bounces after this kind of decline: 9% / 35% real, others 63% / 50%
 # S&P 500 at -5%: (events, reached -10%) for VIX >= 23 / below
 REF_DOWN = {"hi": (34, 15, (14, 6), (20, 9)), "lo": (31, 2, (21, 1), (10, 1))}
 BASE_DOWN = (65, 17)
@@ -62,7 +72,15 @@ def _pct(a: int, b: int) -> int:
 
 
 # ---------------------------------------------------------------- state
-def _rally(q: pd.Series, i0: int, t: int, rule: dict) -> dict:
+def _nfci4(slow: dict, day: pd.Timestamp) -> float | None:
+    s = da._series(slow, "nfci")
+    if s.empty or (day - s.index[-1]).days > 28:     # weekly series; older than that is not today's reading
+        return None
+    a, b = da._asof(s, day, 7), da._asof(s, day, 35)
+    return None if a is None or b is None else round(a - b, 3)
+
+
+def _rally(q: pd.Series, i0: int, t: int, rule: dict, slow: dict | None = None) -> dict:
     """Signs counted on day t for the rise from the low at i0."""
     ma50 = q.rolling(50, min_periods=50).mean()
     rets = q.pct_change().iloc[i0 + 1:t + 1] * 100
@@ -70,8 +88,23 @@ def _rally(q: pd.Series, i0: int, t: int, rule: dict) -> dict:
     days = int(t - i0)
     big = float(rets.max()) if len(rets) else 0.0
     signs = [above, days > rule["days"], big < rule["maxday"]]
+    n4 = _nfci4(slow or {}, q.index[t])
     return {"date": str(q.index[t].date()), "days": days, "maxday": round(big, 2), "above50": above,
-            "signs": [None if s is None else bool(s) for s in signs], "score": int(sum(bool(s) for s in signs))}
+            "signs": [None if s is None else bool(s) for s in signs], "score": int(sum(bool(s) for s in signs)),
+            "nfci4": n4, "ease": None if n4 is None else bool(n4 <= 0)}
+
+
+def rate_of(r: dict, kind: str) -> tuple[int, int, str]:
+    """(events, real bottoms, basis): the sign count's band, refined by financial conditions when that cell is big enough."""
+    band = _band(r["score"])
+    ref = REF_UP5 if kind == "up5" else REF_UP10
+    n, ok = ref[band][:2]
+    e = r.get("ease")
+    if e is not None:
+        cell = EASE_CELLS[kind].get((band, e))
+        if cell and cell[0] >= CELL_MIN:
+            return cell[0], cell[1], f"○{r['score']}つ・金融環境{'○' if e else '×'}"
+    return n, ok, f"○{r['score']}つ"
 
 
 def _type(px: pd.DataFrame, i0: int, t: int, slow: dict) -> tuple[str | None, dict]:
@@ -138,10 +171,10 @@ def qqq_phase(px: pd.DataFrame, slow: dict) -> dict:
             continue
         if cur["arm5"] and c >= cur["low"] * (1 + UP5["rise"]):
             cur["arm5"] = False
-            cur["up5"] = _rally(q, cur["low_i"], t, UP5)
+            cur["up5"] = _rally(q, cur["low_i"], t, UP5, slow)
         if cur["arm10"] and c >= cur["low"] * (1 + UP10["rise"]):
             cur["arm10"] = False
-            cur["up10"] = _rally(q, cur["low_i"], t, UP10)
+            cur["up10"] = _rally(q, cur["low_i"], t, UP10, slow)
             cur["up10"]["type"], cur["up10"]["drivers"] = _type(px, cur["low_i"], t, slow)
     t = len(q) - 1
     ma50 = q.rolling(50, min_periods=50).mean().iloc[t]
@@ -238,7 +271,10 @@ def _signs(r: dict, rule: dict, rise: str) -> str:
     return ('<ul class="pc-s">'
             f'<li>{mk(a)}<span>50日線より上で戻した<small>{_md(r["date"])}の終値で判定</small></span></li>'
             f'<li>{mk(d)}<span>ゆっくり戻した<small>{rise}まで{r["days"]}営業日（{rule["days"] + 1}日以上で○）</small></span></li>'
-            f'<li>{mk(m)}<span>急騰の日がない<small>いちばん大きい上げ {_signed(r["maxday"])}%（{rule["maxday"]}%未満で○）</small></span></li></ul>')
+            f'<li>{mk(m)}<span>急騰の日がない<small>いちばん大きい上げ {_signed(r["maxday"])}%（{rule["maxday"]}%未満で○）</small></span></li>'
+            + (f'<li>{mk(r.get("ease"))}<span>金融環境が引き締まっていない（補助）<small>シカゴ連銀の金融環境指数NFCIの4週の変化 '
+               + ("未取得" if r.get("nfci4") is None else f'{_signed(r["nfci4"], 3)}') + '（0以下で○）</small></span></li>')
+            + '</ul>')
 
 
 def _ladder(q: dict, nxt: float | None) -> str:
@@ -266,17 +302,25 @@ def _rally_parts(q: dict, kind: str) -> tuple[str, str, str]:
     rule, ref, base = (UP5, REF_UP5, BASE_UP5) if kind == "up5" else (UP10, REF_UP10, BASE_UP10)
     rise = "+5%" if kind == "up5" else "+10%"
     band = _band(r["score"])
-    n, ok, _, _ = ref[band]
+    n, ok, basis = rate_of(r, kind)
     p = _pct(n, ok)
     big = (f'<div class="pc-big"><div class="pc-k">この戻りが本物の底になる率</div><div class="pc-v">{p}<small>%</small></div>'
            f'<div class="pc-w">{_word(p)}</div></div>')
     nxt = q["low_close"] * 1.10 if kind == "up5" else None
     say = (f'{_md(r["date"])}に安値から{rise}戻した。本物の底らしさは<b>○{r["score"]}つ</b>（3つ中）。'
-           f'過去に○が同じ数だった{n}回のうち{ok}回が本物の底だった（全体では{_pct(base[0], base[1])}%）。')
+           f'過去に同じ条件（{basis}）だった{n}回のうち{ok}回が本物の底だった（全体では{_pct(base[0], base[1])}%）。')
+    if q.get("decline_type") == CREDIT_TYPE:
+        say += ('<br><b>注意</b>：今回の下げは信用不安型。過去、信用不安型の下げからの戻りは本物の底になりにくかった'
+                '（+5%の戻りで9%・35%、ほかの型は63%・50%。1990〜2007年・2008〜2026年）。')
     watch = (f'終値で安値<b>{q["low_close"]:.2f}</b>を割ると失敗。'
              + (f'安値から+10%（<b>{nxt:.2f}</b>）に届いたら、もう一度判定する。' if nxt else "")
              + (f'高値の−2%（<b>{q["high"] * 0.98:.2f}</b>）まで戻れば本物の底。' if q.get("high") else "高値から−2%以内まで戻れば本物の底。"))
-    detail = (_odds_table(ref, band) + f'<div class="pc-p pc-mut">最近の例（○＝本物の底）：{html.escape(EXAMPLES[kind][band])}</div>')
+    ea = EASE_ALL[kind]
+    detail = (_odds_table(ref, band) + f'<div class="pc-p pc-mut">最近の例（○＝本物の底）：{html.escape(EXAMPLES[kind][band])}</div>'
+              f'<div class="pc-p pc-mut">補助の金融環境：引き締まっていない戻りは{_pct(ea[True][0], ea[True][1])}%'
+              f'（{ea[True][1]}/{ea[True][0]}回、1990〜2007 {_pct(*ea[True][2])}%・2008〜2026 {_pct(*ea[True][3])}%）、'
+              f'引き締まり中は{_pct(ea[False][0], ea[False][1])}%（同 {_pct(*ea[False][2])}%・{_pct(*ea[False][3])}%）。'
+              f'○の数が同じでも差が出たので、同じ組み合わせが{CELL_MIN}回以上ある場合は大きな数字に反映している。</div>')
     if kind == "up10" and r.get("type"):
         detail += (f'<div class="pc-p"><b>上げの中身：{html.escape(r["type"])}</b>　{html.escape(TYPES[r["type"]])}'
                    '型ごとのその後の成績は期間によって逆になったため、予想には使いません。</div>')
@@ -290,8 +334,7 @@ def key_of(state: dict) -> str:
     ph = phase_of(state)
     out = [dict(PHASES)[ph]]
     if ph in ("up5", "up10"):
-        ref = REF_UP5 if ph == "up5" else REF_UP10
-        n, ok = ref[_band(q[ph]["score"])][:2]
+        n, ok, _ = rate_of(q[ph], ph)
         out.append(f"本物の底になる率 {_pct(n, ok)}%")
     elif ph == "down":
         out.append(f'高値から{_signed(q["dd"])}%')
@@ -453,6 +496,9 @@ def rerender(text: str, root: Path) -> str:
 def run(text: str, root: Path, session: str) -> str:
     market = da.load_market(root)
     state = build_state(market, da.load_slow(root), session) if market else None
+    dec = da.embedded_state(text) or {}
+    if state and dec.get("active") and dec.get("session") == state["session"]:
+        state["qqq"]["decline_type"] = dec.get("type")
     if state is None:
         print("phase check: market inputs not usable; keeping the page as is", flush=True)
         return rerender(text, root)

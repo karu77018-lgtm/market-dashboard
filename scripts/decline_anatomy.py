@@ -143,10 +143,17 @@ def _get(url: str, timeout: int = 20) -> str:
     except ImportError:
         cr = None
     if cr is not None:
-        r = cr.get(url, impersonate="chrome", timeout=timeout)
-        if r.status_code != 200:
-            raise OSError(f"HTTP {r.status_code}")
-        return r.text
+        last = None
+        for who in ("chrome", "safari"):   # FRED has answered 502 to one fingerprint and 200 to the other
+            try:
+                r = cr.get(url, impersonate=who, timeout=timeout)
+            except Exception as exc:  # network error: try the other fingerprint
+                last = exc
+                continue
+            if r.status_code == 200:
+                return r.text
+            last = OSError(f"HTTP {r.status_code}")
+        raise last or OSError("fetch failed")
     req = urllib.request.Request(url, headers={
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
         "Accept": "text/html,application/xhtml+xml,text/csv;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9"})
@@ -189,6 +196,7 @@ SLOW_SOURCES = {
     "baa": ("https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAA10Y", parse_fred_csv),
     "dgs10": ("https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10", parse_fred_csv),
     "dtb3": ("https://fred.stlouisfed.org/graph/fredgraph.csv?id=DTB3", parse_fred_csv),
+    "nfci": ("https://fred.stlouisfed.org/graph/fredgraph.csv?id=NFCI", parse_fred_csv),   # 局面チェック (weekly)
 }
 
 
@@ -223,7 +231,7 @@ def refresh_slow(slow: dict[str, dict[str, float]], getter=_get) -> dict[str, di
 # observation, against the session): FINRA publishes about three weeks after month end, multpl
 # updates CAPE daily from the latest month, FRED's weekly money-fund series often runs a month or
 # more behind (so 60 days), the Baa spread is daily.
-SLOW_KEEP = {"cape": 40, "margin": 40, "mmf": 130, "baa": 520, "dgs10": 760, "dtb3": 760}
+SLOW_KEEP = {"cape": 40, "margin": 40, "mmf": 130, "baa": 520, "dgs10": 760, "dtb3": 760, "nfci": 160}
 STALE = {"margin": ("信用買い残（FINRA）", 80), "cape": ("CAPE（multpl）", 45),
          "mmf": ("個人向けMMF残高（FRED）", 60), "baa": ("信用スプレッド（FRED）", 14)}
 

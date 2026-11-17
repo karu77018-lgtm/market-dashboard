@@ -1,0 +1,29 @@
+{
+ "entries": [
+  {
+   "basis": "VIX 28.2",
+   "event": "2026-11-05",
+   "id": "down5-SPY-2026-11-05",
+   "kind": "down5",
+   "outcome": null,
+   "prob": 44,
+   "recorded": "2026-11-16",
+   "resolved": null,
+   "sym": "SPY"
+  },
+  {
+   "basis": "○2つ・金融環境×",
+   "event": "2026-11-11",
+   "id": "up5-QQQ-2026-11-11",
+   "kind": "up5",
+   "low": 647.05,
+   "outcome": null,
+   "prob": 42,
+   "recorded": "2026-11-16",
+   "resolved": null,
+   "sym": "QQQ"
+  }
+ ],
+ "schema": "prediction-log.1",
+ "updated": "2026-11-16"
+}

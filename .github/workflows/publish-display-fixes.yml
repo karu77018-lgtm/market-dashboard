@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/publish-display-fixes.yml', 'scripts/dashboard_fixes.py', 'scripts/decline_anatomy.py', 'scripts/refresh_help.py', 'scripts/ftd_check.py', 'scripts/regime_history.py', 'seed/reg-history-weekly.json', 'scripts/phase_check.py', 'scripts/fold.py', 'seed/phase-check-state.json', 'seed/ftd-check-state.json', 'scripts/decline_reference.py', 'scripts/state_reference.json', 'seed/decline-anatomy-state.json', 'scripts/archive_tab.py', 'scripts/rotation_split.py', 'scripts/trend_leaders.py', 'scripts/track_record.py', 'scripts/track_portfolio.py', 'scripts/rule_refresh.py', 'scripts/audit_display.py', 'scripts/rules_tab.py', 'scripts/swing_screener.py', 'scripts/pickup_watch.py', 'scripts/breakout_health.py', 'scripts/render_jev_ranking.py', 'scripts/design_system.py', 'scripts/naming.py', 'scripts/setups_curate.py', 'scripts/breadth_refresh.py', 'scripts/candle_refresh.py', 'scripts/enhance_source_mc57.py', 'scripts/ipo_base.py', 'scripts/rsline_lead.py', 'scripts/bagger_watch.py', 'scripts/option_layout.py', 'scripts/tqqq_rule.py', 'scripts/bottom_alert.py', 'track-record/bottom-alert.json', 'scripts/legacy_archive.py', 'scripts/backtest_summary.py', 'scripts/swing_allocation.py', 'assets/market-history.js', 'assets/jev-ranking.js']
+    paths: ['.github/workflows/publish-display-fixes.yml', 'scripts/dashboard_fixes.py', 'scripts/decline_anatomy.py', 'scripts/refresh_help.py', 'scripts/ftd_check.py', 'scripts/regime_history.py', 'seed/reg-history-weekly.json', 'scripts/phase_check.py', 'scripts/fold.py', 'scripts/prediction_log.py', 'scripts/display_health.py', 'seed/prediction-log.json', 'seed/phase-check-state.json', 'seed/ftd-check-state.json', 'scripts/decline_reference.py', 'scripts/state_reference.json', 'seed/decline-anatomy-state.json', 'scripts/archive_tab.py', 'scripts/rotation_split.py', 'scripts/trend_leaders.py', 'scripts/track_record.py', 'scripts/track_portfolio.py', 'scripts/rule_refresh.py', 'scripts/audit_display.py', 'scripts/rules_tab.py', 'scripts/swing_screener.py', 'scripts/pickup_watch.py', 'scripts/breakout_health.py', 'scripts/render_jev_ranking.py', 'scripts/design_system.py', 'scripts/naming.py', 'scripts/setups_curate.py', 'scripts/breadth_refresh.py', 'scripts/candle_refresh.py', 'scripts/enhance_source_mc57.py', 'scripts/ipo_base.py', 'scripts/rsline_lead.py', 'scripts/bagger_watch.py', 'scripts/option_layout.py', 'scripts/tqqq_rule.py', 'scripts/bottom_alert.py', 'track-record/bottom-alert.json', 'scripts/legacy_archive.py', 'scripts/backtest_summary.py', 'scripts/swing_allocation.py', 'assets/market-history.js', 'assets/jev-ranking.js']
 permissions:
   contents: write
 concurrency:
@@ -70,13 +70,19 @@ jobs:
           import json, sys
           from pathlib import Path
           sys.path.insert(0, 'scripts')
-          from render_jev_ranking import bind_ranking
+          from render_jev_ranking import bind_ranking, inputs_hash
           path = Path('data/jev-ranking.json')
           ranking = json.loads(path.read_text())
           manifest = json.loads(Path('latest-manifest.json').read_text())
           # One-time migration of the previously embedded ranking, with no
           # changed stock inputs. Never rebind later stale evaluations.
           if not ranking.get('source_html_sha256') and ranking.get('session_date') == manifest.get('session_date'):
+              bind_ranking(Path('source-mc57.html'), path)
+          # A display-only run changes the page but not the data the evaluation read: when the ranking was
+          # bound to this very data (same fingerprint, same session), follow the page.  A later refresh changes
+          # the fingerprint, so a stale evaluation is never rebound.
+          elif (ranking.get('inputs_sha256') and ranking.get('inputs_sha256') == inputs_hash(Path('.'))
+                and ranking.get('session_date') == manifest.get('session_date')):
               bind_ranking(Path('source-mc57.html'), path)
           PY
           python scripts/design_system.py

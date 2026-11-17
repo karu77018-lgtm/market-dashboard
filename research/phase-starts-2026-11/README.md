@@ -29,3 +29,19 @@ Limits: about 50-100 events per question, overlapping, many factors tried. The c
 from the refresh's inputs; the study used the indices.
 
 Shown on the Market tab by `scripts/phase_check.py` (display only).
+
+Second round (`ud5.py`, `fg.py`, 2026-11-17)
+- New factors, each split at its own median in two halves of the events it covers. Held on the Nasdaq-100,
+  the S&P 500 and the +10% rallies alike: financial conditions (Chicago Fed NFCI, change over the 4 weeks before,
+  as known a week earlier) not tightening. +5% bounces: 68% real (17/25; 67% / 71% by half) vs 34% (27/80);
+  inside the 1-2 sign band 67% vs 42%. +10%: 94% vs 46%. Shown as a fourth sign; the big number uses the
+  sign band x NFCI cell when it has 10+ events.
+- Credit-type declines (decline card's type) bounce less: 9% / 35% real vs 63% / 50% for the other types.
+- Not kept: net liquidity (Fed assets - TGA - reverse repo, 13 weeks), jobless claims vs their 26-week low,
+  USD/JPY 20 days, CFTC leveraged-fund and asset-manager positioning (z, 2010-), option-expiry week,
+  presidential cycle, Sep-Oct, NFCI level (Nasdaq-100 down starts held, S&P 500 not by 10 points).
+  Breadth of the local panel (share above the 50/200-day line, new highs - lows, 10-day thrust) held for
+  Nasdaq-100 rally starts but has only 2013- (~30 events) and flips on the S&P 500 down starts: not used.
+- Combinations: an FTD inside the sign bands added nothing (lower, if anything); F3 recovery at rally starts:
+  5 events. Production engine with the TQQQ sleeve set by the signs: 3-4 signs -> 100% no change
+  (66.5% -> 66.6% a year), 0-1 signs -> 0% much worse (66.5% -> 50.1%): the signs stay display only.
