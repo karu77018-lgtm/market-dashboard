@@ -22,7 +22,7 @@ def test_cards_are_valid_svg_with_post_text():
 
 
 def test_block_on_publish_tab_stable_and_out_of_jev_hash():
-    mini = '<html><head></head><body><div class="tab" id="t-post1"><div class="msec">old</div></div></body></html>'
+    mini = '<html><head></head><body><section id="t-post1"><div class="msec">old</div></section></body></html>'
     # use the real page's states inside a small page
     import re
     states = "".join(re.findall(r'<script id="(?:phase-check|decline-anatomy|reg-history|ftd-check)-state" type="application/json">.*?</script>', PAGE, re.S))
