@@ -118,9 +118,9 @@ def test_weekly_long_view(tmp_path):
     assert rh.save_archive(tmp_path, m) and not rh.save_archive(tmp_path, m) and rh.load_archive(tmp_path) == m
     st["weekly"] = {k: (v * 6)[:72] if isinstance(v, list) else v for k, v in wk.items()}
     out = rh.apply(PAGE, st)
-    assert 'data-k="w"' in out and "週足" in out and out.count("rgh-tab") >= 2 and rh.apply(out, st) == out
+    assert "data-k=\"wa\"" in out and "週足" in out and out.count("class=\"rgh-tab") >= 2 and rh.apply(out, st) == out
     long_old = rh.weekly_from_daily({**_state(400), "u200": [1] * 400})
     (tmp_path / rh.ARCHIVE).unlink()
     rh.save_archive(tmp_path, {**long_old, "dates": [str(pd.Timestamp(d) - pd.Timedelta(days=800))[:10] for d in long_old["dates"]]})
     page_without = rh.apply(PAGE, _state(60))
-    assert rh.rerender(page_without, tmp_path).count('data-k="w"') >= 1   # display path adds the archive
+    assert rh.rerender(page_without, tmp_path).count("data-k=\"wa\"") >= 1   # display path adds the archive

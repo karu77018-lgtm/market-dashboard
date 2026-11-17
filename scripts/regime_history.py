@@ -193,8 +193,8 @@ STYLE = (
     '.rgh .rgr-warn{border-left-color:var(--ds-warn,#8a5a12)}.rgh .rgr-ok{border-left-color:var(--ds-up,#17703f)}'
     '.rgh .rgr-mid{border-left-color:var(--ds-down,#b3362c)}'
     '.rgh .mk-clear{fill:var(--ds-up,#17703f)}.rgh .mk-calm{fill:var(--ds-warn,#8a5a12)}.rgh .mk-wash{fill:var(--ds-down,#b3362c)}'
-    '.rgh .rgh-tabs{display:flex;gap:6px;margin:4px 0 6px}'
-    '.rgh .rgh-tab{flex:1;font-size:12px;font-weight:700;padding:6px 4px;border-radius:6px;border:1px solid var(--ds-line,#dedbd2);'
+    '.rgh .rgh-tabs{display:flex;gap:4px;margin:4px 0 6px}'
+    '.rgh .rgh-tab{flex:1;font-size:11.5px;font-weight:700;padding:6px 2px;white-space:nowrap;border-radius:6px;border:1px solid var(--ds-line,#dedbd2);'
     'background:var(--ds-surface,#fff);color:var(--ds-ink-2,#46443d)}'
     '.rgh .rgh-tab.on{background:var(--ds-ink,#1c1b19);color:var(--ds-surface,#fff);border-color:var(--ds-ink,#1c1b19)}'
     '.rgh .rgh-end{display:none}'
@@ -286,14 +286,14 @@ def _marks(series: dict) -> tuple[list, list, list]:
     return sg["calm"], sg["wash"], sg["clear_first"]
 
 
-def chart_svg(state: dict, series: dict | None = None, key: str = "d") -> str:
+def chart_svg(state: dict, series: dict | None = None, key: str = "d", start: int = 0, year_step: int = 1) -> str:
     ser = series or state
     dates = ser["dates"]
     n = len(dates)
     gap = 18
     panels = [(k, name, w, b) for k, name, w, b in LAMPS] + ([("qqq", "QQQ（参考）", None, None)] if any(v is not None for v in ser.get("qqq") or []) else [])
     height = len(panels) * (PH + gap) + 30
-    parts = [f'<svg data-k="{key}" viewBox="0 0 {W_} {height}" role="img" aria-label="F1〜F3の推移">']
+    parts = [f'<svg data-k="{key}" data-s="{start}" viewBox="0 0 {W_} {height}" role="img" aria-label="F1〜F3の推移">']
     x0, x1 = PAD_L, W_ - PAD_R
     top_hi = _hi(ser)
     for j, (k, name, warn, bad) in enumerate(panels):
@@ -349,7 +349,7 @@ def chart_svg(state: dict, series: dict | None = None, key: str = "d") -> str:
             seen = m
         else:
             y = d[:4]
-            if y != seen and i > 0 and int(y) % 2 == 0:
+            if y != seen and i > 0 and int(y) % year_step == 0:
                 x = x0 + (x1 - x0) * i / max(n - 1, 1)
                 parts.append(f'<line class="rgh-th" x1="{x:.1f}" x2="{x:.1f}" y1="14" y2="{yb - 10}"/>'
                              f'<text class="rgh-t" x="{x:.1f}" y="{yb}" text-anchor="middle">{y}</text>')
@@ -369,11 +369,11 @@ SCRIPT = (
     "b.querySelectorAll('.rgh-tab').forEach(function(u){u.classList.toggle('on',u===t);});"
     "b.querySelectorAll('.rgh-pane').forEach(function(p){p.style.display=p.dataset.k===t.dataset.k?'':'none';});});});"
     "b.querySelectorAll('svg[data-k]').forEach(function(svg){"
-    "var d=svg.dataset.k==='w'?s.weekly:s;if(!d)return;var ln=svg.querySelector('.rgh-x'),n=d.dates.length;"
+    "var wk=svg.dataset.k!=='d',d=wk?s.weekly:s;if(!d)return;var off=+(svg.dataset.s||0),ln=svg.querySelector('.rgh-x'),n=d.dates.length-off;"
     "function show(ev){var r=svg.getBoundingClientRect(),p=(ev.touches?ev.touches[0]:ev);"
     "var x=(p.clientX-r.left)/r.width*W;var i=Math.round((x-x0)/(x1-x0)*(n-1));if(i<0)i=0;if(i>n-1)i=n-1;"
     "var gx=x0+(x1-x0)*i/(n-1);ln.setAttribute('x1',gx);ln.setAttribute('x2',gx);ln.style.opacity=1;"
-    "var q=d.qqq?d.qqq[i]:null;tip.innerHTML='<b>'+d.dates[i]+(svg.dataset.k==='w'?'までの週の平均':'')+'</b><br>F1 '+pc(d.f1[i])+'・F2 '+pc(d.f2[i])+'・F3 '+pc(d.f3[i])"
+    "var j=i+off,q=d.qqq?d.qqq[j]:null;tip.innerHTML='<b>'+d.dates[j]+(wk?'までの週の平均':'')+'</b><br>F1 '+pc(d.f1[j])+'・F2 '+pc(d.f2[j])+'・F3 '+pc(d.f3[j])"
     "+(q!=null?'<br>QQQ '+q.toFixed(0):'');tip.style.display='block';"
     "var bx=b.getBoundingClientRect(),left=p.clientX-bx.left+10;if(left>bx.width-160)left=p.clientX-bx.left-170;"
     "tip.style.left=Math.max(0,left)+'px';tip.style.top=(p.clientY-bx.top-50)+'px';}"
@@ -397,15 +397,25 @@ def block_html(state: dict) -> str:
     tabs, long_pane = "", ""
     if wk and len(wk.get("dates") or []) > 60:
         note = html.escape(wk.get("note") or "")
-        tabs = ('<div class="rgh-tabs"><button class="rgh-tab on" data-k="d" type="button">1年（日足）</button>'
-                f'<button class="rgh-tab" data-k="w" type="button">{wk["dates"][0][:4]}年〜（週足）</button></div>')
-        long_pane = (f'<div class="rgh-pane" data-k="w" style="display:none"><div class="rgh-s">{wk["dates"][0]}〜{wk["dates"][-1]}の週足'
-                     f'（各週の平均）。縦軸は3つとも0〜{_hi(wk) * 100:.0f}%。印はその週に1日でもあれば表示。{note}</div>'
-                     f'{chart_svg(state, wk, "w")}</div>')
+        last_day = pd.Timestamp(wk["dates"][-1])
+        ranges = [("w3", "3年", last_day - pd.DateOffset(years=3), 1), ("w5", "5年", last_day - pd.DateOffset(years=5), 1),
+                  ("w20", "2020年〜", pd.Timestamp("2020-01-01"), 1), ("wa", "全期間", pd.Timestamp(wk["dates"][0]), 2)]
+        btn = ['<button class="rgh-tab on" data-k="d" type="button">1年</button>']
+        for key, label, since, step in ranges:
+            start = next((i for i, d in enumerate(wk["dates"]) if pd.Timestamp(d) >= since), 0)
+            sub = {k: (v[start:] if isinstance(v, list) else v) for k, v in wk.items()}
+            if len(sub["dates"]) < 20:
+                continue
+            btn.append(f'<button class="rgh-tab" data-k="{key}" type="button">{label}</button>')
+            older = (f'{note}' if sub["dates"][0] < (wk.get("live_from") or "") else "")
+            long_pane += (f'<div class="rgh-pane" data-k="{key}" style="display:none"><div class="rgh-s">{sub["dates"][0]}〜{sub["dates"][-1]}の週足'
+                          f'（各週の平均）。縦軸は3つとも0〜{_hi(sub) * 100:.0f}%。印はその週に1日でもあれば表示。{older}</div>'
+                          f'{chart_svg(state, sub, key, start, step)}</div>')
+        tabs = f'<div class="rgh-tabs">{"".join(btn)}</div>'
     return (f'<div class="rgh" id="{BLOCK_ID}"><div class="rgh-h">今の読み方</div>'
             f'<div class="rgr {cls}"><b>{html.escape(head)}</b>{html.escape(body)}</div>'
             f'<div class="rgh-h">F1〜F3の推移</div>{tabs}'
-            f'<div class="rgh-pane" data-k="d"><div class="rgh-s">{first}〜{last}（約1年）。薄い黄＝注意、薄い赤＝警戒の水準。'
+            f'<div class="rgh-pane" data-k="d"><div class="rgh-s">{first}〜{last}（約1年・日足）。薄い黄＝注意、薄い赤＝警戒の水準。'
             f'縦軸は3つとも0〜{_hi(state) * 100:.0f}%。{legend}タップで日付と値。</div>'
             f'{chart_svg(state)}</div>{long_pane}<div class="rgh-tip"></div>'
             f'<script id="{STATE_ID}" type="application/json">{raw}</script>{SCRIPT}<span class="rgh-end"></span></div>')
