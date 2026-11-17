@@ -92,7 +92,78 @@ def build_state(W: dict[str, pd.DataFrame], market: dict | None = None, n: int =
     if rows:
         q = pd.Series({str(r.get("date"))[:10]: r.get("close") for r in rows if r.get("close") is not None}, dtype=float)
         out["qqq"] = [round(float(q[d]), 2) if d in q.index else None for d in out["dates"]]
+        s200 = q.sort_index().rolling(200).mean()
+        out["u200"] = [None if d not in q.index or pd.isna(s200.get(d)) else int(q[d] > s200[d]) for d in out["dates"]]
     return out
+
+
+# ---------------------------------------------------------------- reading (research/regime-lamps-2026-11)
+CALM = (0.20, 0.25, 0.40)        # all three below their caution levels
+WASH_F3 = 0.60                   # F3 this high while QQQ is under its 200-day line
+CLEAR_FROM, CLEAR_TO, CLEAR_WITHIN = 0.60, 0.35, 20
+
+
+def signals(state: dict) -> dict[str, list[bool]]:
+    f1, f2, f3 = state["f1"], state["f2"], state["f3"]
+    u = state.get("u200") or [None] * len(f1)
+    n = len(f1)
+    calm = [f1[i] < CALM[0] and f2[i] < CALM[1] and f3[i] < CALM[2] for i in range(n)]
+    wash = [u[i] == 0 and f3[i] >= WASH_F3 for i in range(n)]
+    cond = [max(f3[max(0, i - CLEAR_WITHIN + 1):i + 1]) >= CLEAR_FROM and f3[i] <= CLEAR_TO for i in range(n)]
+    first, last = [], -999
+    for i, c in enumerate(cond):
+        first.append(c and i - last > CLEAR_WITHIN)
+        if c:
+            last = i
+    return {"calm": calm, "wash": wash, "clear": cond, "clear_first": first}
+
+
+def _md(day: str) -> str:
+    return f"{int(day[5:7])}/{int(day[8:10])}"
+
+
+def reading(state: dict) -> tuple[str, str, str]:
+    """(css class, headline, explanation) for the latest session."""
+    sg = signals(state)
+    i = len(state["f1"]) - 1
+    if sg["calm"][i]:
+        return ("rgr-warn", "全灯平常＝むしろ過熱に注意",
+                "3つとも平常の日は、過去60日後のQQQが平均±0%前後（普段は+4〜5%）、その日に出た本命はPF0.4〜0.6と負け越し"
+                "（2013〜19年・2020〜26年とも）。新規は控えめに。")
+    if sg["clear"][i]:
+        k = max(j for j in range(i + 1) if sg["clear_first"][j]) if any(sg["clear_first"]) else i
+        return ("rgr-ok", f"F3の回復の合図（{_md(state['dates'][k])}〜）",
+                "F3が60%以上から35%以下に戻った。過去は60日後のQQQが普段より高く（+5〜7%）、10%下げる率は低め、"
+                "本命の勝率も上がった（34→39%、29→38%）。押し目買い再開の目安。")
+    if sg["wash"][i]:
+        return ("rgr-mid", "荒れ場（底値圏）：投げずに損切りラインで管理",
+                "QQQが200日線の下でF3が60%以上。過去は60日以内に10%下げる率が22〜30%と高い一方、60日後は平均+9〜11%"
+                "（普段+4〜5%）。売りの合図ではない。")
+    if state["f3"][i] >= WASH_F3:
+        return ("rgr-na", "F3は高いが200日線の上",
+                "この組み合わせは、過去はほぼ普段どおり。特別な対応は不要。")
+    return ("rgr-na", "特別な合図なし",
+            "F1・F2の水準だけでは売買の判断に使えない（2013〜19年と2020〜26年で効き方が逆）。"
+            "注目は「全灯平常」「F3の回復」「200日線下でF3が60%以上」の3つ。")
+
+
+ACTION = ('<p class="rgh-act"><b>行動</b>（2013〜2026年の検証で見直し）：'
+          'F1・F2の点灯だけでサイズは変えない（前後半で効き方が逆。F2警戒中の本命はPF0.91と3.39）。'
+          'F3が60%超で200日線の下は荒れ場で、深い押しもあるが反発も大きい。投げずに損切りラインで管理する。'
+          'F3が60%以上→35%以下に戻ったら回復の合図。3つとも平常の時はむしろ過熱に注意。'
+          '手仕舞いは安値21EMA割れ・損切り−8%のまま。売買ルール本体（地合いゲートとRS選定）は変えない。</p>')
+ACTION_RE = re.compile(r'<p(?: class="rgh-act")?><b>行動</b>.*?</p>', re.S)
+
+
+def revise_action(text: str) -> str:
+    """Replace the card's action paragraph with the validated one (display only)."""
+    h = text.find('<div class="card reg-card')
+    if h < 0:
+        return text
+    end = text.find('<div class="card', h + 10)
+    region = text[h:end if end > 0 else len(text)]
+    new = ACTION_RE.sub(lambda _: ACTION, region, count=1)
+    return text[:h] + new + text[h + len(region):]
 
 
 # ---------------------------------------------------------------- rendering
@@ -115,6 +186,12 @@ STYLE = (
     '.rgh .rgh-tip{position:absolute;pointer-events:none;display:none;background:var(--ds-surface,#fff);'
     'border:1px solid var(--ds-line,#dedbd2);border-radius:6px;padding:5px 7px;font-size:11.5px;line-height:1.5;'
     'color:var(--ds-ink,#1c1b19);box-shadow:0 2px 6px rgba(0,0,0,.12);white-space:nowrap;z-index:3}'
+    '.rgh .rgr{border-radius:8px;padding:8px 10px;margin:2px 0 10px;font-size:12.5px;line-height:1.6;color:var(--ds-ink-2,#46443d);'
+    'background:var(--ds-surface-2,#f4f2ec);border-left:4px solid var(--ds-line,#dedbd2)}'
+    '.rgh .rgr b{display:block;font-size:13.5px;color:var(--ds-ink,#1c1b19)}'
+    '.rgh .rgr-warn{border-left-color:var(--ds-warn,#8a5a12)}.rgh .rgr-ok{border-left-color:var(--ds-up,#17703f)}'
+    '.rgh .rgr-mid{border-left-color:var(--ds-down,#b3362c)}'
+    '.rgh .mk-clear{fill:var(--ds-up,#17703f)}.rgh .mk-calm{fill:var(--ds-warn,#8a5a12)}.rgh .mk-wash{fill:var(--ds-down,#b3362c)}'
     '.rgh .rgh-end{display:none}'
     '</style>'
 )
@@ -148,7 +225,7 @@ def chart_svg(state: dict) -> str:
     n = len(dates)
     gap = 18
     panels = [(k, name, w, b) for k, name, w, b in LAMPS] + ([("qqq", "QQQ（参考）", None, None)] if state.get("qqq") else [])
-    height = len(panels) * (PH + gap) + 16
+    height = len(panels) * (PH + gap) + 22
     parts = [f'<svg viewBox="0 0 {W_} {height}" role="img" aria-label="F1〜F3の推移">']
     x0, x1 = PAD_L, W_ - PAD_R
     for j, (k, name, warn, bad) in enumerate(panels):
@@ -163,6 +240,17 @@ def chart_svg(state: dict) -> str:
             parts.append(f'<line class="rgh-th" x1="{x0}" x2="{x1}" y1="{top + PH}" y2="{top + PH}"/>')
             for seg in _pts(vals, lo, hi, top):
                 parts.append(f'<polyline class="rgh-q" points="{" ".join(seg)}"/>')
+            sg = signals(state)
+            step = (x1 - x0) / max(n - 1, 1)
+            for i in range(n):
+                x = x0 + step * i
+                if sg["calm"][i]:
+                    parts.append(f'<rect class="mk-calm" x="{x - step / 2:.1f}" y="{top + PH + 2}" width="{max(step, 1):.1f}" height="4"/>')
+                if sg["wash"][i]:
+                    parts.append(f'<rect class="mk-wash" x="{x - step / 2:.1f}" y="{top + PH + 7}" width="{max(step, 1):.1f}" height="4"/>')
+                if sg["clear_first"][i] and vals[i] is not None:
+                    y = top + PH - (vals[i] - lo) / (hi - lo) * PH
+                    parts.append(f'<path class="mk-clear" d="M{x:.1f},{y + 4:.1f} l-5,9 h10 z"/>')
             continue
         lo, hi = 0.0, _hi(state)
 
@@ -184,7 +272,7 @@ def chart_svg(state: dict) -> str:
         if lab:
             parts.append(f'<text class="rgh-t" x="{x1 + 2}" y="{ly + 11:.1f}">{lab}</text>')
     # month ticks
-    yb = len(panels) * (PH + gap) + 6
+    yb = len(panels) * (PH + gap) + 12
     seen = None
     for i, d in enumerate(dates):
         m = d[:7]
@@ -221,9 +309,17 @@ SCRIPT = (
 def block_html(state: dict) -> str:
     raw = json.dumps(state, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     first, last = state["dates"][0], state["dates"][-1]
-    return (f'<div class="rgh" id="{BLOCK_ID}"><div class="rgh-h">F1〜F3の推移</div>'
+    cls, head, body = reading(state)
+    legend = ""
+    if state.get("qqq"):
+        legend = ('下段QQQの印：<span style="color:var(--ds-up,#17703f)">▲</span>F3の回復の合図、'
+                  '<span style="color:var(--ds-warn,#8a5a12)">■</span>全灯平常、'
+                  '<span style="color:var(--ds-down,#b3362c)">■</span>200日線下でF3≥60%。')
+    return (f'<div class="rgh" id="{BLOCK_ID}"><div class="rgh-h">今の読み方</div>'
+            f'<div class="rgr {cls}"><b>{html.escape(head)}</b>{html.escape(body)}</div>'
+            '<div class="rgh-h">F1〜F3の推移</div>'
             f'<div class="rgh-s">{first}〜{last}（約1年）。薄い黄＝注意、薄い赤＝警戒の水準。'
-            f'縦軸は3つとも0〜{_hi(state) * 100:.0f}%。下段はQQQ（参考）。タップで日付と値。</div>'
+            f'縦軸は3つとも0〜{_hi(state) * 100:.0f}%。{legend}タップで日付と値。</div>'
             f'{chart_svg(state)}<div class="rgh-tip"></div>'
             f'<script id="{STATE_ID}" type="application/json">{raw}</script>{SCRIPT}<span class="rgh-end"></span></div>')
 
@@ -246,6 +342,7 @@ def _insert_at(text: str) -> int | None:
 
 
 def apply(text: str, state: dict | None) -> str:
+    text = revise_action(text)
     if not state:
         return text
     block = block_html(state)
@@ -278,9 +375,9 @@ def rerender(text: str, root: Path) -> str:
             seed = json.loads((root / STATE_SEED).read_text(encoding="utf-8"))
             manifest = json.loads((root / "latest-manifest.json").read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return text
+            return apply(text, None)
         if seed.get("session") != manifest.get("session_date"):
-            return text
+            return apply(text, None)
         state = seed
     return apply(text, state)
 
