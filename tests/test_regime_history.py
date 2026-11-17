@@ -76,3 +76,29 @@ def test_display_path_and_refresh_fallback(tmp_path):
     (tmp_path / "latest-manifest.json").write_text(json.dumps({"session_date": st["session"]}), encoding="utf-8")
     assert rh.BLOCK_ID in rh.rerender(PAGE, tmp_path)
     assert rh.run(PAGE, tmp_path, tmp_path / "missing.csv", st["session"]).count(f'id="{rh.BLOCK_ID}"') == 1
+
+
+def test_reading_and_signals():
+    st = _state(40)
+    st["f1"], st["f2"], st["f3"] = [0.25] * 40, [0.3] * 40, [0.45] * 40
+    st["u200"] = [1] * 40
+    assert rh.reading(st)[1] == "特別な合図なし"
+    calm = {**st, "f1": [0.1] * 40, "f2": [0.1] * 40, "f3": [0.3] * 40}
+    assert rh.reading(calm)[0] == "rgr-warn" and all(rh.signals(calm)["calm"])
+    wash = {**st, "f3": [0.65] * 40, "u200": [0] * 40}
+    assert rh.reading(wash)[1].startswith("荒れ場")
+    assert rh.reading({**wash, "u200": [1] * 40})[1] == "F3は高いが200日線の上"
+    f3 = [0.45] * 30 + [0.65, 0.62, 0.5, 0.4, 0.33, 0.3, 0.3, 0.3, 0.3, 0.3]
+    clear = {**st, "f3": f3}
+    sg = rh.signals(clear)
+    assert sg["clear_first"].index(True) == 34 and sum(sg["clear_first"]) == 1
+    head = rh.reading(clear)[1]
+    assert head.startswith("F3の回復の合図") and st["dates"][34][5:7].lstrip("0") in head
+
+
+def test_action_text_is_revised_even_without_state(tmp_path):
+    page = PAGE.replace('<p>3灯は足し算しない。</p>', '<p>3灯は足し算しない。</p><p><b>行動</b>：F2点灯で新規サイズを絞る。</p>')
+    out = rh.rerender(page, tmp_path)
+    assert "F2点灯で新規サイズを絞る" not in out and rh.ACTION in out and rh.rerender(out, tmp_path) == out
+    assert str(BeautifulSoup(out, "html.parser")).count("rgh-act") == 1
+    assert rh.revise_action(str(BeautifulSoup(out, "html.parser"))).count("行動") == 1
