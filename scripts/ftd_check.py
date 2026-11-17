@@ -19,6 +19,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+import fold
+
 BLOCK_ID = "ftd-check"
 STATE_ID = "ftd-check-state"
 STYLE_ID = "ftd-check-style"
@@ -275,14 +277,33 @@ ENTRY = (
 )
 
 
+def key_of(state: dict) -> str:
+    """One line for the folded block: each index's latest FTD in a word."""
+    out = []
+    for row in state.get("rows", []):
+        r = row.get("ftd")
+        if r is None:
+            what = "FTDなし"
+        elif r.get("broken"):
+            what = f'{_md(r["date"])}のFTDは騙し'
+        elif r["age"] >= WINDOW:
+            what = f'{_md(r["date"])}のFTDは通過'
+        else:
+            p, _ = odds(r)
+            act = "見送り" if len(headwinds(r)) >= SKIP_AT else "入る"
+            what = f'{_md(r["date"])}のFTD 騙し{p}%・判定 {act}'
+        out.append(f'{html.escape(row["label"])} {what}')
+    return "｜".join(out)
+
+
 def block_html(state: dict) -> str:
     raw = json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).replace("</", "<\\/")
     rows = "".join(row_html(r) for r in state.get("rows", []))
-    return (f'<div class="ftd-chk" id="{BLOCK_ID}"><div class="fc-h">騙しチェック</div>{rows}{ENTRY}'
-            f'<div class="fc-note">騙し＝{WINDOW}営業日以内に終値でFTD日の安値を割ること。過去のFTDの{BASE}%が騙し（QQQ 1999年〜・SPY 1993年〜の239回）。'
+    body = (f'{rows}{ENTRY}<div class="fc-note">騙し＝{WINDOW}営業日以内に終値でFTD日の安値を割ること。過去のFTDの{BASE}%が騙し（QQQ 1999年〜・SPY 1993年〜の239回）。'
             '分かっていることだけで出した過去の割合で、予測の保証ではありません。表示のみで、売買ルールは変えません。'
-            f'{html.escape(state.get("session") or "")} 終値時点。</div>'
-            f'<script id="{STATE_ID}" type="application/json">{raw}</script><span class="fc-end"></span></div>')
+            f'{html.escape(state.get("session") or "")} 終値時点。</div>')
+    return (f'<div class="ftd-chk" id="{BLOCK_ID}">' + fold.sub("ftd-check", "騙しチェック・FTD後の入り方", key_of(state), body)
+            + f'<script id="{STATE_ID}" type="application/json">{raw}</script><span class="fc-end"></span></div>')
 
 
 BLOCK_RE = re.compile(rf'<div class="ftd-chk" id="{BLOCK_ID}">.*?<span class="fc-end"></span></div>', re.S)
@@ -317,7 +338,8 @@ def apply(text: str, state: dict | None) -> str:
             return text
         out = text[:at] + block + text[at:]
     out = STYLE_RE.sub("", out)
-    return out.replace("</head>", STYLE + "</head>", 1) if "</head>" in out else out
+    out = out.replace("</head>", STYLE + "</head>", 1) if "</head>" in out else out
+    return fold.ensure(out)
 
 
 def embedded_state(text: str) -> dict | None:

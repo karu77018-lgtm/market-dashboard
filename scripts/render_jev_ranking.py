@@ -143,6 +143,8 @@ def source_hash(text: str) -> str:
     text = re.sub(r'<script id="ds-script">.*?</script>', '', text, flags=re.S)
     # Display-only blocks (decline_anatomy.py, refresh_help.py) are not evidence either.
     text = re.sub(r'<style id="(?:decline-anatomy|refresh-help|ftd-check|reg-history|phase-check)-style">.*?</style>', '', text, flags=re.S)
+    text = re.sub(r'<style id="fold-style">.*?</style>', '', text, flags=re.S)
+    text = re.sub(r'<script id="fold-script">.*?</script>', '', text, flags=re.S)
     text = re.sub(r'<div class="ftd-chk" id="ftd-check">.*?<span class="fc-end"></span></div>', '', text, flags=re.S)
     text = re.sub(r'<div class="rgh" id="reg-history">.*?<span class="rgh-end"></span></div>', '', text, flags=re.S)
     text = re.sub(r'<div class="card pc-card" id="phase-check">.*?<span class="pc-end"></span></div>', '', text, flags=re.S)

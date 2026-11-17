@@ -63,7 +63,7 @@ def test_block_sits_in_the_card_before_the_notes_and_is_stable():
     assert rh.BLOCK_RE.search(soup) and rh.embedded_state(soup) == st                    # survives a bs4 rewrite
     assert rh.BLOCK_RE.search(rh.apply(soup, st)).group(0) == rh.BLOCK_RE.search(out).group(0)
     assert "F1〜F3の推移" in out and "<polyline" in out and "50%" not in rh.BLOCK_RE.search(out).group(0).split("</svg>")[1][:200]
-    assert rj.source_hash(out) == rj.source_hash(PAGE)
+    assert rj.source_hash(out) == rj.source_hash(rh.revise_action(PAGE))       # the block itself is not evidence
     assert rh.apply("<html><body>none</body></html>", st) == "<html><body>none</body></html>"
 
 
@@ -72,7 +72,7 @@ def test_display_path_and_refresh_fallback(tmp_path):
     (tmp_path / "seed").mkdir()
     (tmp_path / rh.STATE_SEED).write_text(json.dumps(st), encoding="utf-8")
     (tmp_path / "latest-manifest.json").write_text(json.dumps({"session_date": "1999-01-04"}), encoding="utf-8")
-    assert rh.rerender(PAGE, tmp_path) == PAGE
+    assert rh.rerender(PAGE, tmp_path) == rh.revise_action(PAGE)
     (tmp_path / "latest-manifest.json").write_text(json.dumps({"session_date": st["session"]}), encoding="utf-8")
     assert rh.BLOCK_ID in rh.rerender(PAGE, tmp_path)
     assert rh.run(PAGE, tmp_path, tmp_path / "missing.csv", st["session"]).count(f'id="{rh.BLOCK_ID}"') == 1
@@ -124,3 +124,13 @@ def test_weekly_long_view(tmp_path):
     rh.save_archive(tmp_path, {**long_old, "dates": [str(pd.Timestamp(d) - pd.Timedelta(days=800))[:10] for d in long_old["dates"]]})
     page_without = rh.apply(PAGE, _state(60))
     assert rh.rerender(page_without, tmp_path).count("data-k=\"wa\"") >= 1   # display path adds the archive
+
+
+def test_card_notes_fold_once_and_the_block_stays_outside():
+    page = PAGE.replace('<p>3灯は足し算しない。</p>', '<p>3灯は足し算しない。</p><p><b>行動</b>：旧。</p><div class="x">in</div>')
+    st = _state()
+    out = rh.apply(page, st)
+    assert out.count(rh.NOTES_FOLD) == 1 and rh.apply(out, st) == out
+    assert out.index('id="reg-history"') < out.index(rh.NOTES_FOLD)
+    notes = out[out.index(rh.NOTES_FOLD):]
+    assert notes.index('<div class="note">') < notes.index("</details>") and "旧" not in out
