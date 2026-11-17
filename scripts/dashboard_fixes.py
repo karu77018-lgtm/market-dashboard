@@ -123,6 +123,11 @@ def apply(text: str, root: Path) -> str:
         text = decline_anatomy.rerender(text, root)
     except Exception as exc:
         print(f"decline anatomy re-render skipped: {exc!r}", flush=True)
+    try:  # SNS用の画像カード: redraw from the states stored in the page (display only)
+        import post_cards
+        text = post_cards.apply(text)
+    except Exception as exc:
+        print(f"post cards skipped: {exc!r}", flush=True)
     try:  # notice when an added card missed the latest close
         import display_health
         text = display_health.apply(text, root)
