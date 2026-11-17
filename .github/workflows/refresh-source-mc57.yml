@@ -466,6 +466,7 @@ jobs:
           if test -f seed/decline-slow.json; then git add -- seed/decline-slow.json; fi
           if test -f seed/reg-history-weekly.json; then git add -- seed/reg-history-weekly.json; fi
           if test -f seed/prediction-log.json; then git add -- seed/prediction-log.json; fi
+          if test -f seed/alert-state.json; then git add -- seed/alert-state.json; fi
           git add -f -- data/listing-dates.json
           if test -n "$FULL_MARKER_PATH"; then git add -- "$FULL_MARKER_PATH"; fi
           if git diff --cached --quiet; then echo "No publication change"; exit 0; fi
@@ -488,6 +489,49 @@ jobs:
         run: |
           echo "::error title=Phase A-0 preservation failed::Dashboard publication completed, but private preservation failed."
           exit 1
+
+  # Changes in the added cards (局面チェック, FTD, 警戒灯, 予測の答え合わせ) -> one issue that mentions the owner,
+  # closed right away: GitHub's app still notifies.  Messages come from seed/alert-state.json written by this run.
+  market_alert:
+    needs: [refresh]
+    if: always() && needs.refresh.outputs.published == 'success'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      OWNER: ${{ github.repository_owner }}
+      RUN_ID: ${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main}
+      - name: Notify market changes
+        run: |
+          python3 - > /tmp/alert.txt <<'PY'
+          import json, os
+          try:
+              st = json.load(open("seed/alert-state.json", encoding="utf-8"))
+          except (OSError, ValueError):
+              raise SystemExit(0)
+          last = st.get("last") or {}
+          if str(last.get("run")) != os.environ["RUN_ID"] or not last.get("messages"):
+              raise SystemExit(0)
+          print(last.get("session", ""))
+          for m in last["messages"]:
+              print("- " + m)
+          PY
+          test -s /tmp/alert.txt || exit 0
+          session="$(head -1 /tmp/alert.txt)"
+          first="$(sed -n 2p /tmp/alert.txt | cut -c3- | cut -c1-40)"
+          body="@${OWNER} ${session} 終値時点で、ダッシュボードの表示が変わりました（表示のみ。売買ルールは変えません）。
+
+          $(tail -n +2 /tmp/alert.txt)
+
+          https://karu77018-lgtm.github.io/market-dashboard/source-mc57.html"
+          url="$(gh issue create --title "[相場の通知] ${session} ${first}" --body "$body")"
+          gh issue close "$url" --reason completed
 
   # Morning (06:45 JST) run did not publish -> open (or comment on) one issue that
   # mentions the owner, so GitHub's app/email notifies.  The next run that publishes
