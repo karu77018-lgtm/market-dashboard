@@ -197,7 +197,7 @@ STYLE = (
     '.pl-card .pl-t th:nth-child(1){width:48px}.pl-card .pl-t th:nth-child(3){width:40px}.pl-card .pl-t th:nth-child(4){width:70px}'
     '.pl-card .pl-t th{font-size:11px;font-weight:600;color:var(--ds-muted,#6b685e);text-align:left;padding:3px 4px}'
     '.pl-card .pl-t td{padding:5px 4px;border-top:1px solid var(--ds-line,#dedbd2);vertical-align:top;text-align:left;'
-    'word-break:break-word;color:var(--ds-ink-2,#46443d)}'
+    'word-break:break-word;white-space:normal;color:var(--ds-ink-2,#46443d)}'
     '.pl-card .pl-t td small{display:block;font-size:10.5px;color:var(--ds-muted,#6b685e)}'
     '.pl-card .pl-y{color:var(--ds-up,#17703f);font-weight:700}.pl-card .pl-n{color:var(--ds-down,#b3362c);font-weight:700}'
     '.pl-card .pl-o{color:var(--ds-muted,#6b685e)}.pl-card .pl-end{display:none}'
