@@ -393,6 +393,11 @@ def main() -> int:
         text = regime_history.run(text, html_path.resolve().parent, csv_path, args.session)
     except Exception as exc:
         print(f"regime history skipped: {exc!r}", flush=True)
+    try:  # 過熱セクターの目印 under the swing screener (display + tracking log only)
+        import sector_heat
+        text = sector_heat.run(text, frame, html_path.resolve().parent, args.session)
+    except Exception as exc:
+        print(f"sector heat skipped: {exc!r}", flush=True)
     try:  # notice when an added card missed this close
         import display_health
         text = display_health.apply(text, html_path.resolve().parent)
