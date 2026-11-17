@@ -143,7 +143,10 @@ def qqq_phase(px: pd.DataFrame, slow: dict) -> dict:
             cur["up10"] = _rally(q, cur["low_i"], t, UP10)
             cur["up10"]["type"], cur["up10"]["drivers"] = _type(px, cur["low_i"], t, slow)
     t = len(q) - 1
-    out: dict[str, Any] = {"dd": round(float(dd.iloc[t]) * 100, 1), "in_decline": indec, "last_end": last_end}
+    ma50 = q.rolling(50, min_periods=50).mean().iloc[t]
+    out: dict[str, Any] = {"dd": round(float(dd.iloc[t]) * 100, 1), "in_decline": indec, "last_end": last_end,
+                           "close": round(float(q.iloc[t]), 2), "high": round(float(hi.iloc[t]), 2),
+                           "ma50": None if pd.isna(ma50) else round(float(ma50), 2)}
     if indec:
         lo = cur["low_i"]
         out.update(peak=str(q.iloc[max(0, cur["start"] - 252):cur["start"] + 1].idxmax().date()),
@@ -178,7 +181,8 @@ def spy_phase(px: pd.DataFrame) -> dict | None:
         if ev and ev["status"] == "open" and d <= DECLINE:
             ev["status"] = "reached"
             ev["end"] = str(s.index[t].date())
-    return {"dd": round(float(dd.iloc[-1]) * 100, 1), "event": ev}
+    return {"dd": round(float(dd.iloc[-1]) * 100, 1), "event": ev, "close": round(float(s.iloc[-1]), 2),
+            "high": round(float(hi.iloc[-1]), 2)}
 
 
 def build_state(market: dict, slow: dict, session: str | None = None) -> dict | None:
@@ -202,6 +206,20 @@ def _signed(v: float, nd: int = 1) -> str:
     return f"{v:+.{nd}f}".replace("-", "−")
 
 
+PHASES = (("high", "高値圏"), ("down_start", "下げの初動"), ("down", "下げ"), ("up5", "上げの初動"), ("up10", "上げ"))
+
+
+def phase_of(state: dict) -> str:
+    q, ev = state["qqq"], ((state.get("spy") or {}).get("event") or {})
+    if q.get("in_decline"):
+        return "up10" if q.get("up10") else "up5" if q.get("up5") else "down"
+    return "down_start" if ev.get("status") == "open" else "high"
+
+
+def _word(p: int) -> str:
+    return "かなり期待できる" if p >= 80 else "五分五分" if p >= 40 else "一時的な戻りで終わることが多い"
+
+
 def _odds_table(ref: dict, band: str) -> str:
     rows = ""
     for b, label in (("0", "0個"), ("1-2", "1〜2個"), ("3", "3個")):
@@ -209,122 +227,153 @@ def _odds_table(ref: dict, band: str) -> str:
         cur = ' class="pc-cur"' if b == band else ""
         rows += (f'<tr{cur}><td>{label}</td><td><b>{_pct(n, ok)}%</b><small>{ok}/{n}回</small></td>'
                  f'<td>{_pct(*h1)}%</td><td>{_pct(*h2)}%</td></tr>')
-    return ('<table class="pc-t"><tr><th>当てはまる数</th><th>本物の底</th><th>1990〜2007</th><th>2008〜2026</th></tr>'
+    return ('<table class="pc-t"><tr><th>○の数</th><th>本物の底</th><th>1990〜2007</th><th>2008〜2026</th></tr>'
             f'{rows}</table>')
 
 
-def _signs_list(r: dict, rule: dict, rise: str) -> str:
+def _signs(r: dict, rule: dict, rise: str) -> str:
     a, d, m = r["signs"]
-    mark = lambda ok: '<span class="pc-y">○</span>' if ok else ('<span class="pc-n">×</span>' if ok is False else "−")  # noqa: E731
+    mk = lambda ok: '<i class="pc-y">○</i>' if ok else ('<i class="pc-n">×</i>' if ok is False else "<i>−</i>")  # noqa: E731
     return ('<ul class="pc-s">'
-            f'<li>{mark(a)} 50日線の上にいる</li>'
-            f'<li>{mark(d)} ゆっくり戻した：{rise}まで{r["days"]}営業日（{rule["days"] + 1}日以上が○）</li>'
-            f'<li>{mark(m)} 急騰の日がない：最大の上げ日 {_signed(r["maxday"])}%（{rule["maxday"]}%未満が○）</li></ul>')
+            f'<li>{mk(a)}<span>50日線より上で戻した<small>{_md(r["date"])}の終値で判定</small></span></li>'
+            f'<li>{mk(d)}<span>ゆっくり戻した<small>{rise}まで{r["days"]}営業日（{rule["days"] + 1}日以上で○）</small></span></li>'
+            f'<li>{mk(m)}<span>急騰の日がない<small>いちばん大きい上げ {_signed(r["maxday"])}%（{rule["maxday"]}%未満で○）</small></span></li></ul>')
 
 
-def rally_html(r: dict, kind: str) -> str:
+def _ladder(q: dict, nxt: float | None) -> str:
+    """QQQ between the failure line (the low) and the real-bottom line (2% under the high)."""
+    lo, hi_line, now = q["low_close"], (q.get("high") or 0) * 0.98, q.get("close")
+    if not now or not hi_line or hi_line <= lo:
+        return ""
+    W, x0, x1 = 340, 14, 326
+    x = lambda v: x0 + (x1 - x0) * (min(max(v, lo), hi_line) - lo) / (hi_line - lo)  # noqa: E731
+    parts = [f'<svg class="pc-lad" viewBox="0 0 {W} 70" role="img" aria-label="安値から高値圏までのどこにいるか">',
+             f'<line x1="{x0}" x2="{x1}" y1="30" y2="30" class="pc-axis"/>',
+             f'<circle cx="{x0}" cy="30" r="4" class="pc-bad"/><circle cx="{x1}" cy="30" r="4" class="pc-good"/>',
+             f'<text x="{x0}" y="52" class="pc-lt" text-anchor="start">失敗 {lo:.2f}</text>',
+             f'<text x="{x1}" y="52" class="pc-lt" text-anchor="end">本物の底 {hi_line:.2f}</text>']
+    if nxt and lo < nxt < hi_line:
+        parts.append(f'<line x1="{x(nxt):.1f}" x2="{x(nxt):.1f}" y1="24" y2="36" class="pc-tick"/>'
+                     f'<text x="{x(nxt):.1f}" y="66" class="pc-lt" text-anchor="middle">再判定 {nxt:.2f}</text>')
+    parts.append(f'<path d="M{x(now):.1f},26 l-6,-10 h12 z" class="pc-now"/>'
+                 f'<text x="{x(now):.1f}" y="11" class="pc-nt" text-anchor="middle">今 {now:.2f}</text></svg>')
+    return "".join(parts)
+
+
+def _rally_parts(q: dict, kind: str) -> tuple[str, str, str]:
+    r = q[kind]
     rule, ref, base = (UP5, REF_UP5, BASE_UP5) if kind == "up5" else (UP10, REF_UP10, BASE_UP10)
     rise = "+5%" if kind == "up5" else "+10%"
     band = _band(r["score"])
     n, ok, _, _ = ref[band]
-    ex = EXAMPLES[kind][band]
-    out = (f'<div class="pc-h">本物の底らしさ：<b>{r["score"]}/3</b>（{_md(r["date"])}に安値から{rise}）</div>'
-           + _signs_list(r, rule, rise)
-           + f'<div class="pc-p">過去に同じ数だった{n}回のうち、本物の底だったのは<b>{_pct(n, ok)}%</b>'
-             f'（全体では{_pct(base[0], base[1])}%）。最近の例（○＝本物の底）：{html.escape(ex)}</div>'
-           + _odds_table(ref, band))
+    p = _pct(n, ok)
+    big = (f'<div class="pc-big"><div class="pc-k">この戻りが本物の底になる率</div><div class="pc-v">{p}<small>%</small></div>'
+           f'<div class="pc-w">{_word(p)}</div></div>')
+    nxt = q["low_close"] * 1.10 if kind == "up5" else None
+    say = (f'{_md(r["date"])}に安値から{rise}戻した。本物の底らしさは<b>○{r["score"]}つ</b>（3つ中）。'
+           f'過去に○が同じ数だった{n}回のうち{ok}回が本物の底だった（全体では{_pct(base[0], base[1])}%）。')
+    watch = (f'終値で安値<b>{q["low_close"]:.2f}</b>を割ると失敗。'
+             + (f'安値から+10%（<b>{nxt:.2f}</b>）に届いたら、もう一度判定する。' if nxt else "")
+             + f'高値の−2%（<b>{q["high"] * 0.98:.2f}</b>）まで戻れば本物の底。')
+    detail = (_odds_table(ref, band) + f'<div class="pc-p pc-mut">最近の例（○＝本物の底）：{html.escape(EXAMPLES[kind][band])}</div>')
     if kind == "up10" and r.get("type"):
-        out += (f'<div class="pc-h">上げの中身：<b>{html.escape(r["type"])}</b></div>'
-                f'<div class="pc-p">{html.escape(TYPES[r["type"]])}型は戻りの説明で、型ごとのその後の成績は期間によって逆になったため予想には使いません。</div>')
-    return out
+        detail += (f'<div class="pc-p"><b>上げの中身：{html.escape(r["type"])}</b>　{html.escape(TYPES[r["type"]])}'
+                   '型ごとのその後の成績は期間によって逆になったため、予想には使いません。</div>')
+    return big + f'<div class="pc-p">{say}</div>' + _signs(r, rule, rise), \
+        f'<div class="pc-h">ここを見る（QQQ）</div>{_ladder(q, nxt)}<div class="pc-p">{watch}</div>', detail
 
 
 def card_html(state: dict) -> str:
     q, s = state["qqq"], state.get("spy") or {}
-    parts = []
-    if q.get("in_decline"):
-        up5, up10 = q.get("up5"), q.get("up10")
-        watch = (f'今は{_md(q["low"])}の安値から{_signed(q["from_low"])}%、高値から{_signed(q["dd"])}%。'
-                 f'安値{q["low_close"]:.2f}を終値で割ると失敗、高値から−2%以内に戻れば本物の底。')
-        if up10:
-            title, lead = "上げ（安値から+10%）", "QQQ：" + watch
-            body = rally_html(up10, "up10")
-        elif up5:
-            title, lead = "上げの初動（安値から+5%）", "QQQ：" + watch
-            body = rally_html(up5, "up5")
-        else:
-            title = "下げの途中"
-            lead = (f'QQQは高値から{_signed(q["dd"])}%、{_md(q["low"])}の安値（{q["low_close"]:.2f}）から{_signed(q["from_low"])}%。'
-                    f'安値から+5%戻した日に「本物の底らしさ」を判定します（{q["low_close"] * 1.05:.2f}以上の終値）。')
-            body = ""
-        fails = q.get("failed") or []
-        if fails and not (up5 or up10):
-            f = fails[-1]
-            body += (f'<div class="pc-p">直前の戻り（{_md(f["date"])}に安値から{"+5%" if f["kind"] == "up5" else "+10%"}、'
-                     f'本物の底らしさ{f["score"]}/3）は{_md(f["broke"])}に安値を割って失敗しました。</div>')
-        parts.append((title, lead, body))
+    ph = phase_of(state)
+    steps = "".join(f'<span class="pc-st{" pc-on" if k == ph else ""}">{t}</span>' for k, t in PHASES)
+    main, watch, detail = "", "", ""
+    if ph in ("up5", "up10"):
+        main, watch, detail = _rally_parts(q, ph)
+        head = f'QQQは{_md(q["low"])}の安値から{_signed(q["from_low"])}%（高値から{_signed(q["dd"])}%）'
+    elif ph == "down":
+        head = f'QQQは高値から{_signed(q["dd"])}%、{_md(q["low"])}の安値から{_signed(q["from_low"])}%'
+        main = (f'<div class="pc-p">まだ安値から+5%戻していない。<b>{q["low_close"] * 1.05:.2f}</b>以上で引けた日に、'
+                '本物の底らしさを判定する。</div>')
+        f = (q.get("failed") or [None])[-1]
+        if f:
+            main += (f'<div class="pc-p pc-mut">直前の戻り（{_md(f["date"])}、○{f["score"]}つ）は'
+                     f'{_md(f["broke"])}に安値を割って失敗した。</div>')
     else:
-        end = q.get("last_end")
-        lead = f'QQQは高値から{_signed(q["dd"])}%。10%以上の下げの途中ではありません。'
-        if end:
-            lead += f'前回の下げは{_md(end["low"])}の安値から戻り、{_md(end["date"])}に高値圏へ戻りました。'
-        parts.append(("高値圏・通常", lead, ""))
-    ev = s.get("event") if s else None
-    if ev and ev["status"] == "open":
-        hi_ = ev["vix"] is not None and ev["vix"] >= VIX_CUT
+        head = f'QQQは高値から{_signed(q["dd"])}%'
+        if ph == "high":
+            main = '<div class="pc-p">特別な局面ではない。S&P500が高値から−5%に入ったら「下げの初動」を判定する。</div>'
+    ev = s.get("event") or {}
+    spy_box = ""
+    if ev.get("status") == "open":
+        hi_ = ev.get("vix") is not None and ev["vix"] >= VIX_CUT
         k = "hi" if hi_ else "lo"
         n, hit, h1, h2 = REF_DOWN[k]
-        lead = (f'S&P500（SPY）は{_md(ev["date"])}に高値から−5%（今は{_signed(s["dd"])}%）。'
-                f'その日のVIXは<b>{"未取得" if ev["vix"] is None else ev["vix"]}</b>'
-                f'（{VIX_CUT:.0f}以上{"に該当" if hi_ else "ではない"}）。')
-        body = (f'<div class="pc-p">VIX{VIX_CUT:.0f}{"以上" if hi_ else "未満"}だった過去{n}回のうち、'
-                f'−10%まで下げたのは<b>{_pct(n, hit)}%</b>（1990〜2007 {_pct(*h1)}%、2008〜2026 {_pct(*h2)}%）。'
-                f'もう一方は{_pct(REF_DOWN["lo" if hi_ else "hi"][0], REF_DOWN["lo" if hi_ else "hi"][1])}%。'
-                f'最近の例（○＝−10%到達）：{html.escape(EXAMPLES["down"][k])}</div>'
-                '<div class="pc-p pc-mut">Nasdaq100ではVIXでも他の要素でも見分けられなかったため、S&P500で判定しています。</div>')
-        parts.append(("下げの初動（S&P500 −5%）", lead, body))
-    elif ev and ev["status"] == "reached" and q.get("in_decline"):
-        pass
-    sections = "".join(
-        f'<div class="pc-sec"><div class="pc-tag">{html.escape(t)}</div><div class="pc-lead">{lead}</div>{body}</div>'
-        for t, lead, body in parts)
+        other = REF_DOWN["lo" if hi_ else "hi"]
+        lvl = f'（SPY {s["high"] * 0.90:.2f}）' if s.get("high") else ""
+        spy_box = (f'<div class="pc-sub"><div class="pc-h">S&P500の下げの初動</div>'
+                   f'<div class="pc-big pc-big-s"><div class="pc-k">−10%まで下げる率</div><div class="pc-v">{_pct(n, hit)}<small>%</small></div>'
+                   f'<div class="pc-w">VIX {ev["vix"] if ev.get("vix") is not None else "未取得"}（{VIX_CUT:.0f}{"以上" if hi_ else "未満"}）</div></div>'
+                   f'<div class="pc-p">{_md(ev["date"])}に高値から−5%に入った（今は{_signed(s["dd"])}%）。その日のVIXが'
+                   f'{VIX_CUT:.0f}{"以上" if hi_ else "未満"}だった過去{n}回のうち{hit}回が−10%{lvl}まで下げた'
+                   f'（VIX{"低め" if hi_ else "高め"}なら{_pct(other[0], other[1])}%）。</div>'
+                   f'<div class="pc-p pc-mut">1990〜2007 {_pct(*h1)}%、2008〜2026 {_pct(*h2)}%。最近の例（○＝到達）：{html.escape(EXAMPLES["down"][k])}。'
+                   'Nasdaq100では見分けられる要素がなかったため、S&P500で見ている。</div></div>')
     raw = json.dumps(state, ensure_ascii=False, sort_keys=True, separators=(",", ":")).replace("</", "<\\/")
     return (f'<div class="card pc-card" id="{CARD_ID}"><div class="chd"><h2>局面チェック<span class="h2en">Phase Check</span></h2></div>'
-            f'{sections}'
-            '<details class="pc-def"><summary>判定のしかた</summary><ul>'
-            '<li><b>下げの途中</b>：Nasdaq100（QQQ）が252日の高値から−10%以下。高値から−2%以内に戻るまで続く。</li>'
-            '<li><b>上げの初動</b>：その途中で、それまでの最安値（終値）から+5%戻した最初の日。新しい安値を付けたら判定し直す。</li>'
-            '<li><b>本物の底</b>：その後、安値を割る前に高値から−2%以内まで戻ったもの。1990年以降の105回で42%。</li>'
-            '<li><b>3つのしるし</b>はどれも、1990〜2007年と2008〜2026年の両方で本物の底の率を10ポイント以上分けたもの。'
-            '急騰する戻りほど下げ相場の一時的な戻りになりやすい。</li>'
-            '<li><b>上げ</b>（+10%）でも同じ3つ（11日以上・最大の上げ日4%未満）で判定。FTDがあった戻りは65%、なかった戻りは29%（2000年以降）。</li>'
+            f'<div class="pc-steps">{steps}</div><div class="pc-head">{head}</div>{main}{watch}{spy_box}'
+            f'<details class="pc-def"><summary>くわしく（過去の率・判定のしかた）</summary>{detail}<ul>'
+            '<li><b>下げ</b>：Nasdaq100（QQQ）が252日の高値から−10%以下。高値から−2%以内に戻るまで続く。</li>'
+            '<li><b>上げの初動</b>：その途中で、それまでの最安値（終値）から+5%戻した最初の日。新しい安値を付けたら判定し直す。'
+            '<b>上げ</b>は同じく+10%の日。</li>'
+            '<li><b>本物の底</b>：その後、安値を終値で割る前に高値から−2%以内まで戻ったもの。1990年以降、+5%の戻り105回のうち42%。</li>'
+            '<li><b>3つの○</b>は、1990〜2007年と2008〜2026年の両方で本物の底の率を10ポイント以上分けたものだけ。'
+            '急騰する戻りほど、下げ相場の一時的な戻りになりやすい。+10%では「11日以上」「4%未満」で判定。'
+            'FTDがあった+10%の戻りは65%、なかった戻りは29%（2000年以降）。</li>'
             '<li><b>下げの初動</b>：S&P500が高値から−5%に入った最初の日（−2%以内に戻ると再判定）。−10%まで行ったのは全体で26%。</li>'
-            '<li>数字はNasdaq100・S&P500指数での検証（研究：research/phase-starts-2026-11）。表示のみで、売買ルールは変えません。</li>'
-            '</ul></details>'
-            f'<div class="sub">{html.escape(state["session"])} 終値時点。</div>'
+            '<li>数字はNasdaq100・S&P500指数での検証（research/phase-starts-2026-11）。表示のみで、売買ルールは変えません。</li>'
+            f'</ul></details><div class="sub">{html.escape(state["session"])} 終値時点。</div>'
             f'<script id="{STATE_ID}" type="application/json">{raw}</script><span class="pc-end"></span></div>')
 
 
 STYLE = (
     f'<style id="{STYLE_ID}">'
-    '.pc-card .pc-sec{padding:8px 0;border-bottom:1px solid var(--ds-line,#dedbd2)}'
-    '.pc-card .pc-sec:last-of-type{border-bottom:0}'
-    '.pc-card .pc-tag{display:inline-block;font-size:13px;font-weight:800;padding:2px 8px;border-radius:6px;'
-    'background:var(--ds-surface-2,#f4f2ec);color:var(--ds-ink,#1c1b19);margin-bottom:4px}'
-    '.pc-card .pc-lead,.pc-card .pc-p{font-size:12.5px;line-height:1.65;color:var(--ds-ink-2,#46443d);margin:3px 0}'
+    '.pc-card .pc-steps{display:flex;gap:3px;margin:2px 0 10px}'
+    '.pc-card .pc-st{flex:1;text-align:center;font-size:10.5px;font-weight:700;padding:5px 1px;border-radius:5px;'
+    'background:var(--ds-surface-2,#f4f2ec);color:var(--ds-muted,#6b685e);white-space:nowrap}'
+    '.pc-card .pc-st.pc-on{background:var(--ds-ink,#1c1b19);color:var(--ds-surface,#fff)}'
+    '.pc-card .pc-head{font-size:13px;font-weight:700;color:var(--ds-ink,#1c1b19);margin-bottom:6px}'
+    '.pc-card .pc-big{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:8px;'
+    'background:var(--ds-surface-2,#f4f2ec);margin:4px 0 6px}'
+    '.pc-card .pc-k{font-size:12px;font-weight:700;color:var(--ds-ink-2,#46443d);flex-basis:100%}'
+    '.pc-card .pc-v{font-size:30px;font-weight:800;line-height:1.1;color:var(--ds-ink,#1c1b19)}'
+    '.pc-card .pc-v small{font-size:15px;margin-left:1px}'
+    '.pc-card .pc-w{font-size:13px;font-weight:700;color:var(--ds-ink-2,#46443d)}'
+    '.pc-card .pc-p{font-size:12.5px;line-height:1.65;color:var(--ds-ink-2,#46443d);margin:4px 0}'
     '.pc-card .pc-mut{color:var(--ds-muted,#6b685e);font-size:11.5px}'
-    '.pc-card .pc-h{font-size:13px;font-weight:700;color:var(--ds-ink,#1c1b19);margin:8px 0 2px}'
-    '.pc-card .pc-s{list-style:none;margin:2px 0;padding:0}'
-    '.pc-card .pc-s li{font-size:12.5px;line-height:1.6;color:var(--ds-ink-2,#46443d)}'
-    '.pc-card .pc-y{color:var(--ds-up,#17703f);font-weight:800}.pc-card .pc-n{color:var(--ds-down,#b3362c);font-weight:800}'
+    '.pc-card .pc-h{font-size:13px;font-weight:800;color:var(--ds-ink,#1c1b19);margin:10px 0 2px}'
+    '.pc-card .pc-s{list-style:none;margin:4px 0;padding:0}'
+    '.pc-card .pc-s li{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;line-height:1.5;padding:3px 0;color:var(--ds-ink,#1c1b19)}'
+    '.pc-card .pc-s li i{font-style:normal;font-weight:800;width:1.1em;text-align:center}'
+    '.pc-card .pc-s small{display:block;font-size:11px;color:var(--ds-muted,#6b685e)}'
+    '.pc-card .pc-y{color:var(--ds-up,#17703f)}.pc-card .pc-n{color:var(--ds-down,#b3362c)}'
+    '.pc-card .pc-lad{display:block;width:100%;height:auto;margin:2px 0}'
+    '.pc-card .pc-axis{stroke:var(--ds-line,#dedbd2);stroke-width:4;stroke-linecap:round}'
+    '.pc-card .pc-bad{fill:var(--ds-down,#b3362c)}.pc-card .pc-good{fill:var(--ds-up,#17703f)}'
+    '.pc-card .pc-tick{stroke:var(--ds-muted,#6b685e);stroke-width:2}'
+    '.pc-card .pc-now{fill:var(--ds-ink,#1c1b19)}'
+    '.pc-card .pc-lt{font-size:10.5px;fill:var(--ds-muted,#6b685e)}.pc-card .pc-nt{font-size:11px;font-weight:700;fill:var(--ds-ink,#1c1b19)}'
+    '.pc-card .pc-sub{margin-top:10px;padding-top:6px;border-top:1px solid var(--ds-line,#dedbd2)}'
     '.pc-card .pc-t{width:100%;border-collapse:collapse;margin:6px 0 2px;font-size:12px}'
     '.pc-card .pc-t th{font-size:11px;font-weight:600;color:var(--ds-muted,#6b685e);text-align:right;padding:3px 4px}'
     '.pc-card .pc-t th:first-child,.pc-card .pc-t td:first-child{text-align:left}'
     '.pc-card .pc-t td{text-align:right;padding:4px;border-top:1px solid var(--ds-line,#dedbd2);color:var(--ds-ink-2,#46443d)}'
     '.pc-card .pc-t td small{display:block;font-size:10.5px;color:var(--ds-muted,#6b685e)}'
     '.pc-card .pc-t tr.pc-cur td{background:var(--ds-surface-2,#f4f2ec);font-weight:700}'
-    '.pc-card .pc-def summary{font-size:12.5px;font-weight:800;cursor:pointer;color:var(--ds-accent,#2659ab);margin-top:6px}'
-    '.pc-card .pc-def ul{padding-left:1.1em;margin:4px 0}.pc-card .pc-def li{font-size:12px;line-height:1.6;color:var(--ds-ink-2,#46443d);margin:2px 0}'
+    '.pc-card .pc-def{margin-top:8px}'
+    '.pc-card .pc-def summary{font-size:12.5px;font-weight:800;cursor:pointer;color:var(--ds-accent,#2659ab)}'
+    '.pc-card .pc-def ul{padding-left:1.1em;margin:6px 0}'
+    '.pc-card .pc-def li{font-size:12px;line-height:1.6;color:var(--ds-ink-2,#46443d);margin:2px 0}'
     '.pc-card .pc-end{display:none}'
     '</style>'
 )
