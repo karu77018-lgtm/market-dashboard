@@ -19,3 +19,9 @@ Not kept: F1 and F2 levels (index and 本命 results flip between the halves; �
 but 本命 flips).
 
 Shown in the レジーム警戒灯 card by `scripts/regime_history.py` (display only).
+
+Long view (2026-11): `seed/reg-history-weekly.json` holds weekly averages of F1-F3 (and QQQ, the week's
+marks) from 2013-11, computed from the local panel with `regime_history.series` up to 2025-11-13. Against the
+site's own series over the shared year (2025-11-14 to 2026-11-13) the local values differ by 0.4 / 0.5 / 0.7
+points on average (max 8 / 8 / 3) and give the same caution/warning state on 97 / 98 / 96% of days.
+Each refresh adds the live weeks to the file, so the long chart keeps growing.

@@ -102,3 +102,25 @@ def test_action_text_is_revised_even_without_state(tmp_path):
     assert "F2点灯で新規サイズを絞る" not in out and rh.ACTION in out and rh.rerender(out, tmp_path) == out
     assert str(BeautifulSoup(out, "html.parser")).count("rgh-act") == 1
     assert rh.revise_action(str(BeautifulSoup(out, "html.parser"))).count("行動") == 1
+
+
+def test_weekly_long_view(tmp_path):
+    st = _state(60)
+    st["u200"] = [1] * 60
+    wk = rh.weekly_from_daily(st)
+    assert len(wk["dates"]) == 13 and wk["dates"][-1] == st["dates"][-1]       # 2026-01-02 is a Friday
+    assert abs(wk["f1"][1] - sum(st["f1"][1:6]) / 5) < 1e-3                     # weekly average
+    old = {k: v[:3] for k, v in rh.weekly_from_daily(_state(15)).items()}
+    old = {**{k: v for k, v in old.items()}, "dates": ["2025-06-06", "2025-06-13", "2025-06-20"], "note": "N"}
+    m = rh.merge_weekly(old, st)
+    assert m["dates"][:3] == old["dates"] and m["dates"][3:] == wk["dates"] and m["note"] == "N"
+    (tmp_path / "seed").mkdir()
+    assert rh.save_archive(tmp_path, m) and not rh.save_archive(tmp_path, m) and rh.load_archive(tmp_path) == m
+    st["weekly"] = {k: (v * 6)[:72] if isinstance(v, list) else v for k, v in wk.items()}
+    out = rh.apply(PAGE, st)
+    assert 'data-k="w"' in out and "週足" in out and out.count("rgh-tab") >= 2 and rh.apply(out, st) == out
+    long_old = rh.weekly_from_daily({**_state(400), "u200": [1] * 400})
+    (tmp_path / rh.ARCHIVE).unlink()
+    rh.save_archive(tmp_path, {**long_old, "dates": [str(pd.Timestamp(d) - pd.Timedelta(days=800))[:10] for d in long_old["dates"]]})
+    page_without = rh.apply(PAGE, _state(60))
+    assert rh.rerender(page_without, tmp_path).count('data-k="w"') >= 1   # display path adds the archive
