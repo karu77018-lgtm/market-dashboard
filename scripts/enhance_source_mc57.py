@@ -373,6 +373,16 @@ def main() -> int:
         text = decline_anatomy.run(text, html_path.resolve().parent, args.session)
     except Exception as exc:
         print(f"decline anatomy skipped: {exc!r}", flush=True)
+    try:  # FTDの騙しチェック (inside the FTD card); display only
+        import ftd_check
+        text = ftd_check.run(text, html_path.resolve().parent, args.session)
+    except Exception as exc:
+        print(f"ftd check skipped: {exc!r}", flush=True)
+    try:  # F1〜F3の推移 (inside the レジーム警戒灯 card); display only
+        import regime_history
+        text = regime_history.run(text, html_path.resolve().parent, csv_path, args.session)
+    except Exception as exc:
+        print(f"regime history skipped: {exc!r}", flush=True)
     from archive_tab import apply as apply_archive_tab
     text = apply_archive_tab(text)  # Core 12 / old W30 rule -> アーカイブ tab (display only)
     from setups_curate import apply as curate_setups

@@ -1,0 +1,33 @@
+{
+ "rows": [
+  {
+   "ftd": {
+    "age": 3,
+    "bond": 0.04945711781123574,
+    "broken": {
+     "after": 2,
+     "date": "2026-11-13",
+     "why": "low"
+    },
+    "close": 690.38,
+    "date": "2026-11-11",
+    "day": 4,
+    "dist": true,
+    "low": 683.56,
+    "next_down": true,
+    "pct": 2.31,
+    "risky": true,
+    "usd": 0.35104885386485485,
+    "warnings": null
+   },
+   "label": "NASDAQ100",
+   "sym": "QQQ"
+  },
+  {
+   "ftd": null,
+   "label": "S&P500",
+   "sym": "SPY"
+  }
+ ],
+ "session": "2026-11-16"
+}
