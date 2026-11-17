@@ -96,3 +96,17 @@ def test_clear_layout():
     calm = {"session": "x", "qqq": {"dd": -1.0, "in_decline": False, "last_end": None, "close": 1, "high": 1, "ma50": 1},
             "spy": {"dd": -1.0, "event": None, "close": 1, "high": 1}}
     assert pc.phase_of(calm) == "high" and "特別な局面ではない" in pc.card_html(calm)
+
+
+def test_older_page_state_is_upgraded_from_the_same_session_seed(tmp_path):
+    seed = json.loads((ROOT / pc.STATE_SEED).read_text(encoding="utf-8"))
+    old = json.loads(json.dumps(seed))
+    for k in ("close", "high", "ma50"):
+        old["qqq"].pop(k, None)
+    page = pc.apply(PAGE, old)
+    (tmp_path / "seed").mkdir()
+    (tmp_path / pc.STATE_SEED).write_text(json.dumps(seed), encoding="utf-8")
+    out = pc.rerender(page, tmp_path)
+    assert pc.embedded_state(out) == seed
+    newer = {**old, "session": "2099-01-01"}
+    assert pc.embedded_state(pc.rerender(pc.apply(PAGE, newer), tmp_path)) == newer   # a newer page keeps its own state
