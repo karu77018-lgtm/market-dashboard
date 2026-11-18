@@ -173,7 +173,9 @@ def _main_chart(s: dict, w: int, h: int) -> str:
     """QQQ on the entry gate (top), the market pulse strip and the picks per day (bottom), one time axis."""
     q, d, n = s["q"], s["d"], len(s["q"])
     pl, pr = 44, 56
-    top_h, strip_y, strip_h, bars_y, bar_h = 222, 234, 40, 284, 104
+    top_h, strip_y, strip_h, bars_y, bar_h = 196, 206, 34, 298, 88
+    lanes_y, lane_h, lane_gap = 248, 8, 3
+    lanes_h = 4 * lane_h + 3 * lane_gap
     step = (w - pl - pr) / max(n - 1, 1)
     X = lambda i: pl + step * i  # noqa: E731
     lo, hi = min(q) * 0.97, max(q) * 1.02
@@ -191,7 +193,7 @@ def _main_chart(s: dict, w: int, h: int) -> str:
     for i, j, g in runs(s["gate"]):
         x0, x1 = max(X(i) - step / 2, pl), min(X(j) + step / 2, w - pr)
         f = COL["posbg"] if g else COL["negbg"]
-        for y0, hh in ((4, top_h - 4), (strip_y, strip_h), (bars_y, bar_h)):   # every panel on the same gate colours
+        for y0, hh in ((4, top_h - 4), (strip_y, strip_h), (lanes_y - 3, lanes_h + 6), (bars_y, bar_h)):   # same gate colours
             out.append(f'<rect x="{x0:.1f}" y="{y0}" width="{x1 - x0:.1f}" height="{hh}" fill="{f}"/>')
     # the market pulse as a line (0-100) with its two cut-offs, so its colour never competes with the gate
     PY = lambda v: strip_y + 2 + (strip_h - 4) * (1 - min(max(v, 0), 100) / 100)  # noqa: E731
@@ -222,6 +224,29 @@ def _main_chart(s: dict, w: int, h: int) -> str:
                f'<text x="{x + 7:.1f}" y="{y + 4:.1f}" font-family="{MONO}" font-size="11.5" font-weight="800" fill="{COL["ink"]}">{q[-1]:.0f}</text>')
     lab = lambda x0, y0, t: f'<text x="{x0}" y="{y0}" font-family="{SANS}" font-size="11" font-weight="800" fill="{COL["ink"]}">{t}</text>'  # noqa: E731
     out.append(lab(pl + 6, 18, "QQQ"))
+    # 先行アラート: one lane each (lit periods), and a red flag on QQQ where two or more came together
+    import lead_alerts as la
+    al = s.get("alerts") or {}
+    for k_, (key, name) in enumerate(la.ALERTS):
+        yy = lanes_y + k_ * (lane_h + lane_gap)
+        out.append(f'<rect x="{pl}" y="{yy}" width="{w - pl - pr}" height="{lane_h}" rx="2" fill="#fff" opacity=".55"/>')
+        vals = al.get(key) or []
+        i = 0
+        while i < len(vals):
+            if vals[i]:
+                j = i
+                while j + 1 < len(vals) and vals[j + 1]:
+                    j += 1
+                x0, x1 = max(X(i) - step / 2, pl), min(X(j) + step / 2, w - pr)
+                out.append(f'<rect x="{x0:.1f}" y="{yy}" width="{max(x1 - x0, 1.2):.1f}" height="{lane_h}" rx="1" fill="#4A4D45"/>')
+                i = j + 1
+            else:
+                i += 1
+        out.append(f'<text x="{w - pr + 6}" y="{yy + lane_h - .5}" font-family="{SANS}" font-size="9.5" font-weight="700" fill="{COL["mut"]}">{name}</text>')
+    for i in s.get("flags") or []:
+        x, y = X(i), Y(q[i])
+        out.append(f'<line x1="{x:.1f}" x2="{x:.1f}" y1="{y - 9:.1f}" y2="{lanes_y + lanes_h:.1f}" stroke="{COL["neg"]}" stroke-width="1" stroke-dasharray="2 2" opacity=".8"/>'
+                   f'<path d="M{x:.1f},{y - 8:.1f} l-6,-11 h12 z" fill="{COL["neg"]}"/>')
     pv = next((v for v in reversed(s["pulse"]) if v is not None), None)
     if pv is not None:
         out.append(f'<text x="{X(n - 1) + 7:.1f}" y="{PY(pv) + 4:.1f}" font-family="{MONO}" font-size="11" font-weight="800" fill="{COL["acc"]}">{pv:.0f}</text>')
@@ -291,10 +316,10 @@ body{background:#E9E7DF;font-family:-apple-system,'Helvetica Neue',Arial,'Hiragi
 .th h4 .en{font-size:9px;font-weight:600;color:var(--mut);margin-left:5px;letter-spacing:.02em}.th .s{font-size:10.5px;color:var(--mut);font-weight:700;overflow:hidden;text-overflow:ellipsis}
 .th .g{margin-left:auto;color:var(--mut);opacity:.5;font-size:11px}
 .lg{display:flex;gap:9px;font-size:10.5px;color:var(--mut);font-weight:700;margin-left:auto}.lg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:3px;vertical-align:-1px}
-.big{display:flex;align-items:baseline;gap:6px}.big .v{font-size:34px;font-weight:800;line-height:1;letter-spacing:-.02em}.big .u{font-size:15px;font-weight:800;color:var(--mut)}
+.big{display:flex;align-items:baseline;gap:6px}.big .v{font-size:31px;font-weight:800;line-height:1;letter-spacing:-.02em}.big .u{font-size:15px;font-weight:800;color:var(--mut)}
 .big .tag{font-size:11.5px;font-weight:800;border:1.5px solid;border-radius:6px;padding:1px 7px;margin-left:4px}
 .k{font-size:11.5px;color:var(--mut);font-weight:700}.k b{color:var(--ink);font-family:var(--fnum)}
-.strip{display:grid;grid-template-columns:repeat(60,1fr);gap:2px;margin:10px 0 6px}.strip i{height:16px;border-radius:2px}
+.lead{display:flex;flex-wrap:nowrap;align-items:center;gap:3px;margin:5px 0 1px}.lead .k{margin-right:2px}.lead span:not(.k){font-size:10.5px;font-weight:800;padding:1px 5px;border-radius:6px;background:var(--neubg);color:var(--mut)}.lead span.on{background:#4A4D45;color:#fff}.lead span.both{background:var(--neg);color:#fff}.strip{display:grid;grid-template-columns:repeat(60,1fr);gap:2px;margin:7px 0 4px}.strip i{height:13px;border-radius:2px}
 .foot2{margin-top:auto;padding-top:7px;border-top:1px solid var(--line);font-size:11.5px;font-weight:700;color:var(--mut)}.foot2 b{color:var(--ink);font-family:var(--fnum)}
 .fun{display:flex;align-items:stretch;gap:0;margin:2px 0 8px}.fun div{flex:1;text-align:center;padding:8px 2px 7px;background:var(--neubg);position:relative;
 clip-path:polygon(0 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,0 100%,12px 50%)}.fun div:first-child{clip-path:polygon(0 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,0 100%)}
@@ -341,6 +366,15 @@ def _longest(vals: list, pred) -> tuple[int, int]:
         if cur > best:
             best, end = cur, i
     return best, end
+
+
+def flags(s: dict) -> list[int]:
+    out, quiet = [], 20
+    for i, b in enumerate((s.get("alerts") or {}).get("both") or []):
+        if b and quiet >= 20 and s["gate"][i]:
+            out.append(i)
+        quiet = 0 if b else quiet + 1
+    return out
 
 
 def stats(s: dict) -> dict:
@@ -396,6 +430,9 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
     import phase_check as pc
     import sector_heat as sh
     s = series(st, root)
+    import lead_alerts as la
+    s["alerts"] = la.states(la.current(root, page), s["d"], s["pulse"])
+    s["flags"] = flags(s)
     sc = screener_today(page)
     un = universe(page)
     ph = pc.embedded_state(page) or {}
@@ -413,6 +450,13 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
                   if pulse is not None else f'本命 <b>{today}</b>件')
     # ---- 新規の可否
     last60 = s["gate"][-60:]
+    lit_now = [name for key, name in la.ALERTS if s["alerts"][key][-1]]
+    both_now = s["alerts"]["both"][-1]
+    chips_now = "".join(f'<span class="{"on" if s["alerts"][key][-1] else ""}">{name}</span>' for key, name in la.ALERTS)
+    lead_now = (f'<div class="lead"><span class="k">先行アラート</span>{chips_now}'
+                + (f'<span class="both">重なり</span>' if both_now else "") + '</div>')
+    if lit_now:
+        cap.append("先行アラート点灯：" + "・".join(lit_now) + ("（2つ以上が重なり）" if both_now else "") + "。")
     stops, run_ = [], 0
     for g in s["gate"] + [True]:
         if not g:
@@ -430,7 +474,8 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
           f'<div class="big"><span class="v {gcol}">{gword}</span><span class="tag {gcol}">{a["gate_days"]}日目</span></div>'
           f'<div class="strip">{strip}</div>'
           f'<div class="k">直近60日：新規OK <b>{sum(last60)}</b> / 停止 <b>{60 - sum(last60)}</b></div>'
-          f'<div class="k" style="margin-top:5px">過去5年の停止 <b>{len(stops)}</b>回・平均 <b>{(sum(stops) / len(stops)) if stops else 0:.0f}</b>日・最長 <b>{max(stops) if stops else 0}</b>日</div>'
+          f'{lead_now}'
+          f'<div class="k" style="margin-top:3px">過去5年の停止 <b>{len(stops)}</b>回・平均 <b>{(sum(stops) / len(stops)) if stops else 0:.0f}</b>日・最長 <b>{max(stops) if stops else 0}</b>日</div>'
           f'<div class="foot2">{gate_txt}{" ・ " if gate_txt else ""}過去1年の新規OK <b>{a["on_share"]}%</b></div></div>')
     cap.append(f"新規の可否：{gword}（{a['gate_days']}日目）。" + (f"再開までQQQ {_sg(to_gate)}%。" if not on and to_gate else ""))
     # ---- 候補の流れ
@@ -459,7 +504,9 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
         cap.append(f"ブレイク成功度 {_sg(bh_now)}%（{bh_word}）。")
     # ---- main chart
     lg = (f'<span><i style="background:{COL["posbg"]}"></i>新規OK</span><span><i style="background:{COL["negbg"]}"></i>新規停止</span>'
-          f'<span><i style="background:{COL["acc"]};height:3px;vertical-align:3px"></i>地合いスコア（点線＝40・55）</span>')
+          f'<span><i style="background:{COL["acc"]};height:3px;vertical-align:3px"></i>地合いスコア（点線＝40・55）</span>'
+          f'<span><i style="background:#4A4D45;height:6px;vertical-align:1px"></i>先行アラート点灯</span>'
+          f'<span style="color:{COL["neg"]}">▼ 2つ以上重なった日</span>')
     t4 = (f'<div class="t sp3"><div class="th"><h4>地合いと本命の推移<span class="en">Gate · Market Pulse · Picks (5Y)</span></h4>'
           f'<span class="lg">{lg}</span></div>{_main_chart(s, 1204, 408)}</div>')
     # ---- 本命の出方
@@ -648,6 +695,11 @@ def run(text: str, root: Path, session: str, health: dict | None = None) -> str:
         print("post cards: market inputs not usable; keeping the stored card", flush=True)
         return apply(text, root)
     st = build_state(px[da.INDEX], root, session, health)
+    try:
+        import lead_alerts
+        lead_alerts.update(root, text, session)
+    except Exception as exc:  # display only
+        print(f"post cards: lead alerts not updated: {exc!r}", flush=True)
     try:
         (root / SEED).write_text(json.dumps(st, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     except OSError as exc:
