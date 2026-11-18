@@ -173,7 +173,7 @@ def _main_chart(s: dict, w: int, h: int) -> str:
     """QQQ on the entry gate (top), the market pulse strip and the picks per day (bottom), one time axis."""
     q, d, n = s["q"], s["d"], len(s["q"])
     pl, pr = 44, 56
-    top_h, strip_y, strip_h, bars_y, bar_h = 228, 244, 14, 280, 108
+    top_h, strip_y, strip_h, bars_y, bar_h = 222, 234, 40, 284, 104
     step = (w - pl - pr) / max(n - 1, 1)
     X = lambda i: pl + step * i  # noqa: E731
     lo, hi = min(q) * 0.97, max(q) * 1.02
@@ -191,12 +191,26 @@ def _main_chart(s: dict, w: int, h: int) -> str:
     for i, j, g in runs(s["gate"]):
         x0, x1 = max(X(i) - step / 2, pl), min(X(j) + step / 2, w - pr)
         f = COL["posbg"] if g else COL["negbg"]
-        out.append(f'<rect x="{x0:.1f}" y="4" width="{x1 - x0:.1f}" height="{top_h - 4}" fill="{f}"/>'
-                   f'<rect x="{x0:.1f}" y="{bars_y}" width="{x1 - x0:.1f}" height="{bar_h}" fill="{f}" opacity=".55"/>')
-    pc = {"good": COL["pos"], "mixed": "#B9B5A8", "weak": COL["neg"], None: COL["neubg"]}
-    for i, j, b in runs(s["band"]):
-        x0, x1 = max(X(i) - step / 2, pl), min(X(j) + step / 2, w - pr)
-        out.append(f'<rect x="{x0:.1f}" y="{strip_y}" width="{x1 - x0:.1f}" height="{strip_h}" fill="{pc[b]}"/>')
+        for y0, hh in ((4, top_h - 4), (strip_y, strip_h), (bars_y, bar_h)):   # every panel on the same gate colours
+            out.append(f'<rect x="{x0:.1f}" y="{y0}" width="{x1 - x0:.1f}" height="{hh}" fill="{f}"/>')
+    # the market pulse as a line (0-100) with its two cut-offs, so its colour never competes with the gate
+    PY = lambda v: strip_y + 2 + (strip_h - 4) * (1 - min(max(v, 0), 100) / 100)  # noqa: E731
+    for cut in (WEAK, GOOD):
+        out.append(f'<line x1="{pl}" x2="{w - pr}" y1="{PY(cut):.1f}" y2="{PY(cut):.1f}" stroke="{COL["mut"]}" stroke-width=".8" stroke-dasharray="2 3"/>')
+    seg, segs = [], []
+    for i, v in enumerate(s["pulse"]):
+        if v is None:
+            if seg:
+                segs.append(seg)
+            seg = []
+        else:
+            seg.append(f"{X(i):.1f},{PY(v):.1f}")
+    segs.append(seg)
+    for sg in segs:
+        if len(sg) > 1:
+            out.append(f'<polyline points="{" ".join(sg)}" fill="none" stroke="{COL["acc"]}" stroke-width="1.3" stroke-linejoin="round"/>')
+    for cut in (GOOD, WEAK):
+        out.append(f'<text x="{pl - 5}" y="{PY(cut) + 3.5:.1f}" font-family="{MONO}" font-size="9.5" fill="{COL["mut"]}" text-anchor="end">{cut:.0f}</text>')
     for k in range(4):
         v = lo + (hi - lo) * (k + .5) / 4
         out.append(f'<line x1="{pl}" x2="{w - pr}" y1="{Y(v):.1f}" y2="{Y(v):.1f}" stroke="{COL["line"]}" stroke-dasharray="2 3"/>'
@@ -208,7 +222,10 @@ def _main_chart(s: dict, w: int, h: int) -> str:
                f'<text x="{x + 7:.1f}" y="{y + 4:.1f}" font-family="{MONO}" font-size="11.5" font-weight="800" fill="{COL["ink"]}">{q[-1]:.0f}</text>')
     lab = lambda x0, y0, t: f'<text x="{x0}" y="{y0}" font-family="{SANS}" font-size="11" font-weight="800" fill="{COL["ink"]}">{t}</text>'  # noqa: E731
     out.append(lab(pl + 6, 18, "QQQ"))
-    out.append(f'<text x="{w - pr + 6}" y="{strip_y + 11}" font-family="{SANS}" font-size="10" font-weight="700" fill="{COL["mut"]}">内部</text>')
+    pv = next((v for v in reversed(s["pulse"]) if v is not None), None)
+    if pv is not None:
+        out.append(f'<text x="{X(n - 1) + 7:.1f}" y="{PY(pv) + 4:.1f}" font-family="{MONO}" font-size="11" font-weight="800" fill="{COL["acc"]}">{pv:.0f}</text>')
+    out.append(lab(pl + 6, strip_y + 12, "地合いスコア"))
     c = [v or 0 for v in s["c"]]
     cmax = max(max(c), 1)
     base = bars_y + bar_h
@@ -442,8 +459,7 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
         cap.append(f"ブレイク成功度 {_sg(bh_now)}%（{bh_word}）。")
     # ---- main chart
     lg = (f'<span><i style="background:{COL["posbg"]}"></i>新規OK</span><span><i style="background:{COL["negbg"]}"></i>新規停止</span>'
-          f'<span><i style="background:{COL["pos"]}"></i>内部良好</span><span><i style="background:#B9B5A8"></i>混在</span>'
-          f'<span><i style="background:{COL["neg"]}"></i>弱い</span>')
+          f'<span><i style="background:{COL["acc"]};height:3px;vertical-align:3px"></i>地合いスコア（点線＝40・55）</span>')
     t4 = (f'<div class="t sp3"><div class="th"><h4>地合いと本命の推移<span class="en">Gate · Market Pulse · Picks (5Y)</span></h4>'
           f'<span class="lg">{lg}</span></div>{_main_chart(s, 1204, 408)}</div>')
     # ---- 本命の出方
