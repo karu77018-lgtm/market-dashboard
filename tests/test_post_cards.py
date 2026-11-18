@@ -56,7 +56,7 @@ def test_card_shows_market_and_counts_but_no_names_or_rules():
     st = json.loads((ROOT / pq.SEED).read_text(encoding="utf-8"))
     doc, text = pq.card_doc(st, PAGE, ROOT)
     for word in ("新規の可否", "候補の流れ", "ブレイク成功度", "地合いと本命の推移", "本命の出方", "月別の本命",
-                 "本命のセクター構成", "地合いの中身", "銘柄・条件は非公開", "売買の推奨ではありません", "1680"):
+                 "本命のセクター構成", "地合いの中身", "先行アラート", "2つ以上重なった日", "銘柄・条件は非公開", "売買の推奨ではありません", "1680"):
         assert word in doc
     for word in ("QQQが200日線", "週足SAR", "トレンドテンプレート", "売買代金", "値幅", "下げの中身", "FTD"):
         assert word not in doc and word not in text

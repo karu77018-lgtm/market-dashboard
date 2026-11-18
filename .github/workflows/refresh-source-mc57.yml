@@ -469,6 +469,7 @@ jobs:
           if test -f seed/alert-state.json; then git add -- seed/alert-state.json; fi
           if test -f seed/sector-heat-log.json; then git add -- seed/sector-heat-log.json; fi
           if test -f seed/post-cards-state.json; then git add -- seed/post-cards-state.json; fi
+          if test -f seed/lead-alerts.json; then git add -- seed/lead-alerts.json; fi
           git add -f -- data/listing-dates.json
           if test -n "$FULL_MARKER_PATH"; then git add -- "$FULL_MARKER_PATH"; fi
           if git diff --cached --quiet; then echo "No publication change"; exit 0; fi

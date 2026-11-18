@@ -18,3 +18,10 @@ the starts: for Nasdaq-100 rally starts breadth not collapsing over 4 weeks 58% 
 inside the 1-2 sign band 53% vs 11%, but about 50 events; S&P 500 starts flip or are tiny. Not kept.
 
 Live check of the stated odds: `seed/prediction-log.json` (予測の答え合わせ on the Market tab), from 2026-11-16.
+
+`lead-alerts-2026-11/lead.py`: what came before the entry gate closing (QQQ under its 200-day average), 2014-2019 /
+2020-2026, 6 closings each. Kept on the share card 地合いと本命 as 先行アラート: SPHB/SPLV -5% in 20 sessions (hit 38% /
+33% vs any day 17% / 14%, caught 83% / 83%, 16-29 sessions ahead; same at -4%..-7%), F3 at 警戒 (caught 83% in
+2020-2026, weak before), NFCI +0.05 in 4 weeks (hit 60% / 75%, few cases), market score under 30 (hit 50% / 57%),
+and two or more lit within 10 sessions (hit 50% / 33%, caught 83% / 67%; with NFCI in the pair 75% / 100% on 7 cases).
+Not kept: breakout health 不調, F1, F2, S&P -5% with VIX 23+ (only 2-9 sessions ahead).
