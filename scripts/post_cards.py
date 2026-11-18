@@ -363,7 +363,7 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
     today = s["c"][-1] or 0
     cap = []
     # ---- header
-    stats_html = (f'本命 <b>{today}</b>件 ・ 過去1年で本命が出た日 <b>{a["share"]}%</b> ・ マーケットパルス <b>{pulse:.0f}</b>/100'
+    stats_html = (f'本命 <b>{today}</b>件 ・ 過去1年で本命が出た日 <b>{a["share"]}%</b> ・ 地合いスコア <b>{pulse:.0f}</b>/100'
                   if pulse is not None else f'本命 <b>{today}</b>件')
     # ---- 新規の可否
     last60 = s["gate"][-60:]
@@ -473,11 +473,11 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
           f'<span class="tag {pcls}">内部{bname}</span><span class="k" style="margin-left:auto">5日 <b>{_sg(None if p5 is None or pulse is None else pulse - p5)}</b></span></div>'
           f'<div class="gauge"><i style="left:{min(max(pulse or 0, 0), 100):.0f}%"></i></div>'
           f'{_line(s["pulse"][-252:], 372, 40, COL["ink"], lo=0, hi=100)}'
-          f'<div class="kv" style="margin-top:4px"><div>50日線より上<small>（主要57銘柄）</small></div><div>{"—" if a50 is None else f"{a50:.0f}%"}</div>'
+          f'<div class="kv" style="margin-top:4px"><div>50日線より上<small>（主要銘柄）</small></div><div>{"—" if a50 is None else f"{a50:.0f}%"}</div>'
           f'<div>200日線より上</div><div>{"—" if a200 is None else f"{a200:.0f}%"}</div>'
           f'<div>QQQの局面</div><div style="font-family:inherit">{_e(phase)}</div></div>'
           f'<div class="k" style="margin:6px 0 4px">セクターの勢い（左ほど強い）</div><div class="chips">{chips}</div></div>')
-    cap.append(f"市場内部は{bname}（マーケットパルス{pulse:.0f}/100）。" if pulse is not None else "")
+    cap.append(f"市場内部は{bname}（地合いスコア{pulse:.0f}/100）。" if pulse is not None else "")
     st_col = "pos" if on else "neg"
     doc = (f'<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/>'
            f'<title>地合いと本命</title><style>{CSS}</style></head><body><div class="stage"><div class="scaler" id="scaler"><div class="card">'
@@ -485,8 +485,7 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
            f'<span class="state" style="color:var(--{st_col})">{gword}</span><span class="stats">{stats_html}</span>'
            f'<span class="date num">米国 {_e(st["session"])} 終値</span></div><div class="grid">'
            f'{t1}{t2}{t3}{t4}{t5}{t6}{t7}{t8}</div>'
-           '<div class="foot">本命＝MC57 Dashboardが毎日しぼり込むスイング候補（銘柄・条件は非公開）。2026年10月より前は同じルールで再計算した値。売買の推奨ではありません。'
-           '<span>MC57 Dashboard</span></div>'
+           '<div class="foot">本命＝毎日しぼり込むスイング候補（銘柄・条件は非公開）。2026年10月より前は同じルールで再計算した値。売買の推奨ではありません。</div>'
            f'</div></div></div>{FIT}</body></html>')
     text = f"【米国株 地合いと本命 {_md(st['session'])}】\n" + "\n".join(x for x in cap if x) + "\n#米国株 #ナスダック"
     return doc, text
@@ -509,6 +508,7 @@ STYLE_RE = re.compile(rf'<style id="{STYLE_ID}">.*?</style>', re.S)
 
 def block_html(st: dict, page: str, root: Path) -> str:
     doc, text = card_doc(st, page, root)
+    doc, text = scrub(doc), scrub(text)
     raw = json.dumps(st, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     return (f'<div class="pq-wrap" id="{BLOCK_ID}"><div class="msec"><div class="msec-l">地合いと本命<span class="msec-en">Market &amp; Picks</span></div>'
             '<div class="msec-q">SNS共有用カード</div></div><div class="postwrap"><button class="pfsbtn" onclick="pfs(this,1)">⛶ 全画面表示</button>'
@@ -549,11 +549,36 @@ def _insert_at(text: str) -> int | None:
     return m.end() + (last.end() if last else 0)
 
 
+# Words that point at the site or its system, removed from every share card (the card images go to SNS).
+SCRUB = ((re.compile(r"補助リスク（MC57外）"), "補助リスク（スコア外）"), (re.compile(r"MC57\s*(\d+)"), r"地合いスコア \1"),
+         (re.compile(r"MC57 Dashboard"), ""), (re.compile(r"主要57銘柄"), "主要銘柄"), (re.compile(r"MC57"), ""))
+FRAME_RE = re.compile(r'(<iframe class="postframe" srcdoc=")([^"]*)(")')
+
+
+def scrub(doc: str) -> str:
+    for pat, rep in SCRUB:
+        doc = pat.sub(rep, doc)
+    return doc
+
+
+def scrub_cards(text: str) -> str:
+    """Remove the identifying words from the original share cards of the Publish tab (display only)."""
+    m = re.search(r'<(?:div|section)\b[^>]*\bid="t-post1"[^>]*>', text)
+    if not m:
+        return text
+    end = text.find("</section>", m.end())
+    end = len(text) if end < 0 else end
+    region = FRAME_RE.sub(lambda f: f.group(1) + html.escape(scrub(html.unescape(f.group(2))), quote=True) + f.group(3),
+                          text[m.end():end])
+    return text[:m.end()] + region + text[end:]
+
+
 def apply(text: str, root: Path, state: dict | None = None) -> str:
     st = state or embedded_state(text)
     seed = _seed(root)
     if seed and (not st or seed.get("session", "") >= st.get("session", "")):
         st = seed
+    text = scrub_cards(text)
     if not st or "gate" not in st:
         return text
     out = BLOCK_RE.sub("", text)

@@ -79,3 +79,13 @@ def test_block_after_original_cards_stable_and_out_of_jev_hash():
 def test_no_publish_tab_keeps_page():
     page = "<html><head></head><body><p>x</p></body></html>"
     assert pq.apply(page, ROOT) == page
+
+
+def test_share_cards_carry_no_site_names():
+    import html as _h
+    out = pq.apply(PAGE, ROOT)
+    s = out.index('id="t-post1"')
+    region = _h.unescape(out[s:out.index("</section>", s)])
+    for word in ("MC57", "57銘柄", "マーケットパルス", "Dashboard"):
+        assert word not in region
+    assert pq.scrub("補助リスク（MC57外） MC57 11。") == "補助リスク（スコア外） 地合いスコア 11。"
