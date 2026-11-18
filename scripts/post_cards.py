@@ -28,6 +28,8 @@ SEED = "seed/post-cards-state.json"
 COUNTS = "seed/honmei-counts.json"
 SECTOR_MAP = "seed/sector-map.json"
 DAYS = 504
+CHART = 1260                     # the main chart: five years
+HISTORY_QQQ, HISTORY_PULSE = "market-history/indices-10y.json", "market-history/mc57-10y.json"
 GATE_MA = 200
 WEAK, GOOD = 40.0, 55.0          # the site's own bands for the market pulse (弱い <40, 良好 >=55)
 COL = {"ink": "#1B1D1C", "mut": "#727569", "line": "#D5D1C6", "acc": "#17685C", "acc2": "#2A9384", "pos": "#1E7A4D",
@@ -73,19 +75,46 @@ def _json(path: Path) -> dict:
         return {}
 
 
+def _history(root: Path, rel: str, key: str) -> pd.Series | None:
+    h = _json(root / rel)
+    vals, dates = (h.get("series") or {}).get(key), h.get("dates")
+    if not vals or not dates or len(vals) != len(dates):
+        return None
+    return pd.Series(pd.to_numeric(pd.Series(vals), errors="coerce").to_numpy(), index=pd.to_datetime(dates)).dropna()
+
+
+def five_years(st: dict, root: Path) -> tuple[list[str], list[float], list[bool]]:
+    """QQQ and the gate over five years from the site's own index history, joined to the state for later sessions."""
+    q = _history(root, HISTORY_QQQ, "QQQ")
+    if q is None or len(q) < GATE_MA + 10:
+        return st["q_dates"], st["q"], st["gate"]
+    q = q[q.index <= pd.Timestamp(st["session"])]
+    gate = (q > q.rolling(GATE_MA, min_periods=GATE_MA).mean())
+    d = [str(x.date()) for x in q.index]
+    qv, gv = [round(float(v), 2) for v in q], [bool(g) for g in gate]
+    last = d[-1]
+    for day, v, g in zip(st["q_dates"], st["q"], st["gate"]):
+        if day > last:
+            d.append(day), qv.append(v), gv.append(g)
+    return d[-CHART:], qv[-CHART:], gv[-CHART:]
+
+
 def series(st: dict, root: Path) -> dict:
-    """Everything on the QQQ sessions of the state: gate, pulse, breadth, picks (gated), picks by sector."""
-    d = st["q_dates"]
+    """Everything on five years of QQQ sessions: gate, pulse, breadth, picks (gated), picks by sector."""
+    d, qv, gv = five_years(st, root)
     seed = _json(root / COUNTS)
     raw, raw_sec = seed.get("counts", {}), seed.get("sectors", {})
     live = (_json(root / "track-record" / "signals.json").get("sessions") or {})
     smap = (_json(root / SECTOR_MAP).get("sectors") or {})
     pulse = {}
+    ph = _history(root, HISTORY_PULSE, "MC57")
+    if ph is not None:
+        pulse = {str(k.date()): (float(v), None, None) for k, v in ph.items()}
     for r in _json(root / "data" / "mc57.json").get("history") or []:
         m = r.get("metrics") or {}
         pulse[str(r.get("date"))[:10]] = (r.get("mc57"), m.get("close_gt_sma50"), m.get("close_gt_sma200"))
     gate, c, sec = [], [], []
-    for day, g in zip(d, st["gate"]):
+    for day, g in zip(d, gv):
         if day in live:
             s = live[day]
             on = s.get("regime", "on" if g else "off") == "on"
@@ -101,7 +130,7 @@ def series(st: dict, root: Path) -> dict:
             gate.append(g), c.append(None), sec.append({})
     pv = [pulse.get(x, (None, None, None)) for x in d]
     bh = {a: b for a, b in st.get("bh") or []}
-    return {"d": d, "q": st["q"], "gate": gate, "c": c, "sec": sec, "pulse": [p[0] for p in pv], "a50": [p[1] for p in pv],
+    return {"d": d, "q": qv, "gate": gate, "c": c, "sec": sec, "pulse": [p[0] for p in pv], "a50": [p[1] for p in pv],
             "a200": [p[2] for p in pv], "band": [band_of(p[0]) for p in pv], "bh": [bh.get(x) for x in d]}
 
 
@@ -193,7 +222,7 @@ def _main_chart(s: dict, w: int, h: int) -> str:
             out.append(f'<rect x="{X(i) - bw / 2:.2f}" y="{base - bh:.1f}" width="{bw:.2f}" height="{bh:.1f}" fill="{COL["acc"]}"/>')
     out.append(lab(pl + 6, bars_y + 14, "本命の数"))
     for i, day in enumerate(d):
-        if i and day[:7] != d[i - 1][:7] and int(day[5:7]) in (1, 4, 7, 10):
+        if i and day[:7] != d[i - 1][:7] and int(day[5:7]) in ((1, 7) if n > 600 else (1, 4, 7, 10)):
             t = f"{day[:4]}年" if day[5:7] == "01" else f"{int(day[5:7])}月"
             out.append(f'<line x1="{X(i):.1f}" x2="{X(i):.1f}" y1="{base}" y2="{base + 4}" stroke="{COL["mut"]}"/>'
                        f'<text x="{X(i):.1f}" y="{h - 3}" font-family="{SANS}" font-size="10.5" fill="{COL["mut"]}" text-anchor="middle">{t}</text>')
@@ -303,10 +332,10 @@ def stats(s: dict) -> dict:
     y1 = known[-252:]
     picked = [v for _, v, _ in y1 if v]
     on_days = [v for _, v, gg in y1 if gg]
-    lz, end = _longest([v for _, v, _ in known], lambda v: v == 0)
+    lz, end = _longest([v for _, v, _ in y1], lambda v: v == 0)
     mx = max(known, key=lambda x: x[1]) if known else (None, 0, None)
     out = {"share": round(len(picked) / max(len(y1), 1) * 100), "total": sum(picked), "per": (sum(picked) / len(picked)) if picked else 0,
-           "max": mx[1], "max_day": mx[0], "longest": lz, "longest_end": known[end][0] if known else None,
+           "max": mx[1], "max_day": mx[0], "longest": lz, "longest_end": y1[end][0] if y1 else None,
            "zero": _streak([v for _, v, _ in known], lambda v: v == 0), "on_share": round(len(on_days) / max(len(y1), 1) * 100),
            "hit_on": round(sum(1 for v in on_days if v) / max(len(on_days), 1) * 100),
            "gate_now": g[-1], "gate_days": _streak(g, lambda x: x == g[-1])}
@@ -384,7 +413,7 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
           f'<div class="big"><span class="v {gcol}">{gword}</span><span class="tag {gcol}">{a["gate_days"]}日目</span></div>'
           f'<div class="strip">{strip}</div>'
           f'<div class="k">直近60日：新規OK <b>{sum(last60)}</b> / 停止 <b>{60 - sum(last60)}</b></div>'
-          f'<div class="k" style="margin-top:5px">過去2年の停止 <b>{len(stops)}</b>回・平均 <b>{(sum(stops) / len(stops)) if stops else 0:.0f}</b>日・最長 <b>{max(stops) if stops else 0}</b>日</div>'
+          f'<div class="k" style="margin-top:5px">過去5年の停止 <b>{len(stops)}</b>回・平均 <b>{(sum(stops) / len(stops)) if stops else 0:.0f}</b>日・最長 <b>{max(stops) if stops else 0}</b>日</div>'
           f'<div class="foot2">{gate_txt}{" ・ " if gate_txt else ""}過去1年の新規OK <b>{a["on_share"]}%</b></div></div>')
     cap.append(f"新規の可否：{gword}（{a['gate_days']}日目）。" + (f"再開までQQQ {_sg(to_gate)}%。" if not on and to_gate else ""))
     # ---- 候補の流れ
@@ -407,7 +436,7 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
     t3 = (f'<div class="t"><div class="th"><h4>ブレイク成功度<span class="en">Breakout Health</span></h4><span class="s">勢い株は報われているか</span></div>'
           f'<div class="big"><span class="v num {bcol}">{_sg(bh_now)}</span><span class="u">%</span><span class="tag {bcol}">{_e(bh_word or "—")}</span>'
           f'<span class="k" style="margin-left:auto">{sc.get("bh_days", "—")}営業日目</span></div>'
-          f'{_line([None if v is None else v * 100 for v in s["bh"]], 372, 76, COL["ink"], zero=True)}'
+          f'{_line([None if v is None else v * 100 for v in s["bh"][-DAYS:]], 372, 76, COL["ink"], zero=True)}'
           f'<div class="foot2">候補の10日後の平均 ・ 直近63日 <b>{sc.get("bh_n", "—")}</b>件</div></div>')
     if bh_now is not None:
         cap.append(f"ブレイク成功度 {_sg(bh_now)}%（{bh_word}）。")
@@ -415,7 +444,7 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
     lg = (f'<span><i style="background:{COL["posbg"]}"></i>新規OK</span><span><i style="background:{COL["negbg"]}"></i>新規停止</span>'
           f'<span><i style="background:{COL["pos"]}"></i>内部良好</span><span><i style="background:#B9B5A8"></i>混在</span>'
           f'<span><i style="background:{COL["neg"]}"></i>弱い</span>')
-    t4 = (f'<div class="t sp3"><div class="th"><h4>地合いと本命の推移<span class="en">Gate · Market Pulse · Picks (2Y)</span></h4>'
+    t4 = (f'<div class="t sp3"><div class="th"><h4>地合いと本命の推移<span class="en">Gate · Market Pulse · Picks (5Y)</span></h4>'
           f'<span class="lg">{lg}</span></div>{_main_chart(s, 1204, 408)}</div>')
     # ---- 本命の出方
     bands = "".join(f'<div class="bnd"><span style="color:{col}">{n}</span><div class="b"><i style="width:{p or 0}%;background:{col}"></i></div>'
@@ -427,7 +456,7 @@ def card_doc(st: dict, page: str, root: Path) -> tuple[str, str]:
           f'<div>1日の最多<small>（{_md(a["max_day"])}）</small></div><div>{a["max"]}件</div>'
           f'<div>最長の連続ゼロ<small>（〜{_md(a["longest_end"])}）</small></div><div>{a["longest"]}日</div>'
           f'<div>いまの連続ゼロ</div><div class="{"neg" if a["zero"] else ""}">{a["zero"]}日</div></div>'
-          f'<div class="k" style="margin:9px 0 2px">市場内部別：本命が出た日（2年）</div>{bands}</div>')
+          f'<div class="k" style="margin:9px 0 2px">市場内部別：本命が出た日（5年）</div>{bands}</div>')
     if a["zero"]:
         cap.append(f"本命は{a['zero']}日連続ゼロ。過去1年で本命が出たのは{a['share']}%の日だけ。")
     else:

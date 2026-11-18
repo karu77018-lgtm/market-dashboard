@@ -89,3 +89,10 @@ def test_share_cards_carry_no_site_names():
     for word in ("MC57", "57銘柄", "マーケットパルス", "Dashboard"):
         assert word not in region
     assert pq.scrub("補助リスク（MC57外） MC57 11。") == "補助リスク（スコア外） 地合いスコア 11。"
+
+
+def test_main_chart_covers_five_years_from_the_site_history():
+    st = json.loads((ROOT / pq.SEED).read_text(encoding="utf-8"))
+    s = pq.series(st, ROOT)
+    assert len(s["d"]) == pq.CHART and s["d"][-1] == st["session"]
+    assert sum(v is not None for v in s["pulse"]) > 1000 and len(s["gate"]) == len(s["q"]) == len(s["c"])
