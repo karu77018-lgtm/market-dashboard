@@ -17,13 +17,13 @@
    "id": "up5-QQQ-2026-11-11",
    "kind": "up5",
    "low": 647.05,
-   "outcome": null,
+   "outcome": 0,
    "prob": 42,
    "recorded": "2026-11-16",
-   "resolved": null,
+   "resolved": "2026-11-19",
    "sym": "QQQ"
   }
  ],
  "schema": "prediction-log.1",
- "updated": "2026-11-18"
+ "updated": "2026-11-19"
 }

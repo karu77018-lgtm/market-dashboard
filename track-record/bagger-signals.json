@@ -24,7 +24,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 23.4,
-   "ret": 0.2063
+   "ret": 0.1454
   },
   "2026-10-15:SG": {
    "ticker": "SG",
@@ -35,7 +35,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 13.36,
-   "ret": 0.2321
+   "ret": 0.1491
   },
   "2026-10-20:BRZE": {
    "ticker": "BRZE",
@@ -46,7 +46,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 46.64,
-   "ret": 0.0208
+   "ret": 0.0147
   },
   "2026-10-21:APPN": {
    "ticker": "APPN",
@@ -57,7 +57,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 55.58,
-   "ret": 0.1094
+   "ret": 0.046
   },
   "2026-10-22:HURN": {
    "ticker": "HURN",
@@ -68,7 +68,7 @@
    "eps_state": "na",
    "status": "保有中",
    "peak": 198.48,
-   "ret": -0.1228
+   "ret": -0.1388
   },
   "2026-10-22:KSS": {
    "ticker": "KSS",
@@ -79,7 +79,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 25.36,
-   "ret": -0.0299
+   "ret": -0.0722
   },
   "2026-10-23:INTA": {
    "ticker": "INTA",
@@ -90,7 +90,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 47.99,
-   "ret": -0.0777
+   "ret": -0.1159
   },
   "2026-10-23:NTSK": {
    "ticker": "NTSK",
@@ -101,7 +101,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 26.52,
-   "ret": -0.0319
+   "ret": 0.0214
   },
   "2026-10-28:ABSI": {
    "ticker": "ABSI",
@@ -125,7 +125,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 23.28,
-   "ret": 0.2335
+   "ret": 0.1974
   },
   "2026-11-05:CERT": {
    "ticker": "CERT",
@@ -136,7 +136,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 12.22,
-   "ret": -0.0821
+   "ret": -0.1232
   },
   "2026-11-06:U": {
    "ticker": "U",
@@ -147,7 +147,7 @@
    "eps_state": "turn",
    "status": "保有中",
    "peak": 52.81,
-   "ret": -0.0491
+   "ret": -0.093
   },
   "2026-11-09:SDGR": {
    "ticker": "SDGR",
@@ -158,7 +158,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 33.39,
-   "ret": -0.1854
+   "ret": -0.2111
   },
   "2026-11-11:AXGN": {
    "ticker": "AXGN",
@@ -169,7 +169,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 58.63,
-   "ret": -0.0287
+   "ret": -0.0389
   },
   "2026-11-17:SLS": {
    "ticker": "SLS",
@@ -180,7 +180,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 19.15,
-   "ret": -0.0627
+   "ret": -0.224
   }
  }
 }
