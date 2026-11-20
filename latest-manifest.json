@@ -1,7 +1,7 @@
 {
   "calculation_version": "v38-live-acquisition-1.3.1",
-  "coverage": 0.9718383311603651,
-  "generated_at": "2026-11-19T22:54:28Z",
+  "coverage": 0.9728813559322034,
+  "generated_at": "2026-11-20T02:37:35Z",
   "mc57": 8.981177733168167,
   "mc57_reason": "FIXED57_AND_GOLDEN_FIXTURE_NOT_AVAILABLE",
   "mc57_status": "READY",
@@ -12,18 +12,40 @@
   "positions_status": "DATA_REQUIRED",
   "provider_status": {
     "adopted_universe_count": 3835,
-    "cross_vendor_coverage": null,
-    "current_session_provider": "Yahoo Finance",
+    "cross_vendor_coverage": 0.9676662320730117,
+    "current_session_provider": "Massive",
     "fred": "READY",
     "fred_required_coverage": 1.0,
-    "massive": "FALLBACK_YAHOO",
+    "massive": "READY",
     "massive_confirmation": "scheduled",
-    "massive_current_coverage": null,
-    "missing_current_rows": 108,
-    "publication_state": "provisional",
+    "massive_current_coverage": 0.9676662320730117,
+    "missing_current_rows": 124,
+    "publication_state": "confirmed",
     "universe_shortfall": 57,
     "universe_target": 3892,
-    "yahoo_substitute": null
+    "yahoo_substitute": {
+      "mc57_etfs_massive": [
+        "AIQ",
+        "ARKW",
+        "BLOK",
+        "BOAT",
+        "BOTZ",
+        "CIBR",
+        "DRAM",
+        "DRIV",
+        "DTCR",
+        "GNOM",
+        "HYDR",
+        "IBUY",
+        "JETS",
+        "PAVE",
+        "QQQE",
+        "QTUM",
+        "SHLD",
+        "WCLD",
+        "WGMI"
+      ]
+    }
   },
   "publication_scope": "source-mc57 plus derived data/jev-ranking.json only; V38 and vendor-input data JSON are not committed",
   "schema_version": "v38.acquisition.1",
@@ -97,16 +119,18 @@
     "legacy_universe": 3253,
     "malformed_rows": 0,
     "massive_broad_expansion": 539,
-    "massive_current_coverage": 0.0,
-    "massive_current_covered": 0,
-    "massive_current_missing": 3835,
+    "massive_current_coverage": 0.9676662320730117,
+    "massive_current_covered": 3711,
+    "massive_current_missing": 124,
     "massive_grouped": {
-      "fetched_sessions": [],
-      "latest_session": "2026-11-18",
-      "reason": "provider request rejected: https://api.massive.com/v2/aggs/grouped/locale/us/market/stocks/2026-11-19 (status=403)",
+      "fetched_sessions": [
+        "2026-11-19"
+      ],
+      "latest_eligible_rows": 5523,
+      "latest_session": "2026-11-19",
       "requested_sessions": 20,
       "sessions": 20,
-      "status": "YAHOO_FALLBACK"
+      "status": "READY"
     },
     "massive_reference": {
       "asof_date": "2026-11-18",
@@ -146,7 +170,6 @@
     "failed_tickers": [
       "AAC",
       "ACAA",
-      "AIFU",
       "ALUB",
       "AMAC",
       "APMC",
@@ -169,7 +192,6 @@
       "DBCA",
       "DYOR",
       "EGHA",
-      "ELLO",
       "EMIS",
       "ESBA",
       "EWAV",
@@ -193,7 +215,6 @@
       "IEAG",
       "IGAC",
       "ILLU",
-      "IOR",
       "IRHO",
       "ISNR",
       "ITHA",
@@ -205,7 +226,6 @@
       "LKSP",
       "LTGR",
       "LUD",
-      "MAYS",
       "MCAH",
       "MEVO",
       "MRCO",
@@ -256,11 +276,11 @@
     "history_received": 3835,
     "incremental_cache_used": true,
     "requested": 3835,
-    "target_session_coverage": 0.9718383311603651,
-    "target_session_fresh": 3727,
+    "target_session_coverage": 0.9728813559322034,
+    "target_session_fresh": 4,
     "target_session_massive_substitute": 0,
-    "target_session_received": 3727,
-    "target_session_same_day_cache": 0,
+    "target_session_received": 3731,
+    "target_session_same_day_cache": 3727,
     "yahoo_circuit_open": false
   }
 }
