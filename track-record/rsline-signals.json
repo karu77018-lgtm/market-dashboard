@@ -30,12 +30,12 @@
   "2026-10-15:COKE": {
    "ticker": "COKE",
    "session": "2026-10-15",
-   "status": "売り待ち（21EMA割れ）",
+   "status": "安値21EMA割れ（翌始値）",
    "off": 0.0544,
    "rs189": 81,
    "ema": 202.72520648747073,
-   "last_day": "2026-11-19",
-   "days": 25,
+   "last_day": "2026-11-20",
+   "days": 26,
    "entry_day": "2026-10-16",
    "entry": 206.6699981689453,
    "stop": 190.1363983154297,
@@ -44,10 +44,14 @@
    "adds": 0,
    "triggered": [],
    "pending_add": 0,
-   "pending_exit": true,
+   "pending_exit": false,
    "qqq_in": 725.52001953125,
-   "last": 201.33999633789065,
-   "qqq_last": 645.0399780273438
+   "last": 201.58999633789065,
+   "qqq_last": 645.0399780273438,
+   "closed": true,
+   "exit_day": "2026-11-20",
+   "exit": 201.58999633789065,
+   "qqq_out": 638.81201171875
   },
   "2026-10-21:ASST": {
    "ticker": "ASST",

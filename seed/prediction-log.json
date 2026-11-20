@@ -5,10 +5,10 @@
    "event": "2026-11-05",
    "id": "down5-SPY-2026-11-05",
    "kind": "down5",
-   "outcome": null,
+   "outcome": 1,
    "prob": 44,
    "recorded": "2026-11-16",
-   "resolved": null,
+   "resolved": "2026-11-20",
    "sym": "SPY"
   },
   {
@@ -25,5 +25,5 @@
   }
  ],
  "schema": "prediction-log.1",
- "updated": "2026-11-19"
+ "updated": "2026-11-20"
 }
