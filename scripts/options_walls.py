@@ -5,9 +5,12 @@ RS63 top 30, RS21 top 30) for the weekly study of whether walls relate to later
 returns.  Those go only into the ticker detail (DET, tagged with "grp"), not onto
 the swing card.
 
-Source: Cboe delayed quotes (one JSON per underlying with open interest, IV and
-greeks for every listed option).  Open interest is published by OCC once a day,
-so the walls describe positioning as of the previous session.
+Source: Yahoo Finance option chains via yfinance (open interest and implied
+volatility per contract, one request per expiry).  Cboe delayed quotes were the
+original source until 2026-11-19, when the endpoint moved behind a Cloudflare
+check that answers 403 to the refresh runner; Cboe is still tried as a fallback
+when Yahoo errors.  Open interest is published by OCC once a day, so the walls
+describe positioning as of the previous session (both sources).
 
 Per underlying, over expiries after the session date and within 45 days:
   cw  上値の壁   strike >= spot with the largest call open interest
@@ -24,7 +27,7 @@ import math
 import re
 import time
 import urllib.request
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any, Iterable
 
 import numpy as np
@@ -37,13 +40,24 @@ LOW_WALL_OI = 500
 OCC = re.compile(r"^([A-Z]+)(\d{6})([CP])(\d{8})$")
 
 
-def fetch_chain(ticker: str, *, timeout: float = 20.0) -> list[dict[str, Any]] | None:
-    got = fetch_chain_with_time(ticker, timeout=timeout)
-    return got[0] if got else None
+YAHOO_SOURCE = "Yahoo Finance via yfinance (OI as of prior session)"
+CBOE_SOURCE = "Cboe delayed quotes (OI as of prior session)"
 
 
-def fetch_chain_with_time(ticker: str, *, timeout: float = 20.0) -> tuple[list[dict[str, Any]], str | None] | None:
-    """(options, Cboe quote timestamp) — the timestamp is kept so freshness is real."""
+def _finite(v: Any) -> float:
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return 0.0
+    return x if math.isfinite(x) else 0.0
+
+
+def _now_stamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def fetch_chain_cboe(ticker: str, *, timeout: float = 20.0) -> tuple[list[dict[str, Any]], str | None] | None:
+    """(options, Cboe quote timestamp); None on any failure (403s included)."""
     req = urllib.request.Request(CBOE_URL.format(ticker.replace(".", "")),
                                  headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
     try:
@@ -56,6 +70,53 @@ def fetch_chain_with_time(ticker: str, *, timeout: float = 20.0) -> tuple[list[d
         return None
     stamp = payload.get("timestamp") if isinstance(payload, dict) else None
     return options, (str(stamp) if stamp else None)
+
+
+def yahoo_ticker(ticker: str):
+    import yfinance as yf  # installed by the refresh workflow; imported lazily
+    return yf.Ticker(ticker.replace(".", "-"))
+
+
+def fetch_chain_yahoo(ticker: str, session: str, *, horizon: int = HORIZON_DAYS,
+                      tk: Any = None) -> tuple[list[dict[str, Any]], str] | None:
+    """Options inside the horizon, converted to the Cboe item shape walls() reads.
+
+    ``([], stamp)`` means "no listed options in the horizon" (a definite answer,
+    not an error); ``None`` means the request failed.
+    """
+    try:
+        tk = tk if tk is not None else yahoo_ticker(ticker)
+        start = date.fromisoformat(session)
+        expiries = [e for e in (tk.options or ())
+                    if 0 < (date.fromisoformat(str(e)) - start).days <= horizon]
+        options: list[dict[str, Any]] = []
+        for e in expiries:
+            chain = tk.option_chain(e)
+            for frame in (chain.calls, chain.puts):
+                if frame is None or len(frame) == 0:
+                    continue
+                for sym, oi, iv in zip(frame["contractSymbol"], frame["openInterest"],
+                                       frame["impliedVolatility"]):
+                    options.append({"option": str(sym), "open_interest": _finite(oi), "iv": _finite(iv)})
+    except Exception:
+        return None
+    return options, _now_stamp()
+
+
+def fetch_chain_with_time(ticker: str, *, session: str | None = None,
+                          timeout: float = 20.0) -> tuple[list[dict[str, Any]], str | None, str] | None:
+    """(options, timestamp, source): Yahoo first, Cboe only when Yahoo errors."""
+    if session:
+        got = fetch_chain_yahoo(ticker, session)
+        if got is not None:
+            return got[0], got[1], YAHOO_SOURCE
+    got = fetch_chain_cboe(ticker, timeout=timeout)
+    return (got[0], got[1], CBOE_SOURCE) if got is not None else None
+
+
+def fetch_chain(ticker: str, *, session: str | None = None, timeout: float = 20.0) -> list[dict[str, Any]] | None:
+    got = fetch_chain_with_time(ticker, session=session, timeout=timeout)
+    return got[0] if got else None
 
 
 def quote_age(stamp: str | None, session: str) -> int | None:
@@ -138,48 +199,68 @@ def walls(options: list[dict[str, Any]], *, ticker: str, spot: float, session: s
         "pw": pw, "pwp": (pw / spot - 1) if pw else None,
         "gf": round(gf, 2) if gf else None, "gfp": (gf / spot - 1) if gf else None,
         "cwoi": int(call_oi[cw]) if cw else None, "pwoi": int(put_oi[pw]) if pw else None,
-        "total_oi": int(total), "age": None, "source": "Cboe delayed quotes (OI as of prior session)",
+        "total_oi": int(total), "age": None, "source": CBOE_SOURCE,
         "conf": "LOW" if total < LOW_TOTAL_OI or wall_oi < LOW_WALL_OI else "OK",
     }
     return out if cw or pw or gf else None
 
 
-def fetch_walls(targets: dict[str, float], session: str,
-                *, pause: float = 0.25, max_failures: int = 6) -> dict[str, dict[str, Any]]:
-    """targets: ticker -> session close."""
+def fetch_walls(targets: dict[str, float], session: str, *, pause: float = 0.25,
+                max_failures: int = 6, max_backoffs: int = 3, backoff: float = 15.0,
+                budget: float = 1500.0) -> dict[str, dict[str, Any]]:
+    """targets: ticker -> session close (callers put the most important first).
+
+    A run of ``max_failures`` errors in a row used to end the whole fetch, which
+    silently dropped every ticker behind it (the RS63/RS21 study groups).  Now a
+    run of errors pauses and carries on; the fetch stops only when nothing has
+    worked at all (the source is down), after ``max_backoffs`` pauses, or when
+    the time budget is spent.  Tickers with no listed options are not errors.
+    """
     out: dict[str, dict[str, Any]] = {}
-    failures = 0
+    failures = backoffs = 0
     retry: list[str] = []
-    for ticker, spot in list(targets.items()) + [(None, None)]:
-        if ticker is None:  # one more try for transient misses (Cboe drops some requests)
-            if not retry or failures >= max_failures:
-                break
-            time.sleep(1.0)
-            items, retry = [(t, targets[t]) for t in retry], []
-            for t, s in items:
-                got = fetch_chain_with_time(t)
-                if got is not None:
-                    _store(out, t, s, session, got)
-                time.sleep(pause)
+    stopped = ""
+    began = time.monotonic()
+    items = list(targets.items())
+    for n, (ticker, spot) in enumerate(items):
+        if time.monotonic() - began > budget:
+            stopped = f"time budget spent after {n}"
             break
-        if failures >= max_failures:
-            break
-        got = fetch_chain_with_time(ticker)
+        got = fetch_chain_with_time(ticker, session=session)
         if got is None:
             failures += 1
             retry.append(ticker)
+            if failures >= max_failures:
+                if not out or backoffs >= max_backoffs:
+                    stopped = f"{failures} errors in a row after {n + 1}"
+                    break
+                backoffs += 1
+                failures = 0
+                time.sleep(backoff)
             continue
         failures = 0
         _store(out, ticker, spot, session, got)
         time.sleep(pause)
-    print(f"option walls: {len(out)}/{len(targets)} tickers", flush=True)
+    if retry and out and not stopped:  # one more try for transient misses
+        time.sleep(1.0)
+        for t in retry:
+            if time.monotonic() - began > budget:
+                break
+            got = fetch_chain_with_time(t, session=session)
+            if got is not None:
+                _store(out, t, targets[t], session, got)
+            time.sleep(pause)
+    note = f" (stopped: {stopped})" if stopped else ""
+    print(f"option walls: {len(out)}/{len(targets)} tickers{note}", flush=True)
     return out
 
 
 def _store(out: dict, ticker: str, spot: float, session: str, got: tuple) -> None:
-    chain, stamp = got
+    chain, stamp = got[0], got[1]
     result = walls(chain, ticker=ticker, spot=spot, session=session)
     if result:
+        if len(got) > 2:
+            result["source"] = got[2]
         result["asof"] = stamp
         result["age"] = quote_age(stamp, session)
         out[ticker] = result

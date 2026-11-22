@@ -44,3 +44,18 @@ def test_run_records_and_survives_fetch_failure(tmp_path):
     assert set(snaps) == {"SOXL", "TQQQ"}
     led = ew.load_ledger(tmp_path)
     assert set(led["days"]["2026-11-06"]) == {"SOXL", "TQQQ"}
+
+
+def test_yahoo_payload_has_the_session_bar_and_chain(monkeypatch):
+    import pandas as pd
+    idx = pd.DatetimeIndex([pd.Timestamp("2026-11-06", tz="America/New_York")])
+
+    class Tk:
+        def history(self, **k):
+            return pd.DataFrame({"Close": [50.0], "High": [52.0], "Low": [48.0]}, index=idx)
+
+    monkeypatch.setattr(ew, "fetch_chain_yahoo", lambda t, s, tk=None: (_payload(0, 0, 0)["data"]["options"], "x"))
+    p = ew.fetch_payload_yahoo("SOXL", "2026-11-06", tk=Tk())
+    s = ew.snapshot(p, "SOXL", "2026-11-06")
+    assert s["close"] == 50.0 and s["high"] == 52.0 and s["iv30"] is None and s["cw"]
+    assert ew.fetch_payload_yahoo("SOXL", "2026-11-09", tk=Tk()) is None  # stale bar is not today's

@@ -2,14 +2,15 @@
 
 Reference only, never a trading gate.  The swing candidates' walls come from
 options_walls.py; these ETFs are not in the stock universe (no DET row, no OHLCV
-in the frame), so the underlying price comes from the same Cboe payload.
+in the frame), so the underlying price is fetched alongside the chain (Yahoo
+daily bar for the session; Cboe's payload when falling back to Cboe).
 
 QQQ is included because the TQQQ rule judges on QQQ and QQQ's option book is far
 deeper than TQQQ's.
 
 Each session stores, per ticker: close/high/low, the walls (cw/pw/gf, same
-definitions as options_walls.walls), conf and iv30.  Open interest has no
-history at Cboe, so this is validated forward: once 5 and 20 later sessions are
+definitions as options_walls.walls), conf and iv30 (Cboe only; None from Yahoo).
+Open interest has no history at either source, so this is validated forward: once 5 and 20 later sessions are
 recorded, each day gets the realised outcome (return, whether the high reached
 the call wall, whether the low reached the put wall, how far the price ranged).
 The weekly study compares those outcomes with a plain volatility baseline.
@@ -21,10 +22,11 @@ from __future__ import annotations
 import json
 import math
 import urllib.request
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from options_walls import CBOE_URL, quote_age, walls
+from options_walls import CBOE_URL, fetch_chain_yahoo, quote_age, walls, yahoo_ticker
 
 TICKERS = ("SOXL", "TQQQ", "QQQ")
 LEDGER = Path("track-record/etf-walls.json")
@@ -32,7 +34,7 @@ SCHEMA = "etf-walls.1"
 HORIZONS = (5, 20)
 
 
-def fetch_payload(ticker: str, *, timeout: float = 30.0) -> dict[str, Any] | None:
+def fetch_payload_cboe(ticker: str, *, timeout: float = 30.0) -> dict[str, Any] | None:
     req = urllib.request.Request(CBOE_URL.format(ticker),
                                  headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"})
     try:
@@ -41,6 +43,31 @@ def fetch_payload(ticker: str, *, timeout: float = 30.0) -> dict[str, Any] | Non
     except Exception:
         return None
     return payload if isinstance(payload, dict) and isinstance(payload.get("data"), dict) else None
+
+
+def fetch_payload_yahoo(ticker: str, session: str, *, tk: Any = None) -> dict[str, Any] | None:
+    """The Cboe payload shape built from Yahoo: the session's daily bar + the chain."""
+    try:
+        tk = tk if tk is not None else yahoo_ticker(ticker)
+        start = date.fromisoformat(session)
+        bars = tk.history(start=start.isoformat(), end=(start + timedelta(days=1)).isoformat(),
+                          auto_adjust=False)
+        if bars is None or len(bars) == 0 or str(bars.index[-1].date()) != session:
+            return None
+        bar = bars.iloc[-1]
+        got = fetch_chain_yahoo(ticker, session, tk=tk)
+    except Exception:
+        return None
+    if got is None:
+        return None
+    return {"timestamp": got[1],
+            "data": {"close": float(bar["Close"]), "high": float(bar["High"]), "low": float(bar["Low"]),
+                     "iv30": None, "options": got[0]}}
+
+
+def fetch_payload(ticker: str, session: str | None = None) -> dict[str, Any] | None:
+    got = fetch_payload_yahoo(ticker, session) if session else None
+    return got if got is not None else fetch_payload_cboe(ticker)
 
 
 def _num(v: Any) -> float | None:
@@ -118,7 +145,8 @@ def record(led: dict, session: str, snaps: dict[str, dict]) -> dict:
     return led
 
 
-def run(root: Path, session: str, *, fetch=fetch_payload) -> dict[str, dict]:
+def run(root: Path, session: str, *, fetch=None) -> dict[str, dict]:
+    fetch = fetch or (lambda t: fetch_payload(t, session))
     snaps: dict[str, dict] = {}
     for t in TICKERS:
         payload = fetch(t)
