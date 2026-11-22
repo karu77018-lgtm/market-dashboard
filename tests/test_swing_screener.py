@@ -330,3 +330,22 @@ def test_good_leader_counts_copy_and_overlap_match():
     copy = html[i:html.index("</div>", i)]
     assert "G11" in copy and "N1" in copy and "BEST" not in copy
     assert "全 12+1件" in html
+
+
+def test_study_groups_are_interleaved_for_fetching(monkeypatch):
+    import swing_screener as sw
+    import pandas as pd
+    monkeypatch.setattr(sw, "STUDY_GROUPS", (("dv", None), ("rs189", 3), ("rs63", 2), ("rs21", 2)))
+    study_groups = sw.study_groups
+    names = [f"T{i}" for i in range(12)]
+    liquid = pd.Series(True, index=names)
+    rank = pd.Series(range(12, 0, -1), index=names, dtype=float)
+    tt = pd.Series([False] * 4 + [True] * 3 + [False] * 5, index=names)
+    s = {"liquid": liquid, "last": pd.Series(10.0, index=names), "tt": tt,
+         "dv_pct": pd.Series([99.0] * 4 + [10.0] * 8, index=names),
+         "rs189_pct": rank, "rs63_pct": rank, "rs21_pct": rank}
+    out = study_groups(s)
+    grps = [g for _, _, g in out]
+    assert grps[:4] == ["dv", "rs189", "rs63", "rs21"]  # every group in the first round
+    assert len({t for t, _, _ in out}) == len(out) == 11  # still one group per ticker
+    assert [grps.count(g) for g in ("dv", "rs189", "rs63", "rs21")] == [4, 3, 2, 2]

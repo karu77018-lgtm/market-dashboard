@@ -106,9 +106,9 @@ def test_fetch_walls_retries_transient_misses(monkeypatch):
     import options_walls as ow
     calls = []
 
-    def fake(t, timeout=20.0):
+    def fake(t, session=None, timeout=20.0):
         calls.append(t)
-        return None if calls.count(t) == 1 and t == "B" else ([], "2026-10-02 20:00:00")
+        return None if calls.count(t) == 1 and t == "B" else ([], "2026-10-02 20:00:00", "test")
 
     monkeypatch.setattr(ow, "fetch_chain_with_time", fake)
     monkeypatch.setattr(ow, "walls", lambda chain, **k: {"cw": 1.0})

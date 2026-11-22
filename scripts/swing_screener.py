@@ -606,18 +606,27 @@ def study_groups(s: dict) -> list[tuple[str, float, str]]:
         "rs63": s["rs63_pct"][liquid],
         "rs21": s["rs21_pct"][liquid],
     }
-    out: list[tuple[str, float, str]] = []
+    # Membership: a ticker belongs to the first group (in STUDY_GROUPS order) that
+    # takes it.  Fetch order: the groups are interleaved round-robin so that a
+    # fetch cut short still covers every group (before 2026-11-22 the list was
+    # dv-first, and RS63/RS21 at the end were almost never reached).
+    members: dict[str, list[tuple[str, float, str]]] = {}
     seen: set[str] = set()
     for grp, cap in STUDY_GROUPS:
-        taken = 0
+        taken, rows = 0, []
         for t in pools[grp].dropna().sort_values(ascending=False).index:
             if cap is not None and taken >= cap:
                 break
             if t in seen or pd.isna(last[t]):
                 continue
-            out.append((t, float(last[t]), grp))
+            rows.append((t, float(last[t]), grp))
             seen.add(t)
             taken += 1
+        members[grp] = rows
+    out: list[tuple[str, float, str]] = []
+    queues = [members[g] for g, _ in STUDY_GROUPS]
+    for i in range(max((len(q) for q in queues), default=0)):
+        out.extend(q[i] for q in queues if i < len(q))
     return out
 
 
@@ -1099,6 +1108,13 @@ def apply(text: str, frame: pd.DataFrame, walls_fn=None, regime: dict | None = N
             for t, opt in found.items():
                 if isinstance(opt, dict):
                     opt["grp"] = group.get(t, "cand")
+            asked_n: dict[str, int] = {}
+            got_n: dict[str, int] = {}
+            for t, g in group.items():
+                asked_n[g] = asked_n.get(g, 0) + 1
+                got_n[g] = got_n.get(g, 0) + (t in found)
+            print("option walls by group: " + ", ".join(
+                f"{g} {got_n[g]}/{asked_n[g]}" for g in asked_n), flush=True)
         except Exception as exc:
             print(f"option walls skipped: {exc!r}", flush=True)
         for r in rows:
