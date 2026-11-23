@@ -22,8 +22,20 @@
    "recorded": "2026-11-16",
    "resolved": "2026-11-19",
    "sym": "QQQ"
+  },
+  {
+   "basis": "○0つ",
+   "event": "2026-11-23",
+   "id": "up5-QQQ-2026-11-23",
+   "kind": "up5",
+   "low": 608.45,
+   "outcome": null,
+   "prob": 20,
+   "recorded": "2026-11-23",
+   "resolved": null,
+   "sym": "QQQ"
   }
  ],
  "schema": "prediction-log.1",
- "updated": "2026-11-20"
+ "updated": "2026-11-23"
 }

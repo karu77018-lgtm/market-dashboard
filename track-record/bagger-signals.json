@@ -24,7 +24,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 23.4,
-   "ret": 0.1313
+   "ret": 0.1736
   },
   "2026-10-15:SG": {
    "ticker": "SG",
@@ -35,7 +35,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 13.36,
-   "ret": 0.1472
+   "ret": 0.1509
   },
   "2026-10-20:BRZE": {
    "ticker": "BRZE",
@@ -46,7 +46,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 46.64,
-   "ret": 0.0156
+   "ret": 0.0169
   },
   "2026-10-21:APPN": {
    "ticker": "APPN",
@@ -57,7 +57,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 55.58,
-   "ret": 0.0628
+   "ret": 0.1223
   },
   "2026-10-22:HURN": {
    "ticker": "HURN",
@@ -68,7 +68,7 @@
    "eps_state": "na",
    "status": "保有中",
    "peak": 198.48,
-   "ret": -0.1093
+   "ret": -0.1106
   },
   "2026-10-22:KSS": {
    "ticker": "KSS",
@@ -79,7 +79,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 25.36,
-   "ret": -0.1021
+   "ret": -0.1445
   },
   "2026-10-23:INTA": {
    "ticker": "INTA",
@@ -90,7 +90,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 47.99,
-   "ret": -0.0946
+   "ret": -0.0865
   },
   "2026-10-23:NTSK": {
    "ticker": "NTSK",
@@ -101,7 +101,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 26.52,
-   "ret": -0.0144
+   "ret": 0.0634
   },
   "2026-10-28:ABSI": {
    "ticker": "ABSI",
@@ -125,7 +125,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 23.28,
-   "ret": 0.1874
+   "ret": 0.3051
   },
   "2026-11-05:CERT": {
    "ticker": "CERT",
@@ -136,7 +136,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 12.22,
-   "ret": -0.1338
+   "ret": -0.1207
   },
   "2026-11-06:U": {
    "ticker": "U",
@@ -147,7 +147,7 @@
    "eps_state": "turn",
    "status": "保有中",
    "peak": 52.81,
-   "ret": -0.1309
+   "ret": -0.0779
   },
   "2026-11-09:SDGR": {
    "ticker": "SDGR",
@@ -170,8 +170,8 @@
    "rs": 94,
    "eps_state": "better",
    "status": "保有中",
-   "peak": 58.63,
-   "ret": -0.0491
+   "peak": 58.66,
+   "ret": 0.0005
   },
   "2026-11-17:SLS": {
    "ticker": "SLS",
@@ -185,6 +185,17 @@
    "ret": -0.2867,
    "exit_date": "2026-11-20",
    "exit": 13.66
+  },
+  "2026-11-23:CRAI": {
+   "ticker": "CRAI",
+   "session": "2026-11-23",
+   "entry": 221.545,
+   "depth": 0.3812,
+   "rs": 91,
+   "eps_state": "na",
+   "status": "保有中",
+   "peak": 221.545,
+   "ret": 0.0
   }
  }
 }
