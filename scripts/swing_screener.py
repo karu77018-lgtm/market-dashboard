@@ -53,6 +53,14 @@ MAX_VDRY = 0.9
 MAX_CHG = 0.03
 MAX_PREV_CHG = 0.03
 MAX_EXT10 = 0.12
+# 2026-11-24: skip 本命 whose 50-day up/down volume ratio is 1.4 or more (sessions from UD_FROM on).
+# Local study research/scripts-2026-11: 本命 PF by the ratio better below it in 11 of 13 years; production
+# engine 68.0% -> 75.1% a year (2015-20 57.3 -> 59.6, 2021-26 80.2 -> 94.0), max DD -29.9 -> -30.0;
+# every cut 1.3-1.6 (50 days) and 1.4-1.6 (30 days) better.  Breakout health keeps the unfiltered signals.
+MAX_UDVR = 1.4
+UDVR_LEN = 50
+UD_FROM = "2026-11-24"
+UD_CHECK = "UD比1.4未満"
 STOP = 0.08
 CORE_RISK = INITIAL_WEIGHT * STOP
 EP_RISK = 0.005
@@ -96,6 +104,9 @@ def _states(c: pd.DataFrame, h: pd.DataFrame, l: pd.DataFrame, v: pd.DataFrame) 
     vdry = v.rolling(5).mean() / v50
     chg = (c / c.shift(1) - 1).round(9)  # an exact +3.00% must compare as 0.03, not 0.0300000001
     el21 = l.ewm(span=21, adjust=False).mean()
+    up_v = v.where(c > c.shift(1), 0.0).rolling(UDVR_LEN).mean()
+    dn_v = v.where(c < c.shift(1), 0.0).rolling(UDVR_LEN).mean()
+    udvr = up_v / dn_v
 
     def at(k: int) -> dict:
         last = c.iloc[k]
@@ -128,7 +139,10 @@ def _states(c: pd.DataFrame, h: pd.DataFrame, l: pd.DataFrame, v: pd.DataFrame) 
                 "chg": chg.iloc[k], "ext10": ext10, "el21": el21.iloc[k], "checks": checks,
                 "timing": timing, "selected": selected, "signal": selected & timing,
                 "adr20": adr20.iloc[k], "ma50": ma50.iloc[k], "v50_prev": v50.iloc[k - 1],
-                "prev_chg": chg.iloc[k - 1]}
+                "prev_chg": chg.iloc[k - 1], "udvr": udvr.iloc[k],
+                # True = passes the up/down-volume check (missing data passes; from UD_FROM only)
+                "ud_ok": ~(udvr.iloc[k] >= MAX_UDVR) if str(c.index[k].date()) >= UD_FROM
+                else pd.Series(True, index=c.columns)}
 
     at.el21 = el21
     return at
@@ -444,6 +458,8 @@ def evaluate(frame: pd.DataFrame) -> dict:
     s = state(-1)
     last, liquid, tt, chg = s["last"], s["liquid"], s["tt"], s["chg"]
     selected, timing, checks = s["selected"], s["timing"], s["checks"]
+    ud_ok = s["ud_ok"].fillna(True).astype(bool)
+    s_day = str(c.index[-1].date())
 
     # Consecutive sessions meeting the selection rules (capped just above the stale threshold).
     today_sel = list(selected[selected].index)
@@ -480,6 +496,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
                 "dv": int(round(st["dv_pct"][t])), "vc": float(st["vc"][t]), "vdry": float(st["vdry"][t]),
                 "chg": float(st["chg"][t]), "prev_chg": float(st["prev_chg"][t]),
                 "ext10": float(st["ext10"][t]), "el21": float(st["el21"][t]),
+                "udvr": None if pd.isna(st["udvr"].get(t)) else float(st["udvr"][t]),
                 "stop": px * (1 - STOP), "add": px * 1.10, "add2": px * 1.20, "be": px * 1.25,
                 **dict(zip(("sar_up", "sar_age"), sar_state(t)))}
 
@@ -509,7 +526,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
         return buyable({"inside": inside, "pos": pos, "sar_up": up})
 
     rank = lambda r: TIER_ORDER[tier(r)]
-    core = [row(t, s) for t in selected[selected & timing].index]
+    core = [row(t, s) for t in selected[selected & timing & ud_ok].index]
     core.sort(key=lambda r: (rank(r), not r["inside"], -r["rs189"]))
 
     # Late entries: signal 1-2 sessions ago, not re-signalled today, still near the signal close,
@@ -518,7 +535,9 @@ def evaluate(frame: pd.DataFrame) -> dict:
     nochase = chg < MAX_CHG
     for lag in LATE_LAGS:
         past = state(-1 - lag)
-        for t in past["signal"][past["signal"]].index:
+        # the check follows the publication date: late entries listed from UD_FROM on are checked too
+        past_ok = past["signal"] & (~(past["udvr"] >= MAX_UDVR) if s_day >= UD_FROM else True)
+        for t in past_ok[past_ok].index:
             if t in seen or not bool(selected.get(t, False)) or not bool(nochase.get(t, False)):
                 continue
             base = float(past["last"][t])
@@ -539,11 +558,13 @@ def evaluate(frame: pd.DataFrame) -> dict:
     late.sort(key=lambda r: (rank(r), r["lag"], -r["rs189"]))
 
     watch = []
-    for t in selected[selected & ~timing].index:
+    for t in selected[selected & ~(timing & ud_ok)].index:
         if t in seen:
             continue
         r = row(t, s)
         r["missing"] = [k for k, m in checks.items() if not bool(m.get(t, False))]
+        if not bool(ud_ok.get(t, True)):
+            r["missing"].append(UD_CHECK)
         watch.append(r)
     watch.sort(key=lambda r: (watch_bucket(r), rank(r), -r["rs189"]))
 
@@ -749,6 +770,8 @@ def _miss_label(name: str, r: dict) -> str:
         return f"前日 {r['prev_chg'] * 100:+.2f}% → +3%以下"
     if name == "10日線+12%以内":
         return f"10日線 {r['ext10'] * 100:+.2f}% → +12%以内"
+    if name == UD_CHECK:
+        return f"UD比 {_ratio(r['udvr'])} → 1.40未満"
     return name
 
 
@@ -771,6 +794,8 @@ def _need(name: str, r: dict) -> str:
         return f"前日 {r['prev_chg'] * 100:+.2f}% → +3%以下"
     if name == "10日線+12%以内":
         return f"10日線 {r['ext10'] * 100:+.1f}% → +12%以内まで押し待ち"
+    if name == UD_CHECK:
+        return f"UD比 {_ratio(r['udvr'])} → 1.40未満（上昇日の出来高が多すぎる）"
     return name
 
 
@@ -1029,6 +1054,8 @@ def card_html(result: dict) -> str:
         '<b>選定</b>：トレンドテンプレート（株価＞50日線＞150日線＞200日線・200日線が20日前より上・52週高値から−25%以内）・'
         '50日平均売買代金が上位5%・189日リターンが上位10%（株価$10以上・売買代金$20M以上の銘柄内）。<br/>'
         '<b>形</b>：10日/50日の平均値幅0.9以下・5日/50日の出来高0.9以下・当日+3%未満・前日+3%以下。本命は引けの後に出るので翌営業日の寄りで買う。<br/>'
+        '<b>UD比</b>（2026年11月24日から）：50日の上昇日の平均出来高÷下落日の平均出来高が1.4以上なら本命にしない（次の候補に残す）。'
+        '上がる日に出来高が集まりすぎた銘柄は、この後の伸びが小さかった（2014〜26年の本命で13年中11年）。<br/>'
         '<b>地合い</b>：QQQが200日線より上の日だけ新規で買う（割れている日は本命を出さない。持ち株は通常の手仕舞いルール）。'
         '個別株だけの検証（2015年1月〜2026年8月・翌営業日の寄りで売買）で年率26.1%→28.7%、2022年の損失−16.2%→−8.9%。100〜300日線のどれでもほぼ同じ（旧計算）。'
         'MC57（≥40〜60）や日足SAR・21EMAで止めると、戻りの初動を逃して年率が下がる。週足SARはほぼ影響なし。<br/>'

@@ -58,7 +58,7 @@ RULE_NAME = "TQQQルール"
 CASH_ONLY_FROM = "2026-10-19"  # first session traded with the money outside TQQQ held as plain cash
 STEP = 0.25
 W_SWITCH, W_HOLD = 1.0, 0.0   # 2026-10-29: the 改良案 (always hold) half dropped (was 0.625 / 0.375)
-STATE_KEYS = ("cap_on", "cap_d", "cap_ent", "md_switch", "md_hold", "alarm", "cur", "full")
+STATE_KEYS = ("cap_on", "cap_d", "cap_ent", "md_switch", "md_hold", "alarm", "cur", "full", "last_tgt")
 FULL_DAYS = 30       # 大底フル: sessions after the trigger day (20 until 2026-10-28)
 FEAR_MAX = 30        # ... only if the VIX close was under 20 within this many sessions
 HY_WIDE = 1.075      # HY OAS above this x its 40-day mean caps TQQQ at 25% (1.10 until 2026-10-28)
@@ -66,6 +66,12 @@ EMERG_SCALE = 0.25   # emergency weight = 1 + drawdown / EMERG_SCALE (0.30 until
 USE_CAPITULATION = False  # capitulation-rebound hold (dropped 2026-10-29)
 USE_HY_CALM = False       # ① HY early exit from emergency mode (dropped 2026-10-29)
 SIMPLIFIED_FROM = "2026-10-29"  # first session computed with the 2026-10-29 rule
+# 2026-11-24: the target rises at most RAMP_STEP per session (falls at once; 大底フル jumps to 100% as before).
+# Local study research/scripts-2026-11: production engine 68.0% -> 67.9% a year, the 2026-10-05 start
+# -22.5% -> -19.4% (one-day 25% -> 100% jumps when the HY cap lifted for a day); costs in V-shaped years
+# (sleeve alone 2020 -8, 2025 -14 points), gains in slow declines (2022 +3, 2023 +5, 2026 +4).
+RAMP_STEP = 0.25
+RAMP_FROM = "2026-11-24"
 
 
 def _sma(x: np.ndarray, n: int) -> np.ndarray:
@@ -110,7 +116,7 @@ def indicators(qo, qh, ql, qc, qv, tqc, vix, hy, gold) -> dict[str, np.ndarray]:
 
 def default_state() -> dict[str, Any]:
     return {"cap_on": False, "cap_d": 0, "cap_ent": 0.0, "md_switch": False, "md_hold": False,
-            "alarm": False, "cur": 0.0, "full": 0}
+            "alarm": False, "cur": 0.0, "full": 0, "last_tgt": None}
 
 
 def run(ind: dict[str, np.ndarray], start: int = 0, state: dict | None = None) -> tuple[dict, dict]:
@@ -118,7 +124,9 @@ def run(ind: dict[str, np.ndarray], start: int = 0, state: dict | None = None) -
     st = {**default_state(), **(state or {})}
     n = len(ind["vol"])
     out = {k: np.full(n, np.nan) for k in ("switch", "hold", "raw", "step", "target", "gold", "full_left")}
-    flags = {k: np.zeros(n, bool) for k in ("md_switch", "md_hold", "alarm", "cap_hold", "hy_wide", "trend", "full")}
+    flags = {k: np.zeros(n, bool) for k in ("md_switch", "md_hold", "alarm", "cap_hold", "hy_wide", "trend", "full",
+                                            "ramped")}
+    ramp_on = ind.get("ramp", np.zeros(n, bool))
     big = ind.get("big", np.zeros(n, bool))
     fear_age = ind.get("fear_age", np.full(n, np.inf))
     states: list[dict | None] = [None] * n
@@ -180,6 +188,12 @@ def run(ind: dict[str, np.ndarray], start: int = 0, state: dict | None = None) -
         full = int(st.get("full") or 0) > 0
         if full:
             tgt = 1.0
+        # 2026-11-24: rise at most RAMP_STEP a session (not on 大底フル days)
+        prev_tgt = st.get("last_tgt")
+        if bool(ramp_on[i]) and not full and prev_tgt is not None and tgt > float(prev_tgt) + RAMP_STEP + 1e-9:
+            tgt = float(prev_tgt) + RAMP_STEP
+            flags["ramped"][i] = True
+        st["last_tgt"] = tgt
         flags["full"][i], out["full_left"][i] = full, int(st.get("full") or 0)
         if full:
             st["full"] = int(st["full"]) - 1
@@ -285,6 +299,10 @@ def compute_frame(f: pd.DataFrame, start: int = 0, state: dict | None = None) ->
                      f["qv"].to_numpy(), f["tc"].to_numpy(), f["vix"].to_numpy(), f["hy"].to_numpy(),
                      f["gold"].to_numpy() if "gold" in f else np.full(len(f), np.nan))
     ind["big"], ind["fear_age"] = full_bottom_inputs(f)
+    try:
+        ind["ramp"] = np.asarray(pd.DatetimeIndex(f.index) >= pd.Timestamp(RAMP_FROM))
+    except (TypeError, ValueError):
+        ind["ramp"] = np.zeros(len(f), bool)
     return run(ind, start, state)
 
 
@@ -328,7 +346,7 @@ def day_record(f: pd.DataFrame, out: dict, i: int, st: dict) -> dict[str, Any]:
         "switch": _r(out["switch"][i]), "hold": _r(out["hold"][i]),
         "md_switch": bool(out["md_switch"][i]), "md_hold": bool(out["md_hold"][i]),
         "alarm": bool(out["alarm"][i]), "cap_hold": bool(out["cap_hold"][i]), "hy_wide": bool(out["hy_wide"][i]),
-        "trend": bool(out["trend"][i]), "full": bool(out["full"][i]),
+        "trend": bool(out["trend"][i]), "full": bool(out["full"][i]), "ramped": bool(out["ramped"][i]),
         "full_left": int(out["full_left"][i]) if not math.isnan(out["full_left"][i]) else 0,
         "qqq": _r(row["qc"], 4), "tqqq_open": _r(row["to"], 4), "tqqq": _r(row["tc"], 4),
         "gold_open": _r(row.get("gopen"), 4), "gold_px": _r(row.get("gold"), 4), "rf": _r(row.get("rf"), 5),
@@ -358,6 +376,8 @@ def update(ledger: dict, f: pd.DataFrame, session: str) -> dict:
             print(f"TQQQ rule: ledger last day {last} not in the input window; not updated", flush=True)
             return ledger
         start, state = dates.index(last) + 1, ledger["state"]
+        if state.get("last_tgt") is None:  # ledgers written before 2026-11-24 carry no last target
+            state = {**state, "last_tgt": ledger["days"][last].get("target")}
     else:  # cold start: run the whole window from the default state
         start, state = 0, None
     end = dates.index(session)
@@ -445,6 +465,8 @@ def summary_words(rec: dict) -> tuple[str, str]:
         return "過熱警報（0%）", "off"
     if rec.get("hy_wide"):
         return "信用スプレッド拡大（上限25%）", "warn"
+    if rec.get("ramped"):
+        return "段階的に増やし中（1日25%ずつ）", "warn"
     if rec.get("md_switch"):
         return "緊急モード", "warn"
     return "平時", "on"
