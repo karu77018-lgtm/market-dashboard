@@ -541,12 +541,47 @@ def grouped_history_from_yahoo_ohlcv(
     return history
 
 
+# Names with no trade print at either vendor (thin SPAC shells around $10 are the usual
+# case) are not vendor gaps, so they leave the coverage denominator.  If more than this
+# share of the universe looks untraded, treat it as a data problem and exclude nothing.
+MAX_UNTRADED_SHARE = 0.10
+
+
+def untraded_tickers(
+    ohlcv_csv: str | Path,
+    grouped: dict[str, dict[str, dict[str, float | int]]],
+    tickers: Iterable[str],
+    sessions: Iterable[str],
+) -> dict[str, list[str]]:
+    """Per session: universe names absent from Massive and without positive Yahoo volume."""
+    frame = pd.read_csv(ohlcv_csv, usecols=["ticker", "date", "volume"])
+    frame["date"] = frame["date"].astype(str)
+    names = [str(t).upper() for t in tickers]
+    out: dict[str, list[str]] = {}
+    for session in sessions:
+        day = frame[frame["date"] == session]
+        traded = {str(t).upper() for t, v in zip(day["ticker"], day["volume"])
+                  if (_finite(v) or 0.0) > 0}
+        massive = grouped.get(session, {})
+        out[session] = sorted(t for t in names if t not in massive and t not in traded)
+    return out
+
+
+def _untraded_exclusion(names: set[str], universe: int) -> tuple[set[str], str]:
+    if not names:
+        return set(), "none"
+    if len(names) > MAX_UNTRADED_SHARE * max(universe, 1):
+        return set(), "skipped_over_cap"
+    return names, "applied"
+
+
 def compute_massive_market_structure(
     tickers: Iterable[str],
     grouped: dict[str, dict[str, dict[str, float | int]]],
     *,
     target_session: str,
     source: str = "Massive split-adjusted grouped daily aggregates",
+    untraded: dict[str, Iterable[str]] | None = None,
 ) -> dict[str, Any]:
     ticker_list = list(tickers)
     dates = sorted(d for d in grouped if d <= target_session)
@@ -554,6 +589,10 @@ def compute_massive_market_structure(
         raise ProviderError("Massive market structure requires two completed sessions")
     previous_session = dates[-2]
     current, previous = grouped[dates[-1]], grouped[previous_session]
+    universe_set = set(ticker_list)
+    untraded = untraded or {}
+    candidates = {t for s in (dates[-1], previous_session) for t in untraded.get(s, ())} & universe_set
+    excluded, exclusion = _untraded_exclusion(candidates, len(ticker_list))
     advances = declines = unchanged = up4 = down4 = compared = 0
     up_volume = down_volume = 0.0
     for ticker in ticker_list:
@@ -585,7 +624,10 @@ def compute_massive_market_structure(
         "up_volume": up_volume, "down_volume": down_volume,
         "up_down_volume_ratio": up_volume / max(down_volume, 1.0),
         "up_4pct": up4, "down_4pct": down4, "four_pct_net": up4 - down4,
-        "coverage": compared / max(len(ticker_list), 1),
+        "coverage": compared / max(len(ticker_list) - len(excluded), 1),
+        "coverage_raw": compared / max(len(ticker_list), 1),
+        "untraded_exclusion": exclusion, "untraded_candidates": len(candidates),
+        "untraded_excluded": len(excluded), "untraded_tickers": sorted(excluded)[:200],
         "source": source,
     }
 
@@ -596,7 +638,11 @@ def compare_current_closes(
     *,
     target_session: str,
     universe_count: int,
+    untraded: Iterable[str] | None = None,
 ) -> dict[str, Any]:
+    excluded, exclusion = _untraded_exclusion({str(t).upper() for t in (untraded or ())}, universe_count)
+    raw_universe_count = universe_count
+    universe_count = universe_count - len(excluded)
     frame = pd.read_csv(ohlcv_csv, usecols=["ticker", "date", "close"])
     frame = frame[frame["date"].astype(str) == target_session]
     yahoo = {str(r.ticker).upper(): float(r.close) for r in frame.itertuples() if _finite(r.close)}
@@ -610,6 +656,8 @@ def compare_current_closes(
     return {
         "status": "READY" if len(values) / max(universe_count, 1) >= 0.95 else "PARTIAL",
         "compared": len(values), "coverage": len(values) / max(universe_count, 1),
+        "coverage_raw": len(values) / max(raw_universe_count, 1),
+        "untraded_exclusion": exclusion, "untraded_excluded": len(excluded),
         "median_absolute_deviation": float(np.median(values)) if values else None,
         "p95_absolute_deviation": float(np.quantile(values, .95)) if values else None,
         "over_3pct_count": sum(value > .03 for value in values),

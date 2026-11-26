@@ -29,6 +29,7 @@ from provider_inputs import (  # noqa: E402
     fetch_massive_reference,
     grouped_history_from_yahoo_ohlcv,
     load_massive_grouped_cache,
+    untraded_tickers,
     load_massive_reference_cache,
     record_grouped_fallback,
     secret_from_env,
@@ -723,9 +724,21 @@ def main() -> int:
         cross_vendor = {"status": "NOT_APPLICABLE", "coverage": None,
                         "reason": "Massive current-session grouped data unavailable"}
     else:
-        market_structure = compute_massive_market_structure(tickers, grouped, target_session=target)
+        compare_sessions = sorted(d for d in grouped if d <= target)[-2:]
+        untraded = untraded_tickers(work / "ohlcv.csv", grouped, tickers, compare_sessions)
+        market_structure = compute_massive_market_structure(
+            tickers, grouped, target_session=target, untraded=untraded,
+        )
         cross_vendor = compare_current_closes(
             work / "ohlcv.csv", grouped, target_session=target, universe_count=len(tickers),
+            untraded=untraded.get(target, []),
+        )
+        print(
+            "untraded (no Massive bar, no Yahoo volume): "
+            + ", ".join(f"{s} {len(v)}" for s, v in untraded.items())
+            + f"; structure coverage {market_structure['coverage']:.4f}"
+            f" (raw {market_structure['coverage_raw']:.4f}, exclusion {market_structure['untraded_exclusion']})",
+            flush=True,
         )
         if yahoo_stats.get("target_session_massive_substitute"):
             cross_vendor["massive_substitute_rows"] = yahoo_stats["target_session_massive_substitute"]

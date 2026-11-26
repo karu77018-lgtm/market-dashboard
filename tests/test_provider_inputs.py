@@ -12,10 +12,12 @@ from provider_inputs import (  # noqa: E402
     ProviderError,
     _get_json,
     _normalize_grouped_results,
+    compare_current_closes,
     compute_massive_market_structure,
     grouped_history_from_yahoo_ohlcv,
     select_preserved_count_fallback_universe,
     select_expanded_universe,
+    untraded_tickers,
 )
 
 
@@ -275,3 +277,51 @@ def test_prior_count_keeps_provisional_target(tmp_path):
     manifest.write_text(_json.dumps({"universe": {"active_universe": 3700},
                                      "provider_status": {"universe_target": 3968}}))
     assert rm.prior_universe_count(tmp_path, ["A"]) == 3700
+
+
+def _untraded_fixture(tmp_path):
+    # 40 names: 37 trade on both days at Massive; SPAC1/SPAC2 have no prints anywhere on
+    # the target day (Yahoo has no row / zero volume); GAP traded per Yahoo but Massive lacks it.
+    names = [f"T{i:02d}" for i in range(37)] + ["SPAC1", "SPAC2", "GAP"]
+    bar = {"c": 10.0, "h": 10.1, "l": 9.9, "v": 1000}
+    grouped = {
+        "2026-11-24": {t: bar for t in names[:37] + ["SPAC1", "GAP"]},
+        "2026-11-25": {t: bar for t in names[:37]},
+    }
+    rows = ["ticker,date,open,high,low,close,volume"]
+    for t in names[:37] + ["GAP"]:
+        rows += [f"{t},2026-11-24,10,10,10,10,1000", f"{t},2026-11-25,10,10,10,10,1000"]
+    rows += ["SPAC1,2026-11-24,10,10,10,10,500", "SPAC2,2026-11-25,10,10,10,10,0"]
+    csv = tmp_path / "ohlcv.csv"
+    csv.write_text("\n".join(rows) + "\n")
+    return names, grouped, csv
+
+
+def test_untraded_names_leave_structure_denominator(tmp_path):
+    names, grouped, csv = _untraded_fixture(tmp_path)
+    untraded = untraded_tickers(csv, grouped, names, ["2026-11-24", "2026-11-25"])
+    assert untraded["2026-11-25"] == ["SPAC1", "SPAC2"]
+    assert untraded["2026-11-24"] == ["SPAC2"]
+    result = compute_massive_market_structure(
+        names, grouped, target_session="2026-11-25", untraded=untraded,
+    )
+    assert result["untraded_exclusion"] == "applied"
+    assert result["untraded_excluded"] == 2
+    assert result["coverage_raw"] == pytest.approx(37 / 40)
+    # GAP is a real vendor gap and still counts against coverage.
+    assert result["coverage"] == pytest.approx(37 / 38)
+    cross = compare_current_closes(csv, grouped, target_session="2026-11-25",
+                                   universe_count=len(names), untraded=untraded["2026-11-25"])
+    assert cross["untraded_excluded"] == 2
+    assert cross["coverage"] == pytest.approx(37 / 38)
+
+
+def test_untraded_exclusion_capped_when_too_many_names_missing(tmp_path):
+    names, grouped, csv = _untraded_fixture(tmp_path)
+    untraded = {"2026-11-25": names[:10]}  # 25% of the universe: a data problem, not shells
+    result = compute_massive_market_structure(
+        names, grouped, target_session="2026-11-25", untraded=untraded,
+    )
+    assert result["untraded_exclusion"] == "skipped_over_cap"
+    assert result["untraded_excluded"] == 0
+    assert result["coverage"] == result["coverage_raw"]
