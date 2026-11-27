@@ -691,6 +691,6 @@
   "runs_per_ticker": 3,
   "schema_version": "jev-public-ranking-v1",
   "session_date": "2026-11-25",
-  "source_html_sha256": "c9d28615f16a674f1b35d9099df50609c5bd18e9b637ffe23df5af36557fec2f",
+  "source_html_sha256": "93c6978523d87d8f57bd70240e9e989e7a5f46838843ae0057fc318103c3297e",
   "status": "ready"
 }
