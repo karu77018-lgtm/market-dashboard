@@ -61,6 +61,17 @@ MAX_UDVR = 1.4
 UDVR_LEN = 50
 UD_FROM = "2026-11-24"
 UD_CHECK = "UD比1.4未満"
+# 2026-11-27: skip 本命 whose close is less than 2x the 52-week low (+100% off the low; Minervini's Trend
+# Template note "many of the best selections will be 100 percent ... above their 52-week low").
+# Local study (production engine, 3,828 chart tickers, 2015-01..2026-11-13, UD filter on): 72.2% -> 80.3% a year
+# (2015-20 56.9 -> 67.6, 2021-26 90.9 -> 96.0), max DD -30.4 -> -30.7; cuts +75%..+200% all better (75.6-81.9%).
+# Same-day same-count random keeps (20 draws, matching the time spent in stocks): 72.4-78.4% (median 75.6), so
+# about 3.4 points come from holding fewer stocks (more idle money in the TQQQ sleeve) and about 4.7 from the
+# selection.  Stocks alone: 22.0% either way (same return on less capital).  Per signal better in 6 of 11 years.
+# Breakout health keeps the unfiltered signals (as tested).
+MIN_ABOVE_LOW = 1.0
+LOW_FROM = "2026-11-27"
+LOW_CHECK = "安値から+100%以上"
 STOP = 0.08
 CORE_RISK = INITIAL_WEIGHT * STOP
 EP_RISK = 0.005
@@ -142,6 +153,10 @@ def _states(c: pd.DataFrame, h: pd.DataFrame, l: pd.DataFrame, v: pd.DataFrame) 
                 "prev_chg": chg.iloc[k - 1], "udvr": udvr.iloc[k],
                 # True = passes the up/down-volume check (missing data passes; from UD_FROM only)
                 "ud_ok": ~(udvr.iloc[k] >= MAX_UDVR) if str(c.index[k].date()) >= UD_FROM
+                else pd.Series(True, index=c.columns),
+                "above_low": last / lo252.iloc[k] - 1,
+                # True = at least +100% above the 52-week low (missing data passes; from LOW_FROM only)
+                "low_ok": ~(last / lo252.iloc[k] - 1 < MIN_ABOVE_LOW) if str(c.index[k].date()) >= LOW_FROM
                 else pd.Series(True, index=c.columns)}
 
     at.el21 = el21
@@ -459,6 +474,8 @@ def evaluate(frame: pd.DataFrame) -> dict:
     last, liquid, tt, chg = s["last"], s["liquid"], s["tt"], s["chg"]
     selected, timing, checks = s["selected"], s["timing"], s["checks"]
     ud_ok = s["ud_ok"].fillna(True).astype(bool)
+    low_ok = s["low_ok"].fillna(True).astype(bool)
+    extra_ok = ud_ok & low_ok
     s_day = str(c.index[-1].date())
 
     # Consecutive sessions meeting the selection rules (capped just above the stale threshold).
@@ -497,6 +514,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
                 "chg": float(st["chg"][t]), "prev_chg": float(st["prev_chg"][t]),
                 "ext10": float(st["ext10"][t]), "el21": float(st["el21"][t]),
                 "udvr": None if pd.isna(st["udvr"].get(t)) else float(st["udvr"][t]),
+                "above_low": None if pd.isna(st["above_low"].get(t)) else float(st["above_low"][t]),
                 "stop": px * (1 - STOP), "add": px * 1.10, "add2": px * 1.20, "be": px * 1.25,
                 **dict(zip(("sar_up", "sar_age"), sar_state(t)))}
 
@@ -526,7 +544,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
         return buyable({"inside": inside, "pos": pos, "sar_up": up})
 
     rank = lambda r: TIER_ORDER[tier(r)]
-    core = [row(t, s) for t in selected[selected & timing & ud_ok].index]
+    core = [row(t, s) for t in selected[selected & timing & extra_ok].index]
     core.sort(key=lambda r: (rank(r), not r["inside"], -r["rs189"]))
 
     # Late entries: signal 1-2 sessions ago, not re-signalled today, still near the signal close,
@@ -537,6 +555,7 @@ def evaluate(frame: pd.DataFrame) -> dict:
         past = state(-1 - lag)
         # the check follows the publication date: late entries listed from UD_FROM on are checked too
         past_ok = past["signal"] & (~(past["udvr"] >= MAX_UDVR) if s_day >= UD_FROM else True)
+        past_ok = past_ok & (~(past["above_low"] < MIN_ABOVE_LOW) if s_day >= LOW_FROM else True)
         for t in past_ok[past_ok].index:
             if t in seen or not bool(selected.get(t, False)) or not bool(nochase.get(t, False)):
                 continue
@@ -558,13 +577,15 @@ def evaluate(frame: pd.DataFrame) -> dict:
     late.sort(key=lambda r: (rank(r), r["lag"], -r["rs189"]))
 
     watch = []
-    for t in selected[selected & ~(timing & ud_ok)].index:
+    for t in selected[selected & ~(timing & extra_ok)].index:
         if t in seen:
             continue
         r = row(t, s)
         r["missing"] = [k for k, m in checks.items() if not bool(m.get(t, False))]
         if not bool(ud_ok.get(t, True)):
             r["missing"].append(UD_CHECK)
+        if not bool(low_ok.get(t, True)):
+            r["missing"].append(LOW_CHECK)
         watch.append(r)
     watch.sort(key=lambda r: (watch_bucket(r), rank(r), -r["rs189"]))
 
@@ -772,6 +793,8 @@ def _miss_label(name: str, r: dict) -> str:
         return f"10日線 {r['ext10'] * 100:+.2f}% → +12%以内"
     if name == UD_CHECK:
         return f"UD比 {_ratio(r['udvr'])} → 1.40未満"
+    if name == LOW_CHECK:
+        return f"52週安値から {r['above_low'] * 100:+.0f}% → +100%以上"
     return name
 
 
@@ -796,6 +819,8 @@ def _need(name: str, r: dict) -> str:
         return f"10日線 {r['ext10'] * 100:+.1f}% → +12%以内まで押し待ち"
     if name == UD_CHECK:
         return f"UD比 {_ratio(r['udvr'])} → 1.40未満（上昇日の出来高が多すぎる）"
+    if name == LOW_CHECK:
+        return f"52週安値から {r['above_low'] * 100:+.0f}% → +100%以上（底からの上げがまだ小さい）"
     return name
 
 
