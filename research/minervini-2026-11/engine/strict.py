@@ -1,0 +1,31 @@
+"""本命（UD比1.4未満）に、ミネルヴィニ文面の厳しいトレンド条件を足したときの本番エンジン成績。"""
+import os, subprocess, pandas as pd, numpy as np
+H,L,C=(pd.read_pickle(f'{k}.pkl').astype('float64') for k in ('high','low','close'))
+base=os.environ.get('BASE','honmei_ud.pkl')
+sig=pd.read_pickle(base); tick=sorted(set(sig.ticker)); H,L,C=H[tick],L[tick],C[tick]
+ma200=C.rolling(200).mean(); lo252=L.rolling(252,min_periods=200).min(); hi252=H.rolling(252,min_periods=200).max()
+newhi=(H>=hi252).astype(float)
+g=lambda P: np.array([P.at[d,t] for d,t in zip(sig.date,sig.ticker)])
+sig['above_low']=g(C/lo252-1)
+for n in (42,63,84,105,126): sig[f'up{n}']=g(ma200>ma200.shift(n))
+sig['up63s']=g((ma200>ma200.shift(21))&(ma200.shift(21)>ma200.shift(42))&(ma200.shift(42)>ma200.shift(63)))
+for w in (63,105,126,147,189): sig[f'nh{w}']=g(newhi.rolling(w,min_periods=1).max()>0)
+sig.to_pickle('sig_feat.pkl')
+cols=['date','ticker','rs189']
+def run(name,m):
+    sig[m][cols].to_pickle('sig_tmp.pkl')
+    o=subprocess.run(['python3','runall.py'],env={**os.environ,'SIG':'sig_tmp.pkl','NAME':f'{name} 残{m.mean()*100:.0f}%'},capture_output=True,text=True)
+    print(o.stdout.strip() or o.stderr[-400:],flush=True)
+T=np.ones(len(sig),bool)
+run('基準(今のルール)',T)
+print('-- 単独 --')
+run('200日線3か月上昇(21日刻み)',sig.up63s.astype(bool))
+run('52週安値から+100%',sig.above_low>=1.0)
+run('半年以内に52週高値更新',sig.nh126.astype(bool))
+run('文面3条件すべて',sig.up63s.astype(bool)&(sig.above_low>=1.0)&sig.nh126.astype(bool))
+print('-- 安値からの上昇率 --')
+for th in (0.5,0.75,1.0,1.25,1.5,2.0): run(f'安値から+{th*100:.0f}%以上',sig.above_low>=th)
+print('-- 200日線の上昇期間 --')
+for n in (42,63,84,105,126): run(f'200日線が{n}日前より上',sig[f'up{n}'].astype(bool))
+print('-- 新高値の期間 --')
+for w in (63,105,126,147,189): run(f'{w}日以内に52週高値',sig[f'nh{w}'].astype(bool))
