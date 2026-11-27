@@ -1,6 +1,7 @@
 # Minervini checks and "indicator-free" chart reading (2026-11-26..27, run locally)
 
-Kept: 本命 needs the close at least 2x the 52-week low (+100% off the low), live from the 2026-11-27 判定.
+Kept: 本命 needs the close at least 2x the 52-week low (+100% off the low), live from the 2026-11-27 判定, as a
+supporting (finishing) condition rather than a core one: small lift, and 99% of 2026 本命 pass it.
 Not kept: VCP rules as entry conditions, 200-day line rising 3 months, a new 52-week high within 6 months,
 more slots, and the chart-reading gauges below as stock signals.
 

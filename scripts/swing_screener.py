@@ -61,7 +61,7 @@ MAX_UDVR = 1.4
 UDVR_LEN = 50
 UD_FROM = "2026-11-24"
 UD_CHECK = "UD比1.4未満"
-# 2026-11-27: skip 本命 whose close is less than 2x the 52-week low (+100% off the low; Minervini's Trend
+# 2026-11-27 (supporting condition, not a core one): skip 本命 whose close is less than 2x the 52-week low (+100% off the low; Minervini's Trend
 # Template note "many of the best selections will be 100 percent ... above their 52-week low").
 # Local study (production engine, 3,828 chart tickers, 2015-01..2026-11-13, UD filter on): 72.2% -> 80.3% a year
 # (2015-20 56.9 -> 67.6, 2021-26 90.9 -> 96.0), max DD -30.4 -> -30.7; cuts +75%..+200% all better (75.6-81.9%).
