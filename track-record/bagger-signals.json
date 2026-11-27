@@ -24,7 +24,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 23.4,
-   "ret": 0.177
+   "ret": 0.2734
   },
   "2026-10-15:SG": {
    "ticker": "SG",
@@ -35,7 +35,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 13.36,
-   "ret": 0.084
+   "ret": 0.0745
   },
   "2026-10-20:BRZE": {
    "ticker": "BRZE",
@@ -46,7 +46,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 46.64,
-   "ret": 0.0184
+   "ret": 0.0206
   },
   "2026-10-21:APPN": {
    "ticker": "APPN",
@@ -56,8 +56,8 @@
    "rs": 98,
    "eps_state": "worse",
    "status": "保有中",
-   "peak": 55.58,
-   "ret": 0.1303
+   "peak": 56.13,
+   "ret": 0.1519
   },
   "2026-10-22:HURN": {
    "ticker": "HURN",
@@ -68,7 +68,7 @@
    "eps_state": "na",
    "status": "保有中",
    "peak": 198.48,
-   "ret": -0.0851
+   "ret": -0.0798
   },
   "2026-10-22:KSS": {
    "ticker": "KSS",
@@ -78,8 +78,8 @@
    "rs": 92,
    "eps_state": "worse",
    "status": "保有中",
-   "peak": 26.7,
-   "ret": 0.0775
+   "peak": 27.77,
+   "ret": 0.1207
   },
   "2026-10-23:INTA": {
    "ticker": "INTA",
@@ -90,7 +90,7 @@
    "eps_state": "worse",
    "status": "保有中",
    "peak": 47.99,
-   "ret": -0.0454
+   "ret": -0.0396
   },
   "2026-10-23:NTSK": {
    "ticker": "NTSK",
@@ -100,8 +100,8 @@
    "rs": 97,
    "eps_state": "better",
    "status": "保有中",
-   "peak": 26.52,
-   "ret": 0.089
+   "peak": 28.5,
+   "ret": 0.1738
   },
   "2026-10-28:ABSI": {
    "ticker": "ABSI",
@@ -125,7 +125,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 23.28,
-   "ret": 0.3493
+   "ret": 0.4004
   },
   "2026-11-05:CERT": {
    "ticker": "CERT",
@@ -136,7 +136,7 @@
    "eps_state": "better",
    "status": "保有中",
    "peak": 12.22,
-   "ret": -0.1141
+   "ret": -0.1002
   },
   "2026-11-06:U": {
    "ticker": "U",
@@ -147,7 +147,7 @@
    "eps_state": "turn",
    "status": "保有中",
    "peak": 52.81,
-   "ret": -0.0631
+   "ret": -0.0231
   },
   "2026-11-09:SDGR": {
    "ticker": "SDGR",
@@ -170,8 +170,8 @@
    "rs": 94,
    "eps_state": "better",
    "status": "保有中",
-   "peak": 59.83,
-   "ret": 0.012
+   "peak": 60.62,
+   "ret": 0.0339
   },
   "2026-11-17:SLS": {
    "ticker": "SLS",
@@ -194,8 +194,8 @@
    "rs": 91,
    "eps_state": "na",
    "status": "保有中",
-   "peak": 229.1,
-   "ret": 0.0341
+   "peak": 229.68,
+   "ret": 0.0367
   },
   "2026-11-24:VRDN": {
    "ticker": "VRDN",
@@ -205,8 +205,8 @@
    "rs": 94,
    "eps_state": "na",
    "status": "保有中",
-   "peak": 37.91,
-   "ret": 0.0619
+   "peak": 38.82,
+   "ret": 0.0874
   },
   "2026-11-25:VFC": {
    "ticker": "VFC",
@@ -216,7 +216,18 @@
    "rs": 91,
    "eps_state": "na",
    "status": "保有中",
-   "peak": 21.47,
+   "peak": 22.25,
+   "ret": 0.0363
+  },
+  "2026-11-27:RXO": {
+   "ticker": "RXO",
+   "session": "2026-11-27",
+   "entry": 29.47,
+   "depth": 0.3488,
+   "rs": 96,
+   "eps_state": "turn",
+   "status": "保有中",
+   "peak": 29.47,
    "ret": 0.0
   }
  }
